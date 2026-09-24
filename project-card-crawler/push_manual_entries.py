@@ -42,6 +42,12 @@ from push_client import push_projects
 
 
 def main() -> int:
+    # Windows' console defaults to cp1252, which can't encode Thai text —
+    # every payload here is Thai/English mixed, so printing it (--dry-run,
+    # rejection messages) needs an explicit UTF-8 stdout rather than
+    # crashing with UnicodeEncodeError mid-run.
+    sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description="Push manually-read _BID Project Card entries to expense-billing-app.")
     parser.add_argument("--entries", required=True, help="Path to a JSON file: a list of ProjectCardInput-shaped objects")
     parser.add_argument("--api-url", help="Ingest endpoint, e.g. https://psaidemo.icn21.local/api/project-card/ingest")

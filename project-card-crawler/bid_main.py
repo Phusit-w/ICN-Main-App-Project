@@ -44,6 +44,11 @@ def _project_to_dict(project) -> dict:
 
 
 def main() -> int:
+    # Windows' console defaults to cp1252, which can't encode Thai client/
+    # project names — printing the worklist would crash mid-run otherwise.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description="Discover _BID Project Card candidates on the PS share.")
     parser.add_argument("--ps-root", required=True, help=r"e.g. \\192.168.99.1\PS")
     parser.add_argument("--only-new", action="store_true", help="Skip projects that already have a card (needs --api-url/--api-key)")
