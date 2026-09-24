@@ -29,7 +29,7 @@ A short, AI-generated summary of what a project does, written in both Thai and E
 _Avoid_: Summary, abstract
 
 **Budget**:
-A project's monetary value, AI-extracted from its Work Certificate. When a project has no Work Certificate, the value stated in its Contract is used instead and the card labels the Budget's source as the Contract, so a certificate figure and a contract figure are never presented as the same kind of number. Left blank, never guessed, when no figure can be found in the source document. Carries an `unverified` flag until a person confirms it, and is never presented as authoritative before that.
+A project's monetary value, AI-extracted from its Work Certificate. When a project has no Work Certificate, the value stated in its Contract is used instead and the card labels the Budget's source as the Contract, so a certificate figure and a contract figure are never presented as the same kind of number. Left blank, never guessed, when no figure at all can be found in the source document. When the only figure found is a joint/combined total (e.g. a consortium's whole contract value) rather than ICN's own isolated share, that total is still used as the Budget — never left blank just because it isn't ICN-specific — with a Budget Note stating plainly that no ICN-only breakdown was found. Carries an `unverified` flag until a person confirms it, and is never presented as authoritative before that.
 _Avoid_: Cost, price, value
 
 **VAT Status**:
