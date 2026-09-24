@@ -88,6 +88,35 @@ class DiscoverBidProjectsTest(unittest.TestCase):
             self.assertEqual(len(result.projects), 1)
             self.assertEqual(len(result.projects[0].contract_candidates), 1)
 
+    def test_po_prefixed_filename_does_not_produce_a_fake_project_code(self):
+        # Real case: `PO-202510001.pdf`/`PO2401015 ...pdf` both matched the
+        # code pattern on "PO" + 3 digits, merging two unrelated projects
+        # (SM-001, EEC002) under one fake "PO202"/"PO240" code. The file
+        # falls back to its ancestor folder name instead once "PO" itself
+        # is excluded as a candidate prefix.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, ["00 Contract/SM/SM-001 ซ่อมไฟฟ้าส่องสว่าง BMA/PO-202510001.pdf"])
+            result = discover_bid_projects(bid)
+            self.assertNotIn("PO202", result.excluded_only_files)
+            self.assertIn("SM001", result.excluded_only_files)
+
+    def test_drops_po_file_even_when_underscore_adjacent(self):
+        # Real case: `00 Contract/ITNS/ITNS 002_PO from ITNS.pdf` — "PO" sits
+        # right against an underscore, which a naive \bpo\b regex misses
+        # since `_` counts as a word character.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, [
+                "00 Contract/ITNS/ITNS 002_PO from ITNS.pdf",
+                "00 Contract/ITNS/ITNS 002 สัญญา.pdf",
+            ])
+            result = discover_bid_projects(bid)
+            self.assertEqual(len(result.projects), 1)
+            self.assertEqual(len(result.projects[0].contract_candidates), 1)
+
     def test_drops_non_pdf_files_like_db_or_zip(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -130,6 +159,65 @@ class DiscoverBidProjectsTest(unittest.TestCase):
             result = discover_bid_projects(bid)
             self.assertEqual(len(result.projects), 1)
             self.assertEqual(result.projects[0].project_code, "TKC002")
+
+    def test_falls_back_through_multiple_ancestor_folders(self):
+        # Real case found by running discovery against the real share:
+        # `01 .../MEA/MEA006 DMS6/Old/สัญญาโครงการ DMS6 ....pdf` — the
+        # immediate parent is `Old`, not the project folder, so a single-
+        # level fallback missed it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, ["01 หนังสือรับรองผลงาน ICN/MEA/MEA006 DMS6/Old/สัญญาโครงการ DMS6.pdf"])
+            result = discover_bid_projects(bid)
+            self.assertEqual(len(result.projects), 1)
+            self.assertEqual(result.projects[0].project_code, "MEA006")
+
+    def test_code_with_a_space_between_prefix_and_number(self):
+        # Real case: `00 Contract/EEC/EEC 001 OFC_....pdf`.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, ["00 Contract/EEC/EEC 001 OFC_สกอ.pdf"])
+            result = discover_bid_projects(bid)
+            self.assertEqual(len(result.projects), 1)
+            self.assertEqual(result.projects[0].project_code, "EEC001")
+
+    def test_code_with_a_hyphen_between_prefix_and_number(self):
+        # Real case: `00 Contract/PEA/PEA-008 SDH 119 Nodes.pdf`.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, ["00 Contract/PEA/PEA-008 SDH 119 Nodes.pdf"])
+            result = discover_bid_projects(bid)
+            self.assertEqual(len(result.projects), 1)
+            self.assertEqual(result.projects[0].project_code, "PEA008")
+
+    def test_project_whose_only_file_is_excluded_is_reported_not_silently_dropped(self):
+        # Real case: `00 Contract/ITNS/ITNS 002_PO from ITNS.pdf` was
+        # ITNS002's only file — after the PO filter drops it, the project
+        # must still show up somewhere, not vanish from every result list.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, ["00 Contract/ITNS/ITNS002_PO from ITNS.pdf"])
+            result = discover_bid_projects(bid)
+            self.assertEqual(result.projects, [])
+            self.assertEqual(result.unmatched_files, [])
+            self.assertIn("ITNS002", result.excluded_only_files)
+            self.assertEqual(len(result.excluded_only_files["ITNS002"]), 1)
+
+    def test_project_with_a_surviving_candidate_is_not_reported_as_excluded_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, [
+                "00 Contract/ITNS/ITNS002_PO from ITNS.pdf",
+                "00 Contract/ITNS/ITNS002 สัญญา.pdf",
+            ])
+            result = discover_bid_projects(bid)
+            self.assertEqual(len(result.projects), 1)
+            self.assertEqual(result.excluded_only_files, {})
 
     def test_file_with_no_recognisable_project_code_is_reported_not_dropped(self):
         with tempfile.TemporaryDirectory() as tmp:

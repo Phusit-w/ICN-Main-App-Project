@@ -1,4 +1,4 @@
-"""CLI entry point for the `_BID` pipeline (PROJECT-CARD-BID-PIVOT-2026-09-
+r"""CLI entry point for the `_BID` pipeline (PROJECT-CARD-BID-PIVOT-2026-09-
 21.md) — replaces main.py/crawler.py's whole-archive crawl as Project
 Card's source. Run by hand from a machine with `PS` share access (see
 ../docs/adr/0005-project-card-push-based-ingest.md; this app's server can't
@@ -86,6 +86,16 @@ def main() -> int:
         )
         for path in result.unmatched_files:
             print(f"  {path}", file=sys.stderr)
+
+    if result.excluded_only_files:
+        print(
+            f"{len(result.excluded_only_files)} project code(s) had every file filtered out as an "
+            "attachment/appendix/PO name — no readable source, review by hand:",
+            file=sys.stderr,
+        )
+        for code, paths in sorted(result.excluded_only_files.items()):
+            for path in paths:
+                print(f"  {code}: {path}", file=sys.stderr)
 
     print(f"{len(projects)} project(s) to read.", file=sys.stderr)
     print(json.dumps([_project_to_dict(p) for p in projects], ensure_ascii=False, indent=2))
