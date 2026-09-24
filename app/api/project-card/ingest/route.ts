@@ -104,12 +104,31 @@ export async function POST(request: Request) {
           projectName: project.projectName,
           descriptionTh: preserveIfBlank(existing.descriptionTh, project.descriptionTh),
           descriptionEn: preserveIfBlank(existing.descriptionEn, project.descriptionEn),
-          contractPath: project.contractPath,
-          certificatePath: project.certificatePath,
-          vatStatus: project.vatStatus,
+          // Same reasoning as description/year above: a project read from
+          // only one document type this pass (see the pilot table in
+          // PROJECT-CARD-BID-PIVOT-2026-09-21.md — most projects have just
+          // one of Contract/Work Certificate read at a time) must not have
+          // the other document's already-recorded path erased.
+          contractPath: preserveIfNull(existing.contractPath, project.contractPath),
+          certificatePath: preserveIfNull(existing.certificatePath, project.certificatePath),
           budgetNote: preserveIfBlank(existing.budgetNote, project.budgetNote),
           year: preserveIfNull(existing.year, project.year),
-          ...(existing.budgetVerified ? {} : { budgetAmount: project.budgetAmount, budgetSource: project.budgetSource }),
+          // budgetAmount/budgetSource/vatStatus travel together as one unit
+          // (CONTEXT.md's Budget entry: a figure, where it came from, and
+          // its VAT status are never presented separately). Once a person
+          // has verified the number, a re-crawl must not change any of the
+          // three. Before verification, a null budgetAmount still must not
+          // clobber an earlier pass's reading — a project read from only
+          // one document type this pass (see the pilot table in
+          // PROJECT-CARD-BID-PIVOT-2026-09-21.md) can otherwise silently
+          // erase a budget an earlier, more complete push already found.
+          ...(existing.budgetVerified
+            ? {}
+            : {
+                budgetAmount: preserveIfNull(existing.budgetAmount?.toNumber() ?? null, project.budgetAmount),
+                budgetSource: preserveIfNull(existing.budgetSource, project.budgetSource),
+                vatStatus: preserveIfNull(existing.vatStatus, project.vatStatus),
+              }),
         },
       });
       updated++;
