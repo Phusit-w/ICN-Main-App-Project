@@ -271,31 +271,59 @@ model WorkerHeartbeat {
 }
 
 // See app/(app)/project-card/CONTEXT.md for the domain glossary. One row per
-// top-level project folder on the `PS` network share, pushed by an external
-// extraction script via an ingest API — this app's server has no network
-// path to the share itself (ADR 0005). `folderPath` is the natural key the
-// ingest upsert keys off; a full re-index re-pushes every still-present
-// project, so a card's `updatedAt` going stale is how a future stale-folder
+// signed-contract project under the `PS` share's `_BID` area, pushed by an
+// external extraction script via an ingest API — this app's server has no
+// network path to the share itself (ADR 0005). `projectCode` is the natural
+// key the ingest upsert keys off; a re-index re-pushes every still-present
+// project, so a card's `updatedAt` going stale is how a future stale-project
 // check would notice a project disappeared from the share (no explicit
 // deletion handling in v1). `budgetAmount` is an AI extraction and stays
 // `budgetVerified: false` until a person confirms it (never shown as
 // authoritative before that — see CONTEXT.md's Budget entry).
 model ProjectCard {
   id                 String    @id @default(cuid())
-  folderPath         String    @unique
+  // The client-prefixed sequence number (e.g. `NT004`, `PEA012`) that
+  // identifies a project across `_BID`'s Contract/Work Certificate
+  // collections — see CONTEXT.md's Project Code entry. Replaces the old
+  // full-archive crawl's folderPath as the card's identity, since a `_BID`
+  // project routinely has two paths (contract + certificate), not one.
+  projectCode        String    @unique
   client             String
   projectName        String
   // Bilingual so a query in either language can match (ADR: Project Card
   // plain full-text search — see docs/adr/0004).
   descriptionTh      String
   descriptionEn      String
+  // UNC path to the project's Contract / Work Certificate under `_BID`
+  // (CONTEXT.md's Folder Path entry: "a card carries up to two"). Either
+  // may be null when the project has no such document.
+  contractPath       String?
+  certificatePath    String?
   // THB. Decimal(15,2) rather than ExpenseRecord's (12,2): some USO/telecom
   // projects run into the billions.
   budgetAmount       Decimal?  @db.Decimal(15, 2)
+  // Which document the Budget figure came from — "certificate" when a Work
+  // Certificate exists (the authoritative source), "contract" when it was
+  // read from the Contract instead (CONTEXT.md's Budget entry: the card
+  // must label this so the two are never presented as the same kind of
+  // number). Null when there's no Budget figure at all.
+  budgetSource       String?
+  // As the source document states it — "included" | "excluded" |
+  // "unspecified" — never normalized across projects (CONTEXT.md's VAT
+  // Status entry).
+  vatStatus          String?
+  // Free text for what one number can't say: a joint-venture's total
+  // alongside the smaller share used as the Budget, subcontract context,
+  // or why no figure was found (CONTEXT.md's Budget Note entry). "" (not
+  // null) when there's nothing to add — same non-nullable-string
+  // convention as descriptionTh/descriptionEn above.
+  budgetNote         String    @default("")
   budgetVerified     Boolean   @default(false)
   budgetVerifiedAt   DateTime?
   budgetVerifiedById String?
   budgetVerifiedBy   User?     @relation("ProjectCardBudgetVerifier", fields: [budgetVerifiedById], references: [id], onDelete: SetNull)
+  // The year the project's Contract was signed (CONTEXT.md's Year entry) —
+  // not a delivery date or certificate issue date.
   year               Int?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

@@ -5,12 +5,25 @@ import type { ProjectCardInput } from "@/lib/project-card";
 
 export const runtime = "nodejs";
 
+// Reads that need share access run interactively (Claude-in-session reading
+// scanned PDFs — see PROJECT-CARD-BID-PIVOT-2026-09-21.md), so a crawl can
+// legitimately cover only some projects in one pass. A blank descriptionTh/
+// descriptionEn/year in this request must never erase a value an earlier,
+// more complete push already recorded.
+function preserveIfBlank(existing: string, incoming: string): string {
+  return incoming === "" ? existing : incoming;
+}
+
+function preserveIfNull<T>(existing: T | null, incoming: T | null): T | null {
+  return incoming === null ? existing : incoming;
+}
+
 // Pushed by the extraction script that crawls the `PS` share from a machine
 // that has access to it — this app's server doesn't (see
 // docs/adr/0005-project-card-push-based-ingest.md). One request represents
-// the crawler's full current view of the share: every still-present project
-// is re-sent every run, so a card the crawler stops sending simply stops
-// getting refreshed rather than being deleted (no explicit removal in v1).
+// the crawler's current view of some or all `_BID` projects: a project the
+// crawler stops sending simply stops getting refreshed rather than being
+// deleted (no explicit removal in v1).
 export async function POST(request: Request) {
   try {
     requireIngestKey(request);
@@ -34,13 +47,13 @@ export async function POST(request: Request) {
   }
 
   const validated: ProjectCardInput[] = [];
-  const errors: { folderPath?: string; message: string }[] = [];
+  const errors: { projectCode?: string; message: string }[] = [];
   for (const raw of projects) {
     try {
       validated.push(validateProjectCardInput(raw));
     } catch (error) {
-      const folderPath = typeof (raw as { folderPath?: unknown })?.folderPath === "string" ? ((raw as { folderPath: string }).folderPath) : undefined;
-      errors.push({ folderPath, message: error instanceof Error ? error.message : "Invalid record" });
+      const projectCode = typeof (raw as { projectCode?: unknown })?.projectCode === "string" ? (raw as { projectCode: string }).projectCode : undefined;
+      errors.push({ projectCode, message: error instanceof Error ? error.message : "Invalid record" });
     }
   }
 
@@ -52,25 +65,30 @@ export async function POST(request: Request) {
   let skippedVerifiedBudget = 0;
 
   // Prisma's interactive-transaction default timeout (5000ms) isn't enough
-  // once the batch is large: the real PS share crawl pushes ~205-210
-  // records in one request, each needing a findUnique + create/update round
-  // trip, which took just over 5s against this app's single-connection pool
+  // once the batch is large: the real PS share crawl pushes 100s of records
+  // in one request, each needing a findUnique + create/update round trip,
+  // which took just over 5s against this app's single-connection pool
   // (lib/prisma.ts's max: 1) and threw P2028 mid-run — found by testing
   // against the actual crawl output, not a hypothetical. 60s gives ample
   // headroom over today's real volume without over-provisioning for the
   // 5000-record defensive cap above, which isn't real expected load.
   await prisma.$transaction(async (tx) => {
     for (const project of validated) {
-      const existing = await tx.projectCard.findUnique({ where: { folderPath: project.folderPath } });
+      const existing = await tx.projectCard.findUnique({ where: { projectCode: project.projectCode } });
       if (!existing) {
         await tx.projectCard.create({
           data: {
-            folderPath: project.folderPath,
+            projectCode: project.projectCode,
             client: project.client,
             projectName: project.projectName,
             descriptionTh: project.descriptionTh,
             descriptionEn: project.descriptionEn,
+            contractPath: project.contractPath,
+            certificatePath: project.certificatePath,
             budgetAmount: project.budgetAmount,
+            budgetSource: project.budgetSource,
+            vatStatus: project.vatStatus,
+            budgetNote: project.budgetNote,
             year: project.year,
           },
         });
@@ -80,14 +98,18 @@ export async function POST(request: Request) {
 
       if (existing.budgetVerified) skippedVerifiedBudget++;
       await tx.projectCard.update({
-        where: { folderPath: project.folderPath },
+        where: { projectCode: project.projectCode },
         data: {
           client: project.client,
           projectName: project.projectName,
-          descriptionTh: project.descriptionTh,
-          descriptionEn: project.descriptionEn,
-          year: project.year,
-          ...(existing.budgetVerified ? {} : { budgetAmount: project.budgetAmount }),
+          descriptionTh: preserveIfBlank(existing.descriptionTh, project.descriptionTh),
+          descriptionEn: preserveIfBlank(existing.descriptionEn, project.descriptionEn),
+          contractPath: project.contractPath,
+          certificatePath: project.certificatePath,
+          vatStatus: project.vatStatus,
+          budgetNote: preserveIfBlank(existing.budgetNote, project.budgetNote),
+          year: preserveIfNull(existing.year, project.year),
+          ...(existing.budgetVerified ? {} : { budgetAmount: project.budgetAmount, budgetSource: project.budgetSource }),
         },
       });
       updated++;
@@ -95,4 +117,20 @@ export async function POST(request: Request) {
   }, { timeout: 60_000 });
 
   return NextResponse.json({ created, updated, skippedVerifiedBudget, rejected: errors.length, errors });
+}
+
+// Lets the crawler run in "only new projects" mode (PROJECT-CARD-BID-PIVOT
+// -2026-09-21.md's step before reading the full ~168-contract set): fetch
+// which Project Codes already have a card, then skip re-reading those
+// documents this pass. Same ingest key as POST — this is still crawler-to-
+// server traffic, not a browser request.
+export async function GET(request: Request) {
+  try {
+    requireIngestKey(request);
+  } catch {
+    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  const cards = await prisma.projectCard.findMany({ select: { projectCode: true } });
+  return NextResponse.json({ projectCodes: cards.map((c) => c.projectCode) });
 }

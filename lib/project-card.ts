@@ -28,13 +28,24 @@ export function requireIngestKey(request: Request): void {
 // request instead of a real crawl size.
 export const MAX_PROJECTS_PER_REQUEST = 5000;
 
+export type BudgetSource = "certificate" | "contract";
+export type VatStatus = "included" | "excluded" | "unspecified";
+
+const BUDGET_SOURCES: readonly BudgetSource[] = ["certificate", "contract"];
+const VAT_STATUSES: readonly VatStatus[] = ["included", "excluded", "unspecified"];
+
 export interface ProjectCardInput {
-  folderPath: string;
+  projectCode: string;
   client: string;
   projectName: string;
   descriptionTh: string;
   descriptionEn: string;
+  contractPath: string | null;
+  certificatePath: string | null;
   budgetAmount: number | null;
+  budgetSource: BudgetSource | null;
+  vatStatus: VatStatus | null;
+  budgetNote: string;
   year: number | null;
 }
 
@@ -43,7 +54,7 @@ function requireNonEmptyString(value: unknown, field: string): string {
   return value;
 }
 
-// Unlike client/projectName/folderPath (always known from the folder
+// Unlike client/projectName/projectCode (always known from the folder/file
 // structure itself), descriptions depend on an AI provider that starts
 // disabled by default (see project-card-crawler/ai_provider.py, mirroring
 // soc-worker/ai_provider.py's fail-closed pattern) — until one is approved
@@ -53,6 +64,12 @@ function requireNonEmptyString(value: unknown, field: string): string {
 function optionalString(value: unknown, field: string): string {
   if (value === undefined || value === null) return "";
   if (typeof value !== "string") throw new Error(`"${field}" must be a string`);
+  return value;
+}
+
+function nullableString(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || value.trim() === "") throw new Error(`"${field}" must be a non-empty string or null`);
   return value;
 }
 
@@ -66,11 +83,21 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
   if (typeof raw !== "object" || raw === null) throw new Error("Record must be an object");
   const r = raw as Record<string, unknown>;
 
-  const folderPath = requireNonEmptyString(r.folderPath, "folderPath");
+  const projectCode = requireNonEmptyString(r.projectCode, "projectCode");
   const client = requireNonEmptyString(r.client, "client");
   const projectName = requireNonEmptyString(r.projectName, "projectName");
   const descriptionTh = optionalString(r.descriptionTh, "descriptionTh");
   const descriptionEn = optionalString(r.descriptionEn, "descriptionEn");
+  const budgetNote = optionalString(r.budgetNote, "budgetNote");
+
+  const contractPath = nullableString(r.contractPath, "contractPath");
+  const certificatePath = nullableString(r.certificatePath, "certificatePath");
+  // A `_BID` project only exists because it appeared in the Contract or
+  // Work Certificate collection (see CONTEXT.md's Project Card entry) — a
+  // record with neither path isn't a project this context can source.
+  if (contractPath === null && certificatePath === null) {
+    throw new Error('at least one of "contractPath" or "certificatePath" is required');
+  }
 
   let budgetAmount: number | null = null;
   if (r.budgetAmount !== undefined && r.budgetAmount !== null) {
@@ -78,6 +105,30 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
       throw new Error('"budgetAmount" must be a non-negative number');
     }
     budgetAmount = r.budgetAmount;
+  }
+
+  let budgetSource: BudgetSource | null = null;
+  if (r.budgetSource !== undefined && r.budgetSource !== null) {
+    if (typeof r.budgetSource !== "string" || !BUDGET_SOURCES.includes(r.budgetSource as BudgetSource)) {
+      throw new Error(`"budgetSource" must be one of ${BUDGET_SOURCES.join(", ")}`);
+    }
+    budgetSource = r.budgetSource as BudgetSource;
+  }
+  // A Budget figure is only ever presented with the document it came from
+  // (CONTEXT.md's Budget entry) — the two travel together or not at all.
+  if (budgetAmount !== null && budgetSource === null) {
+    throw new Error('"budgetSource" is required when "budgetAmount" is present');
+  }
+  if (budgetAmount === null && budgetSource !== null) {
+    throw new Error('"budgetSource" must be null when "budgetAmount" is absent');
+  }
+
+  let vatStatus: VatStatus | null = null;
+  if (r.vatStatus !== undefined && r.vatStatus !== null) {
+    if (typeof r.vatStatus !== "string" || !VAT_STATUSES.includes(r.vatStatus as VatStatus)) {
+      throw new Error(`"vatStatus" must be one of ${VAT_STATUSES.join(", ")}`);
+    }
+    vatStatus = r.vatStatus as VatStatus;
   }
 
   let year: number | null = null;
@@ -88,5 +139,18 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     year = r.year as number;
   }
 
-  return { folderPath, client, projectName, descriptionTh, descriptionEn, budgetAmount, year };
+  return {
+    projectCode,
+    client,
+    projectName,
+    descriptionTh,
+    descriptionEn,
+    contractPath,
+    certificatePath,
+    budgetAmount,
+    budgetSource,
+    vatStatus,
+    budgetNote,
+    year,
+  };
 }

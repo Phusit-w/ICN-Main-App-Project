@@ -1,12 +1,12 @@
 # Project Card crawler
 
-Crawls the `PS` network share (`\\192.168.99.1\PS`) and pushes one **Project
-Card** per project folder found to `expense-billing-app`'s ingest API. Runs
-by hand, from a machine that has access to the share — the app's server
-doesn't (see `../docs/adr/0005-project-card-push-based-ingest.md`). See
+Since the 2026-09-21 pivot, Project Card's source is the `PS` share's
+`_BID` area (`00 Contract` + `01 หนังสือรับรองผลงาน ICN`) — signed-contract
+projects only, not the whole archive. See
 `../app/(app)/project-card/CONTEXT.md` for the domain glossary and
-`../../PROJECT-SEARCH-GRILL-2026-09-15.md` (repo root) for the full design
-history.
+`../../PROJECT-CARD-BID-PIVOT-2026-09-21.md` (repo root) for the pivot's
+full design history; `../../PROJECT-SEARCH-GRILL-2026-09-15.md` covers the
+original (now superseded) whole-archive design.
 
 ## Setup
 
@@ -15,17 +15,47 @@ cd "C:\Phusit\Claude Project\ICN Apps\expense-billing-app\project-card-crawler"
 python -m pip install -r requirements.txt
 ```
 
-## Run
+## The `_BID` workflow
+
+Nearly every PDF under `_BID` is a scanned image with no text layer (see the
+pivot doc's measured facts), so this isn't a fully unattended crawl like the
+old one was — reading a document's Budget/VAT/year/description needs a
+person or Claude reading the rendered pages in session. The pipeline splits
+into two steps because of that:
+
+**1. Discover** — pure filesystem/filename work, no document content read.
+Prints a JSON worklist of every Project Code found, with its candidate
+Contract/Certificate PDF paths (`bid_discovery.py`):
 
 ```powershell
-# Discover + summarize only, print the payload, push nothing:
-python main.py --ps-root "\\192.168.99.1\PS" --dry-run
+# Every _BID project:
+python bid_main.py --ps-root "\\192.168.99.1\PS"
 
-# Push for real:
-python main.py --ps-root "\\192.168.99.1\PS" `
+# Only projects that don't have a card yet:
+python bid_main.py --ps-root "\\192.168.99.1\PS" --only-new `
   --api-url https://psaidemo.icn21.local/api/project-card/ingest `
-  --api-key <PROJECT_CARD_INGEST_KEY> `
-  --insecure
+  --api-key <PROJECT_CARD_INGEST_KEY> --insecure
+```
+
+A project with more than one candidate document (a multi-version
+certificate, e.g. PEA012's plain/R1/DC-Part) is reported with every
+candidate — picking (or auto-picking a stated Superseding Version, see
+CONTEXT.md) is the reading step's job, never guessed here.
+
+**2. Read + push** — for each project in the worklist, read its candidate
+PDF(s) (render to PNG, e.g. with PyMuPDF, then read the image — see the
+pivot doc's "technical how-tos" for the exact method validated against the
+8-project pilot), build one JSON object per project in
+`lib/project-card.ts`'s `ProjectCardInput` shape, then push the finished
+batch:
+
+```powershell
+python push_manual_entries.py --entries entries.json `
+  --api-url https://psaidemo.icn21.local/api/project-card/ingest `
+  --api-key <PROJECT_CARD_INGEST_KEY> --insecure
+
+# Validate the file's shape without pushing:
+python push_manual_entries.py --entries entries.json --dry-run
 ```
 
 `--api-key` is set on the production Windows service's own environment
@@ -36,13 +66,22 @@ needed because `psaidemo.icn21.local` uses a self-signed cert (see its
 reverse-proxy setup in docs/DEPLOY-WINDOWS.md) — omit it if that ever
 changes to a real certificate.
 
-Re-index is a manual step for v1 (not scheduled) — see the grill doc's
-R4-Q1. Run it again whenever the share has new/changed projects worth
-reflecting; each run re-pushes every project it finds (upsert by
-`folderPath`), and never overwrites a budget a person has already verified
-in the app (see `../lib/project-card.ts`).
+Re-index is a manual step for v1 (not scheduled) — see the original grill
+doc's R4-Q1. Pushing again for a project that already has a card upserts it
+(keyed by `projectCode`) and never overwrites a budget a person has already
+verified in the app, or a non-blank description/year with a blank one from
+a partial re-read (see `../lib/project-card.ts` and the ingest route).
 
-## Known limitation: folder detection isn't perfect
+## Superseded: the whole-archive crawl (`main.py`, `crawler.py`, `discovery.py`)
+
+Pre-pivot, this crawled every `_Project *` folder on the whole share and
+used an AI provider (off by default) to read non-scanned text. Its ingest
+payload shape (`folderPath`, no Project Code) no longer matches the current
+API — every push from `main.py` today is rejected. Left in place untouched
+as a design record; see `PROJECT-CARD-BID-PIVOT-2026-09-21.md` for why the
+source changed.
+
+### Known limitation: folder detection isn't perfect
 
 `discovery.py` decides a folder is a project by looking for `_TOR`/
 `Proposal*`/etc. subfolders inside it (or an explicit year folder for
@@ -67,25 +106,22 @@ be a real project, there's no override list yet — add a case to
 `discovery.py`'s heuristic (and a test in `test_discovery.py`) once a
 pattern emerges, rather than hand-editing one-off exceptions.
 
-## AI summarization is off by default
+### AI summarization was off by default
 
 `ai_provider.py` mirrors `../soc-worker/ai_provider.py`'s fail-closed
-pattern exactly: `build_provider()` always returns `DisabledProvider`,
-which never sends document text anywhere and produces no summary. Every
-card pushed today has blank `descriptionTh`/`descriptionEn`/`budgetAmount`
-unless a person fills them in by hand in the app — `client`/`projectName`/
-`folderPath`/`year` (when derivable from the folder structure) are still
-populated, since those never depend on AI. Wiring up a real provider is a
-separate, deliberate decision (see the SOC precedent for why this defaults
-closed) — implement `ProjectCardAiProvider.summarize` and update
-`build_provider()` when one is approved.
+pattern exactly: `build_provider()` always returns `DisabledProvider`. This
+belonged to the whole-archive pipeline's automated read; the `_BID`
+pipeline reads scanned documents a different way (Claude in session — see
+above), so this module isn't part of the current workflow.
 
 ## Tests
 
 ```powershell
-python -m unittest test_discovery test_extract_text test_crawler -v
+python -m unittest test_bid_discovery test_discovery test_extract_text test_crawler -v
 ```
 
-All pure-logic (folder detection, text extraction, payload building) — no
-live share or server needed. `discovery.py`'s heuristic has additionally
-been spot-checked against the real share; see "Known limitation" above.
+All pure-logic (Project Code/document matching, folder detection, text
+extraction, payload building) — no live share or server needed.
+`bid_discovery.py`'s and `discovery.py`'s heuristics have additionally been
+spot-checked against the real share; see "Known limitation" above and
+`PROJECT-CARD-BID-PIVOT-2026-09-21.md`'s measured facts.

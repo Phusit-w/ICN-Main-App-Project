@@ -1,4 +1,13 @@
-"""CLI entry point — run by hand from a machine with access to the `PS`
+"""SUPERSEDED as of the 2026-09-21 `_BID` pivot — see bid_main.py instead.
+This whole-archive crawl's payload shape (`folderPath`, no Project Code)
+no longer matches the ingest API (lib/project-card.ts's ProjectCardInput
+now requires `projectCode` and at least one of `contractPath`/
+`certificatePath`); every push from this script will be rejected. Left in
+place, untouched, as a record of the pre-pivot design — see
+PROJECT-CARD-BID-PIVOT-2026-09-21.md (repo root) for why the source
+changed from the whole `PS` archive to just `_BID`'s two collections.
+
+CLI entry point — run by hand from a machine with access to the `PS`
 share (see ../docs/adr/0005-project-card-push-based-ingest.md; this app's
 server can't reach it). Manual trigger for v1, not scheduled — see
 PROJECT-SEARCH-GRILL-2026-09-15.md's R4-Q1.

@@ -48,6 +48,7 @@ export default async function ProjectCardPage({
   if (query) {
     filters.push({
       OR: [
+        { projectCode: { contains: query, mode: "insensitive" } },
         { client: { contains: query, mode: "insensitive" } },
         { projectName: { contains: query, mode: "insensitive" } },
         { descriptionTh: { contains: query, mode: "insensitive" } },
@@ -141,10 +142,11 @@ export default async function ProjectCardPage({
               <li key={card.id} className="flex flex-col gap-3 px-5 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-chip px-3 py-1 text-xs font-medium text-label">
-                        {card.client}
+                        {card.projectCode}
                       </span>
+                      <span className="text-xs text-muted">{card.client}</span>
                       {card.year ? <span className="text-xs text-muted">ปี {card.year}</span> : null}
                     </div>
                     <div className="mt-1 font-display text-lg font-semibold text-ink">{card.projectName}</div>
@@ -153,6 +155,9 @@ export default async function ProjectCardPage({
                     id={card.id}
                     budgetAmount={card.budgetAmount ? card.budgetAmount.toString() : null}
                     budgetVerified={card.budgetVerified}
+                    budgetSource={card.budgetSource}
+                    vatStatus={card.vatStatus}
+                    budgetNote={card.budgetNote}
                   />
                 </div>
 
@@ -165,11 +170,25 @@ export default async function ProjectCardPage({
                   <p className="text-sm text-muted">ยังไม่มีคำอธิบาย (รอ AI สรุป หรือกรอกเอง)</p>
                 )}
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <code className="flex-1 truncate rounded-input bg-chip px-3 py-2 text-xs text-muted">
-                    {card.folderPath}
-                  </code>
-                  <CopyButton value={card.folderPath} label="คัดลอกพาธ" />
+                <div className="flex flex-col gap-2">
+                  {card.contractPath ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted">สัญญา</span>
+                      <code className="flex-1 truncate rounded-input bg-chip px-3 py-2 text-xs text-muted">
+                        {card.contractPath}
+                      </code>
+                      <CopyButton value={card.contractPath} label="คัดลอกพาธ" />
+                    </div>
+                  ) : null}
+                  {card.certificatePath ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted">หนังสือรับรอง</span>
+                      <code className="flex-1 truncate rounded-input bg-chip px-3 py-2 text-xs text-muted">
+                        {card.certificatePath}
+                      </code>
+                      <CopyButton value={card.certificatePath} label="คัดลอกพาธ" />
+                    </div>
+                  ) : null}
                 </div>
               </li>
             ))}
