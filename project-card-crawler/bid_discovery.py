@@ -142,13 +142,18 @@ def discover_bid_projects(bid_root: Path) -> BidDiscoveryResult:
     ):
         for path in _iter_pdf_files(collection_root):
             client = path.relative_to(collection_root).parts[0]
-            # The code usually lives in the filename; when a project keeps
-            # its files in their own subfolder (or nested subfolders)
-            # instead, fall back to those ancestor folder names — never the
-            # client folder itself.
-            code = _extract_project_code(path.name)
+            # A project's own subfolder name (when one exists between the
+            # file and the client folder) wins over the filename: real
+            # filenames often carry an internal document/reference number
+            # that happens to match the code shape but names something
+            # else entirely — e.g. `SVOA/SVOA009 .../SGP251009015(...).pdf`,
+            # where "SGP251" is a contract reference number, not SVOA009's
+            # Project Code. Found running discovery against the real share.
+            # Only when no ancestor folder yields a code (the file sits
+            # directly in the client folder) does the filename get tried.
+            code = _fallback_code_from_ancestors(path, collection_root / client)
             if code is None:
-                code = _fallback_code_from_ancestors(path, collection_root / client)
+                code = _extract_project_code(path.name)
             if code is None:
                 unmatched.append(path)
                 continue

@@ -88,6 +88,19 @@ class DiscoverBidProjectsTest(unittest.TestCase):
             self.assertEqual(len(result.projects), 1)
             self.assertEqual(len(result.projects[0].contract_candidates), 1)
 
+    def test_project_subfolder_name_wins_over_a_reference_number_in_the_filename(self):
+        # Real case: `SVOA/SVOA009 MA .../SGP251009015(...).pdf` — the
+        # filename's "SGP251" is a contract reference number matching the
+        # code shape by coincidence, but the real Project Code (SVOA009)
+        # lives in the project's own subfolder name.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bid = _bid_root(root)
+            _make_files(bid, ["00 Contract/SVOA/SVOA009 MA เน็ทประชารัฐ/SGP251009015(บริษัท).pdf"])
+            result = discover_bid_projects(bid)
+            self.assertEqual(len(result.projects), 1)
+            self.assertEqual(result.projects[0].project_code, "SVOA009")
+
     def test_po_prefixed_filename_does_not_produce_a_fake_project_code(self):
         # Real case: `PO-202510001.pdf`/`PO2401015 ...pdf` both matched the
         # code pattern on "PO" + 3 digits, merging two unrelated projects
