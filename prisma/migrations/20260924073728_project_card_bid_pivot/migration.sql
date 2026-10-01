@@ -1,3 +1,9 @@
+-- The old archive-crawl cards are replaced wholesale by the _BID cards, not
+-- migrated: they have no Project Code, and "projectCode" below is NOT NULL.
+-- deploy/windows/update.ps1 takes a pg_dump before migrating, so they stay
+-- recoverable from that backup.
+DELETE FROM "ProjectCard";
+
 -- DropIndex
 DROP INDEX "ProjectCard_folderPath_key";
 
