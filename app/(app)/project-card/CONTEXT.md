@@ -1,6 +1,6 @@
 # Project Card
 
-This context catalogs the company's **signed-contract projects** into searchable summary records, so a project can be found by what it is and what it cost without browsing folders or opening files by hand. Its sources are the `Contract` and `Work Certificate` collections under the `PS` share's `_BID` area; the wider project archive is no longer a source.
+This context catalogs the company's **signed-contract projects** into searchable summary records, so a project can be found by what it is and what it cost without browsing folders or opening files by hand. Its sources are the `Contract` and `Work Certificate` collections under the `PS` share's `_BID` area; the wider project archive is consulted only for a project's TOR, to write its Description.
 
 ## Language
 
@@ -21,12 +21,28 @@ The letter (หนังสือรับรองผลงาน) issued by th
 _Avoid_: Reference letter, completion letter
 
 **Client**:
-The organization a project was done for, derived from the project's position in the share's folder hierarchy — always the party ICN directly contracted with, even on a subcontract where the work ultimately serves a different beneficiary through that party (e.g. Client `TKC` on a project performed for NBTC's benefit). The beneficiary still belongs in the Project Card's project name, so a search for either party finds the card.
-_Avoid_: Customer, organization, end beneficiary
+The organization a project's work was ultimately done for (its end owner), as an English code. On a subcontract, the party ICN directly contracted with follows in parentheses — e.g. `NBTC (TKC)`, `PEA (BBTEC)` — so a search or filter on either finds the card. When the end owner is unknown, the direct contracting party stands alone.
+_Avoid_: Customer, organization, beneficiary
 
 **Description**:
-A short, AI-generated summary of what a project does, written in both Thai and English so a query in either language can match. Editable by hand after generation. Blank (not an error) until an AI provider is approved and wired up — the crawler ships with one disabled by default, same fail-closed convention as SOC's document analysis.
-_Avoid_: Summary, abstract
+A short summary of a project's type of work and main system (e.g. "Teleprotection installation between substations A–B"), written in both Thai and English with the synonyms a user is likely to search for, so a query in either language can match. It is not a list of every work item; those are carried by Tags. Editable by hand. Always labelled with its Description Source.
+_Avoid_: Summary, abstract, scope
+
+**Description Source**:
+Which material a Description was written from, in order of preference: the project's TOR, else its Contract, else only the project name and the card's own fields. Labelled on the card so a name-only Description is never mistaken for one read from documents.
+_Avoid_: Origin
+
+**TOR**:
+The client's terms of reference (ขอบเขตของงาน) for a project, found in that project's folder in the wider project archive, not under `_BID`. Used only as a Description Source; never a source of Budget.
+_Avoid_: Spec, requirements, proposal
+
+**Category**:
+The single main kind of work a project is, chosen from a fixed company list (e.g. Fiber Optic, Teleprotection, IP Network, Microwave/Radio). Every card has exactly one, so projects can be counted and grouped without overlap.
+_Avoid_: Type, group, project type
+
+**Tag**:
+Any further kind of work a project includes besides its Category, from the same fixed list (e.g. a Fiber Optic project that also carries MA). A card has zero or more.
+_Avoid_: Label, keyword, sub-category
 
 **Budget**:
 A project's monetary value, AI-extracted from its Work Certificate. When a project has no Work Certificate, the value stated in its Contract is used instead and the card labels the Budget's source as the Contract, so a certificate figure and a contract figure are never presented as the same kind of number. Left blank, never guessed, when no figure at all can be found in the source document. When the only figure found is a joint/combined total (e.g. a consortium's whole contract value) rather than ICN's own isolated share, that total is still used as the Budget — never left blank just because it isn't ICN-specific — with a Budget Note stating plainly that no ICN-only breakdown was found. Carries an `unverified` flag until a person confirms it, and is never presented as authoritative before that.
