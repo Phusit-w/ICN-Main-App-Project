@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import CopyButton from "@/components/CopyButton";
 import CommaNumberInput, { withCommas } from "@/components/CommaNumberInput";
 import { fmt } from "@/lib/format";
+import { CATEGORIES, categoryLabel } from "@/lib/project-card-taxonomy";
 
 export type ProjectCardRow = {
   id: string;
@@ -23,6 +24,8 @@ export type ProjectCardRow = {
   budgetNote: string;
   budgetVerified: boolean;
   year: number | null;
+  category: string | null;
+  tags: string[];
 };
 
 const VAT_LABEL: Record<string, string> = {
@@ -67,7 +70,14 @@ export default function ProjectCardList({ cards }: { cards: ProjectCardRow[] }) 
             >
               <span className="min-w-0">
                 <span className="block font-medium leading-snug text-ink">{card.projectName}</span>
-                <span className="mt-0.5 block text-xs text-muted">{card.projectCode}</span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  {card.projectCode}
+                  {card.category ? (
+                    <span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">
+                      {categoryLabel(card.category)}
+                    </span>
+                  ) : null}
+                </span>
               </span>
               <span className="hidden text-sm text-label md:block">{card.client}</span>
               <span className="hidden text-sm text-label md:block">{card.year ?? "-"}</span>
@@ -95,6 +105,8 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
   const [description, setDescription] = useState(card.descriptionTh);
   const [note, setNote] = useState(card.budgetNote);
   const [budget, setBudget] = useState(card.budgetAmount ?? "");
+  const [category, setCategory] = useState(card.category ?? "");
+  const [tags, setTags] = useState<string[]>(card.tags);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -102,7 +114,13 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
     setDescription(card.descriptionTh);
     setNote(card.budgetNote);
     setBudget(card.budgetAmount ?? "");
+    setCategory(card.category ?? "");
+    setTags(card.tags);
     setError(null);
+  }
+
+  function toggleTag(value: string) {
+    setTags((prev) => (prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]));
   }
 
   function save() {
@@ -119,6 +137,10 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
           descriptionTh: description,
           budgetNote: note,
           ...(parsed !== original ? { budgetAmount: parsed } : {}),
+          category: category || null,
+          // A Tag equal to the Category is redundant (and rejected), so it's
+          // dropped rather than blocking the save.
+          tags: tags.filter((t) => t !== category),
         });
         setEditing(false);
         setError(null);
@@ -138,7 +160,7 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
     });
   }
 
-  const tags = [
+  const budgetChips = [
     card.budgetSource ? SOURCE_LABEL[card.budgetSource] ?? card.budgetSource : null,
     card.vatStatus ? VAT_LABEL[card.vatStatus] ?? card.vatStatus : null,
   ].filter(Boolean);
@@ -195,9 +217,9 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
                 ) : null}
               </div>
             )}
-            {tags.length ? (
+            {budgetChips.length ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {tags.map((t) => (
+                {budgetChips.map((t) => (
                   <span key={t} className="rounded-full bg-chip px-2 py-0.5 text-xs text-muted">
                     {t}
                   </span>
@@ -209,6 +231,64 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
                 แก้งบเป็น {budget ? withCommas(budget) : "ว่าง"} — เมื่อบันทึกจะนับเป็นงบที่ยืนยันแล้ว
               </p>
             ) : null}
+          </Section>
+
+          <Section label="หมวดหมู่">
+            {editing ? (
+              <div className="flex flex-col gap-3">
+                <select
+                  aria-label="หมวดหลัก"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  disabled={pending}
+                  className="h-11 w-full max-w-xs rounded-field border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-ink"
+                >
+                  <option value="">— ยังไม่ระบุหมวด —</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.en} · {c.th}
+                    </option>
+                  ))}
+                </select>
+                <div>
+                  <div className="mb-1.5 text-xs text-muted">แท็ก (งานเทคโนโลยีอื่นในโครงการ)</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CATEGORIES.filter((c) => c.value !== category).map((c) => {
+                      const on = tags.includes(c.value);
+                      return (
+                        <button
+                          key={c.value}
+                          type="button"
+                          aria-pressed={on}
+                          disabled={pending}
+                          onClick={() => toggleTag(c.value)}
+                          className={`ui-btn rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                            on ? "border-ink bg-ink text-surface" : "border-line bg-surface text-label hover:bg-hover"
+                          }`}
+                        >
+                          {c.en}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : card.category || card.tags.length ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {card.category ? (
+                  <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs font-medium text-surface">
+                    {categoryLabel(card.category)}
+                  </span>
+                ) : null}
+                {card.tags.map((t) => (
+                  <span key={t} className="rounded-full bg-chip px-2 py-0.5 text-xs text-muted">
+                    {categoryLabel(t)}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">ยังไม่ระบุหมวด</p>
+            )}
           </Section>
 
           <Section label="รายละเอียดโครงการ">

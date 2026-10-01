@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
 import ProjectCardList from "@/components/ProjectCardList";
 import { CommaNumberField } from "@/components/CommaNumberInput";
+import { CATEGORIES, isCategory, matchCategories } from "@/lib/project-card-taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -48,12 +49,28 @@ function clientOptions(rows: { client: string; _count: number }[]): [string, num
 export default async function ProjectCardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; client?: string; year?: string; budgetMin?: string; budgetMax?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    client?: string;
+    category?: string;
+    year?: string;
+    budgetMin?: string;
+    budgetMax?: string;
+  }>;
 }) {
   await requireActor();
-  const { q, client: clientParam, year: yearParam, budgetMin: budgetMinParam, budgetMax: budgetMaxParam } = await searchParams;
+  const {
+    q,
+    client: clientParam,
+    category: categoryParam,
+    year: yearParam,
+    budgetMin: budgetMinParam,
+    budgetMax: budgetMaxParam,
+  } = await searchParams;
   const query = q?.trim() ?? "";
   const client = clientParam?.trim() ?? "";
+  // An unknown value (stale link, hand-edited URL) is ignored, not a 500.
+  const category = isCategory(categoryParam) ? categoryParam : "";
   const year = parseIntParam(yearParam);
   // The budget filter is typed in millions of baht (ล้านบาท) so users enter
   // "10" rather than "10000000"; the DB still stores full baht.
@@ -62,6 +79,7 @@ export default async function ProjectCardPage({
   const toBaht = (millions: number) => Math.round(millions * 1_000_000);
 
   const filters: Prisma.ProjectCardWhereInput[] = [];
+  const matchedCategories = matchCategories(query);
   if (query) {
     filters.push({
       OR: [
@@ -70,6 +88,11 @@ export default async function ProjectCardPage({
         { projectName: { contains: query, mode: "insensitive" } },
         { descriptionTh: { contains: query, mode: "insensitive" } },
         { descriptionEn: { contains: query, mode: "insensitive" } },
+        // A query naming a technology area ("fiber", "ใยแก้ว") also finds
+        // cards with that Category or Tag — see lib/project-card-taxonomy.ts.
+        ...(matchedCategories.length
+          ? [{ category: { in: matchedCategories } }, { tags: { hasSome: matchedCategories } }]
+          : []),
       ],
     });
   }
@@ -86,11 +109,12 @@ export default async function ProjectCardPage({
       ],
     });
   }
+  if (category) filters.push({ category });
   if (year !== undefined) filters.push({ year });
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
 
-  const [cards, availableYears, availableClients] = await Promise.all([
+  const [cards, availableYears, availableClients, categoryCounts] = await Promise.all([
     prisma.projectCard.findMany({
       where: filters.length ? { AND: filters } : undefined,
       // Stable order (not updatedAt) so saving an edit in the popup doesn't
@@ -108,14 +132,20 @@ export default async function ProjectCardPage({
       _count: true,
       orderBy: { client: "asc" },
     }),
+    prisma.projectCard.groupBy({
+      by: ["category"],
+      where: { category: { not: null } },
+      _count: true,
+    }),
   ]);
+  const countByCategory = new Map(categoryCounts.map((row) => [row.category, row._count]));
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
         <p className="mt-1 text-sm text-muted">
-          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
+          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
           <code className="text-xs">_BID</code>
         </p>
       </div>
@@ -144,6 +174,24 @@ export default async function ProjectCardPage({
               <option key={c} value={c} label={`${count.toLocaleString("th-TH")} โครงการ`} />
             ))}
           </datalist>
+        </div>
+        <div className="w-[190px]">
+          <label htmlFor="project-card-category" className="mb-1.5 block text-[13px] font-medium text-label">
+            หมวดหมู่
+          </label>
+          <select
+            id="project-card-category"
+            name="category"
+            defaultValue={category}
+            className="h-[52px] w-full rounded-field border border-line bg-surface px-3 text-sm"
+          >
+            <option value="">ทุกหมวด</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.en} ({(countByCategory.get(c.value) ?? 0).toLocaleString("th-TH")})
+              </option>
+            ))}
+          </select>
         </div>
         <div className="w-[120px]">
           <label className="mb-1.5 block text-[13px] font-medium text-label">ปี</label>
@@ -203,6 +251,8 @@ export default async function ProjectCardPage({
               budgetNote: card.budgetNote,
               budgetVerified: card.budgetVerified,
               year: card.year,
+              category: card.category,
+              tags: card.tags,
             }))}
           />
         ) : (

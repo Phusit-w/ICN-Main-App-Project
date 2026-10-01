@@ -18,6 +18,17 @@ function preserveIfNull<T>(existing: T | null, incoming: T | null): T | null {
   return incoming === null ? existing : incoming;
 }
 
+// Category and Tags each preserve-if-blank, then a Tag that ended up equal
+// to the (possibly preserved) Category is dropped, so the two never overlap.
+function mergeClassification(
+  existing: { category: string | null; tags: string[] },
+  incoming: Pick<ProjectCardInput, "category" | "tags">,
+): { category: string | null; tags: string[] } {
+  const category = preserveIfNull(existing.category, incoming.category);
+  const tags = incoming.tags.length > 0 ? incoming.tags : existing.tags;
+  return { category, tags: tags.filter((t) => t !== category) };
+}
+
 // Pushed by the extraction script that crawls the `PS` share from a machine
 // that has access to it — this app's server doesn't (see
 // docs/adr/0005-project-card-push-based-ingest.md). One request represents
@@ -63,6 +74,9 @@ export async function POST(request: Request) {
   // CONTEXT.md's Budget entry ("never shown as authoritative before [a
   // person confirms it]"). Re-crawls still refresh the rest of the card.
   let skippedVerifiedBudget = 0;
+  // Same rule for Category/Tags a person set in the popup (CONTEXT.md's
+  // Description Source entry: person edits are never overwritten).
+  let skippedPersonClassification = 0;
 
   // Prisma's interactive-transaction default timeout (5000ms) isn't enough
   // once the batch is large: the real PS share crawl pushes 100s of records
@@ -90,6 +104,8 @@ export async function POST(request: Request) {
             vatStatus: project.vatStatus,
             budgetNote: project.budgetNote,
             year: project.year,
+            category: project.category,
+            tags: project.tags,
           },
         });
         created++;
@@ -97,6 +113,8 @@ export async function POST(request: Request) {
       }
 
       if (existing.budgetVerified) skippedVerifiedBudget++;
+      const sendsClassification = project.category !== null || project.tags.length > 0;
+      if (existing.classificationEditedByPerson && sendsClassification) skippedPersonClassification++;
       await tx.projectCard.update({
         where: { projectCode: project.projectCode },
         data: {
@@ -129,13 +147,23 @@ export async function POST(request: Request) {
                 budgetSource: preserveIfNull(existing.budgetSource, project.budgetSource),
                 vatStatus: preserveIfNull(existing.vatStatus, project.vatStatus),
               }),
+          // Absent Category/Tags never erase what an earlier batch recorded;
+          // a classification a person edited is never touched at all.
+          ...(existing.classificationEditedByPerson ? {} : mergeClassification(existing, project)),
         },
       });
       updated++;
     }
   }, { timeout: 60_000 });
 
-  return NextResponse.json({ created, updated, skippedVerifiedBudget, rejected: errors.length, errors });
+  return NextResponse.json({
+    created,
+    updated,
+    skippedVerifiedBudget,
+    skippedPersonClassification,
+    rejected: errors.length,
+    errors,
+  });
 }
 
 // Lets the crawler run in "only new projects" mode (PROJECT-CARD-BID-PIVOT

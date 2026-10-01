@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireActor } from "@/lib/authorization";
+import { validateClassification } from "@/lib/project-card";
 
 // Confirms (and optionally corrects) an AI-extracted budget — see
 // app/(app)/project-card/CONTEXT.md's Budget entry. Once verified, a
@@ -34,9 +35,18 @@ const MAX_TEXT_LENGTH = 5000;
 // when the user actually changed the number — a hand-entered figure counts
 // as a person confirming it, same as verifyProjectCardBudget. Leaving it
 // undefined keeps the existing budget and its verified/unverified state.
+// Category/Tags are compared with what's stored: only an actual change
+// marks the classification as edited by a person, after which a push never
+// overwrites it (CONTEXT.md's Description Source entry).
 export async function updateProjectCardDetails(
   id: string,
-  input: { descriptionTh: string; budgetNote: string; budgetAmount?: number | null },
+  input: {
+    descriptionTh: string;
+    budgetNote: string;
+    budgetAmount?: number | null;
+    category?: string | null;
+    tags?: string[];
+  },
 ): Promise<void> {
   const actor = await requireActor();
   const descriptionTh = input.descriptionTh.trim();
@@ -48,11 +58,21 @@ export async function updateProjectCardDetails(
   if (budgetAmount !== undefined && budgetAmount !== null && (!Number.isFinite(budgetAmount) || budgetAmount < 0)) {
     throw new Error("จำนวนงบประมาณไม่ถูกต้อง");
   }
+  let classification = {};
+  if (input.category !== undefined || input.tags !== undefined) {
+    const next = validateClassification(input.category, input.tags);
+    const existing = await prisma.projectCard.findUniqueOrThrow({ where: { id }, select: { category: true, tags: true } });
+    const sameTags = existing.tags.length === next.tags.length && next.tags.every((t) => existing.tags.includes(t));
+    if (existing.category !== next.category || !sameTags) {
+      classification = { category: next.category, tags: next.tags, classificationEditedByPerson: true };
+    }
+  }
   await prisma.projectCard.update({
     where: { id },
     data: {
       descriptionTh,
       budgetNote,
+      ...classification,
       ...(budgetAmount === undefined
         ? {}
         : { budgetAmount, budgetVerified: true, budgetVerifiedAt: new Date(), budgetVerifiedById: actor.id }),

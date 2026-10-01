@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { CATEGORIES, isCategory, type CategoryValue } from "@/lib/project-card-taxonomy";
 
 // Project Card ingest has no browser session to check — the extraction
 // script that crawls the `PS` share runs off this app's server entirely
@@ -47,6 +48,8 @@ export interface ProjectCardInput {
   vatStatus: VatStatus | null;
   budgetNote: string;
   year: number | null;
+  category: CategoryValue | null;
+  tags: CategoryValue[];
 }
 
 function requireNonEmptyString(value: unknown, field: string): string {
@@ -152,5 +155,32 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     vatStatus,
     budgetNote,
     year,
+    ...validateClassification(r.category, r.tags),
   };
+}
+
+// Category and Tags must come from the fixed list (CONTEXT.md's Category /
+// Tag entries) so a typo can never create a near-duplicate area. Shared by
+// the ingest API and the popup's save action. An absent category is null
+// and absent tags are [] — both mean "nothing to say", never "erase".
+export function validateClassification(
+  rawCategory: unknown,
+  rawTags: unknown,
+): { category: CategoryValue | null; tags: CategoryValue[] } {
+  let category: CategoryValue | null = null;
+  if (rawCategory !== undefined && rawCategory !== null) {
+    if (!isCategory(rawCategory)) throw new Error(`"category" must be one of ${CATEGORIES.map((c) => c.value).join(", ")}`);
+    category = rawCategory;
+  }
+
+  let tags: CategoryValue[] = [];
+  if (rawTags !== undefined && rawTags !== null) {
+    if (!Array.isArray(rawTags) || !rawTags.every(isCategory)) {
+      throw new Error(`"tags" must be an array of ${CATEGORIES.map((c) => c.value).join(", ")}`);
+    }
+    if (new Set(rawTags).size !== rawTags.length) throw new Error('"tags" must not repeat a value');
+    if (category !== null && rawTags.includes(category)) throw new Error('"tags" must not repeat the "category"');
+    tags = rawTags;
+  }
+  return { category, tags };
 }

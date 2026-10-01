@@ -325,8 +325,19 @@ model ProjectCard {
   // The year the project's Contract was signed (CONTEXT.md's Year entry) —
   // not a delivery date or certificate issue date.
   year               Int?
+  // Technology area from the fixed list in lib/project-card-taxonomy.ts
+  // (CONTEXT.md's Category / Tag entries): exactly one Category per card
+  // once classified, plus any further areas as Tags. Null / empty until a
+  // batch classifies the card.
+  category           String?
+  tags               String[]  @default([])
+  // Set when a person changes Category/Tags in the popup, so a later push
+  // never overwrites their classification (CONTEXT.md's Description Source
+  // entry: person edits are never overwritten).
+  classificationEditedByPerson Boolean @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   @@index([client])
+  @@index([category])
 }
