@@ -74,7 +74,7 @@ export default function SavedListManager({
             type="button"
             onClick={() => setSelected(null)}
             title="ยกเลิกการเลือก"
-            className="shrink-0 px-1 text-label transition-colors hover:text-ink"
+            className="ui-btn shrink-0 px-1 text-label transition-colors hover:text-ink"
           >
             ✕
           </button>
