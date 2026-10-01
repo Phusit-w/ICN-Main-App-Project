@@ -27,3 +27,36 @@ export async function verifyProjectCardBudget(id: string, budgetAmount: number |
   });
   revalidatePath("/project-card");
 }
+
+const MAX_TEXT_LENGTH = 5000;
+
+// Saves the Project Card popup's edit form. `budgetAmount` is only passed
+// when the user actually changed the number — a hand-entered figure counts
+// as a person confirming it, same as verifyProjectCardBudget. Leaving it
+// undefined keeps the existing budget and its verified/unverified state.
+export async function updateProjectCardDetails(
+  id: string,
+  input: { descriptionTh: string; budgetNote: string; budgetAmount?: number | null },
+): Promise<void> {
+  const actor = await requireActor();
+  const descriptionTh = input.descriptionTh.trim();
+  const budgetNote = input.budgetNote.trim();
+  if (descriptionTh.length > MAX_TEXT_LENGTH || budgetNote.length > MAX_TEXT_LENGTH) {
+    throw new Error("ข้อความยาวเกินไป");
+  }
+  const { budgetAmount } = input;
+  if (budgetAmount !== undefined && budgetAmount !== null && (!Number.isFinite(budgetAmount) || budgetAmount < 0)) {
+    throw new Error("จำนวนงบประมาณไม่ถูกต้อง");
+  }
+  await prisma.projectCard.update({
+    where: { id },
+    data: {
+      descriptionTh,
+      budgetNote,
+      ...(budgetAmount === undefined
+        ? {}
+        : { budgetAmount, budgetVerified: true, budgetVerifiedAt: new Date(), budgetVerifiedById: actor.id }),
+    },
+  });
+  revalidatePath("/project-card");
+}

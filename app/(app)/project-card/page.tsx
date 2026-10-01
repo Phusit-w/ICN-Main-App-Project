@@ -4,8 +4,8 @@ import { requireActor } from "@/lib/authorization";
 import Field from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
-import ProjectCardBudgetForm from "@/components/ProjectCardBudgetForm";
-import CopyButton from "@/components/CopyButton";
+import ProjectCardList from "@/components/ProjectCardList";
+import { CommaNumberField } from "@/components/CommaNumberInput";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +41,11 @@ export default async function ProjectCardPage({
   const { q, year: yearParam, budgetMin: budgetMinParam, budgetMax: budgetMaxParam } = await searchParams;
   const query = q?.trim() ?? "";
   const year = parseIntParam(yearParam);
+  // The budget filter is typed in millions of baht (ล้านบาท) so users enter
+  // "10" rather than "10000000"; the DB still stores full baht.
   const budgetMin = parseFloatParam(budgetMinParam);
   const budgetMax = parseFloatParam(budgetMaxParam);
+  const toBaht = (millions: number) => Math.round(millions * 1_000_000);
 
   const filters: Prisma.ProjectCardWhereInput[] = [];
   if (query) {
@@ -57,13 +60,15 @@ export default async function ProjectCardPage({
     });
   }
   if (year !== undefined) filters.push({ year });
-  if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: budgetMin } });
-  if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: budgetMax } });
+  if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
+  if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
 
   const [cards, availableYears] = await Promise.all([
     prisma.projectCard.findMany({
       where: filters.length ? { AND: filters } : undefined,
-      orderBy: { updatedAt: "desc" },
+      // Stable order (not updatedAt) so saving an edit in the popup doesn't
+      // make that row jump to the top of the list.
+      orderBy: [{ year: { sort: "desc", nulls: "last" } }, { projectCode: "asc" }],
     }),
     prisma.projectCard.findMany({
       where: { year: { not: null } },
@@ -108,24 +113,20 @@ export default async function ProjectCardPage({
             ))}
           </select>
         </div>
-        <Field
-          label="งบประมาณ ตั้งแต่ (บาท)"
+        <CommaNumberField
+          label="งบมากกว่า (ล้านบาท)"
           name="budgetMin"
-          type="number"
-          min={0}
-          step="any"
+          maxDecimals={6}
           defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
-          placeholder="0"
+          placeholder="เช่น 10"
           containerClassName="w-[180px]"
         />
-        <Field
-          label="งบประมาณ ถึง (บาท)"
+        <CommaNumberField
+          label="งบน้อยกว่า (ล้านบาท)"
           name="budgetMax"
-          type="number"
-          min={0}
-          step="any"
+          maxDecimals={6}
           defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
-          placeholder="ไม่จำกัด"
+          placeholder="เช่น 100"
           containerClassName="w-[180px]"
         />
         <Button type="submit" variant="dark" className="h-[52px]">
@@ -137,62 +138,24 @@ export default async function ProjectCardPage({
 
       <div className="overflow-hidden rounded-card bg-surface shadow-card">
         {cards.length ? (
-          <ul className="divide-y divide-line">
-            {cards.map((card) => (
-              <li key={card.id} className="flex flex-col gap-3 px-5 py-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-chip px-3 py-1 text-xs font-medium text-label">
-                        {card.projectCode}
-                      </span>
-                      <span className="text-xs text-muted">{card.client}</span>
-                      {card.year ? <span className="text-xs text-muted">ปี {card.year}</span> : null}
-                    </div>
-                    <div className="mt-1 font-display text-lg font-semibold text-ink">{card.projectName}</div>
-                  </div>
-                  <ProjectCardBudgetForm
-                    id={card.id}
-                    budgetAmount={card.budgetAmount ? card.budgetAmount.toString() : null}
-                    budgetVerified={card.budgetVerified}
-                    budgetSource={card.budgetSource}
-                    vatStatus={card.vatStatus}
-                    budgetNote={card.budgetNote}
-                  />
-                </div>
-
-                {card.descriptionTh || card.descriptionEn ? (
-                  <div className="text-sm text-label">
-                    {card.descriptionTh ? <p>{card.descriptionTh}</p> : null}
-                    {card.descriptionEn ? <p className="text-muted">{card.descriptionEn}</p> : null}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted">ยังไม่มีคำอธิบาย (รอ AI สรุป หรือกรอกเอง)</p>
-                )}
-
-                <div className="flex flex-col gap-2">
-                  {card.contractPath ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted">สัญญา</span>
-                      <code className="flex-1 truncate rounded-input bg-chip px-3 py-2 text-xs text-muted">
-                        {card.contractPath}
-                      </code>
-                      <CopyButton value={card.contractPath} label="คัดลอกพาธ" />
-                    </div>
-                  ) : null}
-                  {card.certificatePath ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted">หนังสือรับรอง</span>
-                      <code className="flex-1 truncate rounded-input bg-chip px-3 py-2 text-xs text-muted">
-                        {card.certificatePath}
-                      </code>
-                      <CopyButton value={card.certificatePath} label="คัดลอกพาธ" />
-                    </div>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ProjectCardList
+            cards={cards.map((card) => ({
+              id: card.id,
+              projectCode: card.projectCode,
+              client: card.client,
+              projectName: card.projectName,
+              descriptionTh: card.descriptionTh,
+              descriptionEn: card.descriptionEn,
+              contractPath: card.contractPath,
+              certificatePath: card.certificatePath,
+              budgetAmount: card.budgetAmount ? card.budgetAmount.toString() : null,
+              budgetSource: card.budgetSource,
+              vatStatus: card.vatStatus,
+              budgetNote: card.budgetNote,
+              budgetVerified: card.budgetVerified,
+              year: card.year,
+            }))}
+          />
         ) : (
           <div className="p-12 text-center">
             <div className="font-display text-lg font-semibold">
