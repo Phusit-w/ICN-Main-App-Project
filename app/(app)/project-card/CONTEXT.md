@@ -29,20 +29,32 @@ A short summary of a project's type of work and main system (e.g. "Teleprotectio
 _Avoid_: Summary, abstract, scope
 
 **Description Source**:
-Which material a Description was written from, in order of preference: the project's TOR, else its Contract, else only the project name and the card's own fields. Labelled on the card so a name-only Description is never mistaken for one read from documents.
+Which material a Description was written from, in order of preference: the project's TOR, else ICN's Proposal, else its Contract, else only the project name and the card's own fields — or "edited by a person" once someone changes it by hand. Labelled on the card so a name-only Description is never mistaken for one read from documents. A Description (or Category/Tags/Work Types) edited by a person is never overwritten by a later push.
 _Avoid_: Origin
 
 **TOR**:
 The client's terms of reference (ขอบเขตของงาน) for a project, found in that project's folder in the wider project archive, not under `_BID`. Used only as a Description Source; never a source of Budget.
 _Avoid_: Spec, requirements, proposal
 
+**Proposal**:
+The bid document ICN submitted for a project (e.g. its `Proposal A` / Statement of Compliance folders), kept in the Project Folder. States what ICN offered to do, which can differ from what the client contracted, so it ranks below the TOR as a Description Source and is never treated as one.
+_Avoid_: Bid, offer, TOR
+
 **Category**:
-The single main kind of work a project is, chosen from a fixed company list (e.g. Fiber Optic, Teleprotection, IP Network, Microwave/Radio). Every card has exactly one, so projects can be counted and grouped without overlap.
+The single main technology area a project is in, chosen from a fixed company list (e.g. IP Network, Transmission, Fiber Optic, Teleprotection). Every card has exactly one, so projects can be counted and grouped without overlap. Says what the project is about, never how the work was done — that is its Work Type.
 _Avoid_: Type, group, project type
 
 **Tag**:
-Any further kind of work a project includes besides its Category, from the same fixed list (e.g. a Fiber Optic project that also carries MA). A card has zero or more.
+Any further technology area a project includes besides its Category, from the same fixed list (e.g. an IP Network project that also lays Fiber Optic). A card has zero or more.
 _Avoid_: Label, keyword, sub-category
+
+**Work Type**:
+How ICN delivered a project, from a short fixed list: supply, installation, MA, managed services, rental, system development. A card has one or more (e.g. supply + installation + MA).
+_Avoid_: Service type, contract type
+
+**Project Folder**:
+The project's own folder in the wider project archive (`_Project …` on the `PS` share), where its TOR and other working files live. A third Folder Path on the card besides the Contract and Work Certificate paths; blank when the project has no folder there.
+_Avoid_: Archive path, TOR path
 
 **Budget**:
 A project's monetary value, AI-extracted from its Work Certificate. When a project has no Work Certificate, the value stated in its Contract is used instead and the card labels the Budget's source as the Contract, so a certificate figure and a contract figure are never presented as the same kind of number. Left blank, never guessed, when no figure at all can be found in the source document. When the only figure found is a joint/combined total (e.g. a consortium's whole contract value) rather than ICN's own isolated share, that total is still used as the Budget — never left blank just because it isn't ICN-specific — with a Budget Note stating plainly that no ICN-only breakdown was found. Carries an `unverified` flag until a person confirms it, and is never presented as authoritative before that.
