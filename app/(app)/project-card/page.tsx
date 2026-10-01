@@ -115,9 +115,8 @@ export default async function ProjectCardPage({
       <div>
         <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
         <p className="mt-1 text-sm text-muted">
-          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า ปี และงบประมาณ — ข้อมูลมาจากการ crawl share{" "}
-          <code className="text-xs">PS</code> ด้วยมือ (ดู{" "}
-          <code className="text-xs">project-card-crawler/README.md</code>)
+          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
+          <code className="text-xs">_BID</code>
         </p>
       </div>
 
