@@ -32,14 +32,28 @@ function parseFloatParam(value: string | undefined): number | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
+// Datalist options for the client filter. "PEA (BBTEC)" is split so the card
+// counts toward both PEA and BBTEC, matching how the filter above finds it.
+function clientOptions(rows: { client: string; _count: number }[]): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const { client, _count } of rows) {
+    const match = /^(.+?) \((.+)\)$/.exec(client);
+    for (const name of match ? [match[1], match[2]] : [client]) {
+      counts.set(name, (counts.get(name) ?? 0) + _count);
+    }
+  }
+  return [...counts].sort(([a], [b]) => a.localeCompare(b));
+}
+
 export default async function ProjectCardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; year?: string; budgetMin?: string; budgetMax?: string }>;
+  searchParams: Promise<{ q?: string; client?: string; year?: string; budgetMin?: string; budgetMax?: string }>;
 }) {
   await requireActor();
-  const { q, year: yearParam, budgetMin: budgetMinParam, budgetMax: budgetMaxParam } = await searchParams;
+  const { q, client: clientParam, year: yearParam, budgetMin: budgetMinParam, budgetMax: budgetMaxParam } = await searchParams;
   const query = q?.trim() ?? "";
+  const client = clientParam?.trim() ?? "";
   const year = parseIntParam(yearParam);
   // The budget filter is typed in millions of baht (ล้านบาท) so users enter
   // "10" rather than "10000000"; the DB still stores full baht.
@@ -59,11 +73,24 @@ export default async function ProjectCardPage({
       ],
     });
   }
+  // Client is typed or picked from the datalist. Exact match, case-insensitive
+  // ("pea" finds PEA): a partial match would let "AT" pull in CAT, EGAT, ATD.
+  // A subcontracted card stores "OWNER (CONTRACTOR)", e.g. "PEA (BBTEC)", so
+  // either name finds it.
+  if (client) {
+    filters.push({
+      OR: [
+        { client: { equals: client, mode: "insensitive" } },
+        { client: { startsWith: `${client} (`, mode: "insensitive" } },
+        { client: { endsWith: `(${client})`, mode: "insensitive" } },
+      ],
+    });
+  }
   if (year !== undefined) filters.push({ year });
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
 
-  const [cards, availableYears] = await Promise.all([
+  const [cards, availableYears, availableClients] = await Promise.all([
     prisma.projectCard.findMany({
       where: filters.length ? { AND: filters } : undefined,
       // Stable order (not updatedAt) so saving an edit in the popup doesn't
@@ -76,6 +103,11 @@ export default async function ProjectCardPage({
       select: { year: true },
       orderBy: { year: "desc" },
     }),
+    prisma.projectCard.groupBy({
+      by: ["client"],
+      _count: true,
+      orderBy: { client: "asc" },
+    }),
   ]);
 
   return (
@@ -83,7 +115,7 @@ export default async function ProjectCardPage({
       <div>
         <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
         <p className="mt-1 text-sm text-muted">
-          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามปีและงบประมาณ — ข้อมูลมาจากการ crawl share{" "}
+          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า ปี และงบประมาณ — ข้อมูลมาจากการ crawl share{" "}
           <code className="text-xs">PS</code> ด้วยมือ (ดู{" "}
           <code className="text-xs">project-card-crawler/README.md</code>)
         </p>
@@ -98,20 +130,38 @@ export default async function ProjectCardPage({
           placeholder="เช่น Solarcell, RFID, MEA"
           containerClassName="min-w-[240px] flex-1"
         />
-        <div className="min-w-[140px]">
-          <label className="mb-1.5 block text-[13px] font-medium text-label">ปี</label>
-          <select
-            name="year"
-            defaultValue={year !== undefined ? String(year) : ""}
+        <div className="w-[150px]">
+          <label className="mb-1.5 block text-[13px] font-medium text-label">ลูกค้า</label>
+          <input
+            name="client"
+            list="project-card-clients"
+            defaultValue={client}
+            placeholder="ทุกลูกค้า"
+            autoComplete="off"
             className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-          >
-            <option value="">ทุกปี</option>
-            {availableYears.map(({ year: y }) => (
-              <option key={y} value={y ?? ""}>
-                {y}
-              </option>
+          />
+          <datalist id="project-card-clients">
+            {clientOptions(availableClients).map(([c, count]) => (
+              <option key={c} value={c} label={`${count.toLocaleString("th-TH")} โครงการ`} />
             ))}
-          </select>
+          </datalist>
+        </div>
+        <div className="w-[120px]">
+          <label className="mb-1.5 block text-[13px] font-medium text-label">ปี</label>
+          <input
+            name="year"
+            list="project-card-years"
+            inputMode="numeric"
+            defaultValue={year !== undefined ? String(year) : ""}
+            placeholder="ทุกปี"
+            autoComplete="off"
+            className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+          />
+          <datalist id="project-card-years">
+            {availableYears.map(({ year: y }) => (
+              <option key={y} value={y ?? ""} />
+            ))}
+          </datalist>
         </div>
         <CommaNumberField
           label="งบมากกว่า (ล้านบาท)"
