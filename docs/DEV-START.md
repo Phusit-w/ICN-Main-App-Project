@@ -23,16 +23,16 @@ npm.cmd run dev
 ไม่ต้องรันซ้ำทุกครั้งที่เปิดเครื่อง เว้นแต่ `package.json` เปลี่ยน (เช่น มีคนเพิ่ม/ลบไลบรารี) หรือลบโฟลเดอร์ `node_modules` ทิ้งไป — ถ้าไม่แน่ใจว่าเคยรันหรือยัง ดูว่ามีโฟลเดอร์ `node_modules` อยู่ข้างๆ `package.json` ไหม มีแล้วข้ามขั้นตอนนี้ได้เลย
 
 ```powershell
-cd "C:\Users\phusit.w\Downloads\Monthly expense-billing web app-handoff\expense-billing-app"
+cd "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App"
 npm.cmd install
 ```
 
 **1. เปิด terminal (PowerShell) แล้วเข้าโฟลเดอร์โปรเจกต์**
 
-ต้องเป็นโฟลเดอร์ `expense-billing-app` ที่มี `package.json` อยู่ข้างใน (ไม่ใช่โฟลเดอร์แม่ `Monthly expense-billing web app-handoff`) — ถ้า `cd` ผิดโฟลเดอร์แล้วรัน `npm run dev` จะเจอ error `ENOENT ... Could not read package.json`
+ต้องเป็นโฟลเดอร์ `Main_Project_Build_App` ที่มี `package.json` อยู่ข้างใน (ไม่ใช่โฟลเดอร์แม่ `ICN Apps`) — ถ้า `cd` ผิดโฟลเดอร์แล้วรัน `npm run dev` จะเจอ error `ENOENT ... Could not read package.json`
 
 ```powershell
-cd "C:\Users\phusit.w\Downloads\Monthly expense-billing web app-handoff\expense-billing-app"
+cd "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App"
 ```
 
 **2. สตาร์ท local database พร้อมปักหมุดพอร์ตให้คงที่**
@@ -54,7 +54,7 @@ npx.cmd prisma dev ls
 **4. รันเว็บแอป (terminal ใหม่อีกหน้าต่างก็ได้ — แยกจากข้อ 2)**
 
 ```powershell
-cd "C:\Users\phusit.w\Downloads\Monthly expense-billing web app-handoff\expense-billing-app"
+cd "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App"
 npm.cmd run dev
 ```
 
@@ -71,7 +71,7 @@ http://localhost:3000
 | อาการ | สาเหตุที่เจอบ่อย | วิธีแก้ |
 |---|---|---|
 | `is not digitally signed. You cannot run this script...` | PowerShell execution policy บล็อกไฟล์ `.ps1` ของ npm/npx | เติม `.cmd` ต่อท้ายคำสั่ง (`npm.cmd`/`npx.cmd`) ดูหัวข้อด้านบน |
-| `ENOENT ... Could not read package.json` | อยู่ผิดโฟลเดอร์ (ไม่ได้ `cd` เข้า `expense-billing-app`) | `cd` เข้าโฟลเดอร์ที่ถูกต้องตามข้อ 1 ก่อน แล้วค่อยรันคำสั่ง |
+| `ENOENT ... Could not read package.json` | อยู่ผิดโฟลเดอร์ (ไม่ได้ `cd` เข้า `Main_Project_Build_App`) | `cd` เข้าโฟลเดอร์ที่ถูกต้องตามข้อ 1 ก่อน แล้วค่อยรันคำสั่ง |
 | `PrismaClientKnownRequestError` ตอนเปิดหน้า | `pilot-db` ไม่ได้รันอยู่ | รันคำสั่งข้อ 2 ใหม่ |
 | Error เดิมซ้ำแม้ DB รันอยู่แล้ว | `npm run dev` รันค้างมาตั้งแต่ก่อนแก้ `.env` / ก่อน DB ขึ้น | ปิด `npm run dev` เดิม แล้วรันข้อ 4 ใหม่ |
 | พอร์ตใน `.env` ไม่ตรงกับที่ `prisma dev ls` แสดง | มีโปรแกรมอื่นแย่งพอร์ต 51218/51219 ไปพอดี (นานๆ ครั้ง) | แก้ `.env` ให้ตรงพอร์ตที่ขึ้นจริง แล้ว restart `npm run dev` |

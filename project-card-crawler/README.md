@@ -11,7 +11,7 @@ original (now superseded) whole-archive design.
 ## Setup
 
 ```powershell
-cd "C:\Phusit\Claude Project\ICN Apps\expense-billing-app\project-card-crawler"
+cd "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App\project-card-crawler"
 python -m pip install -r requirements.txt
 ```
 

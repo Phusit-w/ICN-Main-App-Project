@@ -89,7 +89,7 @@
 
 ### เปิด dev
 ```powershell
-cd "...\expense-billing-app"
+cd "...\Main_Project_Build_App"
 npx.cmd prisma dev start pilot-db -P 51218 --shadow-db-port 51219 -d   # ถ้ายังไม่ขึ้น
 npm.cmd run dev
 ```
