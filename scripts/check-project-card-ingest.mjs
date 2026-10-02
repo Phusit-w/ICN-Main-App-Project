@@ -54,7 +54,12 @@ async function stored(code) {
   return rows[0];
 }
 
-const cleanup = () => db.query(`delete from "ProjectCard" where "projectCode" like '${PREFIX}%'`);
+// Throw-away list entries use the same prefix (lower-case, as list values are).
+const TERM_PREFIX = PREFIX.toLowerCase();
+const cleanup = async () => {
+  await db.query(`delete from "ProjectCard" where "projectCode" like '${PREFIX}%'`);
+  await db.query(`delete from "ProjectCardTerm" where value like '${TERM_PREFIX}%'`);
+};
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 try {
@@ -188,6 +193,23 @@ try {
   const OTHER = String.raw`\\192.168.99.1\PS\_Project 2026\NT\NT066 CM-PM`;
   await push(card("FOK1", { projectFolderPath: OTHER }));
   check("a non-null Project Folder replaces the stored one", (await folder("FOK1")) === OTHER);
+
+  // --- Lists kept by admins in the database (ticket 15) ---
+  r = await push(card("TBAD1", { category: `${TERM_PREFIX}-area` }), card("TBAD2", { workTypes: [`${TERM_PREFIX}-way`] }));
+  check("a Category / Work Type not yet in the list is rejected", r.rejected === 2, JSON.stringify(r.errors));
+  await db.query(
+    `insert into "ProjectCardTerm" (id, kind, value, en, th, "sortOrder", "updatedAt") values
+       ('${TERM_PREFIX}1', 'category', '${TERM_PREFIX}-area', 'ZZ Test Area', 'พื้นที่ทดสอบ', 999, now()),
+       ('${TERM_PREFIX}2', 'workType', '${TERM_PREFIX}-way', 'ZZ Test Way', 'วิธีทดสอบ', 999, now())`,
+  );
+  r = await push(card("TOK1", { category: `${TERM_PREFIX}-area`, tags: ["energy"], workTypes: [`${TERM_PREFIX}-way`, "ma"] }));
+  check("a Category / Work Type an admin added is accepted at once", r.created === 1 && r.rejected === 0, JSON.stringify(r));
+  check(
+    "the card stores the added values",
+    same(await stored("TOK1"), { category: `${TERM_PREFIX}-area`, tags: ["energy"], workTypes: [`${TERM_PREFIX}-way`, "ma"], edited: false }),
+  );
+  r = await push(card("TBAD3", { tags: ["zz-not-a-term"] }));
+  check("an unknown Tag is still rejected", r.rejected === 1, JSON.stringify(r.errors));
 } finally {
   await cleanup();
   await db.end();

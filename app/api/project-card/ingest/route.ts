@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MAX_PROJECTS_PER_REQUEST, requireIngestKey, validateProjectCardInput } from "@/lib/project-card";
 import type { ProjectCardInput } from "@/lib/project-card";
+import { loadTaxonomy } from "@/lib/project-card-terms";
 
 export const runtime = "nodejs";
 
@@ -59,11 +60,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `"projects" exceeds the ${MAX_PROJECTS_PER_REQUEST}-record limit per request` }, { status: 400 });
   }
 
+  // Read once per request: values an admin added in Admin Center are valid
+  // from the next push on.
+  const taxonomy = await loadTaxonomy();
   const validated: ProjectCardInput[] = [];
   const errors: { projectCode?: string; message: string }[] = [];
   for (const raw of projects) {
     try {
-      validated.push(validateProjectCardInput(raw));
+      validated.push(validateProjectCardInput(raw, taxonomy));
     } catch (error) {
       const projectCode = typeof (raw as { projectCode?: unknown })?.projectCode === "string" ? (raw as { projectCode: string }).projectCode : undefined;
       errors.push({ projectCode, message: error instanceof Error ? error.message : "Invalid record" });

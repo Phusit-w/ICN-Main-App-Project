@@ -1,76 +1,44 @@
-// The fixed company list of technology areas a Project Card's Category and
-// Tags are chosen from (CONTEXT.md's Category / Tag entries). The single
-// source for ingest validation, the popup's edit form, the search page's
-// filter and free-text matching — so they can never disagree. Adding an
-// area is an edit here only: values are stored as plain strings, no
-// migration needed. Never rename a `value` once cards carry it.
-export const CATEGORIES = [
-  { value: "ip-network", en: "IP Network", th: "โครงข่าย IP" },
-  { value: "transmission", en: "Transmission", th: "ระบบสื่อสัญญาณ" },
-  { value: "fiber-optic", en: "Fiber Optic", th: "เคเบิลใยแก้วนำแสง" },
-  { value: "microwave-radio", en: "Microwave & Radio", th: "ไมโครเวฟและวิทยุสื่อสาร" },
-  { value: "teleprotection", en: "Teleprotection", th: "ระบบป้องกันสายส่ง" },
-  { value: "telecom-core", en: "Telecom Core & OSS/BSS", th: "ระบบหลักโทรคมนาคม" },
-  { value: "data-center-it", en: "Data Center & IT", th: "ศูนย์ข้อมูลและไอที" },
-  { value: "software", en: "Software", th: "ซอฟต์แวร์" },
-  { value: "education-devices", en: "Education Devices", th: "อุปกรณ์การเรียนการสอน" },
-  { value: "smart-city-security", en: "Smart City & Security", th: "เมืองอัจฉริยะและความปลอดภัย" },
-  { value: "energy", en: "Energy", th: "พลังงาน" },
-  { value: "medical", en: "Medical", th: "การแพทย์" },
-] as const;
+// The company lists a Project Card is classified from (CONTEXT.md's
+// Category / Tag / Work Type entries) live in the ProjectCardTerm table and
+// are kept by admins in Admin Center — see lib/project-card-terms.ts for
+// loading them. This module holds the pure, client-safe helpers that every
+// reader (ingest validation, the popup, the search filter, free-text
+// matching) applies to a loaded list, so they can never disagree.
 
-export type CategoryValue = (typeof CATEGORIES)[number]["value"];
+export type Term = { value: string; en: string; th: string };
+export const TERM_KINDS = ["category", "workType"] as const;
+export type TermKind = (typeof TERM_KINDS)[number];
+export type Taxonomy = { categories: Term[]; workTypes: Term[] };
 
-const CATEGORY_VALUES: ReadonlySet<string> = new Set(CATEGORIES.map((c) => c.value));
-
-export function isCategory(value: unknown): value is CategoryValue {
-  return typeof value === "string" && CATEGORY_VALUES.has(value);
+export function isTermKind(value: unknown): value is TermKind {
+  return typeof value === "string" && (TERM_KINDS as readonly string[]).includes(value);
 }
 
-export function categoryLabel(value: string): string {
-  return CATEGORIES.find((c) => c.value === value)?.en ?? value;
+export function isTerm(list: readonly Term[], value: unknown): value is string {
+  return typeof value === "string" && list.some((t) => t.value === value);
 }
+
+export function termLabel(list: readonly Term[], value: string): string {
+  return list.find((t) => t.value === value)?.en ?? value;
+}
+
+const THAI = /[฀-๿]/;
 
 // Free-text search over Category/Tags ("fiber", "ใยแก้ว" and "Fiber Optic"
 // all reach `fiber-optic`). A Latin query must match the start of a word in
 // the English label — plain substring matching made short, common queries
 // misfire ("MA" hit "sMArt", "IT" hit "cITy"). Thai is written without
 // spaces between words, so a Thai query matches anywhere in the Thai label.
-export function matchCategories(query: string): CategoryValue[] {
+export function matchCategories(list: readonly Term[], query: string): string[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  if (/[฀-๿]/.test(q)) {
-    return CATEGORIES.filter((c) => c.th.includes(q)).map((c) => c.value);
-  }
-  return CATEGORIES.filter((c) => {
-    const label = c.en.toLowerCase();
-    return label.startsWith(q) || label.split(/[^a-z0-9]+/).some((word) => word.startsWith(q));
-  }).map((c) => c.value);
-}
-
-// How ICN delivered a project (CONTEXT.md's Work Type entry) — never what
-// it was about, which is the Category. A card has one or more. Same rules
-// as CATEGORIES: the single source for validation, the popup and search;
-// never rename a `value` once cards carry it.
-export const WORK_TYPES = [
-  { value: "supply", en: "Supply", th: "จัดหาอุปกรณ์" },
-  { value: "installation", en: "Installation", th: "ติดตั้ง" },
-  { value: "ma", en: "MA (Maintenance)", th: "บำรุงรักษา (MA)" },
-  { value: "managed-services", en: "Managed Services", th: "บริการบริหารจัดการระบบ" },
-  { value: "rental", en: "Rental", th: "เช่าใช้" },
-  { value: "system-development", en: "System Development", th: "พัฒนาระบบ" },
-] as const;
-
-export type WorkTypeValue = (typeof WORK_TYPES)[number]["value"];
-
-const WORK_TYPE_VALUES: ReadonlySet<string> = new Set(WORK_TYPES.map((w) => w.value));
-
-export function isWorkType(value: unknown): value is WorkTypeValue {
-  return typeof value === "string" && WORK_TYPE_VALUES.has(value);
-}
-
-export function workTypeLabel(value: string): string {
-  return WORK_TYPES.find((w) => w.value === value)?.en ?? value;
+  if (THAI.test(q)) return list.filter((c) => c.th.includes(q)).map((c) => c.value);
+  return list
+    .filter((c) => {
+      const label = c.en.toLowerCase();
+      return label.startsWith(q) || label.split(/[^a-z0-9]+/).some((word) => word.startsWith(q));
+    })
+    .map((c) => c.value);
 }
 
 // Free-text search over Work Types ("MA", "บำรุงรักษา", "rental", "เช่า").
@@ -79,16 +47,27 @@ export function workTypeLabel(value: string): string {
 // matching would also list every Managed Services card. From 3 letters on,
 // a word prefix is enough ("rent", "install", "maint"). Thai matches
 // anywhere in the Thai label, as for Categories.
-export function matchWorkTypes(query: string): WorkTypeValue[] {
+export function matchWorkTypes(list: readonly Term[], query: string): string[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  if (/[฀-๿]/.test(q)) {
-    return WORK_TYPES.filter((w) => w.th.includes(q)).map((w) => w.value);
-  }
-  return WORK_TYPES.filter((w) => {
-    const words = w.en.toLowerCase().split(/[^a-z0-9]+/);
-    return words.some((word) => word === q || (q.length >= 3 && word.startsWith(q)));
-  }).map((w) => w.value);
+  if (THAI.test(q)) return list.filter((w) => w.th.includes(q)).map((w) => w.value);
+  return list
+    .filter((w) => {
+      const words = w.en.toLowerCase().split(/[^a-z0-9]+/);
+      return words.some((word) => word === q || (q.length >= 3 && word.startsWith(q)));
+    })
+    .map((w) => w.value);
+}
+
+// The stored `value` for a new list entry, from its English label
+// ("Solar & EV" -> "solar-ev"). Empty when the label has no Latin letters
+// or digits, which the admin form rejects.
+export function termValueFrom(en: string): string {
+  return en
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }
 
 // Which material a Description was written from (CONTEXT.md's Description
@@ -96,6 +75,8 @@ export function matchWorkTypes(query: string): WorkTypeValue[] {
 // it in the popup. Only the web ever sets `manual`; a push may send the
 // other four. `name` is a guess from the project name alone, so the popup
 // marks it as such rather than presenting it like one read from documents.
+// Unlike the lists above this one is part of the code's rules, not data an
+// admin edits.
 export const DESCRIPTION_SOURCES = [
   { value: "tor", th: "จาก TOR (ขอบเขตของงาน)" },
   { value: "proposal", th: "จาก Proposal ที่ ICN เสนอ (ไม่มี TOR)" },

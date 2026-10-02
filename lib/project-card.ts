@@ -1,13 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import {
-  CATEGORIES,
-  WORK_TYPES,
-  isCategory,
   isPushedDescriptionSource,
-  isWorkType,
-  type CategoryValue,
+  isTerm,
   type PushedDescriptionSource,
-  type WorkTypeValue,
+  type Taxonomy,
+  type Term,
 } from "@/lib/project-card-taxonomy";
 
 // Project Card ingest has no browser session to check — the extraction
@@ -59,9 +56,9 @@ export interface ProjectCardInput {
   vatStatus: VatStatus | null;
   budgetNote: string;
   year: number | null;
-  category: CategoryValue | null;
-  tags: CategoryValue[];
-  workTypes: WorkTypeValue[];
+  category: string | null;
+  tags: string[];
+  workTypes: string[];
 }
 
 function requireNonEmptyString(value: unknown, field: string): string {
@@ -97,7 +94,7 @@ const MAX_YEAR = 2100;
 // \\<server>\PS\_Project <years>\<at least one more segment>
 const PROJECT_FOLDER_PATH = /^\\\\[^\\]+\\PS\\_Project [^\\]+\\[^\\]/i;
 
-export function validateProjectCardInput(raw: unknown): ProjectCardInput {
+export function validateProjectCardInput(raw: unknown, taxonomy: Taxonomy): ProjectCardInput {
   if (typeof raw !== "object" || raw === null) throw new Error("Record must be an object");
   const r = raw as Record<string, unknown>;
 
@@ -204,45 +201,44 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     vatStatus,
     budgetNote,
     year,
-    ...validateClassification(r.category, r.tags),
-    workTypes: validateWorkTypes(r.workTypes),
+    ...validateClassification(r.category, r.tags, taxonomy.categories),
+    workTypes: validateWorkTypes(r.workTypes, taxonomy.workTypes),
   };
 }
 
-// Category and Tags must come from the fixed list (CONTEXT.md's Category /
-// Tag entries) so a typo can never create a near-duplicate area. Shared by
-// the ingest API and the popup's save action. An absent category is null
-// and absent tags are [] — both mean "nothing to say", never "erase".
+// An array of values from one list, with no repeats; absent means [] —
+// "nothing to say", never "erase".
+function validateTermArray(raw: unknown, field: string, list: readonly Term[]): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || !raw.every((v) => isTerm(list, v))) {
+    throw new Error(`"${field}" must be an array of ${list.map((t) => t.value).join(", ")}`);
+  }
+  if (new Set(raw).size !== raw.length) throw new Error(`"${field}" must not repeat a value`);
+  return raw;
+}
+
+// Category and Tags must come from the company list admins keep
+// (CONTEXT.md's Category / Tag entries), so a typo can never create a
+// near-duplicate area. Shared by the ingest API and the popup's save
+// action. An absent category is null — "nothing to say", never "erase".
 export function validateClassification(
   rawCategory: unknown,
   rawTags: unknown,
-): { category: CategoryValue | null; tags: CategoryValue[] } {
-  let category: CategoryValue | null = null;
+  categories: readonly Term[],
+): { category: string | null; tags: string[] } {
+  let category: string | null = null;
   if (rawCategory !== undefined && rawCategory !== null) {
-    if (!isCategory(rawCategory)) throw new Error(`"category" must be one of ${CATEGORIES.map((c) => c.value).join(", ")}`);
+    if (!isTerm(categories, rawCategory)) {
+      throw new Error(`"category" must be one of ${categories.map((c) => c.value).join(", ")}`);
+    }
     category = rawCategory;
   }
-
-  let tags: CategoryValue[] = [];
-  if (rawTags !== undefined && rawTags !== null) {
-    if (!Array.isArray(rawTags) || !rawTags.every(isCategory)) {
-      throw new Error(`"tags" must be an array of ${CATEGORIES.map((c) => c.value).join(", ")}`);
-    }
-    if (new Set(rawTags).size !== rawTags.length) throw new Error('"tags" must not repeat a value');
-    if (category !== null && rawTags.includes(category)) throw new Error('"tags" must not repeat the "category"');
-    tags = rawTags;
-  }
+  const tags = validateTermArray(rawTags, "tags", categories);
+  if (category !== null && tags.includes(category)) throw new Error('"tags" must not repeat the "category"');
   return { category, tags };
 }
 
-// Work Types follow the same rules as Tags: from the fixed list, no repeats,
-// absent means [] ("nothing to say", never "erase"). Shared by the ingest
-// API and the popup's save action.
-export function validateWorkTypes(raw: unknown): WorkTypeValue[] {
-  if (raw === undefined || raw === null) return [];
-  if (!Array.isArray(raw) || !raw.every(isWorkType)) {
-    throw new Error(`"workTypes" must be an array of ${WORK_TYPES.map((w) => w.value).join(", ")}`);
-  }
-  if (new Set(raw).size !== raw.length) throw new Error('"workTypes" must not repeat a value');
-  return raw;
+// Work Types follow the same rules as Tags, from the Work Type list.
+export function validateWorkTypes(raw: unknown, workTypes: readonly Term[]): string[] {
+  return validateTermArray(raw, "workTypes", workTypes);
 }

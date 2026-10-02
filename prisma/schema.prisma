@@ -335,14 +335,14 @@ model ProjectCard {
   // The year the project's Contract was signed (CONTEXT.md's Year entry) —
   // not a delivery date or certificate issue date.
   year               Int?
-  // Technology area from the fixed list in lib/project-card-taxonomy.ts
+  // Technology area: a ProjectCardTerm `value` of kind "category"
   // (CONTEXT.md's Category / Tag entries): exactly one Category per card
   // once classified, plus any further areas as Tags. Null / empty until a
   // batch classifies the card.
   category           String?
   tags               String[]  @default([])
-  // How ICN delivered the project, from WORK_TYPES in lib/project-card-taxonomy.ts
-  // (CONTEXT.md's Work Type entry). Empty until a batch classifies the card.
+  // How ICN delivered the project: ProjectCardTerm values of kind
+  // "workType" (CONTEXT.md's Work Type entry). Empty until classified.
   workTypes          String[]  @default([])
   // Set when a person changes Category/Tags/Work Types in the popup, so a later push
   // never overwrites their classification (CONTEXT.md's Description Source
@@ -353,4 +353,23 @@ model ProjectCard {
 
   @@index([client])
   @@index([category])
+}
+
+// The company lists a Project Card's Category/Tags ("category") and Work
+// Types ("workType") are chosen from — kept by admins in Admin Center, read
+// by ingest validation, the popup, the search filter and free-text matching
+// (CONTEXT.md's Category / Tag / Work Type entries). `value` is what cards
+// store, so it never changes once created; only the labels can be renamed,
+// and there is no delete (a card would be left pointing at nothing).
+model ProjectCardTerm {
+  id        String   @id @default(cuid())
+  kind      String // "category" | "workType"
+  value     String
+  en        String
+  th        String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, value])
 }

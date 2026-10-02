@@ -83,6 +83,13 @@ matches Tags and Work Types.
   managed services, rental, system development. Stored as stable machine values with Thai/English
   display labels. Validation, the Category filter, the popup edit form and search all read this module.
   Adding a Category later is an edit to this module only (no migration).
+  **Superseded 2026-10-02 (ticket 15):** the lists moved into a `ProjectCardTerm` table, seeded with the
+  values above, and admins add entries or rename their labels in Admin Center ("หมวดหมู่โครงการ"). No delete,
+  and a stored value never changes. Validation, the filter, the popup and search read the table; Description
+  Sources stay in code. User story 23 still holds for the reading pipeline: Claude never invents an entry —
+  new ones come only from an admin.
+  Production holds the master copy; an entry must be mirrored into `pilot-db` before a batch uses it, and
+  never exist only in `pilot-db` (see ticket 15, "Two databases").
 - **Schema (Project Card, one additive migration, no data loss).** New fields: `category` (nullable
   string), `tags` (string array, default empty), `workTypes` (string array, default empty),
   `descriptionSource` (nullable string: `tor` | `proposal` | `contract` | `name` | `manual`),

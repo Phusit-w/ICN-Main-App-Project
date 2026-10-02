@@ -6,7 +6,8 @@ import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
 import ProjectCardList from "@/components/ProjectCardList";
 import { CommaNumberField } from "@/components/CommaNumberInput";
-import { CATEGORIES, isCategory, matchCategories, matchWorkTypes } from "@/lib/project-card-taxonomy";
+import { isTerm, matchCategories, matchWorkTypes } from "@/lib/project-card-taxonomy";
+import { loadTaxonomy } from "@/lib/project-card-terms";
 
 export const dynamic = "force-dynamic";
 
@@ -67,10 +68,11 @@ export default async function ProjectCardPage({
     budgetMin: budgetMinParam,
     budgetMax: budgetMaxParam,
   } = await searchParams;
+  const taxonomy = await loadTaxonomy();
   const query = q?.trim() ?? "";
   const client = clientParam?.trim() ?? "";
   // An unknown value (stale link, hand-edited URL) is ignored, not a 500.
-  const category = isCategory(categoryParam) ? categoryParam : "";
+  const category = isTerm(taxonomy.categories, categoryParam) ? categoryParam : "";
   const year = parseIntParam(yearParam);
   // The budget filter is typed in millions of baht (ล้านบาท) so users enter
   // "10" rather than "10000000"; the DB still stores full baht.
@@ -79,8 +81,8 @@ export default async function ProjectCardPage({
   const toBaht = (millions: number) => Math.round(millions * 1_000_000);
 
   const filters: Prisma.ProjectCardWhereInput[] = [];
-  const matchedCategories = matchCategories(query);
-  const matchedWorkTypes = matchWorkTypes(query);
+  const matchedCategories = matchCategories(taxonomy.categories, query);
+  const matchedWorkTypes = matchWorkTypes(taxonomy.workTypes, query);
   if (query) {
     filters.push({
       OR: [
@@ -189,7 +191,7 @@ export default async function ProjectCardPage({
             className="h-[52px] w-full rounded-field border border-line bg-surface px-3 text-sm"
           >
             <option value="">ทุกหมวด</option>
-            {CATEGORIES.map((c) => (
+            {taxonomy.categories.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.en} ({(countByCategory.get(c.value) ?? 0).toLocaleString("th-TH")})
               </option>
@@ -239,6 +241,7 @@ export default async function ProjectCardPage({
       <div className="overflow-hidden rounded-card bg-surface shadow-card">
         {cards.length ? (
           <ProjectCardList
+            taxonomy={taxonomy}
             cards={cards.map((card) => ({
               id: card.id,
               projectCode: card.projectCode,

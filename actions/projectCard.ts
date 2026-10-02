@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireActor } from "@/lib/authorization";
 import { validateClassification, validateWorkTypes } from "@/lib/project-card";
+import { loadTaxonomy } from "@/lib/project-card-terms";
 
 // Confirms (and optionally corrects) an AI-extracted budget — see
 // app/(app)/project-card/CONTEXT.md's Budget entry. Once verified, a
@@ -70,9 +71,10 @@ export async function updateProjectCardDetails(
     descriptionTh !== existing.descriptionTh.trim() || descriptionEn !== existing.descriptionEn.trim();
   let classification = {};
   if (input.category !== undefined || input.tags !== undefined || input.workTypes !== undefined) {
-    const categoryAndTags = validateClassification(input.category, input.tags);
+    const taxonomy = await loadTaxonomy();
+    const categoryAndTags = validateClassification(input.category, input.tags, taxonomy.categories);
     // An omitted workTypes keeps what's stored rather than clearing it.
-    const workTypes = input.workTypes === undefined ? existing.workTypes : validateWorkTypes(input.workTypes);
+    const workTypes = input.workTypes === undefined ? existing.workTypes : validateWorkTypes(input.workTypes, taxonomy.workTypes);
     // A classified card keeps at least one Work Type (CONTEXT.md: "one or
     // more"); clearing them all would also lock the field against pushes.
     if (workTypes.length === 0 && existing.workTypes.length > 0) throw new Error("ต้องมีลักษณะงานอย่างน้อย 1 อย่าง");

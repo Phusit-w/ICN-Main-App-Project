@@ -7,13 +7,7 @@ import Button from "@/components/ui/Button";
 import CopyButton from "@/components/CopyButton";
 import CommaNumberInput, { withCommas } from "@/components/CommaNumberInput";
 import { fmt } from "@/lib/format";
-import {
-  CATEGORIES,
-  WORK_TYPES,
-  categoryLabel,
-  descriptionSourceLabel,
-  workTypeLabel,
-} from "@/lib/project-card-taxonomy";
+import { descriptionSourceLabel, termLabel, type Taxonomy } from "@/lib/project-card-taxonomy";
 
 export type ProjectCardRow = {
   id: string;
@@ -59,7 +53,8 @@ function formatBudget(amount: string | null): string {
 // The list stays deliberately sparse — name, client, year, budget — so a
 // search result reads at a glance; everything else (description, note,
 // file paths, editing) lives in the popup opened by clicking a row.
-export default function ProjectCardList({ cards }: { cards: ProjectCardRow[] }) {
+export default function ProjectCardList({ cards, taxonomy }: { cards: ProjectCardRow[]; taxonomy: Taxonomy }) {
+  const categoryLabel = (value: string) => termLabel(taxonomy.categories, value);
   const [openId, setOpenId] = useState<string | null>(null);
   // Looked up from the latest props (not a copy held in state) so the popup
   // shows the saved values once revalidatePath re-renders the page.
@@ -108,12 +103,22 @@ export default function ProjectCardList({ cards }: { cards: ProjectCardRow[] }) 
           </li>
         ))}
       </ul>
-      {openCard ? <ProjectCardDetail key={openCard.id} card={openCard} onClose={() => setOpenId(null)} /> : null}
+      {openCard ? <ProjectCardDetail key={openCard.id} card={openCard} taxonomy={taxonomy} onClose={() => setOpenId(null)} /> : null}
     </>
   );
 }
 
-function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: () => void }) {
+function ProjectCardDetail({
+  card,
+  taxonomy,
+  onClose,
+}: {
+  card: ProjectCardRow;
+  taxonomy: Taxonomy;
+  onClose: () => void;
+}) {
+  const categoryLabel = (value: string) => termLabel(taxonomy.categories, value);
+  const workTypeLabel = (value: string) => termLabel(taxonomy.workTypes, value);
   const [editing, setEditing] = useState(false);
   const [descriptionTh, setDescriptionTh] = useState(card.descriptionTh);
   const [descriptionEn, setDescriptionEn] = useState(card.descriptionEn);
@@ -267,7 +272,7 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
                   className="h-11 w-full max-w-xs rounded-field border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-ink"
                 >
                   <option value="">— ยังไม่ระบุหมวด —</option>
-                  {CATEGORIES.map((c) => (
+                  {taxonomy.categories.map((c) => (
                     <option key={c.value} value={c.value}>
                       {c.en} · {c.th}
                     </option>
@@ -276,7 +281,7 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
                 <div>
                   <div className="mb-1.5 text-xs text-muted">แท็ก (งานเทคโนโลยีอื่นในโครงการ)</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {CATEGORIES.filter((c) => c.value !== category).map((c) => {
+                    {taxonomy.categories.filter((c) => c.value !== category).map((c) => {
                       return (
                         <ToggleChip
                           key={c.value}
@@ -312,7 +317,7 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
           <Section label="ลักษณะงาน">
             {editing ? (
               <div className="flex flex-wrap gap-1.5">
-                {WORK_TYPES.map((w) => (
+                {taxonomy.workTypes.map((w) => (
                   <ToggleChip
                     key={w.value}
                     on={workTypes.includes(w.value)}

@@ -41,15 +41,15 @@ The bid document ICN submitted for a project (e.g. its `Proposal A` / Statement 
 _Avoid_: Bid, offer, TOR
 
 **Category**:
-The single main technology area a project is in, chosen from a fixed company list (e.g. IP Network, Transmission, Fiber Optic, Teleprotection). Every card has exactly one, so projects can be counted and grouped without overlap. Says what the project is about, never how the work was done — that is its Work Type.
+The single main technology area a project is in, chosen from the company list that admins keep in Admin Center (e.g. IP Network, Transmission, Fiber Optic, Teleprotection). Every card has exactly one, so projects can be counted and grouped without overlap. Says what the project is about, never how the work was done — that is its Work Type.
 _Avoid_: Type, group, project type
 
 **Tag**:
-Any further technology area a project includes besides its Category, from the same fixed list (e.g. an IP Network project that also lays Fiber Optic). A card has zero or more.
+Any further technology area a project includes besides its Category, from the same list (e.g. an IP Network project that also lays Fiber Optic). A card has zero or more.
 _Avoid_: Label, keyword, sub-category
 
 **Work Type**:
-How ICN delivered a project, from a short fixed list: supply, installation, MA, managed services, rental, system development. A card has one or more (e.g. supply + installation + MA).
+How ICN delivered a project, from a short company list admins keep in Admin Center (to start: supply, installation, MA, managed services, rental, system development). A card has one or more (e.g. supply + installation + MA).
 _Avoid_: Service type, contract type
 
 **Project Folder**:
