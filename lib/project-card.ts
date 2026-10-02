@@ -1,5 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
-import { CATEGORIES, isCategory, type CategoryValue } from "@/lib/project-card-taxonomy";
+import {
+  CATEGORIES,
+  WORK_TYPES,
+  isCategory,
+  isWorkType,
+  type CategoryValue,
+  type WorkTypeValue,
+} from "@/lib/project-card-taxonomy";
 
 // Project Card ingest has no browser session to check — the extraction
 // script that crawls the `PS` share runs off this app's server entirely
@@ -50,6 +57,7 @@ export interface ProjectCardInput {
   year: number | null;
   category: CategoryValue | null;
   tags: CategoryValue[];
+  workTypes: WorkTypeValue[];
 }
 
 function requireNonEmptyString(value: unknown, field: string): string {
@@ -156,6 +164,7 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     budgetNote,
     year,
     ...validateClassification(r.category, r.tags),
+    workTypes: validateWorkTypes(r.workTypes),
   };
 }
 
@@ -183,4 +192,16 @@ export function validateClassification(
     tags = rawTags;
   }
   return { category, tags };
+}
+
+// Work Types follow the same rules as Tags: from the fixed list, no repeats,
+// absent means [] ("nothing to say", never "erase"). Shared by the ingest
+// API and the popup's save action.
+export function validateWorkTypes(raw: unknown): WorkTypeValue[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || !raw.every(isWorkType)) {
+    throw new Error(`"workTypes" must be an array of ${WORK_TYPES.map((w) => w.value).join(", ")}`);
+  }
+  if (new Set(raw).size !== raw.length) throw new Error('"workTypes" must not repeat a value');
+  return raw;
 }

@@ -107,7 +107,10 @@ matches Tags and Work Types.
   filter; Category chip on each result row; popup shows Description Source label, Tags, Work Types and
   the Project Folder path with a copy button, like the existing Contract/Certificate paths. Free-text
   search additionally matches Tags/Work Types/Category by mapping the query to fixed-list values whose
-  label contains it (case-insensitive) and matching cards that have any of them.
+  label contains it (case-insensitive) and matching cards that have any of them. As built (tickets 01–02):
+  a Thai query matches anywhere in the Thai label; a Latin query must match the start of a word in the
+  English label (so "MA" doesn't hit "sMArt"), and for Work Types a 1–2 letter Latin query must be a whole
+  word (so "MA" doesn't also list Managed Services).
 - **Reading pipeline (data work, Claude in session).** For each Client batch: (1) match each card to a
   Project Folder under `_Project …` on `PS` using Project Code, then project name + year + Client; when
   more than one folder fits, or a folder looks like a lost bid ("Participate", "Re-bidding" without the

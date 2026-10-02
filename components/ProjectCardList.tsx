@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import CopyButton from "@/components/CopyButton";
 import CommaNumberInput, { withCommas } from "@/components/CommaNumberInput";
 import { fmt } from "@/lib/format";
-import { CATEGORIES, categoryLabel } from "@/lib/project-card-taxonomy";
+import { CATEGORIES, WORK_TYPES, categoryLabel, workTypeLabel } from "@/lib/project-card-taxonomy";
 
 export type ProjectCardRow = {
   id: string;
@@ -26,6 +26,7 @@ export type ProjectCardRow = {
   year: number | null;
   category: string | null;
   tags: string[];
+  workTypes: string[];
 };
 
 const VAT_LABEL: Record<string, string> = {
@@ -107,6 +108,7 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
   const [budget, setBudget] = useState(card.budgetAmount ?? "");
   const [category, setCategory] = useState(card.category ?? "");
   const [tags, setTags] = useState<string[]>(card.tags);
+  const [workTypes, setWorkTypes] = useState<string[]>(card.workTypes);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -116,18 +118,23 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
     setBudget(card.budgetAmount ?? "");
     setCategory(card.category ?? "");
     setTags(card.tags);
+    setWorkTypes(card.workTypes);
     setError(null);
   }
 
-  function toggleTag(value: string) {
-    setTags((prev) => (prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]));
-  }
+  // Updater for setTags/setWorkTypes: adds `value` if absent, removes it if present.
+  const toggled = (value: string) => (prev: string[]) =>
+    prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value];
 
   function save() {
     const trimmed = budget.trim();
     const parsed = trimmed === "" ? null : Number(trimmed);
     if (parsed !== null && !Number.isFinite(parsed)) {
       setError("จำนวนงบประมาณไม่ถูกต้อง");
+      return;
+    }
+    if (workTypes.length === 0 && card.workTypes.length > 0) {
+      setError("ต้องเลือกลักษณะงานอย่างน้อย 1 อย่าง");
       return;
     }
     const original = card.budgetAmount === null ? null : Number(card.budgetAmount);
@@ -141,6 +148,7 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
           // A Tag equal to the Category is redundant (and rejected), so it's
           // dropped rather than blocking the save.
           tags: tags.filter((t) => t !== category),
+          workTypes,
         });
         setEditing(false);
         setError(null);
@@ -254,20 +262,15 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
                   <div className="mb-1.5 text-xs text-muted">แท็ก (งานเทคโนโลยีอื่นในโครงการ)</div>
                   <div className="flex flex-wrap gap-1.5">
                     {CATEGORIES.filter((c) => c.value !== category).map((c) => {
-                      const on = tags.includes(c.value);
                       return (
-                        <button
+                        <ToggleChip
                           key={c.value}
-                          type="button"
-                          aria-pressed={on}
+                          on={tags.includes(c.value)}
                           disabled={pending}
-                          onClick={() => toggleTag(c.value)}
-                          className={`ui-btn rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                            on ? "border-ink bg-ink text-surface" : "border-line bg-surface text-label hover:bg-hover"
-                          }`}
+                          onClick={() => setTags(toggled(c.value))}
                         >
                           {c.en}
-                        </button>
+                        </ToggleChip>
                       );
                     })}
                   </div>
@@ -288,6 +291,33 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
               </div>
             ) : (
               <p className="text-sm text-muted">ยังไม่ระบุหมวด</p>
+            )}
+          </Section>
+
+          <Section label="ลักษณะงาน">
+            {editing ? (
+              <div className="flex flex-wrap gap-1.5">
+                {WORK_TYPES.map((w) => (
+                  <ToggleChip
+                    key={w.value}
+                    on={workTypes.includes(w.value)}
+                    disabled={pending}
+                    onClick={() => setWorkTypes(toggled(w.value))}
+                  >
+                    {w.en} · {w.th}
+                  </ToggleChip>
+                ))}
+              </div>
+            ) : card.workTypes.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {card.workTypes.map((w) => (
+                  <span key={w} className="rounded-full bg-chip px-2 py-0.5 text-xs text-muted">
+                    {workTypeLabel(w)}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">ยังไม่ระบุลักษณะงาน</p>
             )}
           </Section>
 
@@ -394,5 +424,31 @@ function PathRow({ label, path }: { label: string; path: string }) {
         <CopyButton value={path} label="คัดลอก" />
       </div>
     </div>
+  );
+}
+
+function ToggleChip({
+  on,
+  disabled,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      disabled={disabled}
+      onClick={onClick}
+      className={`ui-btn rounded-full border px-2.5 py-1 text-xs transition-colors ${
+        on ? "border-ink bg-ink text-surface" : "border-line bg-surface text-label hover:bg-hover"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

@@ -47,3 +47,46 @@ export function matchCategories(query: string): CategoryValue[] {
     return label.startsWith(q) || label.split(/[^a-z0-9]+/).some((word) => word.startsWith(q));
   }).map((c) => c.value);
 }
+
+// How ICN delivered a project (CONTEXT.md's Work Type entry) — never what
+// it was about, which is the Category. A card has one or more. Same rules
+// as CATEGORIES: the single source for validation, the popup and search;
+// never rename a `value` once cards carry it.
+export const WORK_TYPES = [
+  { value: "supply", en: "Supply", th: "จัดหาอุปกรณ์" },
+  { value: "installation", en: "Installation", th: "ติดตั้ง" },
+  { value: "ma", en: "MA (Maintenance)", th: "บำรุงรักษา (MA)" },
+  { value: "managed-services", en: "Managed Services", th: "บริการบริหารจัดการระบบ" },
+  { value: "rental", en: "Rental", th: "เช่าใช้" },
+  { value: "system-development", en: "System Development", th: "พัฒนาระบบ" },
+] as const;
+
+export type WorkTypeValue = (typeof WORK_TYPES)[number]["value"];
+
+const WORK_TYPE_VALUES: ReadonlySet<string> = new Set(WORK_TYPES.map((w) => w.value));
+
+export function isWorkType(value: unknown): value is WorkTypeValue {
+  return typeof value === "string" && WORK_TYPE_VALUES.has(value);
+}
+
+export function workTypeLabel(value: string): string {
+  return WORK_TYPES.find((w) => w.value === value)?.en ?? value;
+}
+
+// Free-text search over Work Types ("MA", "บำรุงรักษา", "rental", "เช่า").
+// Stricter than matchCategories for Latin queries: a 1–2 letter query must
+// be a whole word, because "MA" is itself a Work Type and word-prefix
+// matching would also list every Managed Services card. From 3 letters on,
+// a word prefix is enough ("rent", "install", "maint"). Thai matches
+// anywhere in the Thai label, as for Categories.
+export function matchWorkTypes(query: string): WorkTypeValue[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  if (/[฀-๿]/.test(q)) {
+    return WORK_TYPES.filter((w) => w.th.includes(q)).map((w) => w.value);
+  }
+  return WORK_TYPES.filter((w) => {
+    const words = w.en.toLowerCase().split(/[^a-z0-9]+/);
+    return words.some((word) => word === q || (q.length >= 3 && word.startsWith(q)));
+  }).map((w) => w.value);
+}

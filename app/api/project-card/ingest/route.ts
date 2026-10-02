@@ -18,15 +18,17 @@ function preserveIfNull<T>(existing: T | null, incoming: T | null): T | null {
   return incoming === null ? existing : incoming;
 }
 
-// Category and Tags each preserve-if-blank, then a Tag that ended up equal
-// to the (possibly preserved) Category is dropped, so the two never overlap.
+// Category, Tags and Work Types each preserve-if-blank, then a Tag that
+// ended up equal to the (possibly preserved) Category is dropped, so the two
+// never overlap.
 function mergeClassification(
-  existing: { category: string | null; tags: string[] },
-  incoming: Pick<ProjectCardInput, "category" | "tags">,
-): { category: string | null; tags: string[] } {
+  existing: { category: string | null; tags: string[]; workTypes: string[] },
+  incoming: Pick<ProjectCardInput, "category" | "tags" | "workTypes">,
+): { category: string | null; tags: string[]; workTypes: string[] } {
   const category = preserveIfNull(existing.category, incoming.category);
   const tags = incoming.tags.length > 0 ? incoming.tags : existing.tags;
-  return { category, tags: tags.filter((t) => t !== category) };
+  const workTypes = incoming.workTypes.length > 0 ? incoming.workTypes : existing.workTypes;
+  return { category, tags: tags.filter((t) => t !== category), workTypes };
 }
 
 // Pushed by the extraction script that crawls the `PS` share from a machine
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
   // CONTEXT.md's Budget entry ("never shown as authoritative before [a
   // person confirms it]"). Re-crawls still refresh the rest of the card.
   let skippedVerifiedBudget = 0;
-  // Same rule for Category/Tags a person set in the popup (CONTEXT.md's
+  // Same rule for Category/Tags/Work Types a person set in the popup (CONTEXT.md's
   // Description Source entry: person edits are never overwritten).
   let skippedPersonClassification = 0;
 
@@ -106,6 +108,7 @@ export async function POST(request: Request) {
             year: project.year,
             category: project.category,
             tags: project.tags,
+            workTypes: project.workTypes,
           },
         });
         created++;
@@ -113,7 +116,8 @@ export async function POST(request: Request) {
       }
 
       if (existing.budgetVerified) skippedVerifiedBudget++;
-      const sendsClassification = project.category !== null || project.tags.length > 0;
+      const sendsClassification =
+        project.category !== null || project.tags.length > 0 || project.workTypes.length > 0;
       if (existing.classificationEditedByPerson && sendsClassification) skippedPersonClassification++;
       await tx.projectCard.update({
         where: { projectCode: project.projectCode },
@@ -147,7 +151,7 @@ export async function POST(request: Request) {
                 budgetSource: preserveIfNull(existing.budgetSource, project.budgetSource),
                 vatStatus: preserveIfNull(existing.vatStatus, project.vatStatus),
               }),
-          // Absent Category/Tags never erase what an earlier batch recorded;
+          // Absent Category/Tags/Work Types never erase what an earlier batch recorded;
           // a classification a person edited is never touched at all.
           ...(existing.classificationEditedByPerson ? {} : mergeClassification(existing, project)),
         },

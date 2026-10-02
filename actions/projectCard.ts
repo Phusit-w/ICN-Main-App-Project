@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireActor } from "@/lib/authorization";
-import { validateClassification } from "@/lib/project-card";
+import { validateClassification, validateWorkTypes } from "@/lib/project-card";
 
 // Confirms (and optionally corrects) an AI-extracted budget — see
 // app/(app)/project-card/CONTEXT.md's Budget entry. Once verified, a
@@ -35,7 +35,7 @@ const MAX_TEXT_LENGTH = 5000;
 // when the user actually changed the number — a hand-entered figure counts
 // as a person confirming it, same as verifyProjectCardBudget. Leaving it
 // undefined keeps the existing budget and its verified/unverified state.
-// Category/Tags are compared with what's stored: only an actual change
+// Category/Tags/Work Types are compared with what's stored: only an actual change
 // marks the classification as edited by a person, after which a push never
 // overwrites it (CONTEXT.md's Description Source entry).
 export async function updateProjectCardDetails(
@@ -46,6 +46,7 @@ export async function updateProjectCardDetails(
     budgetAmount?: number | null;
     category?: string | null;
     tags?: string[];
+    workTypes?: string[];
   },
 ): Promise<void> {
   const actor = await requireActor();
@@ -59,12 +60,20 @@ export async function updateProjectCardDetails(
     throw new Error("จำนวนงบประมาณไม่ถูกต้อง");
   }
   let classification = {};
-  if (input.category !== undefined || input.tags !== undefined) {
-    const next = validateClassification(input.category, input.tags);
-    const existing = await prisma.projectCard.findUniqueOrThrow({ where: { id }, select: { category: true, tags: true } });
-    const sameTags = existing.tags.length === next.tags.length && next.tags.every((t) => existing.tags.includes(t));
-    if (existing.category !== next.category || !sameTags) {
-      classification = { category: next.category, tags: next.tags, classificationEditedByPerson: true };
+  if (input.category !== undefined || input.tags !== undefined || input.workTypes !== undefined) {
+    const categoryAndTags = validateClassification(input.category, input.tags);
+    const existing = await prisma.projectCard.findUniqueOrThrow({
+      where: { id },
+      select: { category: true, tags: true, workTypes: true },
+    });
+    // An omitted workTypes keeps what's stored rather than clearing it.
+    const workTypes = input.workTypes === undefined ? existing.workTypes : validateWorkTypes(input.workTypes);
+    // A classified card keeps at least one Work Type (CONTEXT.md: "one or
+    // more"); clearing them all would also lock the field against pushes.
+    if (workTypes.length === 0 && existing.workTypes.length > 0) throw new Error("ต้องมีลักษณะงานอย่างน้อย 1 อย่าง");
+    const sameSet = (a: string[], b: string[]) => a.length === b.length && b.every((v) => a.includes(v));
+    if (existing.category !== categoryAndTags.category || !sameSet(existing.tags, categoryAndTags.tags) || !sameSet(existing.workTypes, workTypes)) {
+      classification = { ...categoryAndTags, workTypes, classificationEditedByPerson: true };
     }
   }
   await prisma.projectCard.update({

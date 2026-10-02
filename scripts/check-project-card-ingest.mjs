@@ -48,7 +48,7 @@ async function push(...projects) {
 
 async function stored(code) {
   const { rows } = await db.query(
-    'select category, tags, "classificationEditedByPerson" as edited from "ProjectCard" where "projectCode" = $1',
+    'select category, tags, "workTypes", "classificationEditedByPerson" as edited from "ProjectCard" where "projectCode" = $1',
     [`${PREFIX}${code}`],
   );
   return rows[0];
@@ -70,19 +70,19 @@ try {
   );
   check("unknown category, tag = category, repeated tag, non-array tags are each rejected", r.rejected === 4, JSON.stringify(r.errors));
   check("a valid record in the same request is still saved", r.created === 1);
-  check("created card stores Category and Tags", same(await stored("OK1"), { category: "fiber-optic", tags: ["ip-network"], edited: false }));
+  check("created card stores Category and Tags", same(await stored("OK1"), { category: "fiber-optic", tags: ["ip-network"], workTypes: [], edited: false }));
 
   // --- Preserve-if-blank ---
   await push(card("OK1"));
-  check("absent Category/Tags never erase stored values", same(await stored("OK1"), { category: "fiber-optic", tags: ["ip-network"], edited: false }));
+  check("absent Category/Tags never erase stored values", same(await stored("OK1"), { category: "fiber-optic", tags: ["ip-network"], workTypes: [], edited: false }));
 
   // --- Replace when non-blank ---
   await push(card("OK1", { category: "transmission", tags: ["fiber-optic"] }));
-  check("non-blank Category/Tags replace stored values", same(await stored("OK1"), { category: "transmission", tags: ["fiber-optic"], edited: false }));
+  check("non-blank Category/Tags replace stored values", same(await stored("OK1"), { category: "transmission", tags: ["fiber-optic"], workTypes: [], edited: false }));
 
   // --- Tags only: a Tag equal to the preserved Category is dropped ---
   await push(card("OK1", { tags: ["transmission", "energy"] }));
-  check("tags-only push drops a Tag equal to the preserved Category", same(await stored("OK1"), { category: "transmission", tags: ["energy"], edited: false }));
+  check("tags-only push drops a Tag equal to the preserved Category", same(await stored("OK1"), { category: "transmission", tags: ["energy"], workTypes: [], edited: false }));
 
   // --- Person-edited classification is never overwritten ---
   await db.query(
@@ -90,10 +90,44 @@ try {
     [`${PREFIX}OK1`],
   );
   r = await push(card("OK1", { category: "energy", tags: ["software"] }));
-  check("push skips a person-edited classification", same(await stored("OK1"), { category: "medical", tags: [], edited: true }));
+  check("push skips a person-edited classification", same(await stored("OK1"), { category: "medical", tags: [], workTypes: [], edited: true }));
   check("response counts the skipped classification", r.skippedPersonClassification === 1, JSON.stringify(r));
   r = await push(card("OK1"));
   check("a push without classification isn't counted as skipped", r.skippedPersonClassification === 0, JSON.stringify(r));
+
+  // --- Work Types validation (ticket 02) ---
+  r = await push(
+    card("WBAD1", { workTypes: ["maintenance"] }),
+    card("WBAD2", { workTypes: ["ma", "ma"] }),
+    card("WBAD3", { workTypes: "ma" }),
+    card("WOK1", { category: "ip-network", workTypes: ["supply", "installation", "ma"] }),
+  );
+  check("unknown, repeated and non-array Work Types are each rejected", r.rejected === 3, JSON.stringify(r.errors));
+  check(
+    "created card stores Work Types",
+    same(await stored("WOK1"), { category: "ip-network", tags: [], workTypes: ["supply", "installation", "ma"], edited: false }),
+  );
+
+  // --- Work Types preserve-if-blank / replace ---
+  await push(card("WOK1", { category: "transmission" }));
+  check(
+    "absent Work Types never erase stored values",
+    same(await stored("WOK1"), { category: "transmission", tags: [], workTypes: ["supply", "installation", "ma"], edited: false }),
+  );
+  await push(card("WOK1", { workTypes: ["rental"] }));
+  check(
+    "non-blank Work Types replace stored values (Category kept)",
+    same(await stored("WOK1"), { category: "transmission", tags: [], workTypes: ["rental"], edited: false }),
+  );
+
+  // --- One person-edited marker covers Work Types too ---
+  await db.query(`update "ProjectCard" set "classificationEditedByPerson" = true where "projectCode" = $1`, [`${PREFIX}WOK1`]);
+  r = await push(card("WOK1", { workTypes: ["managed-services"] }));
+  check(
+    "push skips Work Types of a person-edited classification",
+    same(await stored("WOK1"), { category: "transmission", tags: [], workTypes: ["rental"], edited: true }),
+  );
+  check("a Work-Types-only push to a person-edited card is counted as skipped", r.skippedPersonClassification === 1, JSON.stringify(r));
 } finally {
   await cleanup();
   await db.end();

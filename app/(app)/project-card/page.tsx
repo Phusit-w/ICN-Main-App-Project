@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
 import ProjectCardList from "@/components/ProjectCardList";
 import { CommaNumberField } from "@/components/CommaNumberInput";
-import { CATEGORIES, isCategory, matchCategories } from "@/lib/project-card-taxonomy";
+import { CATEGORIES, isCategory, matchCategories, matchWorkTypes } from "@/lib/project-card-taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +80,7 @@ export default async function ProjectCardPage({
 
   const filters: Prisma.ProjectCardWhereInput[] = [];
   const matchedCategories = matchCategories(query);
+  const matchedWorkTypes = matchWorkTypes(query);
   if (query) {
     filters.push({
       OR: [
@@ -93,6 +94,8 @@ export default async function ProjectCardPage({
         ...(matchedCategories.length
           ? [{ category: { in: matchedCategories } }, { tags: { hasSome: matchedCategories } }]
           : []),
+        // Likewise a Work Type ("MA", "เช่า") finds every card delivered that way.
+        ...(matchedWorkTypes.length ? [{ workTypes: { hasSome: matchedWorkTypes } }] : []),
       ],
     });
   }
@@ -253,6 +256,7 @@ export default async function ProjectCardPage({
               year: card.year,
               category: card.category,
               tags: card.tags,
+              workTypes: card.workTypes,
             }))}
           />
         ) : (

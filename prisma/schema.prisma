@@ -331,7 +331,10 @@ model ProjectCard {
   // batch classifies the card.
   category           String?
   tags               String[]  @default([])
-  // Set when a person changes Category/Tags in the popup, so a later push
+  // How ICN delivered the project, from WORK_TYPES in lib/project-card-taxonomy.ts
+  // (CONTEXT.md's Work Type entry). Empty until a batch classifies the card.
+  workTypes          String[]  @default([])
+  // Set when a person changes Category/Tags/Work Types in the popup, so a later push
   // never overwrites their classification (CONTEXT.md's Description Source
   // entry: person edits are never overwritten).
   classificationEditedByPerson Boolean @default(false)
