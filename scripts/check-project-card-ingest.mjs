@@ -135,11 +135,12 @@ try {
     card("DBAD2", { descriptionEn: "Has a description", descriptionSource: "bogus" }),
     card("DBAD3", { descriptionTh: "แก้โดยคน", descriptionSource: "manual" }),
     card("DBAD4", { descriptionSource: "tor" }),
+    card("DBAD5", { descriptionTh: "ภาษาเดียว", descriptionSource: "contract" }),
     card("DOK1", { descriptionTh: "งาน IP", descriptionEn: "IP work", descriptionSource: "tor" }),
   );
   check(
-    "Description without source, unknown source, manual from a push, source without Description are each rejected",
-    r.rejected === 4,
+    "Description without source, unknown source, manual from a push, source without Description, one language only are each rejected",
+    r.rejected === 5,
     JSON.stringify(r.errors),
   );
   const desc = async (code) =>
@@ -149,19 +150,44 @@ try {
   // --- Preserve-if-blank / replace ---
   await push(card("DOK1"));
   check("absent Description and source never erase stored values", same(await desc("DOK1"), { th: "งาน IP", en: "IP work", src: "tor" }));
-  await push(card("DOK1", { descriptionTh: "จากสัญญา", descriptionSource: "contract" }));
+  await push(card("DOK1", { descriptionTh: "จากสัญญา", descriptionEn: "From the contract", descriptionSource: "contract" }));
   check(
-    "non-blank Description replaces a non-manual one (blank English kept)",
-    same(await desc("DOK1"), { th: "จากสัญญา", en: "IP work", src: "contract" }),
+    "a pushed Description replaces a non-manual one, with its source",
+    same(await desc("DOK1"), { th: "จากสัญญา", en: "From the contract", src: "contract" }),
   );
 
   // --- A Description a person edited is never overwritten ---
   await db.query(`update "ProjectCard" set "descriptionTh" = 'คนเขียน', "descriptionSource" = 'manual' where "projectCode" = $1`, [`${PREFIX}DOK1`]);
   r = await push(card("DOK1", { descriptionTh: "AI เขียนใหม่", descriptionEn: "new", descriptionSource: "proposal" }));
-  check("push skips a manual Description", same(await desc("DOK1"), { th: "คนเขียน", en: "IP work", src: "manual" }));
+  check("push skips a manual Description", same(await desc("DOK1"), { th: "คนเขียน", en: "From the contract", src: "manual" }));
   check("response counts the skipped manual Description", r.skippedManualDescription === 1, JSON.stringify(r));
   r = await push(card("DOK1"));
   check("a push without Description isn't counted as skipped", r.skippedManualDescription === 0, JSON.stringify(r));
+
+  // --- Project Folder (ticket 04) ---
+  const FOLDER = String.raw`\\192.168.99.1\PS\_Project 2018-2025\NT\NT014 MA Transport`;
+  r = await push(
+    card("FBAD1", { projectFolderPath: String.raw`C:\local\folder` }),
+    card("FBAD2", { projectFolderPath: String.raw`\\192.168.99.1\PS\_BID\00 Contract\x` }),
+    card("FBAD3", { projectFolderPath: "" }),
+    card("FBAD4", { projectFolderPath: String.raw`\\192.168.99.1\Other\_Project 2026\NT\x` }),
+    card("FBAD5", { projectFolderPath: String.raw`\\192.168.99.1\PS\_ProjectX\NT\x` }),
+    card("FOK1", { projectFolderPath: FOLDER }),
+  );
+  check(
+    "non-UNC, _BID, empty, non-PS share and non-`_Project …` paths are each rejected",
+    r.rejected === 5,
+    JSON.stringify(r.errors),
+  );
+  const folder = async (code) =>
+    (await db.query('select "projectFolderPath" as p from "ProjectCard" where "projectCode" = $1', [`${PREFIX}${code}`])).rows[0]?.p;
+  check("created card stores the Project Folder", (await folder("FOK1")) === FOLDER);
+  await push(card("FOK1"), card("FOK2"));
+  check("absent Project Folder never erases a stored one", (await folder("FOK1")) === FOLDER);
+  check("a card without a Project Folder stores null", (await folder("FOK2")) === null);
+  const OTHER = String.raw`\\192.168.99.1\PS\_Project 2026\NT\NT066 CM-PM`;
+  await push(card("FOK1", { projectFolderPath: OTHER }));
+  check("a non-null Project Folder replaces the stored one", (await folder("FOK1")) === OTHER);
 } finally {
   await cleanup();
   await db.end();

@@ -84,7 +84,11 @@ export async function updateProjectCardDetails(
   await prisma.projectCard.update({
     where: { id },
     data: {
-      ...(descriptionChanged ? { descriptionTh, descriptionEn, descriptionSource: "manual" } : {}),
+      // Clearing both languages leaves nothing to label or protect, so the
+      // source goes back to null and a later push may fill it again.
+      ...(descriptionChanged
+        ? { descriptionTh, descriptionEn, descriptionSource: descriptionTh || descriptionEn ? "manual" : null }
+        : {}),
       budgetNote,
       ...classification,
       ...(budgetAmount === undefined

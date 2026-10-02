@@ -25,6 +25,7 @@ export type ProjectCardRow = {
   descriptionSource: string | null;
   contractPath: string | null;
   certificatePath: string | null;
+  projectFolderPath: string | null;
   budgetAmount: string | null;
   budgetSource: string | null;
   vatStatus: string | null;
@@ -35,6 +36,10 @@ export type ProjectCardRow = {
   tags: string[];
   workTypes: string[];
 };
+
+// The project's own folder in the wider archive (`_Project …`), where its
+// TOR and working files live — distinct from the two `_BID` document paths.
+const PROJECT_FOLDER_LABEL = "โฟลเดอร์โครงการ (TOR และไฟล์ทำงาน)";
 
 const VAT_LABEL: Record<string, string> = {
   included: "รวม VAT",
@@ -393,14 +398,20 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
           </Section>
 
           <Section label="ตำแหน่งไฟล์">
-            {card.contractPath || card.certificatePath ? (
-              <div className="flex flex-col gap-2">
-                {card.contractPath ? <PathRow label="สัญญา" path={card.contractPath} /> : null}
-                {card.certificatePath ? <PathRow label="หนังสือรับรอง" path={card.certificatePath} /> : null}
-              </div>
-            ) : (
-              <p className="text-sm text-muted">-</p>
-            )}
+            <div className="flex flex-col gap-2">
+              {/* Always listed, "-" when blank: no folder, or none identified
+                  with confidence (CONTEXT.md's Project Folder entry). */}
+              {card.projectFolderPath ? (
+                <PathRow label={PROJECT_FOLDER_LABEL} path={card.projectFolderPath} />
+              ) : (
+                <div>
+                  <div className="mb-1 text-xs text-muted">{PROJECT_FOLDER_LABEL}</div>
+                  <p className="text-sm text-muted">-</p>
+                </div>
+              )}
+              {card.contractPath ? <PathRow label="สัญญา" path={card.contractPath} /> : null}
+              {card.certificatePath ? <PathRow label="หนังสือรับรอง" path={card.certificatePath} /> : null}
+            </div>
           </Section>
 
           {error ? <p className="text-sm text-danger">{error}</p> : null}

@@ -53,7 +53,7 @@ How ICN delivered a project, from a short fixed list: supply, installation, MA, 
 _Avoid_: Service type, contract type
 
 **Project Folder**:
-The project's own folder in the wider project archive (`_Project …` on the `PS` share), where its TOR and other working files live. A third Folder Path on the card besides the Contract and Work Certificate paths; blank when the project has no folder there.
+The project's own folder in the wider project archive (`_Project …` on the `PS` share), where its TOR and other working files live. A third Folder Path on the card besides the Contract and Work Certificate paths; blank when the project has no folder there, or when no single folder can be identified with confidence — blank, never a guess.
 _Avoid_: Archive path, TOR path
 
 **Budget**:
@@ -77,5 +77,5 @@ When a project's Contract or Work Certificate collection holds multiple document
 _Avoid_: Revision, amendment, latest version
 
 **Folder Path**:
-The UNC path back to a project's files on the `PS` share, kept on the Project Card so a user can navigate to the originals by hand. A card carries up to two: one for the project's Contract and one for its Work Certificate, since the two live in different places; either is blank when the project has no such file. Search inside the files themselves is explicitly out of scope (see ADR 0003).
+The UNC path back to a project's files on the `PS` share, kept on the Project Card so a user can navigate to the originals by hand. A card carries up to three: one for the project's Contract and one for its Work Certificate under `_BID`, since the two live in different places, plus its Project Folder; each is blank when the project has no such file or folder. Search inside the files themselves is explicitly out of scope (see ADR 0003).
 _Avoid_: Location, share path

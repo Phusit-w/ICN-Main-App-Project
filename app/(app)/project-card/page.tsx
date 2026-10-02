@@ -249,6 +249,7 @@ export default async function ProjectCardPage({
               descriptionSource: card.descriptionSource,
               contractPath: card.contractPath,
               certificatePath: card.certificatePath,
+              projectFolderPath: card.projectFolderPath,
               budgetAmount: card.budgetAmount ? card.budgetAmount.toString() : null,
               budgetSource: card.budgetSource,
               vatStatus: card.vatStatus,

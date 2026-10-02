@@ -53,6 +53,7 @@ export interface ProjectCardInput {
   descriptionSource: PushedDescriptionSource | null;
   contractPath: string | null;
   certificatePath: string | null;
+  projectFolderPath: string | null;
   budgetAmount: number | null;
   budgetSource: BudgetSource | null;
   vatStatus: VatStatus | null;
@@ -93,6 +94,9 @@ function nullableString(value: unknown, field: string): string | null {
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
 
+// \\<server>\PS\_Project <years>\<at least one more segment>
+const PROJECT_FOLDER_PATH = /^\\\\[^\\]+\\PS\\_Project [^\\]+\\[^\\]/i;
+
 export function validateProjectCardInput(raw: unknown): ProjectCardInput {
   if (typeof raw !== "object" || raw === null) throw new Error("Record must be an object");
   const r = raw as Record<string, unknown>;
@@ -115,6 +119,12 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     descriptionSource = r.descriptionSource;
   }
   const sendsDescription = descriptionTh.trim() !== "" || descriptionEn.trim() !== "";
+  // Both languages come from one reading of one source, so they're sent
+  // together: a push with only one would leave the stored other language
+  // under the new source's label, misdescribing where it came from.
+  if (sendsDescription && (descriptionTh.trim() === "" || descriptionEn.trim() === "")) {
+    throw new Error('"descriptionTh" and "descriptionEn" must be sent together');
+  }
   if (sendsDescription && descriptionSource === null) {
     throw new Error('"descriptionSource" is required when "descriptionTh" or "descriptionEn" is present');
   }
@@ -129,6 +139,14 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
   // record with neither path isn't a project this context can source.
   if (contractPath === null && certificatePath === null) {
     throw new Error('at least one of "contractPath" or "certificatePath" is required');
+  }
+  // The project's folder in the wider archive (CONTEXT.md's Project Folder
+  // entry): a UNC path whose top folder on the `PS` share is `_Project …`
+  // (e.g. `\\192.168.99.1\PS\_Project 2018-2025\…`), never a `_BID` or
+  // local path. Absent/null means "not known", never "erase".
+  const projectFolderPath = nullableString(r.projectFolderPath, "projectFolderPath");
+  if (projectFolderPath !== null && !PROJECT_FOLDER_PATH.test(projectFolderPath)) {
+    throw new Error(String.raw`"projectFolderPath" must be a UNC path under the PS share's _Project archive (\\server\PS\_Project …\…)`);
   }
 
   let budgetAmount: number | null = null;
@@ -180,6 +198,7 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     descriptionSource,
     contractPath,
     certificatePath,
+    projectFolderPath,
     budgetAmount,
     budgetSource,
     vatStatus,

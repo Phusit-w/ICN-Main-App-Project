@@ -301,10 +301,14 @@ model ProjectCard {
   // lib/project-card-taxonomy.ts.
   descriptionSource  String?
   // UNC path to the project's Contract / Work Certificate under `_BID`
-  // (CONTEXT.md's Folder Path entry: "a card carries up to two"). Either
+  // (CONTEXT.md's Folder Path entry; the third is projectFolderPath). Either
   // may be null when the project has no such document.
   contractPath       String?
   certificatePath    String?
+  // UNC path to the project's own folder in the wider archive (`_Project …`
+  // on `PS`) — CONTEXT.md's Project Folder entry. Null when the project has
+  // none or nobody is sure which folder it is; never a guess.
+  projectFolderPath  String?
   // THB. Decimal(15,2) rather than ExpenseRecord's (12,2): some USO/telecom
   // projects run into the billions.
   budgetAmount       Decimal?  @db.Decimal(15, 2)

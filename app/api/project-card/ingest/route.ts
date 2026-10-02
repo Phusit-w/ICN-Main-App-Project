@@ -104,6 +104,7 @@ export async function POST(request: Request) {
             descriptionSource: project.descriptionSource,
             contractPath: project.contractPath,
             certificatePath: project.certificatePath,
+            projectFolderPath: project.projectFolderPath,
             budgetAmount: project.budgetAmount,
             budgetSource: project.budgetSource,
             vatStatus: project.vatStatus,
@@ -146,6 +147,7 @@ export async function POST(request: Request) {
           // the other document's already-recorded path erased.
           contractPath: preserveIfNull(existing.contractPath, project.contractPath),
           certificatePath: preserveIfNull(existing.certificatePath, project.certificatePath),
+          projectFolderPath: preserveIfNull(existing.projectFolderPath, project.projectFolderPath),
           budgetNote: preserveIfBlank(existing.budgetNote, project.budgetNote),
           year: preserveIfNull(existing.year, project.year),
           // budgetAmount/budgetSource/vatStatus travel together as one unit
