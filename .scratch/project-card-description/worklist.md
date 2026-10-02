@@ -22,11 +22,11 @@ Matching was done 2026-10-02, read-only against `_Project 2018-2025` and `_Proje
 
 | | Cards |
 |---|---|
-| Confident Project Folder | 151 |
-| Ambiguous (candidates listed, awaiting the user) | 13 |
-| No Project Folder | 108 |
+| Confident Project Folder | 159 |
+| Ambiguous (candidates listed, awaiting the user) | 0 |
+| No Project Folder | 113 |
 
-Planned sources: `name` 21, `contract` 103, `tor` 145, `proposal` 3.
+Planned sources: `name` 21, `contract` 95, `tor` 153, `proposal` 3.
 Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 
 ## Cards
@@ -111,14 +111,14 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 09 | OBEC013 | OBEC | `_Project 2026\OBEC\OBEC013 Tablet_สพป.อุบลราชธานี เขต 5` — code |  | tor | todo |  |
 | 10 | PEA006 | PEA |  |  | name (Work Certificate only) | todo |  |
 | 10 | PEA012 | PEA |  |  | contract | todo |  |
-| 10 | PEA015 | PEA |  | `_Project 2018-2025\PEA\2019\PEA_Accessories 2019` | contract | todo | Two 2019 spare-stock cards (PEA015, PEA019) but one Accessories 2019 folder — which card, or both? |
+| 10 | PEA015 | PEA |  |  | contract | todo | Two 2019 spare-stock cards (PEA015, PEA019) but one Accessories 2019 folder — which card, or both? → **User 2026-10-02: accepted Claude's recommendation — blank: one TOR in the folder and PEA019 is the Accessories contract.** |
 | 10 | PEA017 | PEA | `_Project 2018-2025\PEA\2019\PEA_OFC62` — name+year |  | tor (TOR in archive) | todo |  |
 | 10 | PEA018 | PEA | `_Project 2018-2025\PEA\2019\PEA_Digital trunk radio กฟก2` — name+year |  | tor (TOR in archive) | todo |  |
-| 10 | PEA019 | PEA |  | `_Project 2018-2025\PEA\2019\PEA_Accessories 2019` | contract | todo | See PEA015. |
-| 10 | PEA020 | PEA |  | `_Project 2018-2025\PEA\2020\PEA_Teleprotection กฟก.2`<br>`_Project 2018-2025\PEA\2020\PEA_Teleprotection กฟก.2 เพิ่ม 1 node` | contract | todo | Main Teleprotection กฟก.2 folder or the 'add 1 node' one? |
-| 10 | PEA021 | PEA |  | `_Project 2018-2025\PEA\2020\PEA_ IP Access Huawei 135 Nodes and 56 Nodes` | contract | todo | One 2020 IP Access folder (135 + 56 nodes) for two cards (PEA021, PEA022) — does it cover both? |
-| 10 | PEA022 | PEA |  | `_Project 2018-2025\PEA\2020\PEA_ IP Access Huawei 135 Nodes and 56 Nodes` | contract | todo | See PEA021. |
-| 10 | PEA023 | PEA |  | `_Project 2018-2025\PEA\2020\PEA_Accessories 2020`<br>`_Project 2018-2025\PEA\2020\PEA- เข้าคลัง`<br>`_Project 2018-2025\PEA\2020\PEA-เข้าคลัง เลขที่ กฟภ.กบข.(ก)-๐๐๖-๒๕๖๓` | contract | todo | 2020 spare stock: the Accessories 2020 folder or one of the two เข้าคลัง folders? |
+| 10 | PEA019 | PEA | `_Project 2018-2025\PEA\2019\PEA_Accessories 2019` — user's answer |  | tor (TOR in archive) | todo | See PEA015. → **User 2026-10-02: accepted Claude's recommendation — contract file is named Accessories.** |
+| 10 | PEA020 | PEA | `_Project 2018-2025\PEA\2020\PEA_Teleprotection กฟก.2` — user's answer |  | tor | todo | Main Teleprotection กฟก.2 folder or the 'add 1 node' one? → **User 2026-10-02: accepted Claude's recommendation — main folder; the +1 node folder is the Klong Mai 2 job.** |
+| 10 | PEA021 | PEA | `_Project 2018-2025\PEA\2020\PEA_ IP Access Huawei 135 Nodes and 56 Nodes` — user's answer |  | tor | todo | One 2020 IP Access folder (135 + 56 nodes) for two cards (PEA021, PEA022) — does it cover both? → **User 2026-10-02: accepted Claude's recommendation — contract is IP Access Expansion Y62, folder TOR is from 2562.** |
+| 10 | PEA022 | PEA |  |  | contract | todo | See PEA021. → **User 2026-10-02: accepted Claude's recommendation — blank: contract is IP Access Y63 (อบ.3), a later round.** |
+| 10 | PEA023 | PEA |  |  | contract | todo | 2020 spare stock: the Accessories 2020 folder or one of the two เข้าคลัง folders? → **User 2026-10-02: accepted Claude's recommendation — blank: two 2020 ICN submissions (Accessories 2020 / เข้าคลัง 006-2563) cannot be told apart.** |
 | 10 | PEA026 | PEA |  |  | contract | todo |  |
 | 10 | PEA027 | PEA | `_Project 2018-2025\PEA\2021\2. IP Access Y.64` — name+year |  | tor | todo |  |
 | 10 | PEA028 | PEA |  |  | contract | todo |  |
@@ -187,14 +187,14 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 12 | FORTH003 | MHESI (FORTH) |  |  | contract | todo |  |
 | 12 | FORTH004 | PEA (FORTH) |  |  | contract | todo |  |
 | 12 | IEAT001 | IEAT | `_Project 2018-2025\IEAT\โครงการเช่าใช้บริการระบบเฝ้าระวัง ควบคุม การจัดการความปลอดภัยอัจฉริยะ` — name+year |  | tor | todo |  |
-| 12 | IRCP001 | NT (IRCP) |  | `_Project 2018-2025\NT\2023\NT035 OTA_MDM_EXP`<br>`_Project 2018-2025\NT\2024\NTXXX OTA_EXP` | contract | todo | Subcontract (IRCP) for NT MDM/OTA migration — one of these NT OTA/MDM folders, or neither? |
+| 12 | IRCP001 | NT (IRCP) | `_Project 2018-2025\NT\2024\NTXXX OTA_EXP` — user's answer |  | tor | todo | Subcontract (IRCP) for NT MDM/OTA migration — one of these NT OTA/MDM folders, or neither? → **User 2026-10-02: accepted Claude's recommendation — folder holds the 2024 MDM_OTA draft TOR.** |
 | 12 | IST001 | IST |  |  | contract | todo |  |
-| 12 | MEA002 | MEA |  | `_Project 2018-2025\MEA\Proposal\_Old\DMS7` | contract | todo | Proposal-archive folder DMS7 (no year) — is it this 2018 DMS communications project? |
-| 12 | MEA003 | MEA |  | `_Project 2018-2025\MEA\Proposal\2021\MEA_MA_OFC_Zone 2` | contract | todo | 2021 MA OFC proposals exist for Zone 2 and Zone 3 (Zone 3 = MEA004). MEA003's districts match MEA006's (Zone 1), so Zone 2 may be wrong — right folder or none? |
+| 12 | MEA002 | MEA |  |  | contract | todo | Proposal-archive folder DMS7 (no year) — is it this 2018 DMS communications project? → **User 2026-10-02: accepted Claude's recommendation — blank: contract is DMS6, folder is DMS7.** |
+| 12 | MEA003 | MEA |  |  | contract | todo | 2021 MA OFC proposals exist for Zone 2 and Zone 3 (Zone 3 = MEA004). MEA003's districts match MEA006's (Zone 1), so Zone 2 may be wrong — right folder or none? → **User 2026-10-02: accepted Claude's recommendation — blank: contract is MA OFC Zone 1, folder is Zone 2.** |
 | 12 | MEA004 | MEA | `_Project 2018-2025\MEA\Proposal\2021\MEA_MA_OFC_Zone 3` (proposal-archive) — name+year |  | tor (TOR in archive) | todo |  |
 | 12 | MEA005 | MEA | `_Project 2018-2025\MEA\Proposal\2023\1_EXMEA LINE_ARRG_66` (proposal-archive) — name+year |  | tor | todo |  |
 | 12 | MEA006 | MEA | `_Project 2018-2025\MEA\Proposal\2023\2_EXMEA_MA_OFC_Z1_67` (proposal-archive) — name+year |  | tor | todo |  |
-| 12 | MEA007 | MEA |  | `_Project 2018-2025\MEA\Proposal\2025\1. MEA_OFC Underground`<br>`_Project 2018-2025\MEA\Proposal\2024\Underground Project` | contract | todo | 2025 OFC Underground proposal or the 2024 Underground Project? |
+| 12 | MEA007 | MEA | `_Project 2018-2025\MEA\Proposal\2025\1. MEA_OFC Underground` (proposal-archive) — user's answer |  | tor | todo | 2025 OFC Underground proposal or the 2024 Underground Project? → **User 2026-10-02: accepted Claude's recommendation — fiber relocation underground; Underground Project is 115 kV power cable.** |
 | 12 | ONDE001 | ONDE | `_Project 2018-2025\ONDE\1. Digital Chumchon` — name+year |  | tor | todo |  |
 | 12 | PIS004 | PIS | `_Project 2018-2025\PIS\PIS004 จ้างผู้ดูแลศูนย์ Y68` — code |  | contract | todo |  |
 | 12 | PIS005 | PEA (PIS) |  |  | contract | todo |  |
@@ -237,7 +237,7 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 13 | CAT022 | CAT |  |  | contract | todo |  |
 | 13 | CAT023 | CAT |  |  | contract | todo |  |
 | 13 | CAT024 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT024_อุปกรณ์ DWDM สำหรับลูกค้า ISP และ IPLC` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT025 | CAT |  | `_Project 2018-2025\CAT\Proposal\2019\CAT025_USO phase 2`<br>`_Project 2018-2025\CAT\Proposal\2019\CAT025_USO phase 2_N2_G2` | contract | todo | Card is USO Zone C group 5 (NE 3); the second folder looks like North 2 group 2 — is the first the right one? |
+| 13 | CAT025 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT025_USO phase 2` (proposal-archive) — user's answer |  | tor | todo | Card is USO Zone C group 5 (NE 3); the second folder looks like North 2 group 2 — is the first the right one? → **User 2026-10-02: accepted Claude's recommendation — folder holds the group 5 (NE 3) proposal scan.** |
 | 13 | CAT026 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT026-027_Corrective และ Preventive Maintenance` (proposal-archive) — code |  | tor | todo |  |
 | 13 | CAT027 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT026-027_Corrective และ Preventive Maintenance` (proposal-archive) — code |  | tor | todo |  |
 | 13 | CAT028 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT028_Network Management System (NMS)` (proposal-archive) — code |  | tor | todo |  |
@@ -249,7 +249,7 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 13 | CAT034 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT034_VPOP_PH2` (proposal-archive) — code |  | tor | todo |  |
 | 13 | CAT035 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT035_FILTER` (proposal-archive) — code |  | tor | todo |  |
 | 13 | CAT036 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_NTC_CLS3_SP` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT036-1 | CAT |  | `_Project 2018-2025\CAT\Proposal\2020\CAT036_SP_NK_27.5M` | contract | todo | CAT036's other folder (NTC_CLS3) is Nonthaburi–Chalee 3 = card CAT036; is SP_NK_27.5M this card (Next-Gen DWDM BKK/East/West/South)? |
+| 13 | CAT036-1 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_SP_NK_27.5M` (proposal-archive) — user's answer |  | tor | todo | CAT036's other folder (NTC_CLS3) is Nonthaburi–Chalee 3 = card CAT036; is SP_NK_27.5M this card (Next-Gen DWDM BKK/East/West/South)? → **User 2026-10-02: accepted Claude's recommendation — folder is the Next Generation DWDM (Spare part) proposal.** |
 | 13 | CAT037 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT037_UPG_NMS` (proposal-archive) — code |  | tor | todo |  |
 | 13 | CAT038 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT038-COVID` (proposal-archive) — code |  | tor | todo |  |
 | 13 | CAT039 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT039_MA_NMS63` (proposal-archive) — code |  | tor | todo |  |
@@ -286,7 +286,7 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 14 | TOT034 | TOT |  |  | contract | todo |  |
 | 14 | TOT035 | TOT |  |  | name (Work Certificate only) | todo |  |
 | 14 | TOT036 | TOT |  |  | name (Work Certificate only) | todo |  |
-| 14 | TOT037 | TOT |  | `_Project 2018-2025\TOT\Proposal\2018\TOT_OTA` | contract | todo | 2018 proposal folder TOT_OTA — is it this 2018 OTA expansion? |
+| 14 | TOT037 | TOT | `_Project 2018-2025\TOT\Proposal\2018\TOT_OTA` (proposal-archive) — user's answer |  | tor | todo | 2018 proposal folder TOT_OTA — is it this 2018 OTA expansion? → **User 2026-10-02: accepted Claude's recommendation — folder holds the TOT OTA Expansion SOC and implementation plan.** |
 | 14 | TOT038 | TOT |  |  | name (Work Certificate only) | todo |  |
 | 14 | TOT040 | TOT |  |  | contract | todo |  |
 | 14 | TOT041 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT041_งานจัดซื้ออุปกรณ์จัดเก็บข้อมูลจราจรคอมพิวเตอร์` (proposal-archive) — code |  | tor | todo |  |
