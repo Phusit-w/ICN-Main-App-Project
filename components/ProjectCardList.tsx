@@ -7,7 +7,13 @@ import Button from "@/components/ui/Button";
 import CopyButton from "@/components/CopyButton";
 import CommaNumberInput, { withCommas } from "@/components/CommaNumberInput";
 import { fmt } from "@/lib/format";
-import { CATEGORIES, WORK_TYPES, categoryLabel, workTypeLabel } from "@/lib/project-card-taxonomy";
+import {
+  CATEGORIES,
+  WORK_TYPES,
+  categoryLabel,
+  descriptionSourceLabel,
+  workTypeLabel,
+} from "@/lib/project-card-taxonomy";
 
 export type ProjectCardRow = {
   id: string;
@@ -16,6 +22,7 @@ export type ProjectCardRow = {
   projectName: string;
   descriptionTh: string;
   descriptionEn: string;
+  descriptionSource: string | null;
   contractPath: string | null;
   certificatePath: string | null;
   budgetAmount: string | null;
@@ -103,7 +110,8 @@ export default function ProjectCardList({ cards }: { cards: ProjectCardRow[] }) 
 
 function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: () => void }) {
   const [editing, setEditing] = useState(false);
-  const [description, setDescription] = useState(card.descriptionTh);
+  const [descriptionTh, setDescriptionTh] = useState(card.descriptionTh);
+  const [descriptionEn, setDescriptionEn] = useState(card.descriptionEn);
   const [note, setNote] = useState(card.budgetNote);
   const [budget, setBudget] = useState(card.budgetAmount ?? "");
   const [category, setCategory] = useState(card.category ?? "");
@@ -113,7 +121,8 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
   const [pending, startTransition] = useTransition();
 
   function resetForm() {
-    setDescription(card.descriptionTh);
+    setDescriptionTh(card.descriptionTh);
+    setDescriptionEn(card.descriptionEn);
     setNote(card.budgetNote);
     setBudget(card.budgetAmount ?? "");
     setCategory(card.category ?? "");
@@ -141,7 +150,8 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
     startTransition(async () => {
       try {
         await updateProjectCardDetails(card.id, {
-          descriptionTh: description,
+          descriptionTh,
+          descriptionEn,
           budgetNote: note,
           ...(parsed !== original ? { budgetAmount: parsed } : {}),
           category: category || null,
@@ -323,18 +333,42 @@ function ProjectCardDetail({ card, onClose }: { card: ProjectCardRow; onClose: (
 
           <Section label="รายละเอียดโครงการ">
             {editing ? (
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                disabled={pending}
-                placeholder="อธิบายว่าโครงการนี้ทำอะไร"
-                className="w-full rounded-field border border-line bg-surface px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-ink"
-              />
+              <div className="flex flex-col gap-2">
+                <textarea
+                  aria-label="รายละเอียดภาษาไทย"
+                  value={descriptionTh}
+                  onChange={(e) => setDescriptionTh(e.target.value)}
+                  rows={4}
+                  disabled={pending}
+                  placeholder="อธิบายว่าโครงการนี้ทำอะไร (ภาษาไทย)"
+                  className="w-full rounded-field border border-line bg-surface px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-ink"
+                />
+                <textarea
+                  aria-label="รายละเอียดภาษาอังกฤษ"
+                  value={descriptionEn}
+                  onChange={(e) => setDescriptionEn(e.target.value)}
+                  rows={3}
+                  disabled={pending}
+                  placeholder="What the project delivered (English)"
+                  className="w-full rounded-field border border-line bg-surface px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-ink"
+                />
+                <p className="text-xs text-muted">ถ้าแก้คำอธิบาย จะติดป้าย “แก้ไขโดยคน” และการอัปเดตข้อมูลครั้งต่อไปจะไม่เขียนทับ</p>
+              </div>
             ) : card.descriptionTh || card.descriptionEn ? (
               <div className="text-sm leading-6 text-label">
+                {card.descriptionSource ? (
+                  <span
+                    className={`mb-1.5 inline-block rounded-full px-2 py-0.5 text-xs ${
+                      // A name-only Description is a guess, not read from
+                      // documents — flagged so it's never mistaken for one.
+                      card.descriptionSource === "name" ? "bg-peach text-black" : "bg-chip text-muted"
+                    }`}
+                  >
+                    {descriptionSourceLabel(card.descriptionSource)}
+                  </span>
+                ) : null}
                 {card.descriptionTh ? <p className="whitespace-pre-line">{card.descriptionTh}</p> : null}
-                {card.descriptionEn ? <p className="mt-1 text-muted">{card.descriptionEn}</p> : null}
+                {card.descriptionEn ? <p className="mt-1 whitespace-pre-line text-muted">{card.descriptionEn}</p> : null}
               </div>
             ) : (
               <p className="text-sm text-muted">ยังไม่มีรายละเอียด</p>

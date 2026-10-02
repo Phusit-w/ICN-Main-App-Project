@@ -128,6 +128,40 @@ try {
     same(await stored("WOK1"), { category: "transmission", tags: [], workTypes: ["rental"], edited: true }),
   );
   check("a Work-Types-only push to a person-edited card is counted as skipped", r.skippedPersonClassification === 1, JSON.stringify(r));
+
+  // --- Description Source validation (ticket 03) ---
+  r = await push(
+    card("DBAD1", { descriptionTh: "มีคำอธิบาย" }),
+    card("DBAD2", { descriptionEn: "Has a description", descriptionSource: "bogus" }),
+    card("DBAD3", { descriptionTh: "แก้โดยคน", descriptionSource: "manual" }),
+    card("DBAD4", { descriptionSource: "tor" }),
+    card("DOK1", { descriptionTh: "งาน IP", descriptionEn: "IP work", descriptionSource: "tor" }),
+  );
+  check(
+    "Description without source, unknown source, manual from a push, source without Description are each rejected",
+    r.rejected === 4,
+    JSON.stringify(r.errors),
+  );
+  const desc = async (code) =>
+    (await db.query('select "descriptionTh" as th, "descriptionEn" as en, "descriptionSource" as src from "ProjectCard" where "projectCode" = $1', [`${PREFIX}${code}`])).rows[0];
+  check("created card stores Description and its source", same(await desc("DOK1"), { th: "งาน IP", en: "IP work", src: "tor" }));
+
+  // --- Preserve-if-blank / replace ---
+  await push(card("DOK1"));
+  check("absent Description and source never erase stored values", same(await desc("DOK1"), { th: "งาน IP", en: "IP work", src: "tor" }));
+  await push(card("DOK1", { descriptionTh: "จากสัญญา", descriptionSource: "contract" }));
+  check(
+    "non-blank Description replaces a non-manual one (blank English kept)",
+    same(await desc("DOK1"), { th: "จากสัญญา", en: "IP work", src: "contract" }),
+  );
+
+  // --- A Description a person edited is never overwritten ---
+  await db.query(`update "ProjectCard" set "descriptionTh" = 'คนเขียน', "descriptionSource" = 'manual' where "projectCode" = $1`, [`${PREFIX}DOK1`]);
+  r = await push(card("DOK1", { descriptionTh: "AI เขียนใหม่", descriptionEn: "new", descriptionSource: "proposal" }));
+  check("push skips a manual Description", same(await desc("DOK1"), { th: "คนเขียน", en: "IP work", src: "manual" }));
+  check("response counts the skipped manual Description", r.skippedManualDescription === 1, JSON.stringify(r));
+  r = await push(card("DOK1"));
+  check("a push without Description isn't counted as skipped", r.skippedManualDescription === 0, JSON.stringify(r));
 } finally {
   await cleanup();
   await db.end();

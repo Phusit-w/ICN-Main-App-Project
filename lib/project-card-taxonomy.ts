@@ -90,3 +90,31 @@ export function matchWorkTypes(query: string): WorkTypeValue[] {
     return words.some((word) => word === q || (q.length >= 3 && word.startsWith(q)));
   }).map((w) => w.value);
 }
+
+// Which material a Description was written from (CONTEXT.md's Description
+// Source entry), in order of preference, plus `manual` once a person edits
+// it in the popup. Only the web ever sets `manual`; a push may send the
+// other four. `name` is a guess from the project name alone, so the popup
+// marks it as such rather than presenting it like one read from documents.
+export const DESCRIPTION_SOURCES = [
+  { value: "tor", th: "จาก TOR (ขอบเขตของงาน)" },
+  { value: "proposal", th: "จาก Proposal ที่ ICN เสนอ (ไม่มี TOR)" },
+  { value: "contract", th: "จากสัญญา (ไม่มี TOR/Proposal)" },
+  { value: "name", th: "เขียนจากชื่อโครงการเท่านั้น — ยังไม่ได้อ่านเอกสาร" },
+  { value: "manual", th: "แก้ไขโดยคน" },
+] as const;
+
+export type DescriptionSourceValue = (typeof DESCRIPTION_SOURCES)[number]["value"];
+export type PushedDescriptionSource = Exclude<DescriptionSourceValue, "manual">;
+
+const PUSHED_DESCRIPTION_SOURCES: ReadonlySet<string> = new Set(
+  DESCRIPTION_SOURCES.map((s) => s.value).filter((v) => v !== "manual"),
+);
+
+export function isPushedDescriptionSource(value: unknown): value is PushedDescriptionSource {
+  return typeof value === "string" && PUSHED_DESCRIPTION_SOURCES.has(value);
+}
+
+export function descriptionSourceLabel(value: string): string {
+  return DESCRIPTION_SOURCES.find((s) => s.value === value)?.th ?? value;
+}

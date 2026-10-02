@@ -294,6 +294,12 @@ model ProjectCard {
   // plain full-text search — see docs/adr/0004).
   descriptionTh      String
   descriptionEn      String
+  // What the Description was written from: tor | proposal | contract | name
+  // (pushed), or manual once a person edits it in the popup — after which a
+  // push never overwrites it (CONTEXT.md's Description Source entry). Null
+  // while the card has no Description. Values: DESCRIPTION_SOURCES in
+  // lib/project-card-taxonomy.ts.
+  descriptionSource  String?
   // UNC path to the project's Contract / Work Certificate under `_BID`
   // (CONTEXT.md's Folder Path entry: "a card carries up to two"). Either
   // may be null when the project has no such document.

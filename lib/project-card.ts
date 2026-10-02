@@ -3,8 +3,10 @@ import {
   CATEGORIES,
   WORK_TYPES,
   isCategory,
+  isPushedDescriptionSource,
   isWorkType,
   type CategoryValue,
+  type PushedDescriptionSource,
   type WorkTypeValue,
 } from "@/lib/project-card-taxonomy";
 
@@ -48,6 +50,7 @@ export interface ProjectCardInput {
   projectName: string;
   descriptionTh: string;
   descriptionEn: string;
+  descriptionSource: PushedDescriptionSource | null;
   contractPath: string | null;
   certificatePath: string | null;
   budgetAmount: number | null;
@@ -100,6 +103,24 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
   const descriptionTh = optionalString(r.descriptionTh, "descriptionTh");
   const descriptionEn = optionalString(r.descriptionEn, "descriptionEn");
   const budgetNote = optionalString(r.budgetNote, "budgetNote");
+
+  // A Description is never unlabelled (CONTEXT.md's Description Source
+  // entry), and the two travel together like budgetAmount/budgetSource.
+  // `manual` means a person edited it on the web, which a push can't claim.
+  let descriptionSource: PushedDescriptionSource | null = null;
+  if (r.descriptionSource !== undefined && r.descriptionSource !== null) {
+    if (!isPushedDescriptionSource(r.descriptionSource)) {
+      throw new Error('"descriptionSource" must be one of tor, proposal, contract, name ("manual" is set only by the web)');
+    }
+    descriptionSource = r.descriptionSource;
+  }
+  const sendsDescription = descriptionTh.trim() !== "" || descriptionEn.trim() !== "";
+  if (sendsDescription && descriptionSource === null) {
+    throw new Error('"descriptionSource" is required when "descriptionTh" or "descriptionEn" is present');
+  }
+  if (!sendsDescription && descriptionSource !== null) {
+    throw new Error('"descriptionSource" must be null when no Description is sent');
+  }
 
   const contractPath = nullableString(r.contractPath, "contractPath");
   const certificatePath = nullableString(r.certificatePath, "certificatePath");
@@ -156,6 +177,7 @@ export function validateProjectCardInput(raw: unknown): ProjectCardInput {
     projectName,
     descriptionTh,
     descriptionEn,
+    descriptionSource,
     contractPath,
     certificatePath,
     budgetAmount,

@@ -79,6 +79,8 @@ export async function POST(request: Request) {
   // Same rule for Category/Tags/Work Types a person set in the popup (CONTEXT.md's
   // Description Source entry: person edits are never overwritten).
   let skippedPersonClassification = 0;
+  // And for a Description a person edited (Description Source `manual`).
+  let skippedManualDescription = 0;
 
   // Prisma's interactive-transaction default timeout (5000ms) isn't enough
   // once the batch is large: the real PS share crawl pushes 100s of records
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
             projectName: project.projectName,
             descriptionTh: project.descriptionTh,
             descriptionEn: project.descriptionEn,
+            descriptionSource: project.descriptionSource,
             contractPath: project.contractPath,
             certificatePath: project.certificatePath,
             budgetAmount: project.budgetAmount,
@@ -119,13 +122,23 @@ export async function POST(request: Request) {
       const sendsClassification =
         project.category !== null || project.tags.length > 0 || project.workTypes.length > 0;
       if (existing.classificationEditedByPerson && sendsClassification) skippedPersonClassification++;
+      const descriptionIsManual = existing.descriptionSource === "manual";
+      if (descriptionIsManual && project.descriptionSource !== null) skippedManualDescription++;
       await tx.projectCard.update({
         where: { projectCode: project.projectCode },
         data: {
           client: project.client,
           projectName: project.projectName,
-          descriptionTh: preserveIfBlank(existing.descriptionTh, project.descriptionTh),
-          descriptionEn: preserveIfBlank(existing.descriptionEn, project.descriptionEn),
+          // A Description a person edited is never touched; otherwise a
+          // blank language keeps what's stored and the source follows the
+          // language(s) actually sent.
+          ...(descriptionIsManual
+            ? {}
+            : {
+                descriptionTh: preserveIfBlank(existing.descriptionTh, project.descriptionTh),
+                descriptionEn: preserveIfBlank(existing.descriptionEn, project.descriptionEn),
+                descriptionSource: preserveIfNull(existing.descriptionSource, project.descriptionSource),
+              }),
           // Same reasoning as description/year above: a project read from
           // only one document type this pass (see the pilot table in
           // PROJECT-CARD-BID-PIVOT-2026-09-21.md — most projects have just
@@ -165,6 +178,7 @@ export async function POST(request: Request) {
     updated,
     skippedVerifiedBudget,
     skippedPersonClassification,
+    skippedManualDescription,
     rejected: errors.length,
     errors,
   });

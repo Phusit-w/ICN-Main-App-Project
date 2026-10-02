@@ -37,11 +37,13 @@ const MAX_TEXT_LENGTH = 5000;
 // undefined keeps the existing budget and its verified/unverified state.
 // Category/Tags/Work Types are compared with what's stored: only an actual change
 // marks the classification as edited by a person, after which a push never
-// overwrites it (CONTEXT.md's Description Source entry).
+// overwrites it (CONTEXT.md's Description Source entry). The same goes for
+// the Description: a change to either language sets its source to `manual`.
 export async function updateProjectCardDetails(
   id: string,
   input: {
     descriptionTh: string;
+    descriptionEn: string;
     budgetNote: string;
     budgetAmount?: number | null;
     category?: string | null;
@@ -51,21 +53,24 @@ export async function updateProjectCardDetails(
 ): Promise<void> {
   const actor = await requireActor();
   const descriptionTh = input.descriptionTh.trim();
+  const descriptionEn = input.descriptionEn.trim();
   const budgetNote = input.budgetNote.trim();
-  if (descriptionTh.length > MAX_TEXT_LENGTH || budgetNote.length > MAX_TEXT_LENGTH) {
+  if ([descriptionTh, descriptionEn, budgetNote].some((text) => text.length > MAX_TEXT_LENGTH)) {
     throw new Error("ข้อความยาวเกินไป");
   }
   const { budgetAmount } = input;
   if (budgetAmount !== undefined && budgetAmount !== null && (!Number.isFinite(budgetAmount) || budgetAmount < 0)) {
     throw new Error("จำนวนงบประมาณไม่ถูกต้อง");
   }
+  const existing = await prisma.projectCard.findUniqueOrThrow({
+    where: { id },
+    select: { descriptionTh: true, descriptionEn: true, category: true, tags: true, workTypes: true },
+  });
+  const descriptionChanged =
+    descriptionTh !== existing.descriptionTh.trim() || descriptionEn !== existing.descriptionEn.trim();
   let classification = {};
   if (input.category !== undefined || input.tags !== undefined || input.workTypes !== undefined) {
     const categoryAndTags = validateClassification(input.category, input.tags);
-    const existing = await prisma.projectCard.findUniqueOrThrow({
-      where: { id },
-      select: { category: true, tags: true, workTypes: true },
-    });
     // An omitted workTypes keeps what's stored rather than clearing it.
     const workTypes = input.workTypes === undefined ? existing.workTypes : validateWorkTypes(input.workTypes);
     // A classified card keeps at least one Work Type (CONTEXT.md: "one or
@@ -79,7 +84,7 @@ export async function updateProjectCardDetails(
   await prisma.projectCard.update({
     where: { id },
     data: {
-      descriptionTh,
+      ...(descriptionChanged ? { descriptionTh, descriptionEn, descriptionSource: "manual" } : {}),
       budgetNote,
       ...classification,
       ...(budgetAmount === undefined
