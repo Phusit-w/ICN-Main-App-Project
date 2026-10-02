@@ -33,11 +33,11 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 
 | Batch | Code | Client | Project Folder | Candidates | Planned source | Status | Question / answer |
 |---|---|---|---|---|---|---|---|
-| 07 | NT001 | NT | `_Project 2018-2025\NT\2021\NT001_MGT_RTC` — code |  | tor | todo |  |
-| 07 | NT002 | NT | `_Project 2018-2025\NT\2021\NT002_CORE_BW_EXP` — code |  | tor | todo |  |
-| 07 | NT003 | NT | `_Project 2018-2025\NT\2021\NT003_MA_OTA` — code |  | tor | todo |  |
-| 07 | NT004 | NT | `_Project 2018-2025\NT\2021\NT004_MA ITSC BKK6` — code |  | tor | todo |  |
-| 07 | NT005 | NT | `_Project 2018-2025\NT\2021\NT005_PABX BTC` — code |  | tor | todo |  |
+| 07 | NT001 | NT | `_Project 2018-2025\NT\2021\NT001_MGT_RTC` — code |  | tor | written |  |
+| 07 | NT002 | NT | `_Project 2018-2025\NT\2021\NT002_CORE_BW_EXP` — code |  | tor | written |  |
+| 07 | NT003 | NT | `_Project 2018-2025\NT\2021\NT003_MA_OTA` — code |  | tor | written |  |
+| 07 | NT004 | NT | `_Project 2018-2025\NT\2021\NT004_MA ITSC BKK6` — code |  | tor | written |  |
+| 07 | NT005 | NT | `_Project 2018-2025\NT\2021\NT005_PABX BTC` — code |  | tor | written |  |
 | 07 | NT006 | NT | `_Project 2018-2025\NT\_NT2\2022\1. BB_BKK-South` — name+year |  | tor | todo |  |
 | 07 | NT007 | NT | `_Project 2018-2025\NT\2021\NT007_MA_NK_EQ64` — code |  | tor | todo |  |
 | 07 | NT008 | NT | `_Project 2018-2025\NT\2021\NT008_MA_NMS64` — code |  | tor | todo |  |

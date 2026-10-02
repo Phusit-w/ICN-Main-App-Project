@@ -1,0 +1,57 @@
+[
+  {
+    "projectCode": "NT001",
+    "descriptionTh": "จ้างบริการ Managed Services ดูแลและปฏิบัติงานระบบ RTC ให้ บมจ. กสท โทรคมนาคม (CAT ปัจจุบันรวมเป็น NT) ที่ชุมสายบางรัก ครอบคลุมระบบคิดค่าบริการโทรศัพท์เคลื่อนที่ ได้แก่ Online Charging System (OCS), Data Charging (SCG), Work Order Management (WOM), Provisioning, API Converter และ Data and Report Server ICN จัดวิศวกรระบบ นักวิเคราะห์ระบบ โปรแกรมเมอร์ และเจ้าหน้าที่ Help Desk 24 ชั่วโมง ดูแลเซิร์ฟเวอร์ ฐานข้อมูล แก้ไขเหตุขัดข้อง และพัฒนา Web Service API เชื่อมต่อระบบ (ระบบเก็บเงิน/Billing, Charging)",
+    "descriptionEn": "Managed services contract to operate CAT Telecom's (now NT) RTC mobile charging platform at the Bangrak site: Online Charging System (OCS), data charging (SCG), work order management (WOM), provisioning, API converter and reporting servers. ICN supplied on-site system engineers, system analysts, a programmer and 24x7 help desk staff, covering server/database administration, corrective maintenance and web-service API development (billing, charging, OSS/BSS).",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": ["software"],
+    "workTypes": ["managed-services", "system-development"],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT001_MGT_RTC",
+    "note": "TOR: Official TOR\\MS-TOR-2021.pdf (text)"
+  },
+  {
+    "projectCode": "NT002",
+    "descriptionTh": "จ้างขยาย Bandwidth อุปกรณ์ Core Router ยี่ห้อ Huawei รุ่น NE40E-X16A ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ที่ชุมสายกรุงเกษมและชุมสายพระโขนง เพื่อรองรับลูกค้าโครงข่ายโทรศัพท์เคลื่อนที่ โดยจัดหาและติดตั้ง Interface Card 100GE พร้อม Interface Module 100G/10G และ Software License บนระบบ EMS รวมถึงปรับแต่ง Configuration ให้เชื่อมต่อกับอุปกรณ์ EPC และ Mobile Internet Gateway (เราเตอร์หลัก, ขยายความจุโครงข่าย IP)",
+    "descriptionEn": "Bandwidth expansion of NT's Huawei NE40E-X16A core routers at the Krung Kasem and Phra Khanong exchanges for the mobile network: supply and installation of 100GE interface cards, 100G/10G optical modules and EMS software licenses, plus configuration to connect the routers to the EPC (mobile packet core) and the mobile internet gateway. Keywords: core router, IP backbone, capacity upgrade.",
+    "descriptionSource": "tor",
+    "category": "ip-network",
+    "tags": ["telecom-core"],
+    "workTypes": ["supply", "installation"],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT002_CORE_BW_EXP",
+    "note": "TOR: ขอบเขตของงาน_จ้างขยายBandwidth.pdf (scanned, read as images)"
+  },
+  {
+    "projectCode": "NT003",
+    "descriptionTh": "จ้างบำรุงรักษาระบบ OTA (Over The Air) และปรับปรุงโปรแกรมระบบงานของ บมจ. โทรคมนาคมแห่งชาติ (NT) ระบบ OTA ใช้บริหารจัดการ SIM Card บนโครงข่ายโทรศัพท์เคลื่อนที่ TOTmobile และ MVNO จากระยะไกล เช่น อัปเดตข้อมูลในซิม ดาวน์โหลดและติดตั้งแอปพลิเคชันบนซิมโดยไม่ต้องเปลี่ยนซิม ICN ดูแลให้ระบบทำงานต่อเนื่องและปรับปรุงโปรแกรมให้รองรับเครื่องโทรศัพท์รุ่นใหม่ (ซิมการ์ด, SIM OTA)",
+    "descriptionEn": "Maintenance of NT's OTA (Over-The-Air) platform with software enhancements. OTA manages SIM cards on the TOTmobile and MVNO mobile networks remotely: updating SIM data and downloading or installing SIM applications without replacing the card. ICN kept the system running and updated its software to support new handset models. Keywords: SIM OTA, SIM card management, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": ["software"],
+    "workTypes": ["ma", "system-development"],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT003_MA_OTA",
+    "note": "TOR: Official_TOR\\TOR_งานจ้างบำรุงรักษาระบบ OTA (20210405) (Final).pdf (scanned)"
+  },
+  {
+    "projectCode": "NT004",
+    "descriptionTh": "จ้างบำรุงรักษาระบบชุมสายโทรศัพท์ระหว่างประเทศ BKK6 ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ที่อาคาร กสท บางรัก และส่วนชุมสาย TANDEM/VoIP ที่ศูนย์โทรคมนาคมนนทบุรี ครอบคลุม Soft Switch, Media Gateway, Signaling Gateway, Session Border Controller (SBC), Diameter Signaling Controller, Router, DNS, CDR Collector และ NMS ICN ส่งเจ้าหน้าที่ประจำ Site บำรุงรักษาเชิงป้องกัน ดูแล Help Desk และศูนย์บริการลูกค้า 24x7 จัดการอะไหล่ และอัปเดต Software (ชุมสายต่างประเทศ, International Gateway)",
+    "descriptionEn": "Maintenance of NT's BKK6 international telephone exchange at the CAT Bangrak building, with the tandem/VoIP part at the Nonthaburi telecom centre: soft switch, media gateways, signaling gateway, session border controllers (SBC), Diameter signaling controller, routers, DNS, CDR collector and NMS. ICN provided an on-site engineer, preventive maintenance, 24x7 help desk and customer care, spare-part management and software updates. Keywords: international gateway, voice switching, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": ["ma"],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT004_MA ITSC BKK6",
+    "note": "TOR: Official_TOR\\TOR_MA_BKK6.pdf (scanned)"
+  },
+  {
+    "projectCode": "NT005",
+    "descriptionTh": "ขายพร้อมติดตั้งชุมสายโทรศัพท์ภายใน IP-PABX ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) ที่บางรัก เป็นระบบ Call Server แบบสำรอง (Redundancy) รองรับไม่น้อยกว่า 10,000 พอร์ต พร้อม Media Gateway, SIP Trunk และ Session Border Controller ใช้ได้ทั้งโทรศัพท์อนาล็อก ดิจิทัล และ IP Phone มีระบบ Billing บันทึกการโทร ประชุมทางเสียง และงานติดตั้งพร้อมฝึกอบรม (ตู้สาขา, PBX, โทรศัพท์ภายในองค์กร)",
+    "descriptionEn": "Supply and installation of an IP-PABX telephone exchange for NT at Bangrak: a redundant call server for at least 10,000 ports with media gateways, SIP trunks and a session border controller, supporting analogue, digital and IP phones, call billing/CDR reporting and audio conferencing, plus installation and training. Keywords: PBX, PABX, enterprise telephone system, VoIP.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": ["supply", "installation"],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT005_PABX BTC",
+    "note": "Spec: Proposal A\\Spec IP-PABX CAT Bangruk_26 Mar 2021_comment_ศบ.docx (client's draft spec with comments; the official TOR is the scanned Tor-PABX2_ข้อกำหนด.pdf)"
+  }
+]
