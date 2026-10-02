@@ -22,11 +22,11 @@ Matching was done 2026-10-02, read-only against `_Project 2018-2025` and `_Proje
 
 | | Cards |
 |---|---|
-| Confident Project Folder | 147 |
-| Ambiguous (candidates listed, awaiting the user) | 17 |
+| Confident Project Folder | 151 |
+| Ambiguous (candidates listed, awaiting the user) | 13 |
 | No Project Folder | 108 |
 
-Planned sources: `name` 21, `contract` 107, `tor` 141, `proposal` 3.
+Planned sources: `name` 21, `contract` 103, `tor` 145, `proposal` 3.
 Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 
 ## Cards
@@ -51,7 +51,7 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 07 | NT019 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | todo |  |
 | 07 | NT020 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | todo |  |
 | 07 | NT021 | NT | `_Project 2018-2025\NT\2022\NT021_MGT_RTC65` — code |  | tor | todo |  |
-| 07 | NT022 | NT |  | `_Project 2018-2025\NT\2022\NT022_SMART_POLE`<br>`_Project 2018-2025\NT\2022\NT022_SMART_POLE_Re-bidding` | contract | todo | Two folders carry NT022: the first bid or the re-bid — which one led to the contract? |
+| 07 | NT022 | NT | `_Project 2018-2025\NT\2022\NT022_SMART_POLE_Re-bidding` — user's answer |  | tor | todo | Two folders carry NT022: the first bid or the re-bid — which one led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
 | 07 | NT023 | NT | `_Project 2018-2025\NT\2022\NT023_MA_NET_MON` — code |  | tor | todo |  |
 | 07 | NT024 | NT | `_Project 2018-2025\NT\_NT2\2022\3. ISP-POP` — name+year |  | tor | todo |  |
 | 07 | NT025 | NT | `_Project 2018-2025\NT\2022\NT025_DWDM_155` — code |  | tor | todo |  |
@@ -143,11 +143,11 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 10 | PEA047 | PEA |  |  | contract | todo |  |
 | 11 | PEA048 | PEA |  |  | contract | todo |  |
 | 11 | PEA049 | PEA | `_Project 2018-2025\PEA\2024\5. IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | todo |  |
-| 11 | PEA050 | PEA |  | `_Project 2018-2025\PEA\2024\3. Teleprotection ช่วงสถานีขอนแก่น 4 Y67`<br>`_Project 2018-2025\PEA\2024\7. Teleprotection ช่วงสถานีขอนแก่น 4 Y67 (Re-bidding)` | contract | todo | First bid or re-bid — which led to the contract? |
+| 11 | PEA050 | PEA | `_Project 2018-2025\PEA\2024\7. Teleprotection ช่วงสถานีขอนแก่น 4 Y67 (Re-bidding)` — user's answer |  | tor | todo | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
 | 11 | PEA051 | PEA | `_Project 2018-2025\PEA\2024\9. Dispatch Console` — name+year |  | tor | todo |  |
 | 11 | PEA052 | PEA | `_Project 2018-2025\PEA\2024\11. MA IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | todo |  |
 | 11 | PEA053 | PEA | `_Project 2018-2025\PEA\2024\12. MA IP Access ภาคเหนือและภาคใต้ Y67` — name+year |  | tor | todo |  |
-| 11 | PEA054 | PEA |  | `_Project 2018-2025\PEA\2024\8. Microwave HQ-DR`<br>`_Project 2018-2025\PEA\2024\13. Microwave HQ-DR (Re-bidding)` | contract | todo | First bid or re-bid — which led to the contract? |
+| 11 | PEA054 | PEA | `_Project 2018-2025\PEA\2024\13. Microwave HQ-DR (Re-bidding)` — user's answer |  | tor | todo | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
 | 11 | PEA055 | PEA |  |  | contract | todo |  |
 | 11 | PEA056 | PEA |  |  | contract | todo |  |
 | 11 | PEA057 | PEA | `_Project 2018-2025\PEA\2025\PEA057_IP Access ภาคตะวันออกเฉียงเหนือ Y68` — code |  | tor | todo |  |
@@ -198,7 +198,7 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 12 | ONDE001 | ONDE | `_Project 2018-2025\ONDE\1. Digital Chumchon` — name+year |  | tor | todo |  |
 | 12 | PIS004 | PIS | `_Project 2018-2025\PIS\PIS004 จ้างผู้ดูแลศูนย์ Y68` — code |  | contract | todo |  |
 | 12 | PIS005 | PEA (PIS) |  |  | contract | todo |  |
-| 12 | RTP001 | RTP |  | `_Project 2018-2025\RTP\2024\1. Satellite Telephone`<br>`_Project 2018-2025\RTP\2025\1. Satellite Telephone (Re-bidding)` | contract | todo | First bid (2024) or re-bid (2025) — which led to the contract? |
+| 12 | RTP001 | RTP | `_Project 2018-2025\RTP\2025\1. Satellite Telephone (Re-bidding)` — user's answer |  | tor | todo | First bid (2024) or re-bid (2025) — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
 | 12 | SCS002 | CAT (SCS) |  |  | contract | todo |  |
 | 12 | SVOA009 | SVOA |  |  | contract | todo |  |
 | 12 | TKC001 | RTP (TKC) |  |  | contract | todo |  |
