@@ -12,3 +12,7 @@
 - [ ] User reviews in the local web app; corrections applied; rows set to `reviewed`
 - [ ] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
 - [ ] User spot-checks 2-3 pushed cards on production
+
+## Comments
+
+2026-10-02 — In progress, paused by the user. NT001–NT005 written to `pilot-db` (`batches/07-nt-a.json`, style approved by the user). Sources for the other 27 cards are read and summarised in `batches/07-nt-a-notes.md` (source file, facts, planned classification per card); NT006 still needs a look. Next session: finish the notes' open items, append the 27 entries to `07-nt-a.json`, run `batches/write-local.mjs`, then the user reviews in the local web app.
