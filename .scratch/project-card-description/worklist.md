@@ -173,47 +173,47 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 11 | PEA086 | PEA | `_Project 2026\PEA\7. PEA086_MA Radio กฟก.2` — code |  | tor | pushed |  |
 | 11 | PEA087 | PEA |  |  | contract | pushed |  |
 | 11 | PEA089 | PEA | `_Project 2026\PEA\8. PEA089_Radio ภาคกลาง Y69` — code |  | tor | pushed |  |
-| 12 | AIT004 | TOT (AIT) |  |  | name (Work Certificate only) | todo |  |
-| 12 | AIT012 | MHESI (AIT) |  |  | contract | todo |  |
-| 12 | ATD001 | ATD |  |  | contract | todo |  |
-| 12 | ATD002 | ATD |  |  | contract | todo |  |
-| 12 | BBT001 | PEA (BBTEC) |  |  | contract | todo |  |
-| 12 | BBT002 | PEA (BBTEC) | `_Project 2018-2025\BBTEC\BBT002 MA OFC Y66 PEA` — code |  | contract | todo |  |
-| 12 | EGAT001 | EGAT | `_Project 2018-2025\EGAT\2023\2.EGAT001_MICROWAVE` — code |  | tor | todo |  |
-| 12 | EGAT003 | EGAT |  |  | contract | todo |  |
-| 12 | EGAT004 | EGAT |  |  | contract | todo |  |
-| 12 | EXIM001 | EXIM | `_Project 2018-2025\EXIM\Core Banking` — name+year |  | tor | todo |  |
-| 12 | FORT001 | MHESI (FORTH) |  |  | contract | todo |  |
-| 12 | FORTH003 | MHESI (FORTH) |  |  | contract | todo |  |
-| 12 | FORTH004 | PEA (FORTH) |  |  | contract | todo |  |
-| 12 | IEAT001 | IEAT | `_Project 2018-2025\IEAT\โครงการเช่าใช้บริการระบบเฝ้าระวัง ควบคุม การจัดการความปลอดภัยอัจฉริยะ` — name+year |  | tor | todo |  |
-| 12 | IRCP001 | NT (IRCP) | `_Project 2018-2025\NT\2024\NTXXX OTA_EXP` — user's answer |  | tor | todo | Subcontract (IRCP) for NT MDM/OTA migration — one of these NT OTA/MDM folders, or neither? → **User 2026-10-02: accepted Claude's recommendation — folder holds the 2024 MDM_OTA draft TOR.** |
-| 12 | IST001 | IST |  |  | contract | todo |  |
-| 12 | MEA002 | MEA |  |  | contract | todo | Proposal-archive folder DMS7 (no year) — is it this 2018 DMS communications project? → **User 2026-10-02: accepted Claude's recommendation — blank: contract is DMS6, folder is DMS7.** |
-| 12 | MEA003 | MEA |  |  | contract | todo | 2021 MA OFC proposals exist for Zone 2 and Zone 3 (Zone 3 = MEA004). MEA003's districts match MEA006's (Zone 1), so Zone 2 may be wrong — right folder or none? → **User 2026-10-02: accepted Claude's recommendation — blank: contract is MA OFC Zone 1, folder is Zone 2.** |
-| 12 | MEA004 | MEA | `_Project 2018-2025\MEA\Proposal\2021\MEA_MA_OFC_Zone 3` (proposal-archive) — name+year |  | tor (TOR in archive) | todo |  |
-| 12 | MEA005 | MEA | `_Project 2018-2025\MEA\Proposal\2023\1_EXMEA LINE_ARRG_66` (proposal-archive) — name+year |  | tor | todo |  |
-| 12 | MEA006 | MEA | `_Project 2018-2025\MEA\Proposal\2023\2_EXMEA_MA_OFC_Z1_67` (proposal-archive) — name+year |  | tor | todo |  |
-| 12 | MEA007 | MEA | `_Project 2018-2025\MEA\Proposal\2025\1. MEA_OFC Underground` (proposal-archive) — user's answer |  | tor | todo | 2025 OFC Underground proposal or the 2024 Underground Project? → **User 2026-10-02: accepted Claude's recommendation — fiber relocation underground; Underground Project is 115 kV power cable.** |
-| 12 | ONDE001 | ONDE | `_Project 2018-2025\ONDE\1. Digital Chumchon` — name+year |  | tor | todo |  |
-| 12 | PIS004 | PIS | `_Project 2018-2025\PIS\PIS004 จ้างผู้ดูแลศูนย์ Y68` — code |  | contract | todo |  |
-| 12 | PIS005 | PEA (PIS) |  |  | contract | todo |  |
-| 12 | RTP001 | RTP | `_Project 2018-2025\RTP\2025\1. Satellite Telephone (Re-bidding)` — user's answer |  | tor | todo | First bid (2024) or re-bid (2025) — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
-| 12 | SCS002 | CAT (SCS) |  |  | contract | todo |  |
-| 12 | SVOA009 | SVOA |  |  | contract | todo |  |
-| 12 | TKC001 | RTP (TKC) |  |  | contract | todo |  |
-| 12 | TKC002 | NBTC (TKC) |  |  | contract | todo |  |
-| 12 | TKC003 | NBTC (TKC) |  |  | contract | todo |  |
-| 12 | UTEL001 | MEA (UTEL) |  |  | contract | todo |  |
-| 12 | WW003 | TRUE (W&W) |  |  | name (Work Certificate only) | todo |  |
-| 12 | WW005 | W&W |  |  | contract | todo |  |
-| 12 | WW006 | W&W |  |  | contract | todo |  |
-| 12 | WW007 | W&W |  |  | contract | todo |  |
-| 12 | WW008 | W&W |  |  | contract | todo |  |
-| 12 | WW009 | W&W |  |  | contract | todo |  |
-| 12 | WW010 | W&W |  |  | contract | todo |  |
-| 12 | WW011 | W&W |  |  | contract | todo |  |
-| 12 | WW012 | MEA (W&W) | `_Project 2018-2025\W&W\WW012 จัดระเบียบสาย MEA` — code |  | proposal | todo |  |
+| 12 | AIT004 | TOT (AIT) |  |  | name (Work Certificate only) | written |  |
+| 12 | AIT012 | MHESI (AIT) |  |  | contract | written |  |
+| 12 | ATD001 | ATD |  |  | contract | written |  |
+| 12 | ATD002 | ATD |  |  | contract | written |  |
+| 12 | BBT001 | PEA (BBTEC) |  |  | contract | written |  |
+| 12 | BBT002 | PEA (BBTEC) | `_Project 2018-2025\BBTEC\BBT002 MA OFC Y66 PEA` — code |  | contract | written |  |
+| 12 | EGAT001 | EGAT | `_Project 2018-2025\EGAT\2023\2.EGAT001_MICROWAVE` — code |  | tor | written |  |
+| 12 | EGAT003 | EGAT |  |  | contract | written |  |
+| 12 | EGAT004 | EGAT |  |  | contract | written |  |
+| 12 | EXIM001 | EXIM | `_Project 2018-2025\EXIM\Core Banking` — name+year |  | tor | written |  |
+| 12 | FORT001 | MHESI (FORTH) |  |  | contract | written |  |
+| 12 | FORTH003 | MHESI (FORTH) |  |  | contract | written |  |
+| 12 | FORTH004 | PEA (FORTH) |  |  | contract | written |  |
+| 12 | IEAT001 | IEAT | `_Project 2018-2025\IEAT\โครงการเช่าใช้บริการระบบเฝ้าระวัง ควบคุม การจัดการความปลอดภัยอัจฉริยะ` — name+year |  | tor | written |  |
+| 12 | IRCP001 | NT (IRCP) | `_Project 2018-2025\NT\2024\NTXXX OTA_EXP` — user's answer |  | tor | written | Subcontract (IRCP) for NT MDM/OTA migration — one of these NT OTA/MDM folders, or neither? → **User 2026-10-02: accepted Claude's recommendation — folder holds the 2024 MDM_OTA draft TOR.** |
+| 12 | IST001 | IST |  |  | contract | written |  |
+| 12 | MEA002 | MEA |  |  | contract | written | Proposal-archive folder DMS7 (no year) — is it this 2018 DMS communications project? → **User 2026-10-02: accepted Claude's recommendation — blank: contract is DMS6, folder is DMS7.** |
+| 12 | MEA003 | MEA |  |  | contract | written | 2021 MA OFC proposals exist for Zone 2 and Zone 3 (Zone 3 = MEA004). MEA003's districts match MEA006's (Zone 1), so Zone 2 may be wrong — right folder or none? → **User 2026-10-02: accepted Claude's recommendation — blank: contract is MA OFC Zone 1, folder is Zone 2.** |
+| 12 | MEA004 | MEA | `_Project 2018-2025\MEA\Proposal\2021\MEA_MA_OFC_Zone 3` (proposal-archive) — name+year |  | tor (TOR in archive) | written |  |
+| 12 | MEA005 | MEA | `_Project 2018-2025\MEA\Proposal\2023\1_EXMEA LINE_ARRG_66` (proposal-archive) — name+year |  | tor | written |  |
+| 12 | MEA006 | MEA | `_Project 2018-2025\MEA\Proposal\2023\2_EXMEA_MA_OFC_Z1_67` (proposal-archive) — name+year |  | tor | written |  |
+| 12 | MEA007 | MEA | `_Project 2018-2025\MEA\Proposal\2025\1. MEA_OFC Underground` (proposal-archive) — user's answer |  | tor | written | 2025 OFC Underground proposal or the 2024 Underground Project? → **User 2026-10-02: accepted Claude's recommendation — fiber relocation underground; Underground Project is 115 kV power cable.** |
+| 12 | ONDE001 | ONDE | `_Project 2018-2025\ONDE\1. Digital Chumchon` — name+year |  | tor | written |  |
+| 12 | PIS004 | PIS | `_Project 2018-2025\PIS\PIS004 จ้างผู้ดูแลศูนย์ Y68` — code |  | contract | written |  |
+| 12 | PIS005 | PEA (PIS) |  |  | contract | written |  |
+| 12 | RTP001 | RTP | `_Project 2018-2025\RTP\2025\1. Satellite Telephone (Re-bidding)` — user's answer |  | tor | todo | First bid (2024) or re-bid (2025) — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** Fits no Category (satellite) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | SCS002 | CAT (SCS) |  |  | contract | written |  |
+| 12 | SVOA009 | SVOA |  |  | contract | written |  |
+| 12 | TKC001 | RTP (TKC) |  |  | contract | written |  |
+| 12 | TKC002 | NBTC (TKC) |  |  | contract | todo | Fits no Category (satellite) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | TKC003 | NBTC (TKC) |  |  | contract | todo | Fits no Category (satellite) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | UTEL001 | MEA (UTEL) |  |  | contract | written |  |
+| 12 | WW003 | TRUE (W&W) |  |  | name (Work Certificate only) | written |  |
+| 12 | WW005 | W&W |  |  | contract | written |  |
+| 12 | WW006 | W&W |  |  | contract | written |  |
+| 12 | WW007 | W&W |  |  | contract | todo | Fits no Category (base-station MA) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | WW008 | W&W |  |  | contract | written |  |
+| 12 | WW009 | W&W |  |  | contract | todo | Fits no Category (base-station MA) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | WW010 | W&W |  |  | contract | written |  |
+| 12 | WW011 | W&W |  |  | contract | todo | Fits no Category (base-station MA) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | WW012 | MEA (W&W) | `_Project 2018-2025\W&W\WW012 จัดระเบียบสาย MEA` — code |  | proposal | written |  |
 | 13 | CAT001 | CAT |  |  | contract | todo |  |
 | 13 | CAT002 | CAT |  |  | contract | todo |  |
 | 13 | CAT003 | CAT |  |  | contract | todo |  |

@@ -1,0 +1,68 @@
+[
+  {
+    "projectCode": "WW007",
+    "descriptionTh": "สัญญาหลักว่าจ้างงานบำรุงรักษาและซ่อมแซมอุปกรณ์ภายในสถานีฐานโครงข่ายโทรศัพท์เคลื่อนที่ เช่น ระบบปรับอากาศ ระบบไฟฟ้า และอุปกรณ์ต่างๆ พร้อมจัดหาอะไหล่ พื้นที่ภาคตะวันออก (UPC5) ให้บริษัท ไวร์เออ แอนด์ ไวร์เลส (W&W) สำหรับลูกค้ากลุ่มทรู สั่งงานเป็นครั้งคราว (MA ไซต์ BTS, สถานีฐาน)",
+    "descriptionEn": "Framework contract with Wire & Wireless (W&W) for maintenance and repair of equipment inside mobile network base stations, such as air-conditioning, power systems and other site equipment, with spare parts, in the eastern region (UPC5) for W&W's True group customers, called off by work orders. Keywords: base station MA, BTS site maintenance, cell site, air conditioning, power system, True.",
+    "descriptionSource": "contract",
+    "category": "mobile-base-station",
+    "tags": [],
+    "workTypes": ["ma"],
+    "folder": null,
+    "note": "Contract scan p.2 (W&W/TPM/2561-014; p.1 is the value-estimate letter). No Project Folder. Category is NEW (user 2026-10-05) — value is a placeholder until the entry exists on production."
+  },
+  {
+    "projectCode": "WW009",
+    "descriptionTh": "สัญญาหลักว่าจ้างงานบำรุงรักษาและซ่อมแซมอุปกรณ์ภายในสถานีฐานโครงข่ายโทรศัพท์เคลื่อนที่ เช่น ระบบปรับอากาศ ระบบไฟฟ้า และอุปกรณ์ต่างๆ พร้อมจัดหาอะไหล่ ทั่วประเทศ ให้บริษัท ไวร์เออ แอนด์ ไวร์เลส (W&W) สำหรับลูกค้ากลุ่มทรู สั่งงานเป็นครั้งคราว (MA ไซต์ BTS, สถานีฐาน)",
+    "descriptionEn": "Nationwide framework contract with Wire & Wireless (W&W) for maintenance and repair of equipment inside mobile network base stations, such as air-conditioning, power systems and other site equipment, with spare parts, for W&W's True group customers, called off by work orders. Keywords: base station MA, BTS site maintenance, cell site, air conditioning, power system, True.",
+    "descriptionSource": "contract",
+    "category": "mobile-base-station",
+    "tags": [],
+    "workTypes": ["ma"],
+    "folder": null,
+    "note": "Contract scan p.1 (W&W/TPM/2563-033). No Project Folder. Category NEW (placeholder value)."
+  },
+  {
+    "projectCode": "WW011",
+    "descriptionTh": "สัญญาหลักว่าจ้างงานบำรุงรักษาและซ่อมแซมอุปกรณ์ภายในสถานีฐานโครงข่ายโทรศัพท์เคลื่อนที่ เช่น ระบบปรับอากาศ ระบบไฟฟ้า และอุปกรณ์ต่างๆ พร้อมจัดหาอะไหล่ ทั่วราชอาณาจักร ปี 2565 ให้บริษัท ไวร์เออ แอนด์ ไวร์เลส (W&W) สำหรับลูกค้ากลุ่มทรู สั่งงานเป็นครั้งคราว (MA ไซต์ BTS, สถานีฐาน)",
+    "descriptionEn": "Nationwide 2022 framework contract with Wire & Wireless (W&W) for maintenance and repair of equipment inside mobile network base stations, such as air-conditioning, power systems and other site equipment, with spare parts, for W&W's True group customers, called off by work orders. Keywords: base station MA, BTS site maintenance, cell site, air conditioning, power system, True.",
+    "descriptionSource": "contract",
+    "category": "mobile-base-station",
+    "tags": [],
+    "workTypes": ["ma"],
+    "folder": null,
+    "note": "Contract scan p.1 (W&W-TPM-2565-013). No Project Folder. Category NEW (placeholder value)."
+  },
+  {
+    "projectCode": "RTP001",
+    "descriptionTh": "จัดซื้อโทรศัพท์สื่อสารผ่านดาวเทียม จำนวน 100 ชุด ให้สำนักงานตำรวจแห่งชาติ (สำนักงานยุทธศาสตร์ตำรวจ) เพื่อใช้ในงานสืบสวนสอบสวนในพื้นที่ห่างไกลหรือชายแดนที่ไม่มีสัญญาณโทรศัพท์มือถือ ข้อเสนอใช้เครื่อง Inmarsat มาตรฐาน IP65 (Satellite Phone, โทรศัพท์ดาวเทียม)",
+    "descriptionEn": "Supply of 100 satellite phones to the Royal Thai Police (Police Strategy Office) for investigation work in remote and border areas without mobile coverage; the proposal offered IP65-rated Inmarsat handsets. Keywords: satellite phone, Inmarsat, satphone, Royal Thai Police.",
+    "descriptionSource": "tor",
+    "category": "satellite-communications",
+    "tags": [],
+    "workTypes": ["supply"],
+    "folder": "_Project 2018-2025\\RTP\\2025\\1. Satellite Telephone (Re-bidding)",
+    "note": "_TOR\\TOR.pdf scan p.1 rendered; Inmarsat/IP65 from the proposal catalogue file names. Category NEW (placeholder value)."
+  },
+  {
+    "projectCode": "TKC002",
+    "descriptionTh": "บริหารจัดการโครงการ (Project Management) โครงการ NBTC USO Thaicom ของสำนักงาน กสทช. รับเหมาช่วงจาก TKC (USO, ดาวเทียม, กสทช.)",
+    "descriptionEn": "Project management for NBTC's USO Thaicom project, subcontracted from Turnkey Communication Services (TKC). Keywords: USO, Thaicom, satellite, NBTC, project management.",
+    "descriptionSource": "contract",
+    "category": "satellite-communications",
+    "tags": [],
+    "workTypes": ["managed-services"],
+    "folder": null,
+    "note": "TKC work order WO2018090158 scan p.1. No Project Folder. Category NEW (placeholder value)."
+  },
+  {
+    "projectCode": "TKC003",
+    "descriptionTh": "สำรวจพื้นที่และตรวจสอบ (Site Survey & Inspection) โครงการ NBTC USO Thaicom ของสำนักงาน กสทช. รับเหมาช่วงจาก TKC (USO, ดาวเทียม, กสทช.)",
+    "descriptionEn": "Site survey and inspection for NBTC's USO Thaicom project, subcontracted from Turnkey Communication Services (TKC). Keywords: USO, Thaicom, satellite, NBTC, site survey.",
+    "descriptionSource": "contract",
+    "category": "satellite-communications",
+    "tags": [],
+    "workTypes": ["installation"],
+    "folder": null,
+    "note": "TKC work order WO2018090160 scan p.1. No Project Folder. Category NEW (placeholder value). Work Type: no survey type; used installation."
+  }
+]
