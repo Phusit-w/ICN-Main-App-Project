@@ -258,50 +258,50 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 13 | CAT042 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT042_DWDM_FB_GG_PH3` (proposal-archive) — code |  | tor | pushed |  |
 | 13 | CAT043 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT043_DWDM_FB_GG_PH4` (proposal-archive) — code |  | tor | pushed |  |
 | 13 | CAT044 | CAT | `_Project 2018-2025\CAT\Proposal\2021\CAT044_POP_40G` (proposal-archive) — code |  | tor | pushed |  |
-| 14 | TOT002 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT003 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT004 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT005 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT006 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT007 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT008 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT009 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT010 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT012 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT013 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT014 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT016 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT018 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT020 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT021 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT022 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT023 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT026 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT027 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT029 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT030 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT031 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT032 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT033 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT034 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT035 | TOT |  |  | name (Work Certificate only) | reviewed | Question: Category telecom-core + tag software (OM = Order Management, mobile BSS) — OK? |
-| 14 | TOT036 | TOT |  |  | name (Work Certificate only) | reviewed | Question: Category telecom-core + tag software (SAAM = Service Activation, mobile BSS) — OK? |
-| 14 | TOT037 | TOT | `_Project 2018-2025\TOT\Proposal\2018\TOT_OTA` (proposal-archive) — user's answer |  | tor | reviewed | 2018 proposal folder TOT_OTA — is it this 2018 OTA expansion? → **User 2026-10-02: accepted Claude's recommendation — folder holds the TOT OTA Expansion SOC and implementation plan.** |
-| 14 | TOT038 | TOT |  |  | name (Work Certificate only) | reviewed |  |
-| 14 | TOT040 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT041 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT041_งานจัดซื้ออุปกรณ์จัดเก็บข้อมูลจราจรคอมพิวเตอร์` (proposal-archive) — code |  | tor | reviewed |  |
-| 14 | TOT042 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT043 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT044 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT044_งานจ้างพัฒนาจัดซื้อ ระบบ Device Management` (proposal-archive) — code |  | tor | reviewed |  |
-| 14 | TOT045 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT045_งานจ้างติดดั้งอุปกรณ์ DEA (Diameter Edge Agent)` (proposal-archive) — code |  | tor | reviewed |  |
-| 14 | TOT046 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT046_งานซื้ออุปกรณ์เพื่อรองรับการให้บริการ Contact Center` (proposal-archive) — code |  | tor | reviewed |  |
-| 14 | TOT047 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT048 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT049 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT050 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT051 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT051_งานจ้างติดตั้ง Network Monitoring tools` (proposal-archive) — code |  | tor | reviewed |  |
-| 14 | TOT052 | TOT |  |  | contract | reviewed |  |
-| 14 | TOT053 | TOT | `_Project 2018-2025\TOT\Proposal\2020\TOT053_SERV_CEN` (proposal-archive) — code |  | tor | reviewed | Question: desktop PCs for Service Centers → data-center-it (no closer Category) — OK? |
-| 14 | TOT054 | TOT | `_Project 2018-2025\TOT\Proposal\2020\TOT054_MA_OTA` (proposal-archive) — code |  | tor | reviewed |  |
-| 14 | TOT055 | TOT |  |  | contract | reviewed | Question: NTP time servers → transmission + tag ip-network (like TOT027 sync); alternative ip-network — OK? |
-| 14 | TOT056 | TOT |  |  | contract | reviewed |  |
+| 14 | TOT002 | TOT |  |  | contract | pushed |  |
+| 14 | TOT003 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT004 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT005 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT006 | TOT |  |  | contract | pushed |  |
+| 14 | TOT007 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT008 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT009 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT010 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT012 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT013 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT014 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT016 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT018 | TOT |  |  | contract | pushed |  |
+| 14 | TOT020 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT021 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT022 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT023 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT026 | TOT |  |  | contract | pushed |  |
+| 14 | TOT027 | TOT |  |  | contract | pushed |  |
+| 14 | TOT029 | TOT |  |  | contract | pushed |  |
+| 14 | TOT030 | TOT |  |  | contract | pushed |  |
+| 14 | TOT031 | TOT |  |  | contract | pushed |  |
+| 14 | TOT032 | TOT |  |  | contract | pushed |  |
+| 14 | TOT033 | TOT |  |  | contract | pushed |  |
+| 14 | TOT034 | TOT |  |  | contract | pushed |  |
+| 14 | TOT035 | TOT |  |  | name (Work Certificate only) | pushed | Question: Category telecom-core + tag software (OM = Order Management, mobile BSS) — OK? |
+| 14 | TOT036 | TOT |  |  | name (Work Certificate only) | pushed | Question: Category telecom-core + tag software (SAAM = Service Activation, mobile BSS) — OK? |
+| 14 | TOT037 | TOT | `_Project 2018-2025\TOT\Proposal\2018\TOT_OTA` (proposal-archive) — user's answer |  | tor | pushed | 2018 proposal folder TOT_OTA — is it this 2018 OTA expansion? → **User 2026-10-02: accepted Claude's recommendation — folder holds the TOT OTA Expansion SOC and implementation plan.** |
+| 14 | TOT038 | TOT |  |  | name (Work Certificate only) | pushed |  |
+| 14 | TOT040 | TOT |  |  | contract | pushed |  |
+| 14 | TOT041 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT041_งานจัดซื้ออุปกรณ์จัดเก็บข้อมูลจราจรคอมพิวเตอร์` (proposal-archive) — code |  | tor | pushed |  |
+| 14 | TOT042 | TOT |  |  | contract | pushed |  |
+| 14 | TOT043 | TOT |  |  | contract | pushed |  |
+| 14 | TOT044 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT044_งานจ้างพัฒนาจัดซื้อ ระบบ Device Management` (proposal-archive) — code |  | tor | pushed |  |
+| 14 | TOT045 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT045_งานจ้างติดดั้งอุปกรณ์ DEA (Diameter Edge Agent)` (proposal-archive) — code |  | tor | pushed |  |
+| 14 | TOT046 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT046_งานซื้ออุปกรณ์เพื่อรองรับการให้บริการ Contact Center` (proposal-archive) — code |  | tor | pushed |  |
+| 14 | TOT047 | TOT |  |  | contract | pushed |  |
+| 14 | TOT048 | TOT |  |  | contract | pushed |  |
+| 14 | TOT049 | TOT |  |  | contract | pushed |  |
+| 14 | TOT050 | TOT |  |  | contract | pushed |  |
+| 14 | TOT051 | TOT | `_Project 2018-2025\TOT\Proposal\2019\TOT051_งานจ้างติดตั้ง Network Monitoring tools` (proposal-archive) — code |  | tor | pushed |  |
+| 14 | TOT052 | TOT |  |  | contract | pushed |  |
+| 14 | TOT053 | TOT | `_Project 2018-2025\TOT\Proposal\2020\TOT053_SERV_CEN` (proposal-archive) — code |  | tor | pushed | Question: desktop PCs for Service Centers → data-center-it (no closer Category) — OK? |
+| 14 | TOT054 | TOT | `_Project 2018-2025\TOT\Proposal\2020\TOT054_MA_OTA` (proposal-archive) — code |  | tor | pushed |  |
+| 14 | TOT055 | TOT |  |  | contract | pushed | Question: NTP time servers → transmission + tag ip-network (like TOT027 sync); alternative ip-network — OK? |
+| 14 | TOT056 | TOT |  |  | contract | pushed |  |
