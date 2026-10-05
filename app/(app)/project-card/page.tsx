@@ -35,18 +35,18 @@ function parseFloatParam(value: string | undefined): number | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
-// The Category box is typed or picked from a datalist, so it may arrive as a
-// stored value ("fiber-optic"), an English or Thai label ("Fiber Optic",
-// "เคเบิลใยแก้วนำแสง"), or part of a label ("fiber", "ระบบ"), which filters by
-// every Category it fits. Text that fits none matches no cards.
-function resolveCategories(categories: readonly Term[], text: string): Term[] {
+// The Category and Work Type boxes are typed or picked from a datalist, so
+// each may arrive as a stored value ("fiber-optic"), an English or Thai label
+// ("Fiber Optic", "เคเบิลใยแก้วนำแสง"), or part of a label ("fiber", "ระบบ"),
+// which filters by every entry it fits. Text that fits none matches no cards.
+function resolveTerms(terms: readonly Term[], text: string): Term[] {
   const needle = text.toLowerCase();
   if (!needle) return [];
-  const exact = categories.find(
+  const exact = terms.find(
     (c) => c.value === needle || c.en.toLowerCase() === needle || c.th.toLowerCase() === needle,
   );
   if (exact) return [exact];
-  return categories.filter((c) => c.en.toLowerCase().includes(needle) || c.th.includes(needle));
+  return terms.filter((c) => c.en.toLowerCase().includes(needle) || c.th.includes(needle));
 }
 
 // Datalist options for the client filter. "PEA (BBTEC)" is split so the card
@@ -69,6 +69,7 @@ export default async function ProjectCardPage({
     q?: string;
     client?: string;
     category?: string;
+    workType?: string;
     year?: string;
     budgetMin?: string;
     budgetMax?: string;
@@ -79,6 +80,7 @@ export default async function ProjectCardPage({
     q,
     client: clientParam,
     category: categoryParam,
+    workType: workTypeParam,
     year: yearParam,
     budgetMin: budgetMinParam,
     budgetMax: budgetMaxParam,
@@ -87,9 +89,12 @@ export default async function ProjectCardPage({
   const query = q?.trim() ?? "";
   const client = clientParam?.trim() ?? "";
   const categoryText = categoryParam?.trim() ?? "";
-  const categoryTerms = resolveCategories(taxonomy.categories, categoryText);
+  const categoryTerms = resolveTerms(taxonomy.categories, categoryText);
   // One Category shows its English label in the box; otherwise keep what was typed.
   const categoryDisplay = categoryTerms.length === 1 ? categoryTerms[0].en : categoryText;
+  const workTypeText = workTypeParam?.trim() ?? "";
+  const workTypeTerms = resolveTerms(taxonomy.workTypes, workTypeText);
+  const workTypeDisplay = workTypeTerms.length === 1 ? workTypeTerms[0].en : workTypeText;
   const year = parseIntParam(yearParam);
   // The budget filter is typed in millions of baht (ล้านบาท) so users enter
   // "10" rather than "10000000"; the DB still stores full baht.
@@ -132,11 +137,13 @@ export default async function ProjectCardPage({
     });
   }
   if (categoryText) filters.push({ category: { in: categoryTerms.map((c) => c.value) } });
+  // A card lists one or more Work Types; it matches if any is among those picked.
+  if (workTypeText) filters.push({ workTypes: { hasSome: workTypeTerms.map((w) => w.value) } });
   if (year !== undefined) filters.push({ year });
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
 
-  const [cards, availableYears, availableClients, categoryCounts] = await Promise.all([
+  const [cards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
     prisma.projectCard.findMany({
       where: filters.length ? { AND: filters } : undefined,
       // Stable order (not updatedAt) so saving an edit in the popup doesn't
@@ -159,6 +166,9 @@ export default async function ProjectCardPage({
       where: { category: { not: null } },
       _count: true,
     }),
+    // workTypes is an array column, which groupBy can't split — one count per
+    // Work Type instead (the list holds only a handful).
+    Promise.all(taxonomy.workTypes.map((w) => prisma.projectCard.count({ where: { workTypes: { has: w.value } } }))),
   ]);
   const countByCategory = new Map(categoryCounts.map((row) => [row.category, row._count]));
 
@@ -167,7 +177,7 @@ export default async function ProjectCardPage({
       <div>
         <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
         <p className="mt-1 text-sm text-muted">
-          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
+          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ลักษณะงาน ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
           <code className="text-xs">_BID</code>
         </p>
       </div>
@@ -252,6 +262,29 @@ export default async function ProjectCardPage({
                   key={c.value}
                   value={c.en}
                   label={`${c.th} · ${(countByCategory.get(c.value) ?? 0).toLocaleString("th-TH")} โครงการ`}
+                />
+              ))}
+            </datalist>
+          </div>
+          <div className="w-[240px]">
+            <label htmlFor="project-card-work-type" className="mb-1.5 block text-[13px] font-medium text-label">
+              ลักษณะงาน
+            </label>
+            <input
+              id="project-card-work-type"
+              name="workType"
+              list="project-card-work-types"
+              defaultValue={workTypeDisplay}
+              placeholder="ทุกลักษณะงาน — พิมพ์หรือเลือก"
+              autoComplete="off"
+              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+            />
+            <datalist id="project-card-work-types">
+              {taxonomy.workTypes.map((w, i) => (
+                <option
+                  key={w.value}
+                  value={w.en}
+                  label={`${w.th} · ${workTypeCounts[i].toLocaleString("th-TH")} โครงการ`}
                 />
               ))}
             </datalist>
