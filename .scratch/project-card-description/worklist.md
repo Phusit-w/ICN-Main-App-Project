@@ -65,37 +65,37 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 07 | NT033 | NT | `_Project 2018-2025\NT\2023\NT033 MA_DMS66` — code |  | tor | reviewed |  |
 | 07 | NT034 | NT | `_Project 2018-2025\NT\2023\NT034 5G_CORE` — code |  | tor | reviewed | Equipment vendor/model not stated in the TOR; Description is generic (4G/5G 700 MHz). Add the vendor if you know it. |
 | 07 | NT036 | NT | `_Project 2018-2025\NT\2023\NT036 MA_NET_MON66` — code |  | tor | reviewed |  |
-| 08 | NT037 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | written |  |
-| 08 | NT038 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | written |  |
-| 08 | NT039 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | written |  |
-| 08 | NT040 | NT | `_Project 2018-2025\NT\2023\NT040 MA_NETMON_EXP` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 08 | NT041 | NT | `_Project 2018-2025\NT\2023\NT041 MA_DEA_EXP` — code |  | tor | written |  |
-| 08 | NT042 | NT | `_Project 2018-2025\NT\2023\NT042 MA_3G_2024` — code |  | tor | written |  |
-| 08 | NT043 | NT | `_Project 2018-2025\NT\2023\NT043 NT044_NT045_CM_PM_Y67` — code |  | tor | written | Proposal folders number NT043=ภก.1/NT045=ภน.1, but the contracts in _BID say NT043=ภน.1, NT044=ภก.1, NT045=ภก.2 — followed the contracts. |
-| 08 | NT044 | NT | `_Project 2018-2025\NT\2023\NT043 NT044_NT045_CM_PM_Y67` — code |  | tor | written |  |
-| 08 | NT045 | NT | `_Project 2018-2025\NT\2023\NT043 NT044_NT045_CM_PM_Y67` — code |  | tor | written |  |
-| 08 | NT046 | NT | `_Project 2018-2025\NT\2024\NT046 MA_DEA67` — code |  | tor | written |  |
-| 08 | NT047 | NT | `_Project 2018-2025\NT\2024\NT047 MA_DMS67` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 08 | NT048 | NT | `_Project 2018-2025\NT\2024\NT048 MA_EQ_NMS67` — code |  | tor | written |  |
-| 08 | NT049 | NT | `_Project 2018-2025\NT\2024\NT049 MA_OTA67` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 08 | NT050 | NT | `_Project 2018-2025\NT\2024\NT050 MA_NET_MON67` — code |  | tor | written |  |
-| 08 | NT051 | NT | `_Project 2018-2025\NT\2024\NT051 MA_DEA_EXP67` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 08 | NT052 | NT | `_Project 2018-2025\NT\2024\NT052 NT053 NT054_CM_PM_Y67` — code |  | tor | written |  |
-| 08 | NT053 | NT | `_Project 2018-2025\NT\2024\NT052 NT053 NT054_CM_PM_Y67` — code |  | tor | written |  |
-| 08 | NT054 | NT | `_Project 2018-2025\NT\2024\NT052 NT053 NT054_CM_PM_Y67` — code |  | tor | written |  |
-| 08 | NT055 | NT | `_Project 2018-2025\NT\2025\NT055 MA 3G Transport 2025` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 08 | NT056 | NT | `_Project 2018-2025\NT\2025\NT056_057_058 CCTV` — code |  | tor | written |  |
-| 08 | NT057 | NT | `_Project 2018-2025\NT\2025\NT056_057_058 CCTV` — code |  | tor | written |  |
-| 08 | NT058 | NT | `_Project 2018-2025\NT\2025\NT056_057_058 CCTV` — code |  | tor | written |  |
-| 08 | NT059 | NT | `_Project 2018-2025\NT\2025\NT059_060_061 CCTV` — code |  | tor | written |  |
-| 08 | NT060 | NT | `_Project 2018-2025\NT\2025\NT059_060_061 CCTV` — code |  | tor | written |  |
-| 08 | NT061 | NT | `_Project 2018-2025\NT\2025\NT059_060_061 CCTV` — code |  | tor | written |  |
-| 08 | NT062 | NT | `_Project 2018-2025\NT\2025\NT062 MA_DEA68` — code |  | tor | written |  |
-| 08 | NT063 | NT | `_Project 2018-2025\NT\2025\NT063 MA_DMS68` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 08 | NT064 | NT | `_Project 2018-2025\NT\2025\NT064 DWDM_CLOUD` — code |  | tor | written |  |
-| 08 | NT065 | NT | `_Project 2018-2025\NT\2025\NT065 DWDM Thailand IX` — code |  | tor | written |  |
-| 08 | NT066 | NT | `_Project 2018-2025\NT\2025\NT066 CM_PM_Y69` — code |  | tor | written | TOR covers 5 areas (กน., ตน., นป., ตป., อป.); the card name lists 3 (กน., นป., อป.). Description follows the TOR. |
-| 08 | NT067 | NT | `_Project 2026\NT\1. NT067_MA_USO1_Y69` — code |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT037 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | reviewed |  |
+| 08 | NT038 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | reviewed |  |
+| 08 | NT039 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | reviewed |  |
+| 08 | NT040 | NT | `_Project 2018-2025\NT\2023\NT040 MA_NETMON_EXP` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT041 | NT | `_Project 2018-2025\NT\2023\NT041 MA_DEA_EXP` — code |  | tor | reviewed |  |
+| 08 | NT042 | NT | `_Project 2018-2025\NT\2023\NT042 MA_3G_2024` — code |  | tor | reviewed |  |
+| 08 | NT043 | NT | `_Project 2018-2025\NT\2023\NT043 NT044_NT045_CM_PM_Y67` — code |  | tor | reviewed | Proposal folders number NT043=ภก.1/NT045=ภน.1, but the contracts in _BID say NT043=ภน.1, NT044=ภก.1, NT045=ภก.2 — followed the contracts. |
+| 08 | NT044 | NT | `_Project 2018-2025\NT\2023\NT043 NT044_NT045_CM_PM_Y67` — code |  | tor | reviewed |  |
+| 08 | NT045 | NT | `_Project 2018-2025\NT\2023\NT043 NT044_NT045_CM_PM_Y67` — code |  | tor | reviewed |  |
+| 08 | NT046 | NT | `_Project 2018-2025\NT\2024\NT046 MA_DEA67` — code |  | tor | reviewed |  |
+| 08 | NT047 | NT | `_Project 2018-2025\NT\2024\NT047 MA_DMS67` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT048 | NT | `_Project 2018-2025\NT\2024\NT048 MA_EQ_NMS67` — code |  | tor | reviewed |  |
+| 08 | NT049 | NT | `_Project 2018-2025\NT\2024\NT049 MA_OTA67` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT050 | NT | `_Project 2018-2025\NT\2024\NT050 MA_NET_MON67` — code |  | tor | reviewed |  |
+| 08 | NT051 | NT | `_Project 2018-2025\NT\2024\NT051 MA_DEA_EXP67` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT052 | NT | `_Project 2018-2025\NT\2024\NT052 NT053 NT054_CM_PM_Y67` — code |  | tor | reviewed |  |
+| 08 | NT053 | NT | `_Project 2018-2025\NT\2024\NT052 NT053 NT054_CM_PM_Y67` — code |  | tor | reviewed |  |
+| 08 | NT054 | NT | `_Project 2018-2025\NT\2024\NT052 NT053 NT054_CM_PM_Y67` — code |  | tor | reviewed |  |
+| 08 | NT055 | NT | `_Project 2018-2025\NT\2025\NT055 MA 3G Transport 2025` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT056 | NT | `_Project 2018-2025\NT\2025\NT056_057_058 CCTV` — code |  | tor | reviewed |  |
+| 08 | NT057 | NT | `_Project 2018-2025\NT\2025\NT056_057_058 CCTV` — code |  | tor | reviewed |  |
+| 08 | NT058 | NT | `_Project 2018-2025\NT\2025\NT056_057_058 CCTV` — code |  | tor | reviewed |  |
+| 08 | NT059 | NT | `_Project 2018-2025\NT\2025\NT059_060_061 CCTV` — code |  | tor | reviewed |  |
+| 08 | NT060 | NT | `_Project 2018-2025\NT\2025\NT059_060_061 CCTV` — code |  | tor | reviewed |  |
+| 08 | NT061 | NT | `_Project 2018-2025\NT\2025\NT059_060_061 CCTV` — code |  | tor | reviewed |  |
+| 08 | NT062 | NT | `_Project 2018-2025\NT\2025\NT062 MA_DEA68` — code |  | tor | reviewed |  |
+| 08 | NT063 | NT | `_Project 2018-2025\NT\2025\NT063 MA_DMS68` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 08 | NT064 | NT | `_Project 2018-2025\NT\2025\NT064 DWDM_CLOUD` — code |  | tor | reviewed |  |
+| 08 | NT065 | NT | `_Project 2018-2025\NT\2025\NT065 DWDM Thailand IX` — code |  | tor | reviewed |  |
+| 08 | NT066 | NT | `_Project 2018-2025\NT\2025\NT066 CM_PM_Y69` — code |  | tor | reviewed | TOR covers 5 areas (กน., ตน., นป., ตป., อป.); the card name lists 3 (กน., นป., อป.). Description follows the TOR. |
+| 08 | NT067 | NT | `_Project 2026\NT\1. NT067_MA_USO1_Y69` — code |  | proposal | reviewed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
 | 09 | CMU001 | CMU | `_Project 2018-2025\CMU\CMU001 COVID` — code |  | tor | todo |  |
 | 09 | CMU002 | CMU | `_Project 2018-2025\CMU\CMU002 SMART_HOS` — code |  | tor | todo |  |
 | 09 | OBEC001 | OBEC | `_Project 2018-2025\OBEC\OBEC001 Tablet_สพป.เชียงราย เขต 3` — code |  | tor | todo |  |
