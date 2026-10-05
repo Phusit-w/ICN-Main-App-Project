@@ -109,38 +109,38 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 09 | OBEC011 | OBEC | `_Project 2018-2025\OBEC\OBEC011 Tablet_สพม.สมุทรปราการ` — code |  | tor | pushed | Device is a Lenovo 500e Chromebook (not a tablet) although the folder name says Tablet. |
 | 09 | OBEC012 | OBEC | `_Project 2026\OBEC\OBEC012 Tablet_สพป.อุบลราชธานี เขต 4` — code |  | tor | pushed |  |
 | 09 | OBEC013 | OBEC | `_Project 2026\OBEC\OBEC013 Tablet_สพป.อุบลราชธานี เขต 5` — code |  | tor | pushed |  |
-| 10 | PEA006 | PEA |  |  | name (Work Certificate only) | written |  |
-| 10 | PEA012 | PEA |  |  | contract | written |  |
-| 10 | PEA015 | PEA |  |  | contract | written | Two 2019 spare-stock cards (PEA015, PEA019) but one Accessories 2019 folder — which card, or both? → **User 2026-10-02: accepted Claude's recommendation — blank: one TOR in the folder and PEA019 is the Accessories contract.** |
-| 10 | PEA017 | PEA | `_Project 2018-2025\PEA\2019\PEA_OFC62` — name+year |  | tor (TOR in archive) | written |  |
-| 10 | PEA018 | PEA | `_Project 2018-2025\PEA\2019\PEA_Digital trunk radio กฟก2` — name+year |  | tor (TOR in archive) | written |  |
-| 10 | PEA019 | PEA | `_Project 2018-2025\PEA\2019\PEA_Accessories 2019` — user's answer |  | tor (TOR in archive) | written | See PEA015. → **User 2026-10-02: accepted Claude's recommendation — contract file is named Accessories.** |
-| 10 | PEA020 | PEA | `_Project 2018-2025\PEA\2020\PEA_Teleprotection กฟก.2` — user's answer |  | tor | written | Main Teleprotection กฟก.2 folder or the 'add 1 node' one? → **User 2026-10-02: accepted Claude's recommendation — main folder; the +1 node folder is the Klong Mai 2 job.** |
-| 10 | PEA021 | PEA | `_Project 2018-2025\PEA\_Pre - Project\_IP_ACCESS_NE_files\Y62_IP_Access_Expansion` — user's answer (pre-project folder) |  | contract | written | One 2020 IP Access folder (135 + 56 nodes) for two cards (PEA021, PEA022) — does it cover both? → **User 2026-10-02: accepted Claude's recommendation — contract is IP Access Expansion Y62, folder TOR is from 2562.** **Batch 10 reading (2026-10-05): folder left blank again — its TORs are for the CENTRAL region, Huawei, 135/56 nodes (selection method), but contract บ.71/2563 is NORTHEAST, Nokia, 70 nodes. Keep blank, or is there a NE Y62 folder elsewhere?** → **User 2026-10-05: keep the Huawei folder off; use a NE folder if one turns up. Found `_Pre - Project\_IP_ACCESS_NE_files\Y62_IP_Access_Expansion` (SoR_NE_Expansion, NE1-3 diagrams, Nokia power budget) → set as Project Folder.** |
-| 10 | PEA022 | PEA | `_Project 2018-2025\PEA\_Pre - Project\_IP_ACCESS_NE_files\Y63` — user's answer (pre-project folder) |  | contract | written | **New candidate 2026-10-05: use the Y63 pre-project folder for PEA022 (contract อบ.3/2563 = Y63)?** → **User 2026-10-05: yes — set as Project Folder (pre-project folder: NE Y63 router spec + invitation docs, no submitted proposal).** See PEA021. → **User 2026-10-02: accepted Claude's recommendation — blank: contract is IP Access Y63 (อบ.3), a later round.** |
-| 10 | PEA023 | PEA |  |  | contract | written | 2020 spare stock: the Accessories 2020 folder or one of the two เข้าคลัง folders? → **User 2026-10-02: accepted Claude's recommendation — blank: two 2020 ICN submissions (Accessories 2020 / เข้าคลัง 006-2563) cannot be told apart.** |
-| 10 | PEA026 | PEA |  |  | contract | written |  |
-| 10 | PEA027 | PEA | `_Project 2018-2025\PEA\2021\2. IP Access Y.64` — name+year |  | tor | written |  |
-| 10 | PEA028 | PEA |  |  | contract | written |  |
-| 10 | PEA029 | PEA | `_Project 2018-2025\PEA\2022\1. Teleprotection C3` — name+year |  | proposal | written |  |
-| 10 | PEA030 | PEA | `_Project 2018-2025\PEA\2022\2. OFC_ARSS_1300KM` — name+year |  | tor | written |  |
-| 10 | PEA031 | PEA | `_Project 2018-2025\PEA\2022\3. Spare OFC+Accessories Y.65` — name+year |  | tor | written |  |
-| 10 | PEA032 | PEA | `_Project 2018-2025\PEA\2022\6. Teleprotection N1` — name+year |  | tor | written |  |
-| 10 | PEA033 | PEA | `_Project 2018-2025\PEA\2022\7. E1 Chaiyapom 2` — name+year |  | proposal | written |  |
-| 10 | PEA034 | PEA |  |  | contract | written |  |
-| 10 | PEA035 | PEA | `_Project 2018-2025\PEA\2022\15. PEA035 RADIO_EXP` — code |  | tor (TOR in archive) | written |  |
-| 10 | PEA036 | PEA | `_Project 2018-2025\PEA\2022\8. Teleprotection Phuket` — name+year |  | tor | written |  |
-| 10 | PEA037 | PEA | `_Project 2018-2025\PEA\2022\11. IP Access Y.65 อิสาน` — name+year |  | tor | written |  |
-| 10 | PEA038 | PEA | `_Project 2018-2025\PEA\2022\16. Tele _Meachan` — name+year |  | tor | written |  |
-| 10 | PEA039 | PEA |  |  | contract | written |  |
-| 10 | PEA040 | PEA |  |  | contract | written |  |
-| 10 | PEA041 | PEA | `_Project 2018-2025\PEA\2023\1. IP Access Y.66 อีสาน` — name+year |  | tor | written |  |
-| 10 | PEA042 | PEA | `_Project 2018-2025\PEA\2023\2. Spare OFC+Accessories Y.66` — name+year |  | tor (TOR in archive) | written |  |
-| 10 | PEA043 | PEA | `_Project 2018-2025\PEA\2023\4. Teleprotection บ้านโพธิ์` — name+year |  | tor | written |  |
-| 10 | PEA044 | PEA |  |  | contract | written |  |
-| 10 | PEA045 | PEA | `_Project 2018-2025\PEA\2024\1. Spare OFC+Accessories Y67` — name+year |  | tor | written |  |
-| 10 | PEA046 | PEA | `_Project 2018-2025\PEA\2024\2. Teleprotection ช่วงสถานีเชียงใหม่ Y67` — name+year |  | tor | written |  |
-| 10 | PEA047 | PEA |  |  | contract | written |  |
+| 10 | PEA006 | PEA |  |  | name (Work Certificate only) | reviewed |  |
+| 10 | PEA012 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA015 | PEA |  |  | contract | reviewed | Two 2019 spare-stock cards (PEA015, PEA019) but one Accessories 2019 folder — which card, or both? → **User 2026-10-02: accepted Claude's recommendation — blank: one TOR in the folder and PEA019 is the Accessories contract.** |
+| 10 | PEA017 | PEA | `_Project 2018-2025\PEA\2019\PEA_OFC62` — name+year |  | tor (TOR in archive) | reviewed |  |
+| 10 | PEA018 | PEA | `_Project 2018-2025\PEA\2019\PEA_Digital trunk radio กฟก2` — name+year |  | tor (TOR in archive) | reviewed |  |
+| 10 | PEA019 | PEA | `_Project 2018-2025\PEA\2019\PEA_Accessories 2019` — user's answer |  | tor (TOR in archive) | reviewed | See PEA015. → **User 2026-10-02: accepted Claude's recommendation — contract file is named Accessories.** |
+| 10 | PEA020 | PEA | `_Project 2018-2025\PEA\2020\PEA_Teleprotection กฟก.2` — user's answer |  | tor | reviewed | Main Teleprotection กฟก.2 folder or the 'add 1 node' one? → **User 2026-10-02: accepted Claude's recommendation — main folder; the +1 node folder is the Klong Mai 2 job.** |
+| 10 | PEA021 | PEA | `_Project 2018-2025\PEA\_Pre - Project\_IP_ACCESS_NE_files\Y62_IP_Access_Expansion` — user's answer (pre-project folder) |  | contract | reviewed | One 2020 IP Access folder (135 + 56 nodes) for two cards (PEA021, PEA022) — does it cover both? → **User 2026-10-02: accepted Claude's recommendation — contract is IP Access Expansion Y62, folder TOR is from 2562.** **Batch 10 reading (2026-10-05): folder left blank again — its TORs are for the CENTRAL region, Huawei, 135/56 nodes (selection method), but contract บ.71/2563 is NORTHEAST, Nokia, 70 nodes. Keep blank, or is there a NE Y62 folder elsewhere?** → **User 2026-10-05: keep the Huawei folder off; use a NE folder if one turns up. Found `_Pre - Project\_IP_ACCESS_NE_files\Y62_IP_Access_Expansion` (SoR_NE_Expansion, NE1-3 diagrams, Nokia power budget) → set as Project Folder.** |
+| 10 | PEA022 | PEA | `_Project 2018-2025\PEA\_Pre - Project\_IP_ACCESS_NE_files\Y63` — user's answer (pre-project folder) |  | contract | reviewed | **New candidate 2026-10-05: use the Y63 pre-project folder for PEA022 (contract อบ.3/2563 = Y63)?** → **User 2026-10-05: yes — set as Project Folder (pre-project folder: NE Y63 router spec + invitation docs, no submitted proposal).** See PEA021. → **User 2026-10-02: accepted Claude's recommendation — blank: contract is IP Access Y63 (อบ.3), a later round.** |
+| 10 | PEA023 | PEA |  |  | contract | reviewed | 2020 spare stock: the Accessories 2020 folder or one of the two เข้าคลัง folders? → **User 2026-10-02: accepted Claude's recommendation — blank: two 2020 ICN submissions (Accessories 2020 / เข้าคลัง 006-2563) cannot be told apart.** |
+| 10 | PEA026 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA027 | PEA | `_Project 2018-2025\PEA\2021\2. IP Access Y.64` — name+year |  | tor | reviewed |  |
+| 10 | PEA028 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA029 | PEA | `_Project 2018-2025\PEA\2022\1. Teleprotection C3` — name+year |  | proposal | reviewed |  |
+| 10 | PEA030 | PEA | `_Project 2018-2025\PEA\2022\2. OFC_ARSS_1300KM` — name+year |  | tor | reviewed |  |
+| 10 | PEA031 | PEA | `_Project 2018-2025\PEA\2022\3. Spare OFC+Accessories Y.65` — name+year |  | tor | reviewed |  |
+| 10 | PEA032 | PEA | `_Project 2018-2025\PEA\2022\6. Teleprotection N1` — name+year |  | tor | reviewed |  |
+| 10 | PEA033 | PEA | `_Project 2018-2025\PEA\2022\7. E1 Chaiyapom 2` — name+year |  | proposal | reviewed |  |
+| 10 | PEA034 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA035 | PEA | `_Project 2018-2025\PEA\2022\15. PEA035 RADIO_EXP` — code |  | tor (TOR in archive) | reviewed |  |
+| 10 | PEA036 | PEA | `_Project 2018-2025\PEA\2022\8. Teleprotection Phuket` — name+year |  | tor | reviewed |  |
+| 10 | PEA037 | PEA | `_Project 2018-2025\PEA\2022\11. IP Access Y.65 อิสาน` — name+year |  | tor | reviewed |  |
+| 10 | PEA038 | PEA | `_Project 2018-2025\PEA\2022\16. Tele _Meachan` — name+year |  | tor | reviewed |  |
+| 10 | PEA039 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA040 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA041 | PEA | `_Project 2018-2025\PEA\2023\1. IP Access Y.66 อีสาน` — name+year |  | tor | reviewed |  |
+| 10 | PEA042 | PEA | `_Project 2018-2025\PEA\2023\2. Spare OFC+Accessories Y.66` — name+year |  | tor (TOR in archive) | reviewed |  |
+| 10 | PEA043 | PEA | `_Project 2018-2025\PEA\2023\4. Teleprotection บ้านโพธิ์` — name+year |  | tor | reviewed |  |
+| 10 | PEA044 | PEA |  |  | contract | reviewed |  |
+| 10 | PEA045 | PEA | `_Project 2018-2025\PEA\2024\1. Spare OFC+Accessories Y67` — name+year |  | tor | reviewed |  |
+| 10 | PEA046 | PEA | `_Project 2018-2025\PEA\2024\2. Teleprotection ช่วงสถานีเชียงใหม่ Y67` — name+year |  | tor | reviewed |  |
+| 10 | PEA047 | PEA |  |  | contract | reviewed |  |
 | 11 | PEA048 | PEA |  |  | contract | todo |  |
 | 11 | PEA049 | PEA | `_Project 2018-2025\PEA\2024\5. IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | todo |  |
 | 11 | PEA050 | PEA | `_Project 2018-2025\PEA\2024\7. Teleprotection ช่วงสถานีขอนแก่น 4 Y67 (Re-bidding)` — user's answer |  | tor | todo | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
