@@ -323,7 +323,7 @@ ssh -T git@github.com
 
 ```powershell
 cd C:\Apps
-git clone git@github.com:Phusit-w/Monthly-expense-billing-web-app-handoff.git expense-billing-app-deploy-git
+git clone git@github.com:Phusit-w/ICN-Main-App-Project.git expense-billing-app-deploy-git
 cd expense-billing-app-deploy-git
 git log --oneline -1   # เช็คว่าได้ commit ล่าสุดจริง
 ```
