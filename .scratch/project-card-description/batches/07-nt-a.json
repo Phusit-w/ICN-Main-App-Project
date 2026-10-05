@@ -5,8 +5,13 @@
     "descriptionEn": "Managed services contract to operate CAT Telecom's (now NT) RTC mobile charging platform at the Bangrak site: Online Charging System (OCS), data charging (SCG), work order management (WOM), provisioning, API converter and reporting servers. ICN supplied on-site system engineers, system analysts, a programmer and 24x7 help desk staff, covering server/database administration, corrective maintenance and web-service API development (billing, charging, OSS/BSS).",
     "descriptionSource": "tor",
     "category": "telecom-core",
-    "tags": ["software"],
-    "workTypes": ["managed-services", "system-development"],
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "managed-services",
+      "system-development"
+    ],
     "folder": "_Project 2018-2025\\NT\\2021\\NT001_MGT_RTC",
     "note": "TOR: Official TOR\\MS-TOR-2021.pdf (text)"
   },
@@ -16,8 +21,13 @@
     "descriptionEn": "Bandwidth expansion of NT's Huawei NE40E-X16A core routers at the Krung Kasem and Phra Khanong exchanges for the mobile network: supply and installation of 100GE interface cards, 100G/10G optical modules and EMS software licenses, plus configuration to connect the routers to the EPC (mobile packet core) and the mobile internet gateway. Keywords: core router, IP backbone, capacity upgrade.",
     "descriptionSource": "tor",
     "category": "ip-network",
-    "tags": ["telecom-core"],
-    "workTypes": ["supply", "installation"],
+    "tags": [
+      "telecom-core"
+    ],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
     "folder": "_Project 2018-2025\\NT\\2021\\NT002_CORE_BW_EXP",
     "note": "TOR: ขอบเขตของงาน_จ้างขยายBandwidth.pdf (scanned, read as images)"
   },
@@ -27,8 +37,13 @@
     "descriptionEn": "Maintenance of NT's OTA (Over-The-Air) platform with software enhancements. OTA manages SIM cards on the TOTmobile and MVNO mobile networks remotely: updating SIM data and downloading or installing SIM applications without replacing the card. ICN kept the system running and updated its software to support new handset models. Keywords: SIM OTA, SIM card management, MA.",
     "descriptionSource": "tor",
     "category": "telecom-core",
-    "tags": ["software"],
-    "workTypes": ["ma", "system-development"],
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "ma",
+      "system-development"
+    ],
     "folder": "_Project 2018-2025\\NT\\2021\\NT003_MA_OTA",
     "note": "TOR: Official_TOR\\TOR_งานจ้างบำรุงรักษาระบบ OTA (20210405) (Final).pdf (scanned)"
   },
@@ -39,7 +54,9 @@
     "descriptionSource": "tor",
     "category": "telecom-core",
     "tags": [],
-    "workTypes": ["ma"],
+    "workTypes": [
+      "ma"
+    ],
     "folder": "_Project 2018-2025\\NT\\2021\\NT004_MA ITSC BKK6",
     "note": "TOR: Official_TOR\\TOR_MA_BKK6.pdf (scanned)"
   },
@@ -50,8 +67,395 @@
     "descriptionSource": "tor",
     "category": "telecom-core",
     "tags": [],
-    "workTypes": ["supply", "installation"],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
     "folder": "_Project 2018-2025\\NT\\2021\\NT005_PABX BTC",
     "note": "Spec: Proposal A\\Spec IP-PABX CAT Bangruk_26 Mar 2021_comment_ศบ.docx (client's draft spec with comments; the official TOR is the scanned Tor-PABX2_ข้อกำหนด.pdf)"
+  },
+  {
+    "projectCode": "NT006",
+    "descriptionTh": "จ้างเหมาขยายโครงข่ายอุปกรณ์สื่อสัญญาณระดับ Backbone Network เส้นทางกรุงเทพ-ภาคใต้ ของ บมจ. โทรคมนาคมแห่งชาติ (NT) โดยจัดหาและติดตั้งอุปกรณ์ DWDM ยี่ห้อ Huawei รุ่น OptiX OSN 9800 ชนิด Optical Add/Drop Node 5 สถานี (เช่น ทีโอที สำนักงานใหญ่, กรุงเกษม, ปากบารา) และ Optical Switching Node 9 สถานี (เช่น นครปฐม, เพชรบุรี, หัวหิน, ชุมพร, สงขลา, หาดใหญ่) พร้อมปรับปรุงระบบ NMS เดิมให้บริหารอุปกรณ์ทั้งเก่าและใหม่ได้ในระบบเดียว รวมการสำรวจ ออกแบบ ติดตั้งและทดสอบ (โครงข่ายหลัก, สื่อสัญญาณใยแก้ว, WDM)",
+    "descriptionEn": "Expansion of NT's Bangkok–South backbone transmission network: supply and installation of Huawei OptiX OSN 9800 DWDM equipment as optical add/drop nodes at 5 sites (e.g. TOT headquarters, Krung Kasem, Pak Bara) and optical switching nodes at 9 sites (e.g. Nakhon Pathom, Phetchaburi, Hua Hin, Chumphon, Songkhla, Hat Yai), plus an upgrade of the existing NMS so old and new equipment are managed in one system. Includes survey, design, installation and testing. Keywords: DWDM, WDM, optical backbone, OADM, OTN.",
+    "descriptionSource": "proposal",
+    "category": "transmission",
+    "tags": [],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\_NT2\\2022\\1. BB_BKK-South",
+    "note": "No official TOR in folder; ICN compliance table NT_BB_BBK to S_20211220_Scan\\บทที่ 2 ตารางการยอมรับขอบเขตของงาน (156หน้า).pdf (scanned), Part II items 2.1-2.1.2.1"
+  },
+  {
+    "projectCode": "NT007",
+    "descriptionTh": "จ้างบำรุงรักษาระบบสื่อสัญญาณ Backhaul แบบ DWDM ระหว่างชุมสายส่วนกลางกับสถานีเคเบิลใต้น้ำของ บมจ. โทรคมนาคมแห่งชาติ (NT) ครอบคลุมอุปกรณ์ Nokia 1830 PSS-32/PSS-64 และ ASN 1620LM/PFE ICN ดูแลแก้ไขเหตุขัดข้อง บำรุงรักษาเชิงป้องกัน และจัดการอะไหล่ให้ระบบทำงานต่อเนื่อง (เคเบิลใต้น้ำ, Submarine Cable Station, WDM)",
+    "descriptionEn": "Maintenance of NT's DWDM backhaul transmission system linking the central exchanges with the submarine cable landing stations: Nokia 1830 PSS-32/PSS-64 and ASN 1620LM/PFE equipment. ICN handled corrective and preventive maintenance and spare-part management. Keywords: DWDM backhaul, submarine cable station, optical transport, MA.",
+    "descriptionSource": "tor",
+    "category": "transmission",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT007_MA_NK_EQ64",
+    "note": "TOR: Official_TOR\\Official TOR MA Backhaul.pdf (scanned)"
+  },
+  {
+    "projectCode": "NT008",
+    "descriptionTh": "จ้างบำรุงรักษาระบบ Network Management System (NMS) ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ซึ่งใช้บริหารจัดการโครงข่ายสื่อสัญญาณ ได้แก่ Nokia (Alcatel-Lucent) 1350 OMS รุ่น R14.2 และ R12.3 ICN ดูแลให้ระบบจัดการโครงข่ายทำงานต่อเนื่อง แก้ไขเหตุขัดข้องและบำรุงรักษาเชิงป้องกัน (ระบบจัดการโครงข่าย, NMS, 1350 OMS)",
+    "descriptionEn": "Maintenance of NT's network management system (NMS) for its optical transmission network: Nokia (Alcatel-Lucent) 1350 OMS releases R14.2 and R12.3. ICN kept the management platform running with corrective and preventive maintenance. Keywords: NMS, network management, 1350 OMS, MA.",
+    "descriptionSource": "tor",
+    "category": "transmission",
+    "tags": [
+      "telecom-core"
+    ],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT008_MA_NMS64",
+    "note": "TOR: Official_TOR\\Official TOR MA NMS project.pdf (scanned)"
+  },
+  {
+    "projectCode": "NT009",
+    "descriptionTh": "ขายอุปกรณ์ระบบ Policy Control Function (PCF) / Policy and Charging Rules Function (PCRF) จำนวน 1 ระบบ ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) สำหรับโครงข่ายโทรศัพท์เคลื่อนที่ ใช้กำหนดนโยบายการใช้งานและกฎการคิดค่าบริการของผู้ใช้ เช่น ความเร็ว แพ็กเกจ และคุณภาพบริการ (QoS) รวมงานติดตั้ง ทดสอบรับมอบ และฝึกอบรม (Policy Control, PCRF, 4G/5G Core)",
+    "descriptionEn": "Supply of one Policy Control Function (PCF) / Policy and Charging Rules Function (PCRF) system for NT's mobile network, which applies per-subscriber usage policies and charging rules such as speed, packages and QoS. Includes installation, acceptance testing and training. Keywords: PCRF, PCF, policy control, mobile core, 4G/5G.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT009_PCRF",
+    "note": "TOR: Official_TOR\\ข้อกำหนดทางด้านเทคนิค อุปกรณ์ระบบ Policy Control Functi.pdf (text)"
+  },
+  {
+    "projectCode": "NT010",
+    "descriptionTh": "จ้างขยายระบบ DEA (Diameter Edge Agent) ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ที่ชุมสายกรุงเกษมและชุมสายพระโขนง เพื่อรองรับลูกค้า NT1 Roaming โดยเพิ่มความจุของ DEA และเพิ่มฟังก์ชัน DRA (Diameter Routing Agent) แทนการเชื่อมต่อแบบ Full-mesh ระหว่างอุปกรณ์ รวมงานติดตั้งและทดสอบ (Diameter Signaling, โรมมิ่ง, 4G Core)",
+    "descriptionEn": "Expansion of NT's DEA (Diameter Edge Agent) at the Krung Kasem and Phra Khanong exchanges for NT1 roaming customers: added DEA capacity and a DRA (Diameter Routing Agent) function replacing full-mesh Diameter links, with installation and testing. Keywords: Diameter signaling, DEA, DRA, roaming, LTE core.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT010_DEA_EXP",
+    "note": "TOR: Official_TOR\\8_12_64 ขอบเขตงาน DEAv2_จัดหา.docx (OPT-40/2021)"
+  },
+  {
+    "projectCode": "NT011",
+    "descriptionTh": "จ้างขยายระบบ Network Monitoring Tool ของ บมจ. โทรคมนาคมแห่งชาติ (NT) เพื่อรองรับลูกค้า NT1 Roaming โดยเพิ่ม License ความจุ และเพิ่มการรองรับบริการ VoLTE/VoWiFi ระบบนี้ใช้ติดตามสัญญาณบนโครงข่ายโทรศัพท์เคลื่อนที่เพื่อวิเคราะห์ปัญหาการใช้งานของผู้ใช้บริการ (Network Monitoring, Signaling Monitoring, VoLTE)",
+    "descriptionEn": "Expansion of NT's Network Monitoring Tool for NT1 roaming customers: additional capacity licenses and new VoLTE/VoWiFi support. The tool monitors mobile network signaling to analyse subscriber service problems. Keywords: network monitoring, signaling monitoring, VoLTE, VoWiFi, troubleshooting.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT011_EXP_NET_MON64",
+    "note": "TOR: Official_TOR\\9_12_64 ขอบเขตงาน Expand_monitoring_พัสดุ.docx (OPT-39/2021)"
+  },
+  {
+    "projectCode": "NT013",
+    "descriptionTh": "บำรุงรักษาเครือข่ายสายเคเบิลใยแก้วนำแสงของโครงการอินเทอร์เน็ตความเร็วสูงในพื้นที่ชายขอบหมู่บ้าน (USO Zone C+) กลุ่มที่ 2 (ภาคเหนือ 2) และกลุ่มที่ 3 (ภาคตะวันออกเฉียงเหนือ) ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) ตามโครงการของ กสทช. ICN แก้ไขเหตุขัดข้องตลอด 24 ชั่วโมง ครอบคลุมสายเคเบิล กล่องต่อสาย (Enclosure) Patch Cord และ Splitter (ไฟเบอร์ออปติก, เน็ตชายขอบ, USO)",
+    "descriptionEn": "Corrective maintenance (24x7) of the fiber optic network built for the USO broadband programme in border villages (Zone C+), group 2 (North 2) and group 3 (Northeast), for NT under the NBTC project: fiber cable, enclosures, patch cords and splitters. Keywords: fiber optic MA, OFC, USO, NBTC, rural broadband.",
+    "descriptionSource": "tor",
+    "category": "fiber-optic",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2021\\NT013_MA_USO1_OFC",
+    "note": "TOR: Official_TOR\\ข้อกำหนดด้านเทคนิค-จ้างบำรุงรักษา OFC(1).docx"
+  },
+  {
+    "projectCode": "NT014",
+    "descriptionTh": "จ้างบำรุงรักษาอุปกรณ์ Core Switch และบริหารจัดการอะไหล่ของโครงข่าย Transport สำหรับบริการ 3G/4G ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปีงบประมาณ 2565 รวมถึงระบบ NMS ที่ใช้บริหารโครงข่าย และอะไหล่สำคัญ เช่น Aggregate Switch 10G/1G ICN ดูแลแก้ไขเหตุขัดข้องและบำรุงรักษาให้โครงข่ายทำงานต่อเนื่อง (Mobile Backhaul, Transport Network, สวิตช์)",
+    "descriptionEn": "Fiscal-year 2022 maintenance of the core switches and spare-part management for NT's 3G/4G transport network, including its NMS and critical spares such as 10G/1G aggregation switches. ICN handled corrective and preventive maintenance. Keywords: mobile backhaul, transport network, core switch, MA.",
+    "descriptionSource": "proposal",
+    "category": "transmission",
+    "tags": [
+      "ip-network"
+    ],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\_NT2\\2022\\2. MA Transport",
+    "note": "No official TOR in folder; SOC _src\\4. SOC - Part III Technical Requirement_3G MA Transport_new.doc"
+  },
+  {
+    "projectCode": "NT017",
+    "descriptionTh": "บำรุงรักษาระบบ Device Management System (DMS) และปรับปรุงโปรแกรมระบบงานของ บมจ. โทรคมนาคมแห่งชาติ (NT) ระบบนี้ใช้บริหารจัดการอุปกรณ์ปลายทาง เช่น สมาร์ทโฟน แท็บเล็ต และอุปกรณ์ IoT บนโครงข่าย NTmobile คลื่น 2100/2300 MHz (3G/4G) ICN ดูแลให้ระบบทำงานต่อเนื่องและปรับปรุงโปรแกรมตามความต้องการ (Device Management, จัดการอุปกรณ์มือถือ, IoT)",
+    "descriptionEn": "Maintenance and software enhancement of NT's Device Management System (DMS), which manages end-user devices such as smartphones, tablets and IoT devices on the NTmobile 2100/2300 MHz 3G/4G network. ICN kept the system running and delivered program improvements. Keywords: device management, DMS, mobile devices, IoT, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "ma",
+      "system-development"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT017_MA_DMS65",
+    "note": "TOR: Official_TOR MA DMS Y.2022\\TOR MA DMS Y.22.pdf (scanned; OPT-34/2021)"
+  },
+  {
+    "projectCode": "NT018",
+    "descriptionTh": "บำรุงรักษาแบบ Corrective และ Preventive Maintenance (CM/PM) ของโครงข่ายเคเบิลใยแก้วนำแสงระดับ Core & Distribution ของ บมจ. โทรคมนาคมแห่งชาติ (NT) เขตภาคเหนือ (นภ.) ปี 2565 ครอบคลุมสายเคเบิลใยแก้ว สาย Drop Wire และกล่องต่อสาย (Enclosure) ICN แก้ไขเหตุขัดข้องตลอด 24 ชั่วโมงและบำรุงรักษาเชิงป้องกันตามรอบ (ไฟเบอร์ออปติก, ซ่อมบำรุงสาย, OFC)",
+    "descriptionEn": "2022 corrective and preventive maintenance (CM/PM) of NT's core and distribution fiber optic network in the North region: fiber cable, drop wire and enclosures, with 24x7 fault repair and scheduled preventive work. Keywords: fiber optic MA, OFC, cable repair, CM/PM.",
+    "descriptionSource": "tor",
+    "category": "fiber-optic",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT018_019_020_CM_PM65",
+    "note": "TOR: Official_TOR_Corrective และ Preventive Maintenance\\TOR_…(นภ)_Final.pdf (scanned); facts from the วภ/อภ SOCs of the same tender"
+  },
+  {
+    "projectCode": "NT019",
+    "descriptionTh": "บำรุงรักษาแบบ Corrective และ Preventive Maintenance (CM/PM) ของโครงข่ายเคเบิลใยแก้วนำแสงระดับ Core & Distribution ของ บมจ. โทรคมนาคมแห่งชาติ (NT) เขตภาคตะวันตก (วภ.) ปี 2565 ครอบคลุมสายเคเบิลใยแก้ว สาย Drop Wire และกล่องต่อสาย (Enclosure) ICN แก้ไขเหตุขัดข้องตลอด 24 ชั่วโมงและบำรุงรักษาเชิงป้องกันตามรอบ (ไฟเบอร์ออปติก, ซ่อมบำรุงสาย, OFC)",
+    "descriptionEn": "2022 corrective and preventive maintenance (CM/PM) of NT's core and distribution fiber optic network in the West region: fiber cable, drop wire and enclosures, with 24x7 fault repair and scheduled preventive work. Keywords: fiber optic MA, OFC, cable repair, CM/PM.",
+    "descriptionSource": "tor",
+    "category": "fiber-optic",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT018_019_020_CM_PM65",
+    "note": "TOR: Official_TOR_Corrective และ Preventive Maintenance\\TOR_…(วภ)_Final.pdf (scanned); SOC S4_ข้อกำหนดทางเทคนิค(CM)_…(วภ).doc"
+  },
+  {
+    "projectCode": "NT020",
+    "descriptionTh": "บำรุงรักษาแบบ Corrective และ Preventive Maintenance (CM/PM) ของโครงข่ายเคเบิลใยแก้วนำแสงระดับ Core & Distribution ของ บมจ. โทรคมนาคมแห่งชาติ (NT) เขตภาคตะวันออก (อภ.) ปี 2565 ครอบคลุมสายเคเบิลใยแก้ว สาย Drop Wire และกล่องต่อสาย (Enclosure) ICN แก้ไขเหตุขัดข้องตลอด 24 ชั่วโมงและบำรุงรักษาเชิงป้องกันตามรอบ (ไฟเบอร์ออปติก, ซ่อมบำรุงสาย, OFC)",
+    "descriptionEn": "2022 corrective and preventive maintenance (CM/PM) of NT's core and distribution fiber optic network in the East region: fiber cable, drop wire and enclosures, with 24x7 fault repair and scheduled preventive work. Keywords: fiber optic MA, OFC, cable repair, CM/PM.",
+    "descriptionSource": "tor",
+    "category": "fiber-optic",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT018_019_020_CM_PM65",
+    "note": "TOR: Official_TOR_Corrective และ Preventive Maintenance\\TOR_…(อภ)_Final.pdf (scanned); SOC S4_ข้อกำหนดทางเทคนิค(CM)_…(อภ).doc"
+  },
+  {
+    "projectCode": "NT021",
+    "descriptionTh": "จ้างงาน Managed Services ปฏิบัติงานระบบ RTC ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ระยะเวลา 12 เดือน (ต่อเนื่องจากสัญญา NT001) ครอบคลุมระบบคิดค่าบริการโทรศัพท์เคลื่อนที่ ได้แก่ Online Charging System (OCS), SCG, Work Order Management (WOM), Provisioning, Data & Report, API Converter และ OCS Support ICN จัดทีมดูแลระบบประจำวัน แก้ไขเหตุขัดข้อง และพัฒนาปรับปรุงโปรแกรม (Billing, Charging, OSS/BSS)",
+    "descriptionEn": "12-month managed services contract operating NT's RTC mobile charging platform, following on from NT001: Online Charging System (OCS), SCG, work order management (WOM), provisioning, data and reporting, API converter and OCS support. ICN staffed daily operations, corrective maintenance and software changes. Keywords: managed services, OCS, billing, charging, OSS/BSS.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "managed-services",
+      "system-development"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT021_MGT_RTC65",
+    "note": "TOR: Official_TOR\\หนังสือเชิญ+TOR_MS-RTC Y.65.pdf; SOC Proposal A\\Section 2 Statement of Compliance\\03_SOC_MS_RTC_Technical Requirement (Update 20220204).doc"
+  },
+  {
+    "projectCode": "NT022",
+    "descriptionTh": "จ้างจัดหาระบบและอุปกรณ์ 5G Smart City สำหรับพื้นที่ EEC ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) เพื่อส่งเสริมการบริหารจัดการเมือง ประกอบด้วยเสาอัจฉริยะ (Smart Pole) ติดตั้งกล้อง CCTV แบบ PTZ และแบบมุมคงที่ กล้องอ่านป้ายทะเบียน (LPR) อุปกรณ์ 5G CPE พร้อมซิม 5G และค่าบริการ และระบบ 5G MEC (Multi-access Edge Computing) รวมงานติดตั้ง (Smart Pole, กล้องวงจรปิด, เมืองอัจฉริยะ)",
+    "descriptionEn": "Supply of a 5G smart city system for NT in the EEC (Eastern Economic Corridor): smart poles with PTZ and fixed CCTV cameras, license plate recognition (LPR) cameras, 5G CPE with 5G SIMs and airtime, and a 5G MEC (multi-access edge computing) platform, with installation. Keywords: smart pole, CCTV, LPR, 5G, smart city, EEC.",
+    "descriptionSource": "tor",
+    "category": "smart-city-security",
+    "tags": [
+      "telecom-core"
+    ],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT022_SMART_POLE_Re-bidding",
+    "note": "TOR: Official TOR\\TOR_SmartPoleEEC_รอบ2_(final).pdf (re-bid); SOC Proposal A\\Huawei Update\\03_SOC_Smart Pole EEC_Technical Requirement (Update20220613)"
+  },
+  {
+    "projectCode": "NT023",
+    "descriptionTh": "จ้างรับประกันและบำรุงรักษาระบบ Network Monitoring Tools ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ระยะเวลา 12 เดือน ระบบนี้ติดตามสัญญาณ (Signaling) ของบริการเสียงและข้อมูลบนโครงข่ายโทรศัพท์เคลื่อนที่ เพื่อใช้วิเคราะห์ปัญหาการใช้งานของผู้ใช้บริการ ICN ดูแลให้ระบบทำงานต่อเนื่องและแก้ไขเหตุขัดข้อง (Network Monitoring, Signaling Monitoring)",
+    "descriptionEn": "12-month warranty and maintenance of NT's Network Monitoring Tools, which capture mobile network signaling for voice and data services to analyse subscriber problems. ICN kept the system running and handled faults. Keywords: network monitoring, signaling monitoring, troubleshooting, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT023_MA_NET_MON",
+    "note": "TOR: Official_TOR\\TOR ความต้องการทางเทคนิค MA Network Montioring Tools_R1.doc"
+  },
+  {
+    "projectCode": "NT024",
+    "descriptionTh": "จ้างเหมาขยายโครงข่ายอุปกรณ์สื่อสัญญาณระดับ Backbone Network ของ บมจ. โทรคมนาคมแห่งชาติ (NT) เพื่อรองรับการให้บริการ ISP-POP โดยขยายอุปกรณ์ DWDM ยี่ห้อ Huawei รุ่น OSN 8800 และเพิ่มวงจรความเร็ว 100GE ใหม่ รวมงานติดตั้งและทดสอบ (โครงข่ายหลัก, DWDM, Internet POP)",
+    "descriptionEn": "Backbone transmission expansion for NT's ISP points of presence (ISP-POP): Huawei OSN 8800 DWDM equipment expansion and new 100GE circuits, with installation and testing. Keywords: DWDM, optical backbone, 100GE, ISP POP.",
+    "descriptionSource": "proposal",
+    "category": "transmission",
+    "tags": [],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\_NT2\\2022\\3. ISP-POP",
+    "note": "No official TOR in folder; NEC\\_src\\2-1 NT_T003_2022__technical_requirement-complied…doc (T003/2022)"
+  },
+  {
+    "projectCode": "NT025",
+    "descriptionTh": "จัดหาอุปกรณ์ขยายความจุช่องสัญญาณ DWDM ยี่ห้อ Nokia รุ่น 1830 PSS-32 ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) สำหรับระบบ Backhaul ระหว่างส่วนกลางกับสถานีเคเบิลใต้น้ำชลี 2/ชลี 3 บริหารจัดการผ่านระบบ NMS เดิม รวมงานติดตั้ง ทดสอบ และฝึกอบรม (เคเบิลใต้น้ำ, Submarine Cable Station, WDM)",
+    "descriptionEn": "Supply of Nokia 1830 PSS-32 DWDM equipment to expand NT's backhaul capacity between the central exchange and the Chalee 2/Chalee 3 submarine cable stations, managed by the existing NMS, with installation, testing and training. Keywords: DWDM, submarine cable station, backhaul capacity, optical transport.",
+    "descriptionSource": "tor",
+    "category": "transmission",
+    "tags": [],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT025_DWDM_155",
+    "note": "TOR: Official_TOR\\TOR_Nokia155M_18Jan2022_FinalEdit.pdf (text)"
+  },
+  {
+    "projectCode": "NT026",
+    "descriptionTh": "จ้างบำรุงรักษาระบบชุมสายโทรศัพท์ระหว่างประเทศ BKK6 (อุปกรณ์ Huawei) ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปี 2565 ต่อเนื่องจากสัญญา NT004 ครอบคลุม Soft Switch, Media Gateway, Signaling Gateway, SBC และระบบที่เกี่ยวข้อง ICN ส่งเจ้าหน้าที่ดูแล บำรุงรักษาเชิงป้องกัน แก้ไขเหตุขัดข้อง และจัดการอะไหล่ (ชุมสายต่างประเทศ, International Gateway)",
+    "descriptionEn": "2022 renewal of the NT004 maintenance contract for NT's BKK6 international telephone exchange (Huawei): soft switch, media gateways, signaling gateway, SBC and related systems, with preventive and corrective maintenance and spare-part management. Keywords: international gateway, voice switching, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT026_MA ITSC_65",
+    "note": "TOR: Official_TOR\\TOR_MA_BKK6_บริษัท.pdf (text)"
+  },
+  {
+    "projectCode": "NT027",
+    "descriptionTh": "จัดซื้อพร้อมติดตั้งการ Upgrade และขยายระบบ Online Charging System (OCS) / Charging Function (CHF) จำนวน 1 ระบบ ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) ระบบนี้คิดค่าบริการแบบเรียลไทม์ของโทรศัพท์เคลื่อนที่ รวมถึงรองรับโครงข่าย 5G รวมงานติดตั้ง ทดสอบ และฝึกอบรม (ระบบคิดค่าบริการ, Billing, Charging)",
+    "descriptionEn": "Upgrade and capacity expansion of NT's Online Charging System (OCS) / 5G Charging Function (CHF), one system, for real-time mobile charging, with installation, testing and training. Keywords: OCS, CHF, online charging, billing, 5G core.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT027_OCS",
+    "note": "TOR: Official_TOR\\OCSCHF_final.pdf (text)"
+  },
+  {
+    "projectCode": "NT028",
+    "descriptionTh": "บำรุงรักษาอุปกรณ์ระบบสื่อสัญญาณ Backhaul แบบ DWDM ระหว่างสถานีเคเบิลใต้น้ำกับส่วนกลาง และระบบ Network Management System ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปี 2566 ต่อเนื่องจากสัญญา NT007 และ NT008 ครอบคลุม Nokia 1830 PSS-32/PSS-64, ASN 1620LM/PFE และ NMS ICN ดูแลแก้ไขเหตุขัดข้องและบำรุงรักษาเชิงป้องกัน (เคเบิลใต้น้ำ, WDM, NMS)",
+    "descriptionEn": "2023 maintenance of NT's DWDM backhaul between the submarine cable stations and the central exchanges plus its NMS, renewing NT007 and NT008: Nokia 1830 PSS-32/PSS-64, ASN 1620LM/PFE and the network management system. Keywords: DWDM backhaul, submarine cable station, NMS, MA.",
+    "descriptionSource": "tor",
+    "category": "transmission",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2022\\NT028_MA_EQ_NMS66",
+    "note": "TOR: Official_TOR\\MA 66 Nokia_Final.docx"
+  },
+  {
+    "projectCode": "NT029",
+    "descriptionTh": "จ้างบำรุงรักษาอุปกรณ์ Core Switch และบริหารจัดการอะไหล่ของโครงข่าย Transport สำหรับบริการ 3G และ 4G LTE ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปีงบประมาณ 2566 ระยะเวลา 12 เดือน ต่อเนื่องจากสัญญา NT014 ICN ดูแลแก้ไขเหตุขัดข้องและบำรุงรักษาให้โครงข่ายทำงานต่อเนื่อง (Mobile Backhaul, Transport Network, สวิตช์)",
+    "descriptionEn": "Fiscal-year 2023, 12-month maintenance of the core switches and spare-part management for NT's 3G and 4G LTE transport network, renewing NT014. Keywords: mobile backhaul, transport network, core switch, MA.",
+    "descriptionSource": "tor",
+    "category": "transmission",
+    "tags": [
+      "ip-network"
+    ],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT029 MA_3G_2023",
+    "note": "TOR: Official TOR\\TOR Core Switch.pdf; SOC Proposal A\\Chapter 2 Statement of Compliance\\02_SOC_MA_Transport_Part I_ขอบเขตของงาน.doc (OPT-27/2022)"
+  },
+  {
+    "projectCode": "NT030",
+    "descriptionTh": "จ้างรับประกันและบำรุงรักษาระบบ DEA (Diameter Edge Agent) ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปีงบประมาณ 2566 ระบบนี้ทำหน้าที่เป็น Firewall ของสัญญาณ Diameter ระหว่างโครงข่าย NT กับโครงข่ายพันธมิตรสำหรับบริการ LTE Roaming บนโครงข่าย 3G/4G ICN ดูแลให้ระบบทำงานต่อเนื่องและแก้ไขเหตุขัดข้อง (Diameter Signaling, โรมมิ่ง)",
+    "descriptionEn": "Fiscal-year 2023 warranty and maintenance of NT's DEA (Diameter Edge Agent), the Diameter signaling firewall toward partner networks for LTE roaming on the 3G/4G network. Keywords: Diameter signaling, DEA, roaming, signaling firewall, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT030 MA_DEA66",
+    "note": "TOR: Official_TOR\\TORทั้งเล่ม.pdf; SOC 02_SOC_MA_DEA_Part I_ขอบเขตของงาน.doc"
+  },
+  {
+    "projectCode": "NT031",
+    "descriptionTh": "บำรุงรักษาเครือข่ายสายเคเบิลใยแก้วนำแสงและอุปกรณ์ในโครงการจัดให้มีสัญญาณโทรศัพท์เคลื่อนที่และอินเทอร์เน็ตความเร็วสูงในพื้นที่ชายขอบหมู่บ้าน (USO Zone C+) กลุ่มที่ 2 (ภาคเหนือ 2) ส่วนที่ 1 ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) ตามโครงการของ กสทช. ICN แก้ไขเหตุขัดข้องของสายเคเบิลและอุปกรณ์ให้บริการต่อเนื่อง (ไฟเบอร์ออปติก, เน็ตชายขอบ, USO)",
+    "descriptionEn": "Maintenance of the fiber optic network and equipment of the USO programme for mobile signal and broadband in border villages (Zone C+), group 2 (North 2) part 1, for NT under the NBTC project. Keywords: fiber optic MA, OFC, USO, NBTC, rural broadband.",
+    "descriptionSource": "tor",
+    "category": "fiber-optic",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT031 MA_USO1_N2",
+    "note": "TOR: _Official_TOR\\TOR เทคนิค_N2-BB2_ร่าง ส่วนที่ 2 (กลุ่ม 2) ณ 06-02-66.docx (draft)"
+  },
+  {
+    "projectCode": "NT032",
+    "descriptionTh": "จ้างบำรุงรักษาระบบ OTA (Over The Air) และปรับปรุงโปรแกรมของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปีงบประมาณ 2566 ต่อเนื่องจากสัญญา NT003 ระบบ OTA ใช้บริหารจัดการ SIM Card ของผู้ใช้ NTmobile จากระยะไกล เช่น อัปเดตข้อมูลและแอปพลิเคชันบนซิม ICN ดูแลให้ระบบทำงานต่อเนื่องและปรับปรุงโปรแกรม (ซิมการ์ด, SIM OTA)",
+    "descriptionEn": "Fiscal-year 2023 maintenance and software enhancement of NT's OTA (Over-The-Air) platform, renewing NT003. OTA manages NTmobile SIM cards remotely, such as updating SIM data and applications. Keywords: SIM OTA, SIM card management, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "ma",
+      "system-development"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT032 MA_OTA66",
+    "note": "TOR: Official_TOR\\TOR MA OTA (Official).pdf; SOC 02_SOC_MA_OTA_ขอบเขตของงาน_Part I.doc"
+  },
+  {
+    "projectCode": "NT033",
+    "descriptionTh": "จ้างบำรุงรักษาระบบ Device Management System (DMS) และปรับปรุงโปรแกรมของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปีงบประมาณ 2566 ต่อเนื่องจากสัญญา NT017 ระบบนี้ใช้บริหารจัดการอุปกรณ์ปลายทาง เช่น สมาร์ทโฟน แท็บเล็ต และอุปกรณ์ IoT บนโครงข่าย NTmobile ICN ดูแลให้ระบบทำงานต่อเนื่องและปรับปรุงโปรแกรม (Device Management, จัดการอุปกรณ์มือถือ, IoT)",
+    "descriptionEn": "Fiscal-year 2023 maintenance and software enhancement of NT's Device Management System (DMS), renewing NT017. DMS manages smartphones, tablets and IoT devices on the NTmobile network. Keywords: device management, DMS, mobile devices, IoT, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [
+      "software"
+    ],
+    "workTypes": [
+      "ma",
+      "system-development"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT033 MA_DMS66",
+    "note": "TOR: Official_TOR\\device.pdf; SOC 02_SOC_MA_DMS_ขอบเขตของงาน_PART I.doc"
+  },
+  {
+    "projectCode": "NT034",
+    "descriptionTh": "ขายอุปกรณ์โครงข่าย (Network Equipment) จำนวน 1 ระบบ ให้ บมจ. โทรคมนาคมแห่งชาติ (NT) สำหรับโครงการโทรศัพท์เคลื่อนที่ 4G/5G บนคลื่นความถี่ 700 MHz รวมงานจัดหา ติดตั้ง ทดสอบ และฝึกอบรม (5G, 4G, คลื่น 700 MHz, Mobile Network)",
+    "descriptionEn": "Supply of one network equipment system for NT's 4G/5G mobile network on the 700 MHz band, including installation, testing and training. Keywords: 5G, 4G LTE, 700 MHz, mobile network equipment.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "supply",
+      "installation"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT034 5G_CORE",
+    "note": "TOR: TOR\\ข้อกำหนดทางด้านเทคนิค อุปกรณ์โครงข่าย (Network .pdf (text); equipment vendor not confirmed"
+  },
+  {
+    "projectCode": "NT036",
+    "descriptionTh": "จ้างบำรุงรักษาระบบ Network Monitoring Tools ของ บมจ. โทรคมนาคมแห่งชาติ (NT) ปีงบประมาณ 2566 ต่อเนื่องจากสัญญา NT023 ระบบนี้ติดตามสัญญาณ (Signaling) ของบริการเสียงและข้อมูลบนโครงข่ายโทรศัพท์เคลื่อนที่ เพื่อวิเคราะห์ปัญหาการใช้งานของผู้ใช้บริการ ICN ดูแลให้ระบบทำงานต่อเนื่องและแก้ไขเหตุขัดข้อง (Network Monitoring, Signaling Monitoring)",
+    "descriptionEn": "Fiscal-year 2023 maintenance of NT's Network Monitoring Tools, renewing NT023. The tools capture mobile network signaling for voice and data services to analyse subscriber problems. Keywords: network monitoring, signaling monitoring, troubleshooting, MA.",
+    "descriptionSource": "tor",
+    "category": "telecom-core",
+    "tags": [],
+    "workTypes": [
+      "ma"
+    ],
+    "folder": "_Project 2018-2025\\NT\\2023\\NT036 MA_NET_MON66",
+    "note": "SOC: 02_SOC_MA_MON_ขอบเขตของงาน.doc (OPT-010/2022)"
   }
 ]

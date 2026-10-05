@@ -38,33 +38,33 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 07 | NT003 | NT | `_Project 2018-2025\NT\2021\NT003_MA_OTA` — code |  | tor | written |  |
 | 07 | NT004 | NT | `_Project 2018-2025\NT\2021\NT004_MA ITSC BKK6` — code |  | tor | written |  |
 | 07 | NT005 | NT | `_Project 2018-2025\NT\2021\NT005_PABX BTC` — code |  | tor | written |  |
-| 07 | NT006 | NT | `_Project 2018-2025\NT\_NT2\2022\1. BB_BKK-South` — name+year |  | tor | todo |  |
-| 07 | NT007 | NT | `_Project 2018-2025\NT\2021\NT007_MA_NK_EQ64` — code |  | tor | todo |  |
-| 07 | NT008 | NT | `_Project 2018-2025\NT\2021\NT008_MA_NMS64` — code |  | tor | todo |  |
-| 07 | NT009 | NT | `_Project 2018-2025\NT\2021\NT009_PCRF` — code |  | tor | todo |  |
-| 07 | NT010 | NT | `_Project 2018-2025\NT\2021\NT010_DEA_EXP` — code |  | tor | todo |  |
-| 07 | NT011 | NT | `_Project 2018-2025\NT\2022\NT011_EXP_NET_MON64` — code |  | tor | todo |  |
-| 07 | NT013 | NT | `_Project 2018-2025\NT\2021\NT013_MA_USO1_OFC` — code |  | tor | todo |  |
-| 07 | NT014 | NT | `_Project 2018-2025\NT\_NT2\2022\2. MA Transport` — name+year |  | tor | todo |  |
-| 07 | NT017 | NT | `_Project 2018-2025\NT\2022\NT017_MA_DMS65` — code |  | tor | todo |  |
-| 07 | NT018 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | todo |  |
-| 07 | NT019 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | todo |  |
-| 07 | NT020 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | todo |  |
-| 07 | NT021 | NT | `_Project 2018-2025\NT\2022\NT021_MGT_RTC65` — code |  | tor | todo |  |
-| 07 | NT022 | NT | `_Project 2018-2025\NT\2022\NT022_SMART_POLE_Re-bidding` — user's answer |  | tor | todo | Two folders carry NT022: the first bid or the re-bid — which one led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
-| 07 | NT023 | NT | `_Project 2018-2025\NT\2022\NT023_MA_NET_MON` — code |  | tor | todo |  |
-| 07 | NT024 | NT | `_Project 2018-2025\NT\_NT2\2022\3. ISP-POP` — name+year |  | tor | todo |  |
-| 07 | NT025 | NT | `_Project 2018-2025\NT\2022\NT025_DWDM_155` — code |  | tor | todo |  |
-| 07 | NT026 | NT | `_Project 2018-2025\NT\2022\NT026_MA ITSC_65` — code |  | tor | todo |  |
-| 07 | NT027 | NT | `_Project 2018-2025\NT\2022\NT027_OCS` — code |  | tor | todo |  |
-| 07 | NT028 | NT | `_Project 2018-2025\NT\2022\NT028_MA_EQ_NMS66` — code |  | tor | todo |  |
-| 07 | NT029 | NT | `_Project 2018-2025\NT\2023\NT029 MA_3G_2023` — code |  | tor | todo |  |
-| 07 | NT030 | NT | `_Project 2018-2025\NT\2023\NT030 MA_DEA66` — code |  | tor | todo |  |
-| 07 | NT031 | NT | `_Project 2018-2025\NT\2023\NT031 MA_USO1_N2` — code |  | tor | todo |  |
-| 07 | NT032 | NT | `_Project 2018-2025\NT\2023\NT032 MA_OTA66` — code |  | tor | todo |  |
-| 07 | NT033 | NT | `_Project 2018-2025\NT\2023\NT033 MA_DMS66` — code |  | tor | todo |  |
-| 07 | NT034 | NT | `_Project 2018-2025\NT\2023\NT034 5G_CORE` — code |  | tor | todo |  |
-| 07 | NT036 | NT | `_Project 2018-2025\NT\2023\NT036 MA_NET_MON66` — code |  | tor | todo |  |
+| 07 | NT006 | NT | `_Project 2018-2025\NT\_NT2\2022\1. BB_BKK-South` — name+year |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN compliance table only. |
+| 07 | NT007 | NT | `_Project 2018-2025\NT\2021\NT007_MA_NK_EQ64` — code |  | tor | written |  |
+| 07 | NT008 | NT | `_Project 2018-2025\NT\2021\NT008_MA_NMS64` — code |  | tor | written |  |
+| 07 | NT009 | NT | `_Project 2018-2025\NT\2021\NT009_PCRF` — code |  | tor | written |  |
+| 07 | NT010 | NT | `_Project 2018-2025\NT\2021\NT010_DEA_EXP` — code |  | tor | written |  |
+| 07 | NT011 | NT | `_Project 2018-2025\NT\2022\NT011_EXP_NET_MON64` — code |  | tor | written |  |
+| 07 | NT013 | NT | `_Project 2018-2025\NT\2021\NT013_MA_USO1_OFC` — code |  | tor | written |  |
+| 07 | NT014 | NT | `_Project 2018-2025\NT\_NT2\2022\2. MA Transport` — name+year |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 07 | NT017 | NT | `_Project 2018-2025\NT\2022\NT017_MA_DMS65` — code |  | tor | written |  |
+| 07 | NT018 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | written | North (นภ.) facts taken from the West/East SOCs of the same tender (its own S4 file not converted). |
+| 07 | NT019 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | written |  |
+| 07 | NT020 | NT | `_Project 2018-2025\NT\2022\NT018_019_020_CM_PM65` — code |  | tor | written |  |
+| 07 | NT021 | NT | `_Project 2018-2025\NT\2022\NT021_MGT_RTC65` — code |  | tor | written |  |
+| 07 | NT022 | NT | `_Project 2018-2025\NT\2022\NT022_SMART_POLE_Re-bidding` — user's answer |  | tor | written | Two folders carry NT022: the first bid or the re-bid — which one led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
+| 07 | NT023 | NT | `_Project 2018-2025\NT\2022\NT023_MA_NET_MON` — code |  | tor | written |  |
+| 07 | NT024 | NT | `_Project 2018-2025\NT\_NT2\2022\3. ISP-POP` — name+year |  | proposal | written | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
+| 07 | NT025 | NT | `_Project 2018-2025\NT\2022\NT025_DWDM_155` — code |  | tor | written |  |
+| 07 | NT026 | NT | `_Project 2018-2025\NT\2022\NT026_MA ITSC_65` — code |  | tor | written |  |
+| 07 | NT027 | NT | `_Project 2018-2025\NT\2022\NT027_OCS` — code |  | tor | written |  |
+| 07 | NT028 | NT | `_Project 2018-2025\NT\2022\NT028_MA_EQ_NMS66` — code |  | tor | written |  |
+| 07 | NT029 | NT | `_Project 2018-2025\NT\2023\NT029 MA_3G_2023` — code |  | tor | written |  |
+| 07 | NT030 | NT | `_Project 2018-2025\NT\2023\NT030 MA_DEA66` — code |  | tor | written |  |
+| 07 | NT031 | NT | `_Project 2018-2025\NT\2023\NT031 MA_USO1_N2` — code |  | tor | written |  |
+| 07 | NT032 | NT | `_Project 2018-2025\NT\2023\NT032 MA_OTA66` — code |  | tor | written |  |
+| 07 | NT033 | NT | `_Project 2018-2025\NT\2023\NT033 MA_DMS66` — code |  | tor | written |  |
+| 07 | NT034 | NT | `_Project 2018-2025\NT\2023\NT034 5G_CORE` — code |  | tor | written | Equipment vendor/model not stated in the TOR; Description is generic (4G/5G 700 MHz). Add the vendor if you know it. |
+| 07 | NT036 | NT | `_Project 2018-2025\NT\2023\NT036 MA_NET_MON66` — code |  | tor | written |  |
 | 08 | NT037 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | todo |  |
 | 08 | NT038 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | todo |  |
 | 08 | NT039 | NT | `_Project 2018-2025\NT\2023\NT037 NT038_NT039_CM_PM_Y66` — code |  | tor | todo |  |

@@ -9,7 +9,7 @@ so source `tor` when an official TOR is also in the folder; `proposal` when ther
 
 | Card | Source read | Facts | Planned Category / Tags / Work Types / Source |
 |---|---|---|---|
-| NT006 | (no TOR in folder) `NT_BB_BBK to S_20211220_Scan\บทที่ 2 ตารางการยอมรับขอบเขตของงาน (156หน้า).pdf` — scanned, **not yet read**; also `บทที่ 1 บทนำ (72หน้า).pdf`, `optix_osn_9800 addition 6.2.pdf` | Backbone transmission expansion Bangkok–South (name); Huawei OptiX OSN 9800 likely | transmission / – / supply, installation / **proposal** |
+| NT006 | (no TOR in folder) `NT_BB_BBK to S_20211220_Scan\บทที่ 2 ตารางการยอมรับขอบเขตของงาน (156หน้า).pdf` — scanned, Part II p2-6 read 2026-10-05 | Backbone expansion Bangkok–South: Huawei OptiX OSN 9800 DWDM, 5 OADM sites (TOTH, KKM, PPNT, KNL, PBS) + 9 optical switching sites (NPT, PBIT, HHNT, CPN1, LSN, PNAO, PKB, SKA, HYIT); upgrade existing NMS to manage old + new | transmission / – / supply, installation / **proposal** |
 | NT007 | `Official_TOR\Official TOR MA Backhaul.pdf` (scan; TOR starts p30, general p33) | MA of the DWDM backhaul between central office and submarine cable station: Nokia 1830 PSS-32/64 + ASN 1620LM/PFE ("ระบบเชื่อมโยง DWDM"), spare parts | transmission / – / ma / tor |
 | NT008 | `Official_TOR\Official TOR MA NMS project.pdf` (scan; general p32) | MA of NMS: Nokia (Alcatel-Lucent) 1350 OMS R14.2 and R12.3 | transmission / telecom-core / ma / tor |
 | NT009 | `Official_TOR\ข้อกำหนดทางด้านเทคนิค อุปกรณ์ระบบ Policy Control Functi.pdf` (text) | Purchase of PCF/PCRF policy & charging rules system (1 system) for the mobile network: supply, installation, acceptance test, training | telecom-core / – / supply, installation / tor |
@@ -35,9 +35,7 @@ so source `tor` when an official TOR is also in the folder; `proposal` when ther
 | NT034 | `TOR\ข้อกำหนดทางด้านเทคนิค อุปกรณ์โครงข่าย (Network .pdf` (text) | Purchase of network equipment for 4G/5G mobile on 700 MHz, 1 system: supply, install, test, training | telecom-core / – / supply, installation / tor |
 | NT036 | `…\02_SOC_MA_MON_ขอบเขตของงาน.doc` | 2023 renewal of NT023: MA of Network Monitoring Tools (OPT-010/2022) | telecom-core / – / ma / tor |
 
-Still to do before writing: confirm NT006 (read a few pages of its compliance table or บทที่ 1), and optionally
-NT034's equipment list (vendor) and NT009/NT027 vendor names. Then write the 27 entries into
-`07-nt-a.json` (append) and run `write-local.mjs 07-nt-a.json` (it re-sends NT001–005 unchanged, harmless).
+**2026-10-05: all 27 written to pilot-db** (write-local: updated 32, rejected 0). NT034 vendor not found — left generic, question in the worklist.
 
 Local tooling used (scratchpad, not in repo): PyMuPDF text extraction and page rendering for scans; Word COM
 (Office 16 installed) to read `.doc` — always on a local copy opened read-only, never on the share.
