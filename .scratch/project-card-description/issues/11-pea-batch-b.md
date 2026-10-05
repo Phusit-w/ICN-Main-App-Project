@@ -12,3 +12,7 @@
 - [ ] User reviews in the local web app; corrections applied; rows set to `reviewed`
 - [ ] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
 - [ ] User spot-checks 2-3 pushed cards on production
+
+## Comments
+
+2026-10-05 — 24 of 32 cards written to `pilot-db` (`batches/11-pea-b.json`, notes in `batches/11-pea-b-notes.md`); ingest updated 24, rejected 0. The 8 IdeaHub meeting-display cards fit no Category: user chose to add a new Category on production; they are prepared in `batches/11-pea-b-ideahub.json` (value `video-conferencing`) and wait for that entry to exist on production and in `pilot-db`.
