@@ -28,3 +28,6 @@ Share read-only, as in batch 10.
   Category on production. Prepared with value `video-conferencing` (English label "Video Conferencing" → that value;
   Thai suggestion "ระบบประชุมทางไกล"). Once an admin adds it on production, mirror the same row into pilot-db, then
   `write-local.mjs 11-pea-b-ideahub.json`. If the label differs, change `category` in the file to the derived value.
+- **Resolved 2026-10-05**: Category "Video Conferencing" / "ระบบประชุมทางไกล" (value `video-conferencing`) added on
+  production through Admin Center (at the user's request), mirrored into pilot-db with the same value and labels,
+  then the 8 IdeaHub cards written (updated 8, rejected 0).
