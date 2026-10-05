@@ -141,38 +141,38 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 10 | PEA045 | PEA | `_Project 2018-2025\PEA\2024\1. Spare OFC+Accessories Y67` — name+year |  | tor | pushed |  |
 | 10 | PEA046 | PEA | `_Project 2018-2025\PEA\2024\2. Teleprotection ช่วงสถานีเชียงใหม่ Y67` — name+year |  | tor | pushed |  |
 | 10 | PEA047 | PEA |  |  | contract | pushed |  |
-| 11 | PEA048 | PEA |  |  | contract | reviewed |  |
-| 11 | PEA049 | PEA | `_Project 2018-2025\PEA\2024\5. IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | reviewed |  |
-| 11 | PEA050 | PEA | `_Project 2018-2025\PEA\2024\7. Teleprotection ช่วงสถานีขอนแก่น 4 Y67 (Re-bidding)` — user's answer |  | tor | reviewed | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
-| 11 | PEA051 | PEA | `_Project 2018-2025\PEA\2024\9. Dispatch Console` — name+year |  | tor | reviewed |  |
-| 11 | PEA052 | PEA | `_Project 2018-2025\PEA\2024\11. MA IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | reviewed |  |
-| 11 | PEA053 | PEA | `_Project 2018-2025\PEA\2024\12. MA IP Access ภาคเหนือและภาคใต้ Y67` — name+year |  | tor | reviewed |  |
-| 11 | PEA054 | PEA | `_Project 2018-2025\PEA\2024\13. Microwave HQ-DR (Re-bidding)` — user's answer |  | tor | reviewed | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
-| 11 | PEA055 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA056 | PEA |  |  | contract | reviewed |  |
-| 11 | PEA057 | PEA | `_Project 2018-2025\PEA\2025\PEA057_IP Access ภาคตะวันออกเฉียงเหนือ Y68` — code |  | tor | reviewed |  |
-| 11 | PEA058 | PEA | `_Project 2018-2025\PEA\2025\PEA058_Digital Radio System` — code |  | tor | reviewed |  |
-| 11 | PEA059 | PEA | `_Project 2018-2025\PEA\2025\PEA059_Spare OFC+Accessories Y68` — code |  | tor | reviewed |  |
-| 11 | PEA060 | PEA | `_Project 2018-2025\PEA\2025\PEA060_Teleprotection สถานีไฟฟ้าแปลงยาว` — code |  | tor | reviewed |  |
-| 11 | PEA061 | PEA |  |  | contract | reviewed |  |
-| 11 | PEA062 | PEA | `_Project 2018-2025\PEA\2025\PEA062_Microwave HQ-หนองจอก` — code |  | tor | reviewed |  |
-| 11 | PEA063 | PEA | `_Project 2018-2025\PEA\2025\PEA063_Teleprotection สถานีไฟฟ้าบางสมัคร` — code |  | tor | reviewed |  |
-| 11 | PEA064 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA066 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA070 | PEA | `_Project 2018-2025\PEA\2025\PEA070_ติดตั้งอุปกรณ์ประชุมออนไลน์` — code |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA072 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA073 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA074 | PEA |  |  | contract | reviewed |  |
-| 11 | PEA076 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA077 | PEA |  |  | contract | reviewed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
-| 11 | PEA078 | PEA | `_Project 2026\PEA\2. PEA078_IP Access ภาคตะวันออกเฉียงเหนือ Y69` — code |  | tor | reviewed |  |
-| 11 | PEA082 | PEA | `_Project 2026\PEA\3. PEA082_Spare OFC+Accessories Y69` — code |  | tor | reviewed |  |
-| 11 | PEA083 | PEA | `_Project 2026\PEA\4. PEA083_Teleprotection สถานีไฟฟ้าลำภูรา 2 (ลานไก)` — code |  | tor | reviewed |  |
-| 11 | PEA084 | PEA | `_Project 2026\PEA\5. PEA084_Microwave 6 Hops` — code |  | tor | reviewed |  |
-| 11 | PEA085 | PEA | `_Project 2026\PEA\6. PEA085_Teleprotection ในพื้นที่ (กฟก.)` — code |  | tor | reviewed |  |
-| 11 | PEA086 | PEA | `_Project 2026\PEA\7. PEA086_MA Radio กฟก.2` — code |  | tor | reviewed |  |
-| 11 | PEA087 | PEA |  |  | contract | reviewed |  |
-| 11 | PEA089 | PEA | `_Project 2026\PEA\8. PEA089_Radio ภาคกลาง Y69` — code |  | tor | reviewed |  |
+| 11 | PEA048 | PEA |  |  | contract | pushed |  |
+| 11 | PEA049 | PEA | `_Project 2018-2025\PEA\2024\5. IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | pushed |  |
+| 11 | PEA050 | PEA | `_Project 2018-2025\PEA\2024\7. Teleprotection ช่วงสถานีขอนแก่น 4 Y67 (Re-bidding)` — user's answer |  | tor | pushed | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
+| 11 | PEA051 | PEA | `_Project 2018-2025\PEA\2024\9. Dispatch Console` — name+year |  | tor | pushed |  |
+| 11 | PEA052 | PEA | `_Project 2018-2025\PEA\2024\11. MA IP Access ภาคตะวันออกเฉียงเหนือ Y67` — name+year |  | tor | pushed |  |
+| 11 | PEA053 | PEA | `_Project 2018-2025\PEA\2024\12. MA IP Access ภาคเหนือและภาคใต้ Y67` — name+year |  | tor | pushed |  |
+| 11 | PEA054 | PEA | `_Project 2018-2025\PEA\2024\13. Microwave HQ-DR (Re-bidding)` — user's answer |  | tor | pushed | First bid or re-bid — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** |
+| 11 | PEA055 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA056 | PEA |  |  | contract | pushed |  |
+| 11 | PEA057 | PEA | `_Project 2018-2025\PEA\2025\PEA057_IP Access ภาคตะวันออกเฉียงเหนือ Y68` — code |  | tor | pushed |  |
+| 11 | PEA058 | PEA | `_Project 2018-2025\PEA\2025\PEA058_Digital Radio System` — code |  | tor | pushed |  |
+| 11 | PEA059 | PEA | `_Project 2018-2025\PEA\2025\PEA059_Spare OFC+Accessories Y68` — code |  | tor | pushed |  |
+| 11 | PEA060 | PEA | `_Project 2018-2025\PEA\2025\PEA060_Teleprotection สถานีไฟฟ้าแปลงยาว` — code |  | tor | pushed |  |
+| 11 | PEA061 | PEA |  |  | contract | pushed |  |
+| 11 | PEA062 | PEA | `_Project 2018-2025\PEA\2025\PEA062_Microwave HQ-หนองจอก` — code |  | tor | pushed |  |
+| 11 | PEA063 | PEA | `_Project 2018-2025\PEA\2025\PEA063_Teleprotection สถานีไฟฟ้าบางสมัคร` — code |  | tor | pushed |  |
+| 11 | PEA064 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA066 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA070 | PEA | `_Project 2018-2025\PEA\2025\PEA070_ติดตั้งอุปกรณ์ประชุมออนไลน์` — code |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA072 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA073 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA074 | PEA |  |  | contract | pushed |  |
+| 11 | PEA076 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA077 | PEA |  |  | contract | pushed | **Fits no Category (IdeaHub meeting display). User 2026-10-05: add a new Category on production → done 2026-10-05 (Admin Center on prod: "Video Conferencing" / "ระบบประชุมทางไกล", value `video-conferencing`), mirrored into pilot-db; written from `batches/11-pea-b-ideahub.json`.** |
+| 11 | PEA078 | PEA | `_Project 2026\PEA\2. PEA078_IP Access ภาคตะวันออกเฉียงเหนือ Y69` — code |  | tor | pushed |  |
+| 11 | PEA082 | PEA | `_Project 2026\PEA\3. PEA082_Spare OFC+Accessories Y69` — code |  | tor | pushed |  |
+| 11 | PEA083 | PEA | `_Project 2026\PEA\4. PEA083_Teleprotection สถานีไฟฟ้าลำภูรา 2 (ลานไก)` — code |  | tor | pushed |  |
+| 11 | PEA084 | PEA | `_Project 2026\PEA\5. PEA084_Microwave 6 Hops` — code |  | tor | pushed |  |
+| 11 | PEA085 | PEA | `_Project 2026\PEA\6. PEA085_Teleprotection ในพื้นที่ (กฟก.)` — code |  | tor | pushed |  |
+| 11 | PEA086 | PEA | `_Project 2026\PEA\7. PEA086_MA Radio กฟก.2` — code |  | tor | pushed |  |
+| 11 | PEA087 | PEA |  |  | contract | pushed |  |
+| 11 | PEA089 | PEA | `_Project 2026\PEA\8. PEA089_Radio ภาคกลาง Y69` — code |  | tor | pushed |  |
 | 12 | AIT004 | TOT (AIT) |  |  | name (Work Certificate only) | todo |  |
 | 12 | AIT012 | MHESI (AIT) |  |  | contract | todo |  |
 | 12 | ATD001 | ATD |  |  | contract | todo |  |
