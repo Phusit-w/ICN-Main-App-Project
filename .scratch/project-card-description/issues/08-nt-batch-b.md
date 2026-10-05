@@ -10,7 +10,7 @@
 - [x] Ambiguous Project Folders left blank with candidates listed, and projects that fit no Category listed; both handed to the user, not guessed
 - [x] Worklist rows updated to `written`, with any open question per card
 - [x] User reviews in the local web app; corrections applied; rows set to `reviewed`
-- [ ] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
+- [x] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
 - [ ] User spot-checks 2-3 pushed cards on production
 
 ## Comments
@@ -18,3 +18,5 @@
 2026-10-05 — All 31 cards written to `pilot-db` (`batches/08-nt-b.json`, notes in `batches/08-nt-b-notes.md`). 7 cards downgraded to `proposal` (no official TOR). No ambiguous folders; every project fits a Category. Open notes in the worklist (NT043–045 folder numbering vs contracts, NT066 area list). Next: the user reviews in the local web app.
 
 2026-10-05 — The user approved the batch for production without a separate web review ("push ขึ้นเลย"); rows set to `reviewed`. Production push of 07+08 is run by the user with `batches/push-prod.mjs` (Claude's push was blocked by the auto-mode classifier).
+
+2026-10-05 — Pushed to production by the user with `batches/push-prod.mjs` (batches 07+08 together, 63 cards): created 0, updated 63, rejected 0. Rows set to `pushed`. Remaining: the user's spot-check of 2-3 cards on production.
