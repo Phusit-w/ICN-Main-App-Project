@@ -70,7 +70,8 @@ export default async function ProjectCardPage({
     client?: string;
     category?: string;
     workType?: string;
-    year?: string;
+    yearFrom?: string;
+    yearTo?: string;
     budgetMin?: string;
     budgetMax?: string;
   }>;
@@ -81,7 +82,8 @@ export default async function ProjectCardPage({
     client: clientParam,
     category: categoryParam,
     workType: workTypeParam,
-    year: yearParam,
+    yearFrom: yearFromParam,
+    yearTo: yearToParam,
     budgetMin: budgetMinParam,
     budgetMax: budgetMaxParam,
   } = await searchParams;
@@ -95,7 +97,9 @@ export default async function ProjectCardPage({
   const workTypeText = workTypeParam?.trim() ?? "";
   const workTypeTerms = resolveTerms(taxonomy.workTypes, workTypeText);
   const workTypeDisplay = workTypeTerms.length === 1 ? workTypeTerms[0].en : workTypeText;
-  const year = parseIntParam(yearParam);
+  // Year range, inclusive on both ends; either side may be left blank.
+  const yearFrom = parseIntParam(yearFromParam);
+  const yearTo = parseIntParam(yearToParam);
   // The budget filter is typed in millions of baht (ล้านบาท) so users enter
   // "10" rather than "10000000"; the DB still stores full baht.
   const budgetMin = parseFloatParam(budgetMinParam);
@@ -139,7 +143,8 @@ export default async function ProjectCardPage({
   if (categoryText) filters.push({ category: { in: categoryTerms.map((c) => c.value) } });
   // A card lists one or more Work Types; it matches if any is among those picked.
   if (workTypeText) filters.push({ workTypes: { hasSome: workTypeTerms.map((w) => w.value) } });
-  if (year !== undefined) filters.push({ year });
+  if (yearFrom !== undefined) filters.push({ year: { gte: yearFrom } });
+  if (yearTo !== undefined) filters.push({ year: { lte: yearTo } });
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
 
@@ -209,13 +214,31 @@ export default async function ProjectCardPage({
             </datalist>
           </div>
           <div className="w-[120px]">
-            <label className="mb-1.5 block text-[13px] font-medium text-label">ปี</label>
+            <label htmlFor="project-card-year-from" className="mb-1.5 block text-[13px] font-medium text-label">
+              ตั้งแต่ปี
+            </label>
             <input
-              name="year"
+              id="project-card-year-from"
+              name="yearFrom"
               list="project-card-years"
               inputMode="numeric"
-              defaultValue={year !== undefined ? String(year) : ""}
-              placeholder="ทุกปี"
+              defaultValue={yearFrom !== undefined ? String(yearFrom) : ""}
+              placeholder="เช่น 2020"
+              autoComplete="off"
+              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+            />
+          </div>
+          <div className="w-[120px]">
+            <label htmlFor="project-card-year-to" className="mb-1.5 block text-[13px] font-medium text-label">
+              ถึงปี
+            </label>
+            <input
+              id="project-card-year-to"
+              name="yearTo"
+              list="project-card-years"
+              inputMode="numeric"
+              defaultValue={yearTo !== undefined ? String(yearTo) : ""}
+              placeholder="เช่น 2024"
               autoComplete="off"
               className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
             />
