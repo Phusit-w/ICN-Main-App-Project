@@ -50,6 +50,54 @@ function formatBudget(amount: string | null): string {
   return amount ? fmt(amount, 2) : "-";
 }
 
+type SortKey = "name" | "client" | "year" | "budget";
+type Sort = { key: SortKey; dir: "asc" | "desc" } | null;
+
+const SORT_COLUMNS: { key: SortKey; label: string; className?: string }[] = [
+  { key: "name", label: "โครงการ" },
+  { key: "client", label: "ลูกค้า" },
+  { key: "year", label: "ปี" },
+  { key: "budget", label: "งบประมาณ (บาท)", className: "justify-end" },
+];
+
+function sortValue(card: ProjectCardRow, key: SortKey): string | number | null {
+  switch (key) {
+    case "name":
+      return card.projectName;
+    case "client":
+      return card.client;
+    case "year":
+      return card.year;
+    case "budget":
+      return card.budgetAmount === null ? null : Number(card.budgetAmount);
+  }
+}
+
+// Sorted on the client, over the rows already filtered by the page. Cards
+// with no value (no year, no budget) stay at the bottom in either direction;
+// ties keep the page's own order (main-Category matches first).
+function sortCards(cards: ProjectCardRow[], sort: Sort): ProjectCardRow[] {
+  if (!sort) return cards;
+  const sign = sort.dir === "asc" ? 1 : -1;
+  return [...cards].sort((a, b) => {
+    const va = sortValue(a, sort.key);
+    const vb = sortValue(b, sort.key);
+    if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
+    const diff = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb), "th");
+    return diff * sign;
+  });
+}
+
+// Click a column: น้อย→มาก, then มาก→น้อย, then back to the page's order.
+function nextSort(sort: Sort, key: SortKey): Sort {
+  if (sort?.key !== key) return { key, dir: "asc" };
+  return sort.dir === "asc" ? { key, dir: "desc" } : null;
+}
+
+function SortArrow({ dir }: { dir: "asc" | "desc" | null }) {
+  return <span className={`text-[10px] ${dir ? "text-ink" : "text-line"}`}>{dir === "desc" ? "▼" : "▲"}</span>;
+}
+
 // The list stays deliberately sparse — name, client, year, budget — so a
 // search result reads at a glance; everything else (description, note,
 // file paths, editing) lives in the popup opened by clicking a row.
@@ -69,17 +117,52 @@ export default function ProjectCardList({
   // Looked up from the latest props (not a copy held in state) so the popup
   // shows the saved values once revalidatePath re-renders the page.
   const openCard = cards.find((c) => c.id === openId) ?? null;
+  const [sort, setSort] = useState<Sort>(null);
+  const sorted = sortCards(cards, sort);
 
   return (
     <>
       <div className="hidden grid-cols-[1fr_110px_70px_170px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
-        <span>โครงการ</span>
-        <span>ลูกค้า</span>
-        <span>ปี</span>
-        <span className="text-right">งบประมาณ (บาท)</span>
+        {SORT_COLUMNS.map((col) => {
+          const dir = sort?.key === col.key ? sort.dir : null;
+          return (
+            <button
+              key={col.key}
+              type="button"
+              onClick={() => setSort(nextSort(sort, col.key))}
+              title={dir === "asc" ? "น้อย → มาก (คลิกเพื่อเรียง มาก → น้อย)" : dir === "desc" ? "มาก → น้อย (คลิกเพื่อกลับลำดับเดิม)" : "คลิกเพื่อเรียง น้อย → มาก"}
+              className={`ui-btn flex items-center gap-1 text-left hover:text-ink ${dir ? "text-ink" : ""} ${col.className ?? ""}`}
+            >
+              {col.label}
+              <SortArrow dir={dir} />
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2 border-b border-line px-5 py-2.5 text-xs text-muted md:hidden">
+        <label htmlFor="project-card-sort">เรียงตาม</label>
+        <select
+          id="project-card-sort"
+          value={sort ? `${sort.key}:${sort.dir}` : ""}
+          onChange={(e) => {
+            const [key, dir] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+            setSort(e.target.value ? { key, dir } : null);
+          }}
+          className="rounded-input border border-line bg-surface px-2 py-1 text-xs text-ink"
+        >
+          <option value="">ลำดับเดิม</option>
+          <option value="year:desc">ปี มาก → น้อย</option>
+          <option value="year:asc">ปี น้อย → มาก</option>
+          <option value="budget:desc">งบ มาก → น้อย</option>
+          <option value="budget:asc">งบ น้อย → มาก</option>
+          <option value="name:asc">ชื่อโครงการ ก → ฮ</option>
+          <option value="name:desc">ชื่อโครงการ ฮ → ก</option>
+          <option value="client:asc">ลูกค้า ก → ฮ</option>
+          <option value="client:desc">ลูกค้า ฮ → ก</option>
+        </select>
       </div>
       <ul className="divide-y divide-line">
-        {cards.map((card) => (
+        {sorted.map((card) => (
           <li key={card.id}>
             <button
               type="button"
