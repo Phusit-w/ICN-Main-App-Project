@@ -214,50 +214,50 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 12 | WW010 | W&W |  |  | contract | pushed |  |
 | 12 | WW011 | W&W |  |  | contract | pushed | Fits no Category (base-station MA) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
 | 12 | WW012 | MEA (W&W) | `_Project 2018-2025\W&W\WW012 จัดระเบียบสาย MEA` — code |  | proposal | pushed |  |
-| 13 | CAT001 | CAT |  |  | contract | todo |  |
-| 13 | CAT002 | CAT |  |  | contract | todo |  |
-| 13 | CAT003 | CAT |  |  | contract | todo |  |
-| 13 | CAT004 | CAT |  |  | contract | todo |  |
-| 13 | CAT005 | CAT |  |  | contract | todo |  |
-| 13 | CAT006 | CAT |  |  | contract | todo |  |
-| 13 | CAT007 | CAT |  |  | contract | todo |  |
-| 13 | CAT008 | CAT |  |  | contract | todo |  |
-| 13 | CAT009 | CAT |  |  | contract | todo |  |
-| 13 | CAT010 | CAT |  |  | contract | todo |  |
-| 13 | CAT011 | CAT |  |  | contract | todo |  |
-| 13 | CAT012 | CAT |  |  | contract | todo |  |
-| 13 | CAT013 | CAT |  |  | contract | todo |  |
-| 13 | CAT015 | CAT |  |  | contract | todo |  |
-| 13 | CAT016 | CAT |  |  | contract | todo |  |
-| 13 | CAT017 | CAT |  |  | contract | todo |  |
-| 13 | CAT018 | CAT |  |  | contract | todo |  |
-| 13 | CAT019 | CAT |  |  | contract | todo |  |
-| 13 | CAT020 | CAT |  |  | contract | todo |  |
-| 13 | CAT021 | CAT |  |  | contract | todo |  |
-| 13 | CAT022 | CAT |  |  | contract | todo |  |
-| 13 | CAT023 | CAT |  |  | contract | todo |  |
-| 13 | CAT024 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT024_อุปกรณ์ DWDM สำหรับลูกค้า ISP และ IPLC` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT025 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT025_USO phase 2` (proposal-archive) — user's answer |  | tor | todo | Card is USO Zone C group 5 (NE 3); the second folder looks like North 2 group 2 — is the first the right one? → **User 2026-10-02: accepted Claude's recommendation — folder holds the group 5 (NE 3) proposal scan.** |
-| 13 | CAT026 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT026-027_Corrective และ Preventive Maintenance` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT027 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT026-027_Corrective และ Preventive Maintenance` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT028 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT028_Network Management System (NMS)` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT029 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT029_อุปกรณ์ OTN Cross connect VPOP` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT030 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT031 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT032 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT033 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT033_MA_AOTA_DMC` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT034 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT034_VPOP_PH2` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT035 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT035_FILTER` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT036 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_NTC_CLS3_SP` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT036-1 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_SP_NK_27.5M` (proposal-archive) — user's answer |  | tor | todo | CAT036's other folder (NTC_CLS3) is Nonthaburi–Chalee 3 = card CAT036; is SP_NK_27.5M this card (Next-Gen DWDM BKK/East/West/South)? → **User 2026-10-02: accepted Claude's recommendation — folder is the Next Generation DWDM (Spare part) proposal.** |
-| 13 | CAT037 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT037_UPG_NMS` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT038 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT038-COVID` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT039 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT039_MA_NMS63` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT040 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT040_DWDM_FB_GG` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT041 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT041_MA_EQ_NK` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT042 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT042_DWDM_FB_GG_PH3` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT043 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT043_DWDM_FB_GG_PH4` (proposal-archive) — code |  | tor | todo |  |
-| 13 | CAT044 | CAT | `_Project 2018-2025\CAT\Proposal\2021\CAT044_POP_40G` (proposal-archive) — code |  | tor | todo |  |
+| 13 | CAT001 | CAT |  |  | contract | written |  |
+| 13 | CAT002 | CAT |  |  | contract | written |  |
+| 13 | CAT003 | CAT |  |  | contract | written |  |
+| 13 | CAT004 | CAT |  |  | contract | written |  |
+| 13 | CAT005 | CAT |  |  | contract | written |  |
+| 13 | CAT006 | CAT |  |  | contract | written |  |
+| 13 | CAT007 | CAT |  |  | contract | written |  |
+| 13 | CAT008 | CAT |  |  | contract | written |  |
+| 13 | CAT009 | CAT |  |  | contract | written |  |
+| 13 | CAT010 | CAT |  |  | contract | written |  |
+| 13 | CAT011 | CAT |  |  | contract | written |  |
+| 13 | CAT012 | CAT |  |  | contract | written |  |
+| 13 | CAT013 | CAT |  |  | contract | written |  |
+| 13 | CAT015 | CAT |  |  | contract | written |  |
+| 13 | CAT016 | CAT |  |  | contract | written |  |
+| 13 | CAT017 | CAT |  |  | contract | written |  |
+| 13 | CAT018 | CAT |  |  | contract | written |  |
+| 13 | CAT019 | CAT |  |  | contract | written |  |
+| 13 | CAT020 | CAT |  |  | contract | written |  |
+| 13 | CAT021 | CAT |  |  | contract | written |  |
+| 13 | CAT022 | CAT |  |  | contract | written |  |
+| 13 | CAT023 | CAT |  |  | contract | written |  |
+| 13 | CAT024 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT024_อุปกรณ์ DWDM สำหรับลูกค้า ISP และ IPLC` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT025 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT025_USO phase 2` (proposal-archive) — user's answer |  | tor | written | Card is USO Zone C group 5 (NE 3); the second folder looks like North 2 group 2 — is the first the right one? → **User 2026-10-02: accepted Claude's recommendation — folder holds the group 5 (NE 3) proposal scan.** |
+| 13 | CAT026 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT026-027_Corrective และ Preventive Maintenance` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT027 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT026-027_Corrective และ Preventive Maintenance` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT028 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT028_Network Management System (NMS)` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT029 | CAT | `_Project 2018-2025\CAT\Proposal\2019\CAT029_อุปกรณ์ OTN Cross connect VPOP` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT030 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT031 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT032 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT033 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT033_MA_AOTA_DMC` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT034 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT034_VPOP_PH2` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT035 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT035_FILTER` (proposal-archive) — code |  | tor | written || Category mobile-base-station (850 MHz filters on mobile sites) — Claude's call, alt. microwave-radio. |
+| 13 | CAT036 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_NTC_CLS3_SP` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT036-1 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_SP_NK_27.5M` (proposal-archive) — user's answer |  | tor | written | CAT036's other folder (NTC_CLS3) is Nonthaburi–Chalee 3 = card CAT036; is SP_NK_27.5M this card (Next-Gen DWDM BKK/East/West/South)? → **User 2026-10-02: accepted Claude's recommendation — folder is the Next Generation DWDM (Spare part) proposal.** |
+| 13 | CAT037 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT037_UPG_NMS` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT038 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT038-COVID` (proposal-archive) — code |  | tor | written || Category medical + tags smart-city-security, software, video-conferencing — Claude's call. |
+| 13 | CAT039 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT039_MA_NMS63` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT040 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT040_DWDM_FB_GG` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT041 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT041_MA_EQ_NK` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT042 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT042_DWDM_FB_GG_PH3` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT043 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT043_DWDM_FB_GG_PH4` (proposal-archive) — code |  | tor | written |  |
+| 13 | CAT044 | CAT | `_Project 2018-2025\CAT\Proposal\2021\CAT044_POP_40G` (proposal-archive) — code |  | tor | written |  |
 | 14 | TOT002 | TOT |  |  | contract | todo |  |
 | 14 | TOT003 | TOT |  |  | name (Work Certificate only) | todo |  |
 | 14 | TOT004 | TOT |  |  | name (Work Certificate only) | todo |  |
