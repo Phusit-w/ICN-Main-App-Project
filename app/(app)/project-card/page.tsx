@@ -6,7 +6,8 @@ import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
 import ProjectCardList from "@/components/ProjectCardList";
 import { CommaNumberField } from "@/components/CommaNumberInput";
-import { isTerm, matchCategories, matchWorkTypes } from "@/lib/project-card-taxonomy";
+import Link from "next/link";
+import { matchCategories, matchWorkTypes, type Term } from "@/lib/project-card-taxonomy";
 import { loadTaxonomy } from "@/lib/project-card-terms";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,20 @@ function parseFloatParam(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const n = Number.parseFloat(value);
   return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+// The Category box is typed or picked from a datalist, so it may arrive as a
+// stored value ("fiber-optic"), an English or Thai label ("Fiber Optic",
+// "เคเบิลใยแก้วนำแสง"), or part of a label ("fiber", "ระบบ"), which filters by
+// every Category it fits. Text that fits none matches no cards.
+function resolveCategories(categories: readonly Term[], text: string): Term[] {
+  const needle = text.toLowerCase();
+  if (!needle) return [];
+  const exact = categories.find(
+    (c) => c.value === needle || c.en.toLowerCase() === needle || c.th.toLowerCase() === needle,
+  );
+  if (exact) return [exact];
+  return categories.filter((c) => c.en.toLowerCase().includes(needle) || c.th.includes(needle));
 }
 
 // Datalist options for the client filter. "PEA (BBTEC)" is split so the card
@@ -71,8 +86,10 @@ export default async function ProjectCardPage({
   const taxonomy = await loadTaxonomy();
   const query = q?.trim() ?? "";
   const client = clientParam?.trim() ?? "";
-  // An unknown value (stale link, hand-edited URL) is ignored, not a 500.
-  const category = isTerm(taxonomy.categories, categoryParam) ? categoryParam : "";
+  const categoryText = categoryParam?.trim() ?? "";
+  const categoryTerms = resolveCategories(taxonomy.categories, categoryText);
+  // One Category shows its English label in the box; otherwise keep what was typed.
+  const categoryDisplay = categoryTerms.length === 1 ? categoryTerms[0].en : categoryText;
   const year = parseIntParam(yearParam);
   // The budget filter is typed in millions of baht (ล้านบาท) so users enter
   // "10" rather than "10000000"; the DB still stores full baht.
@@ -114,7 +131,7 @@ export default async function ProjectCardPage({
       ],
     });
   }
-  if (category) filters.push({ category });
+  if (categoryText) filters.push({ category: { in: categoryTerms.map((c) => c.value) } });
   if (year !== undefined) filters.push({ year });
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
@@ -155,85 +172,101 @@ export default async function ProjectCardPage({
         </p>
       </div>
 
-      <form method="get" className="flex flex-wrap items-end gap-4">
-        <Field
-          label="ค้นหา"
-          name="q"
-          defaultValue={query}
-          leftIcon={<SearchIcon size={18} />}
-          placeholder="เช่น Solarcell, RFID, MEA"
-          containerClassName="min-w-[240px] flex-1"
-        />
-        <div className="w-[150px]">
-          <label className="mb-1.5 block text-[13px] font-medium text-label">ลูกค้า</label>
-          <input
-            name="client"
-            list="project-card-clients"
-            defaultValue={client}
-            placeholder="ทุกลูกค้า"
-            autoComplete="off"
-            className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+      <form method="get" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <Field
+            label="ค้นหา"
+            name="q"
+            defaultValue={query}
+            leftIcon={<SearchIcon size={18} />}
+            placeholder="เช่น Solarcell, RFID, MEA"
+            containerClassName="min-w-[240px] flex-1"
           />
-          <datalist id="project-card-clients">
-            {clientOptions(availableClients).map(([c, count]) => (
-              <option key={c} value={c} label={`${count.toLocaleString("th-TH")} โครงการ`} />
-            ))}
-          </datalist>
+          <div className="w-[150px]">
+            <label className="mb-1.5 block text-[13px] font-medium text-label">ลูกค้า</label>
+            <input
+              name="client"
+              list="project-card-clients"
+              defaultValue={client}
+              placeholder="ทุกลูกค้า"
+              autoComplete="off"
+              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+            />
+            <datalist id="project-card-clients">
+              {clientOptions(availableClients).map(([c, count]) => (
+                <option key={c} value={c} label={`${count.toLocaleString("th-TH")} โครงการ`} />
+              ))}
+            </datalist>
+          </div>
+          <div className="w-[120px]">
+            <label className="mb-1.5 block text-[13px] font-medium text-label">ปี</label>
+            <input
+              name="year"
+              list="project-card-years"
+              inputMode="numeric"
+              defaultValue={year !== undefined ? String(year) : ""}
+              placeholder="ทุกปี"
+              autoComplete="off"
+              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+            />
+            <datalist id="project-card-years">
+              {availableYears.map(({ year: y }) => (
+                <option key={y} value={y ?? ""} />
+              ))}
+            </datalist>
+          </div>
+          <CommaNumberField
+            label="งบมากกว่า (ล้านบาท)"
+            name="budgetMin"
+            maxDecimals={6}
+            defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
+            placeholder="เช่น 10"
+            containerClassName="w-[180px]"
+          />
+          <CommaNumberField
+            label="งบน้อยกว่า (ล้านบาท)"
+            name="budgetMax"
+            maxDecimals={6}
+            defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
+            placeholder="เช่น 100"
+            containerClassName="w-[180px]"
+          />
         </div>
-        <div className="w-[190px]">
-          <label htmlFor="project-card-category" className="mb-1.5 block text-[13px] font-medium text-label">
-            หมวดหมู่
-          </label>
-          <select
-            id="project-card-category"
-            name="category"
-            defaultValue={category}
-            className="h-[52px] w-full rounded-field border border-line bg-surface px-3 text-sm"
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="w-[280px]">
+            <label htmlFor="project-card-category" className="mb-1.5 block text-[13px] font-medium text-label">
+              หมวดหมู่
+            </label>
+            <input
+              id="project-card-category"
+              name="category"
+              list="project-card-categories"
+              defaultValue={categoryDisplay}
+              placeholder="ทุกหมวด — พิมพ์หรือเลือก"
+              autoComplete="off"
+              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+            />
+            <datalist id="project-card-categories">
+              {taxonomy.categories.map((c) => (
+                <option
+                  key={c.value}
+                  value={c.en}
+                  label={`${c.th} · ${(countByCategory.get(c.value) ?? 0).toLocaleString("th-TH")} โครงการ`}
+                />
+              ))}
+            </datalist>
+          </div>
+          <Button type="submit" variant="dark" className="h-[52px]">
+            ค้นหา
+          </Button>
+          {/* A plain link back to the unfiltered page: clears every box at once. */}
+          <Link
+            href="/project-card"
+            className="ui-btn inline-flex h-[52px] items-center justify-center rounded-input border border-line bg-surface px-5 text-sm font-medium text-label transition-colors hover:bg-hover hover:text-ink active:bg-line"
           >
-            <option value="">ทุกหมวด</option>
-            {taxonomy.categories.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.en} ({(countByCategory.get(c.value) ?? 0).toLocaleString("th-TH")})
-              </option>
-            ))}
-          </select>
+            ล้างค่า
+          </Link>
         </div>
-        <div className="w-[120px]">
-          <label className="mb-1.5 block text-[13px] font-medium text-label">ปี</label>
-          <input
-            name="year"
-            list="project-card-years"
-            inputMode="numeric"
-            defaultValue={year !== undefined ? String(year) : ""}
-            placeholder="ทุกปี"
-            autoComplete="off"
-            className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-          />
-          <datalist id="project-card-years">
-            {availableYears.map(({ year: y }) => (
-              <option key={y} value={y ?? ""} />
-            ))}
-          </datalist>
-        </div>
-        <CommaNumberField
-          label="งบมากกว่า (ล้านบาท)"
-          name="budgetMin"
-          maxDecimals={6}
-          defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
-          placeholder="เช่น 10"
-          containerClassName="w-[180px]"
-        />
-        <CommaNumberField
-          label="งบน้อยกว่า (ล้านบาท)"
-          name="budgetMax"
-          maxDecimals={6}
-          defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
-          placeholder="เช่น 100"
-          containerClassName="w-[180px]"
-        />
-        <Button type="submit" variant="dark" className="h-[52px]">
-          ค้นหา
-        </Button>
       </form>
 
       <p className="text-sm text-muted">พบ {cards.length.toLocaleString("th-TH")} โครงการ</p>
