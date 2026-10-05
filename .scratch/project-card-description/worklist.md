@@ -96,19 +96,19 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 08 | NT065 | NT | `_Project 2018-2025\NT\2025\NT065 DWDM Thailand IX` — code |  | tor | pushed |  |
 | 08 | NT066 | NT | `_Project 2018-2025\NT\2025\NT066 CM_PM_Y69` — code |  | tor | pushed | TOR covers 5 areas (กน., ตน., นป., ตป., อป.); the card name lists 3 (กน., นป., อป.). Description follows the TOR. |
 | 08 | NT067 | NT | `_Project 2026\NT\1. NT067_MA_USO1_Y69` — code |  | proposal | pushed | Source downgraded tor->proposal: no official TOR in folder, ICN SOC only. |
-| 09 | CMU001 | CMU | `_Project 2018-2025\CMU\CMU001 COVID` — code |  | tor | written | Source = client-format draft TOR (TOR\Draft TOR CMU Covid …docx); the signed TOR (24 ล้าน.pdf) is a scan. |
-| 09 | CMU002 | CMU | `_Project 2018-2025\CMU\CMU002 SMART_HOS` — code |  | tor | written |  |
-| 09 | OBEC001 | OBEC | `_Project 2018-2025\OBEC\OBEC001 Tablet_สพป.เชียงราย เขต 3` — code |  | tor | written |  |
-| 09 | OBEC002 | OBEC | `_Project 2018-2025\OBEC\OBEC002 Tablet_สพป.อุดรธานี เขต 1` — code |  | tor | written |  |
-| 09 | OBEC003 | OBEC | `_Project 2018-2025\OBEC\OBEC003 Tablet_สพม.สกลนคร` — code |  | tor | written |  |
-| 09 | OBEC004 | OBEC | `_Project 2018-2025\OBEC\OBEC004 Tablet_สพม.อุทัยธานี ชัยนาท` — code |  | tor | written | Device is a Lenovo 500e Chromebook (not a tablet) although the folder name says Tablet. |
-| 09 | OBEC005 | OBEC | `_Project 2018-2025\OBEC\OBEC005 Tablet_สพป.อุบลราชธานี เขต 1` — code |  | tor | written |  |
-| 09 | OBEC007 | OBEC | `_Project 2018-2025\OBEC\OBEC007 Tablet_สพม.จันทบุรี ตราด` — code |  | tor | written |  |
-| 09 | OBEC009 | OBEC | `_Project 2018-2025\OBEC\OBEC009 Tablet_สพม.นครสวรรค์` — code |  | tor | written |  |
-| 09 | OBEC010 | OBEC | `_Project 2018-2025\OBEC\OBEC010 Tablet_สพม.สุพรรณบุรี` — code |  | tor | written |  |
-| 09 | OBEC011 | OBEC | `_Project 2018-2025\OBEC\OBEC011 Tablet_สพม.สมุทรปราการ` — code |  | tor | written | Device is a Lenovo 500e Chromebook (not a tablet) although the folder name says Tablet. |
-| 09 | OBEC012 | OBEC | `_Project 2026\OBEC\OBEC012 Tablet_สพป.อุบลราชธานี เขต 4` — code |  | tor | written |  |
-| 09 | OBEC013 | OBEC | `_Project 2026\OBEC\OBEC013 Tablet_สพป.อุบลราชธานี เขต 5` — code |  | tor | written |  |
+| 09 | CMU001 | CMU | `_Project 2018-2025\CMU\CMU001 COVID` — code |  | tor | reviewed | Source = client-format draft TOR (TOR\Draft TOR CMU Covid …docx); the signed TOR (24 ล้าน.pdf) is a scan. |
+| 09 | CMU002 | CMU | `_Project 2018-2025\CMU\CMU002 SMART_HOS` — code |  | tor | reviewed |  |
+| 09 | OBEC001 | OBEC | `_Project 2018-2025\OBEC\OBEC001 Tablet_สพป.เชียงราย เขต 3` — code |  | tor | reviewed |  |
+| 09 | OBEC002 | OBEC | `_Project 2018-2025\OBEC\OBEC002 Tablet_สพป.อุดรธานี เขต 1` — code |  | tor | reviewed |  |
+| 09 | OBEC003 | OBEC | `_Project 2018-2025\OBEC\OBEC003 Tablet_สพม.สกลนคร` — code |  | tor | reviewed |  |
+| 09 | OBEC004 | OBEC | `_Project 2018-2025\OBEC\OBEC004 Tablet_สพม.อุทัยธานี ชัยนาท` — code |  | tor | reviewed | Device is a Lenovo 500e Chromebook (not a tablet) although the folder name says Tablet. |
+| 09 | OBEC005 | OBEC | `_Project 2018-2025\OBEC\OBEC005 Tablet_สพป.อุบลราชธานี เขต 1` — code |  | tor | reviewed |  |
+| 09 | OBEC007 | OBEC | `_Project 2018-2025\OBEC\OBEC007 Tablet_สพม.จันทบุรี ตราด` — code |  | tor | reviewed |  |
+| 09 | OBEC009 | OBEC | `_Project 2018-2025\OBEC\OBEC009 Tablet_สพม.นครสวรรค์` — code |  | tor | reviewed |  |
+| 09 | OBEC010 | OBEC | `_Project 2018-2025\OBEC\OBEC010 Tablet_สพม.สุพรรณบุรี` — code |  | tor | reviewed |  |
+| 09 | OBEC011 | OBEC | `_Project 2018-2025\OBEC\OBEC011 Tablet_สพม.สมุทรปราการ` — code |  | tor | reviewed | Device is a Lenovo 500e Chromebook (not a tablet) although the folder name says Tablet. |
+| 09 | OBEC012 | OBEC | `_Project 2026\OBEC\OBEC012 Tablet_สพป.อุบลราชธานี เขต 4` — code |  | tor | reviewed |  |
+| 09 | OBEC013 | OBEC | `_Project 2026\OBEC\OBEC013 Tablet_สพป.อุบลราชธานี เขต 5` — code |  | tor | reviewed |  |
 | 10 | PEA006 | PEA |  |  | name (Work Certificate only) | todo |  |
 | 10 | PEA012 | PEA |  |  | contract | todo |  |
 | 10 | PEA015 | PEA |  |  | contract | todo | Two 2019 spare-stock cards (PEA015, PEA019) but one Accessories 2019 folder — which card, or both? → **User 2026-10-02: accepted Claude's recommendation — blank: one TOR in the folder and PEA019 is the Accessories contract.** |
