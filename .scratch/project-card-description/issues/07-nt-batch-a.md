@@ -9,7 +9,7 @@
 - [x] Every card in the batch has Description TH/EN (2-4 sentences: type of work + main system + likely search synonyms), Description Source, exactly one Category, Tags (0+) and Work Types (1+) in `pilot-db`
 - [x] Ambiguous Project Folders left blank with candidates listed, and projects that fit no Category listed; both handed to the user, not guessed
 - [x] Worklist rows updated to `written`, with any open question per card
-- [ ] User reviews in the local web app; corrections applied; rows set to `reviewed`
+- [x] User reviews in the local web app; corrections applied; rows set to `reviewed`
 - [ ] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
 - [ ] User spot-checks 2-3 pushed cards on production
 
@@ -18,3 +18,5 @@
 2026-10-02 — In progress, paused by the user. NT001–NT005 written to `pilot-db` (`batches/07-nt-a.json`, style approved by the user). Sources for the other 27 cards are read and summarised in `batches/07-nt-a-notes.md` (source file, facts, planned classification per card); NT006 still needs a look. Next session: finish the notes' open items, append the 27 entries to `07-nt-a.json`, run `batches/write-local.mjs`, then the user reviews in the local web app.
 
 2026-10-05 — All 32 cards written to `pilot-db` (NT006 read from its scanned compliance table; NT006/NT014/NT024 sourced from ICN SOCs → `proposal`). No ambiguous folders; every project fits a Category. Open questions per card are in the worklist (NT034 vendor, NT018 facts from sibling SOCs). Next: the user reviews in the local web app.
+
+2026-10-05 — User reviewed all 32 cards in the local web app; no corrections (no manual Description or person-edited classification in pilot-db). Rows set to `reviewed`. Production push waits for the user's go-ahead and ingest key.
