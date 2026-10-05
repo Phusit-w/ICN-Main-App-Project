@@ -5,16 +5,10 @@ import { revalidatePath } from "next/cache";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireRole, writeAudit } from "@/lib/authorization";
-import { APP_ACCESS, describeAppAccess, type AppAccess } from "@/lib/access";
+import { cleanAppAccess, describeAppAccess } from "@/lib/access";
 
 function temporaryPassword() {
   return `Icn-${randomBytes(9).toString("base64url")}7`;
-}
-
-// Keeps only known values, each once, and never both Project Card levels.
-function cleanAppAccess(raw: readonly string[]): AppAccess[] {
-  const access = APP_ACCESS.filter((a) => raw.includes(a));
-  return access.includes("project-card-edit") ? access.filter((a) => a !== "project-card") : access;
 }
 
 export async function createUser(input: { username: string; displayName: string; role: "USER" | "ADMIN"; appAccess: string[] }) {
@@ -59,6 +53,7 @@ export async function setUserAppAccess(userId: string, rawAccess: string[]) {
   const actor = await requireRole("ADMIN");
   const target = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const appAccess = cleanAppAccess(rawAccess);
+  if (describeAppAccess(appAccess) === describeAppAccess(target.appAccess)) return { ok: true as const, message: "สิทธิ์ไม่มีการเปลี่ยนแปลง" };
   const user = await prisma.user.update({ where: { id: userId }, data: { appAccess } });
   await writeAudit({ actorId: actor.id, targetUserId: user.id, action: "USER_APP_ACCESS_CHANGED", entityType: "USER", entityId: user.id, summary: `เปลี่ยนสิทธิ์เข้าใช้งาน ${user.username}: ${describeAppAccess(target.appAccess)} → ${describeAppAccess(appAccess)}`, before: { appAccess: target.appAccess }, after: { appAccess } });
   revalidatePath("/admin/users"); return { ok: true as const };

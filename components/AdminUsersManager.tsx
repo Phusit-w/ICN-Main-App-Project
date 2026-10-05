@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { changeUsername, createUser, resetUserPassword, setUserActive, setUserAppAccess, setUserRole } from "@/actions/admin";
-import { projectCardLevel, toAppAccess, type ProjectCardLevel } from "@/lib/access";
+import { appAccessLabels, DEFAULT_APP_ACCESS, type AppPermission } from "@/lib/access";
+import AppAccessModal from "@/components/AppAccessModal";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import ResetPasswordModal from "@/components/ResetPasswordModal";
@@ -20,26 +21,12 @@ function messageFor(result: ActionResult) {
   return "บันทึกเรียบร้อย";
 }
 
-type AccessForm = { expense: boolean; soc: boolean; projectCard: ProjectCardLevel };
-
-function accessForm(appAccess: readonly string[]): AccessForm {
-  return { expense: appAccess.includes("expense"), soc: appAccess.includes("soc"), projectCard: projectCardLevel(appAccess) };
-}
-
-// Per-app access for one USER (lib/access.ts). ADMIN rows don't show it:
-// an admin may open everything.
-function AccessControls({ value, disabled, onChange }: { value: AccessForm; disabled: boolean; onChange: (next: AccessForm) => void }) {
-  return <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-    <label className="flex items-center gap-1.5"><input type="checkbox" checked={value.expense} disabled={disabled} onChange={(e) => onChange({ ...value, expense: e.target.checked })} />เบิกค่าใช้จ่าย</label>
-    <label className="flex items-center gap-1.5"><input type="checkbox" checked={value.soc} disabled={disabled} onChange={(e) => onChange({ ...value, soc: e.target.checked })} />SOC</label>
-    <label className="flex items-center gap-1.5">ค้นหาโครงการ
-      <select className="rounded-input border border-line bg-surface p-1.5" value={value.projectCard} disabled={disabled} onChange={(e) => onChange({ ...value, projectCard: e.target.value as ProjectCardLevel })}>
-        <option value="none">ไม่มีสิทธิ์</option>
-        <option value="view">ดูอย่างเดียว</option>
-        <option value="edit">ดูและแก้ไข</option>
-      </select>
-    </label>
-  </div>;
+// The access a USER holds, as chips (lib/access.ts). ADMIN rows show
+// "ทุกระบบ" instead: an admin may open everything.
+function AccessChips({ appAccess }: { appAccess: readonly string[] }) {
+  const labels = appAccessLabels(appAccess);
+  if (!labels.length) return <span className="text-muted">ไม่มีสิทธิ์เข้า app ใด</span>;
+  return <div className="flex flex-wrap gap-1.5">{labels.map((l) => <span key={l} className="rounded-full bg-chip px-2 py-0.5 text-xs text-label">{l}</span>)}</div>;
 }
 
 export default function AdminUsersManager({ users }: { users: AdminUser[] }) {
@@ -49,21 +36,22 @@ export default function AdminUsersManager({ users }: { users: AdminUser[] }) {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<"USER" | "ADMIN">("USER");
-  // Same as the DB default (prisma/schema.prisma's User.appAccess): everything.
-  const [access, setAccess] = useState<AccessForm>({ expense: true, soc: true, projectCard: "edit" });
+  const [access, setAccess] = useState<AppPermission[]>(DEFAULT_APP_ACCESS);
+  // Whose access the dialog is editing: "new" = the add-user form above.
+  const [accessTarget, setAccessTarget] = useState<AdminUser | "new" | null>(null);
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
   const [usernameTarget, setUsernameTarget] = useState<AdminUser | null>(null);
   const show = (r: ActionResult) => setMessage(messageFor(r));
 
   return <div className="space-y-6">
-    <form className="grid gap-4 rounded-card border border-line bg-surface p-5 md:grid-cols-4" onSubmit={(e) => { e.preventDefault(); start(async () => { const r = await createUser({ username, displayName, role, appAccess: toAppAccess(access) }); show(r); if (r.ok) { setUsername(""); setDisplayName(""); } }); }}>
+    <form className="grid gap-4 rounded-card border border-line bg-surface p-5 md:grid-cols-4" onSubmit={(e) => { e.preventDefault(); start(async () => { const r = await createUser({ username, displayName, role, appAccess: access }); show(r); if (r.ok) { setUsername(""); setDisplayName(""); setAccess(DEFAULT_APP_ACCESS); } }); }}>
       <Field label="Username" value={username} onChange={(e) => setUsername(e.target.value)} required />
       <Field label="ชื่อที่แสดง" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
       <label className="text-[13px] font-medium text-label">Role<select className="mt-1.5 h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm" value={role} onChange={(e) => setRole(e.target.value as "USER" | "ADMIN")}><option>USER</option><option>ADMIN</option></select></label>
       <Button type="submit" className="self-end" disabled={pending}>เพิ่มผู้ใช้</Button>
       <div className="text-sm md:col-span-4">
         <div className="mb-1.5 text-[13px] font-medium text-label">สิทธิ์เข้าใช้งาน</div>
-        {role === "ADMIN" ? <span className="text-muted">Admin ใช้ได้ทุกระบบ</span> : <AccessControls value={access} disabled={pending} onChange={setAccess} />}
+        {role === "ADMIN" ? <span className="text-muted">Admin ใช้ได้ทุกระบบ</span> : <div className="flex flex-col items-start gap-2"><AccessChips appAccess={access} /><Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setAccessTarget("new")}>กำหนดสิทธิ์</Button></div>}
       </div>
     </form>
     {message ? <div className="rounded-field border border-line bg-chip p-4 text-sm font-medium">{message}</div> : null}
@@ -71,7 +59,7 @@ export default function AdminUsersManager({ users }: { users: AdminUser[] }) {
       {users.map((u) => <tr key={u.id} className="border-b border-line last:border-0">
         <td className="p-4"><div className="font-medium">{u.displayName}</div><div className="text-muted">{u.username}{u.mustChangePassword ? " · รอเปลี่ยนรหัสผ่าน" : ""}</div></td>
         <td className="p-4"><select className="rounded-input border border-line bg-surface p-2" value={u.role} disabled={pending} onChange={(e) => start(async () => show(await setUserRole(u.id, e.target.value as "USER" | "ADMIN")))}><option>USER</option><option>ADMIN</option></select></td>
-        <td className="p-4">{u.role === "ADMIN" ? <span className="text-muted">ทุกระบบ</span> : <AccessControls value={accessForm(u.appAccess)} disabled={pending} onChange={(next) => start(async () => show(await setUserAppAccess(u.id, toAppAccess(next))))} />}</td>
+        <td className="p-4">{u.role === "ADMIN" ? <span className="text-muted">ทุกระบบ</span> : <div className="flex flex-col items-start gap-2"><AccessChips appAccess={u.appAccess} /><Button size="sm" variant="outline" disabled={pending} onClick={() => setAccessTarget(u)}>แก้ไขสิทธิ์</Button></div>}</td>
         <td className="p-4">{u.isActive ? "ใช้งาน" : "ปิดใช้งาน"}</td>
         <td className="p-4"><div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={pending} onClick={() => setUsernameTarget(u)}>เปลี่ยน Username</Button>
@@ -81,6 +69,25 @@ export default function AdminUsersManager({ users }: { users: AdminUser[] }) {
       </tr>)}
     </tbody></table></div>
 
+    <AppAccessModal
+      key={`app-access-${accessTarget === null ? "none" : accessTarget === "new" ? "new" : accessTarget.id}`}
+      open={accessTarget !== null}
+      title={accessTarget === "new" ? "สิทธิ์เข้าใช้งานของผู้ใช้ใหม่" : `สิทธิ์เข้าใช้งาน — ${accessTarget?.displayName ?? ""}`}
+      initial={accessTarget === "new" ? access : accessTarget?.appAccess ?? []}
+      pending={pending}
+      confirmLabel={accessTarget === "new" ? "ตกลง" : "บันทึก"}
+      onCancel={() => setAccessTarget(null)}
+      onConfirm={(next) => {
+        const target = accessTarget;
+        if (target === "new") { setAccess(next); setAccessTarget(null); return; }
+        if (!target) return;
+        start(async () => {
+          const r = await setUserAppAccess(target.id, next);
+          show(r);
+          if (r.ok) setAccessTarget(null);
+        });
+      }}
+    />
     <ResetPasswordModal
       key={`reset-password-${resetTarget?.id ?? "none"}`}
       open={resetTarget !== null}

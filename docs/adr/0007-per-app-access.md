@@ -4,4 +4,6 @@ Supersedes the "every signed-in account can use everything" part of ADR 0006. On
 
 Checked on the server, not only in the UI: pages call `requirePageAccess` (redirects to `/`), server actions and API routes call `requireAccess` / `requireSocActor` (throw `FORBIDDEN`) — see `lib/authorization.ts` and `lib/access.ts`. The sidebar and app launcher only hide what the user can't open. The check reads the user from the DB on every request, so an admin's change applies on the user's next request without signing them out. `proxy.ts` still only checks that a session exists.
 
+The apps and their levels are one list, `APPS` in `lib/access.ts`; the Admin access dialog, the access chips and the Activity log text are built from it, so a new app is one entry there plus the checks on its own pages and actions — no migration.
+
 Still true from ADR 0006: anyone with Project Card access, view-only included, sees every card's budget figure.
