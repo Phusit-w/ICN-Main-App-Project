@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { writeAudit } from "@/lib/authorization";
 import { MAX_PROJECTS_PER_REQUEST, requireIngestKey, validateProjectCardInput } from "@/lib/project-card";
 import type { ProjectCardInput } from "@/lib/project-card";
 import { loadTaxonomy } from "@/lib/project-card-terms";
@@ -178,6 +179,24 @@ export async function POST(request: Request) {
       updated++;
     }
   }, { timeout: 60_000 });
+
+  // One Activity log entry per push (not per card, which would bury people's
+  // edits). No actor: the push comes from a script, shown as "ระบบ".
+  await writeAudit({
+    action: "PROJECT_CARD_INGESTED",
+    entityType: "PROJECT_CARD",
+    summary: `นำเข้าโครงการ: สร้างใหม่ ${created}, อัปเดต ${updated}, ปฏิเสธ ${errors.length}`,
+    metadata: {
+      created,
+      updated,
+      rejected: errors.length,
+      skippedVerifiedBudget,
+      skippedPersonClassification,
+      skippedManualDescription,
+      projectCodes: validated.map((p) => p.projectCode),
+      errors,
+    },
+  });
 
   return NextResponse.json({
     created,

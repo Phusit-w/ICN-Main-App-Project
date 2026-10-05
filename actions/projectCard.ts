@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireActor } from "@/lib/authorization";
+import { requireActor, writeAudit } from "@/lib/authorization";
 import { validateClassification, validateWorkTypes } from "@/lib/project-card";
 import { loadTaxonomy } from "@/lib/project-card-terms";
 
@@ -18,6 +18,10 @@ export async function verifyProjectCardBudget(id: string, budgetAmount: number |
   if (budgetAmount !== null && (!Number.isFinite(budgetAmount) || budgetAmount < 0)) {
     throw new Error("จำนวนงบประมาณไม่ถูกต้อง");
   }
+  const existing = await prisma.projectCard.findUniqueOrThrow({
+    where: { id },
+    select: { projectCode: true, budgetAmount: true },
+  });
   await prisma.projectCard.update({
     where: { id },
     data: {
@@ -27,8 +31,35 @@ export async function verifyProjectCardBudget(id: string, budgetAmount: number |
       budgetVerifiedById: actor.id,
     },
   });
+  const before = existing.budgetAmount?.toNumber() ?? null;
+  await writeAudit({
+    actorId: actor.id,
+    action: "PROJECT_CARD_BUDGET_VERIFIED",
+    entityType: "PROJECT_CARD",
+    entityId: id,
+    summary: `ยืนยันงบ ${existing.projectCode}: ${
+      before === budgetAmount ? formatBaht(budgetAmount) : `${formatBaht(before)} → ${formatBaht(budgetAmount)}`
+    }`,
+    before: { budgetAmount: before },
+    after: { budgetAmount },
+  });
   revalidatePath("/project-card");
 }
+
+function formatBaht(amount: number | null): string {
+  return amount === null ? "ว่าง" : amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Thai names for the Activity log summary; before/after keep the raw values.
+const FIELD_LABEL: Record<string, string> = {
+  descriptionTh: "รายละเอียดไทย",
+  descriptionEn: "รายละเอียดอังกฤษ",
+  budgetNote: "หมายเหตุ",
+  budgetAmount: "งบ",
+  category: "หมวดหลัก",
+  tags: "หมวดหมู่รอง",
+  workTypes: "ลักษณะงาน",
+};
 
 const MAX_TEXT_LENGTH = 5000;
 
@@ -65,11 +96,20 @@ export async function updateProjectCardDetails(
   }
   const existing = await prisma.projectCard.findUniqueOrThrow({
     where: { id },
-    select: { descriptionTh: true, descriptionEn: true, category: true, tags: true, workTypes: true },
+    select: {
+      projectCode: true,
+      descriptionTh: true,
+      descriptionEn: true,
+      budgetNote: true,
+      budgetAmount: true,
+      category: true,
+      tags: true,
+      workTypes: true,
+    },
   });
   const descriptionChanged =
     descriptionTh !== existing.descriptionTh.trim() || descriptionEn !== existing.descriptionEn.trim();
-  let classification = {};
+  let classification: { category?: string | null; tags?: string[]; workTypes?: string[]; classificationEditedByPerson?: boolean } = {};
   if (input.category !== undefined || input.tags !== undefined || input.workTypes !== undefined) {
     const taxonomy = await loadTaxonomy();
     const categoryAndTags = validateClassification(input.category, input.tags, taxonomy.categories);
@@ -98,5 +138,40 @@ export async function updateProjectCardDetails(
         : { budgetAmount, budgetVerified: true, budgetVerifiedAt: new Date(), budgetVerifiedById: actor.id }),
     },
   });
+
+  // Activity log: only the fields that actually changed, old and new values.
+  const sameSet = (a: string[], b: string[]) => a.length === b.length && b.every((v) => a.includes(v));
+  const existingBudget = existing.budgetAmount?.toNumber() ?? null;
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+  const record = (field: string, from: unknown, to: unknown) => {
+    before[field] = from;
+    after[field] = to;
+  };
+  if (descriptionTh !== existing.descriptionTh.trim()) record("descriptionTh", existing.descriptionTh, descriptionTh);
+  if (descriptionEn !== existing.descriptionEn.trim()) record("descriptionEn", existing.descriptionEn, descriptionEn);
+  if (budgetNote !== existing.budgetNote.trim()) record("budgetNote", existing.budgetNote, budgetNote);
+  if (budgetAmount !== undefined && budgetAmount !== existingBudget) record("budgetAmount", existingBudget, budgetAmount);
+  if (classification.category !== undefined && classification.category !== existing.category) {
+    record("category", existing.category, classification.category);
+  }
+  if (classification.tags && !sameSet(classification.tags, existing.tags)) record("tags", existing.tags, classification.tags);
+  if (classification.workTypes && !sameSet(classification.workTypes, existing.workTypes)) {
+    record("workTypes", existing.workTypes, classification.workTypes);
+  }
+  const changed = Object.keys(after);
+  if (changed.length) {
+    const budgetText =
+      "budgetAmount" in after ? ` (งบ ${formatBaht(existingBudget)} → ${formatBaht(budgetAmount ?? null)})` : "";
+    await writeAudit({
+      actorId: actor.id,
+      action: "PROJECT_CARD_UPDATED",
+      entityType: "PROJECT_CARD",
+      entityId: id,
+      summary: `แก้โครงการ ${existing.projectCode}: ${changed.map((f) => FIELD_LABEL[f]).join(", ")}${budgetText}`,
+      before,
+      after,
+    });
+  }
   revalidatePath("/project-card");
 }
