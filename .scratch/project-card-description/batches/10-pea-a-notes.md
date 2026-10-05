@@ -36,6 +36,7 @@ zip extracted to the local scratchpad only. Category/Work Type values are all in
   don't use that folder; use a NE folder if one is found. Found
   `_Pre - Project\_IP_ACCESS_NE_files\Y62_IP_Access_Expansion` (SoR_NE_Expansion Rel.12, NE1-3 connectivity
   diagrams, "Opt Power Budget Cal -Nokia") → set as PEA021's Project Folder.
-- **PEA022 (new candidate)**: the same parent holds `Y63` (NE Y63 AGG/ACC router spec, invitation docs); contract
-  อบ.3/2563 is the Y63 round. Left blank pending the user.
+- **PEA022** — answered 2026-10-05: the same parent holds `Y63` (NE Y63 AGG/ACC router spec, invitation docs);
+  contract อบ.3/2563 is the Y63 round. User: use it → set as PEA022's Project Folder (replaces the 2026-10-02
+  "blank" answer). Like PEA021's, it is a pre-project folder, not a submitted-proposal folder.
 - No card in this batch failed to fit a Category.
