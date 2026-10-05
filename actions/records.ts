@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { fa017Totals, fa018Total } from "@/lib/totals";
-import { authorizeExpenseRecord, requireActor, writeAudit } from "@/lib/authorization";
+import { authorizeExpenseRecord, requireAccess, writeAudit } from "@/lib/authorization";
 import type {
   Draft,
   DraftItem,
@@ -53,7 +53,7 @@ export async function listRecords(): Promise<ExpenseRecordData[]> {
   // record, matching this app's "no permission levels" design — `ownerId`
   // is recorded for audit purposes only (see createdByName), not used to
   // gate reads.
-  await requireActor();
+  await requireAccess("expense");
   const rows = await prisma.expenseRecord.findMany({
     where: { deletedAt: null },
     orderBy: { updatedAt: "desc" },
@@ -90,7 +90,7 @@ export async function saveRecord(
   { ok: true; record: ExpenseRecordData } | { ok: false; reason: "conflict" }
 > {
   const total = computeTotal(draft);
-  const actor = await requireActor();
+  const actor = await requireAccess("expense");
   const actorName = actor.displayName;
   const data = {
     type: draft.type,

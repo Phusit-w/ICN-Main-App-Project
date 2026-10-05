@@ -1,4 +1,6 @@
 import { getProfile, listSavedEmployees } from "@/actions/profile";
+import { requireActor } from "@/lib/authorization";
+import { hasAccess } from "@/lib/access";
 import PageShell from "@/components/PageShell";
 import DefaultEmployeeSetting from "@/components/DefaultEmployeeSetting";
 import Card from "@/components/ui/Card";
@@ -12,8 +14,11 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   // Sequential, not Promise.all — same shared-Prisma-client constraint the
   // other pages document (see app/(app)/records/page.tsx).
-  const profile = await getProfile();
-  const savedEmployees = await listSavedEmployees();
+  // Settings is open to everyone; only the expense part needs expense access.
+  const actor = await requireActor();
+  const canExpense = hasAccess(actor, "expense");
+  const profile = canExpense ? await getProfile() : null;
+  const savedEmployees = canExpense ? await listSavedEmployees() : [];
 
   return (
     <PageShell>
@@ -27,6 +32,7 @@ export default async function SettingsPage() {
           </p>
         </div>
 
+        {profile ? (
         <Card className="flex max-w-xl flex-col gap-4 p-6">
           <div className="flex flex-col gap-1">
             <div className="text-base font-medium">ค่าเริ่มต้นผู้กรอก</div>
@@ -40,6 +46,9 @@ export default async function SettingsPage() {
             savedEmployees={savedEmployees}
           />
         </Card>
+        ) : (
+          <p className="text-sm text-muted">ยังไม่มีการตั้งค่าสำหรับระบบที่บัญชีนี้ใช้งานได้</p>
+        )}
       </div>
     </PageShell>
   );

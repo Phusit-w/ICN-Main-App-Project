@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { requireActor } from "@/lib/authorization";
+import { hasAccess, type AppPermission } from "@/lib/access";
 import {
   BanknoteIcon,
   FileCheckIcon,
@@ -25,6 +27,8 @@ type Tile = {
   icon: (p: { size?: number }) => React.ReactElement;
   tile: string;
   soon?: boolean;
+  // Shown only to users with this app access (lib/access.ts).
+  access: AppPermission;
 };
 
 const TILES: Tile[] = [
@@ -35,6 +39,7 @@ const TILES: Tile[] = [
     cta: "เปิดฟอร์ม →",
     icon: BanknoteIcon,
     tile: "bg-peach text-black",
+    access: "expense",
   },
   {
     href: "/bill/entry/fa018",
@@ -43,6 +48,7 @@ const TILES: Tile[] = [
     cta: "เปิดฟอร์ม →",
     icon: FileCheckIcon,
     tile: "bg-lavender text-black",
+    access: "expense",
   },
   {
     href: "/travel",
@@ -51,6 +57,7 @@ const TILES: Tile[] = [
     cta: "เปิดเครื่องมือ →",
     icon: CalculatorIcon,
     tile: "bg-chip text-ink",
+    access: "expense",
   },
   {
     href: "/records",
@@ -59,6 +66,7 @@ const TILES: Tile[] = [
     cta: "เปิดรายการ →",
     icon: ListIcon,
     tile: "bg-chip text-ink",
+    access: "expense",
   },
   {
     href: "/project-card",
@@ -67,6 +75,7 @@ const TILES: Tile[] = [
     cta: "เปิดเครื่องมือ →",
     icon: SearchIcon,
     tile: "bg-chip text-ink",
+    access: "project-card",
   },
   {
     href: "/soc",
@@ -75,12 +84,15 @@ const TILES: Tile[] = [
     cta: "เปิดเครื่องมือ →",
     icon: ClipboardCheckIcon,
     tile: "bg-chip text-ink",
+    access: "soc",
     // Paused 2026-09-07 — see lib/nav.ts for why.
     soon: true,
   },
 ];
 
-export default function AppsLauncherPage() {
+export default async function AppsLauncherPage() {
+  const actor = await requireActor();
+  const tiles = TILES.filter((t) => hasAccess(actor, t.access));
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
@@ -91,7 +103,10 @@ export default function AppsLauncherPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 lg:grid-cols-4">
-        {TILES.map((t) => {
+        {tiles.length === 0 ? (
+          <p className="text-sm text-muted">บัญชีนี้ยังไม่ได้รับสิทธิ์ใช้งานระบบใด ติดต่อผู้ดูแลระบบ</p>
+        ) : null}
+        {tiles.map((t) => {
           const Icon = t.icon;
           const body = (
             <>

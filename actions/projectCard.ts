@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireActor, writeAudit } from "@/lib/authorization";
+import { requireAccess, writeAudit } from "@/lib/authorization";
 import { validateClassification, validateWorkTypes } from "@/lib/project-card";
 import { loadTaxonomy } from "@/lib/project-card-terms";
 
@@ -14,7 +14,7 @@ import { loadTaxonomy } from "@/lib/project-card-terms";
 // (see docs/adr/0006-project-card-flat-access-control.md) — any signed-in
 // user may verify a budget, same as any signed-in user may already see it.
 export async function verifyProjectCardBudget(id: string, budgetAmount: number | null): Promise<void> {
-  const actor = await requireActor();
+  const actor = await requireAccess("project-card-edit");
   if (budgetAmount !== null && (!Number.isFinite(budgetAmount) || budgetAmount < 0)) {
     throw new Error("จำนวนงบประมาณไม่ถูกต้อง");
   }
@@ -83,7 +83,7 @@ export async function updateProjectCardDetails(
     workTypes?: string[];
   },
 ): Promise<void> {
-  const actor = await requireActor();
+  const actor = await requireAccess("project-card-edit");
   const descriptionTh = input.descriptionTh.trim();
   const descriptionEn = input.descriptionEn.trim();
   const budgetNote = input.budgetNote.trim();

@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { requireAccess } from "@/lib/authorization";
 import type { EmployeeSnapshot, SavedEmployeeEntry } from "@/lib/types";
 
 // Prefill for "who am I" (History page's card, entry forms, a brand-new
@@ -44,7 +45,10 @@ async function rememberEmployeeName(name: string): Promise<void> {
   });
 }
 
+// Employee details belong to the expense forms, so every action here needs
+// expense access (lib/access.ts).
 export async function getProfile(): Promise<EmployeeSnapshot> {
+  await requireAccess("expense");
   const name = await rememberedEmployeeName();
   if (!name) return BLANK_PROFILE;
   // The cookie can point at a name that's since been deleted from
@@ -67,6 +71,7 @@ export async function getProfile(): Promise<EmployeeSnapshot> {
 // this browser's default for next time, same as saveEmployeeForReuse below
 // does implicitly.
 export async function rememberLastEmployee(name: string): Promise<void> {
+  await requireAccess("expense");
   await rememberEmployeeName(name);
 }
 
@@ -77,6 +82,7 @@ export async function rememberLastEmployee(name: string): Promise<void> {
 // saving again under the same name updates that entry in place instead of
 // creating a duplicate.
 export async function listSavedEmployees(): Promise<SavedEmployeeEntry[]> {
+  await requireAccess("expense");
   const rows = await prisma.savedEmployee.findMany({ orderBy: { name: "asc" } });
   return rows.map((row) => ({
     id: row.id,
@@ -96,6 +102,7 @@ export async function listSavedEmployees(): Promise<SavedEmployeeEntry[]> {
 export async function saveEmployeeForReuse(
   employee: EmployeeSnapshot
 ): Promise<SavedEmployeeEntry | null> {
+  await requireAccess("expense");
   const name = employee.name.trim();
   if (!name) return null; // no name typed yet — nothing to key the saved entry by
   const row = await prisma.savedEmployee.upsert({
@@ -125,5 +132,6 @@ export async function saveEmployeeForReuse(
 }
 
 export async function deleteSavedEmployee(id: string): Promise<void> {
+  await requireAccess("expense");
   await prisma.savedEmployee.delete({ where: { id } });
 }

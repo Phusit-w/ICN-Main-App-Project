@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { requireActor } from "@/lib/authorization";
+import { requireAccess } from "@/lib/authorization";
 export * from "@/lib/soc-shared";
 
 const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
@@ -15,7 +15,7 @@ export function socStorageRoot(): string {
 }
 
 export async function requireSocActor() {
-  return requireActor();
+  return requireAccess("soc");
 }
 
 export async function authorizeSocJob(jobId: string) {

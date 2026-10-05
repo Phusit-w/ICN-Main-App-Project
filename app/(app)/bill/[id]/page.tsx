@@ -1,3 +1,4 @@
+import { requirePageAccess } from "@/lib/authorization";
 import { notFound } from "next/navigation";
 import { getRecord } from "@/actions/records";
 import { listSavedItems } from "@/actions/savedItems";
@@ -12,6 +13,7 @@ export default async function EditBillPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requirePageAccess("expense");
   const { id } = await params;
   const record = await getRecord(id);
   if (!record) notFound();

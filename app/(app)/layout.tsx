@@ -32,7 +32,7 @@ export default async function AppLayout({
       data-theme={theme}
       style={{ colorScheme: theme }}
     >
-      <AppSidebar role={user.role} />
+      <AppSidebar role={user.role} appAccess={user.appAccess} />
       {/* pl-32 = 128px = 24 (rail inset) + 80 (collapsed rail) + 24 (gap).
           The rail expands over this padding, never widening it. */}
       <div className="app-main flex min-h-screen flex-col gap-6 py-7 pl-32 pr-8 pb-10">

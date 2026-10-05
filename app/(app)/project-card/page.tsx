@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { requireActor } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
+import { hasAccess } from "@/lib/access";
 import Field from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
@@ -76,7 +77,7 @@ export default async function ProjectCardPage({
     budgetMax?: string;
   }>;
 }) {
-  await requireActor();
+  const actor = await requirePageAccess("project-card");
   const {
     q,
     client: clientParam,
@@ -344,6 +345,7 @@ export default async function ProjectCardPage({
         {cards.length ? (
           <ProjectCardList
             taxonomy={taxonomy}
+            canEdit={hasAccess(actor, "project-card-edit")}
             cards={cards.map((card) => ({
               id: card.id,
               projectCode: card.projectCode,

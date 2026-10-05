@@ -7,11 +7,9 @@ import { requireIngestKey } from "@/lib/project-card";
 // app/login/page.tsx): every request needs a valid signed session cookie or
 // it's redirected to /login. Replaces the single shared HTTP Basic Auth
 // pair (AUTH_USERNAME/AUTH_PASSWORD) this app used to gate every route
-// with — see docs/PROJECT-OVERVIEW.md for why that changed. There are still
-// no permission levels: any logged-in account can do everything, exactly
-// like the old shared password could; this only makes it possible to tell
-// who did what (ExpenseRecord.createdByName/updatedByName) and to revoke
-// one person's access without changing everyone else's.
+// with — see docs/PROJECT-OVERVIEW.md for why that changed. This only
+// checks that a session exists; which apps a user may open is checked by
+// the pages and actions themselves (docs/adr/0007-per-app-access.md).
 //
 // Named/filed as `proxy.ts` (not `middleware.ts`) — this Next.js version
 // (16) renamed the convention; see node_modules/next/dist/docs/01-app/

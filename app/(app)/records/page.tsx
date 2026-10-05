@@ -1,3 +1,4 @@
+import { requirePageAccess } from "@/lib/authorization";
 import Link from "next/link";
 import { getProfile, listSavedEmployees } from "@/actions/profile";
 import { listRecords } from "@/actions/records";
@@ -28,6 +29,7 @@ function relativeDay(iso: string): string {
 // The history view. Server Component: fetches profile + records straight
 // from the DB.
 export default async function HistoryPage() {
+  await requirePageAccess("expense");
   // Sequential, not Promise.all: verified against this project's Postgres
   // setup that concurrent queries sharing one Prisma client can corrupt the
   // wire protocol (mixed-up bind/prepared-statement state).

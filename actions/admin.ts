@@ -5,12 +5,19 @@ import { revalidatePath } from "next/cache";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireRole, writeAudit } from "@/lib/authorization";
+import { APP_ACCESS, describeAppAccess, type AppAccess } from "@/lib/access";
 
 function temporaryPassword() {
   return `Icn-${randomBytes(9).toString("base64url")}7`;
 }
 
-export async function createUser(input: { username: string; displayName: string; role: "USER" | "ADMIN" }) {
+// Keeps only known values, each once, and never both Project Card levels.
+function cleanAppAccess(raw: readonly string[]): AppAccess[] {
+  const access = APP_ACCESS.filter((a) => raw.includes(a));
+  return access.includes("project-card-edit") ? access.filter((a) => a !== "project-card") : access;
+}
+
+export async function createUser(input: { username: string; displayName: string; role: "USER" | "ADMIN"; appAccess: string[] }) {
   const actor = await requireRole("ADMIN");
   const username = input.username.trim().toLowerCase();
   const displayName = input.displayName.trim();
@@ -18,8 +25,9 @@ export async function createUser(input: { username: string; displayName: string;
   if (displayName.length < 2) return { ok: false as const, error: "กรุณาระบุชื่อที่แสดง" };
   if (await prisma.user.findUnique({ where: { username } })) return { ok: false as const, error: "Username นี้มีอยู่แล้ว" };
   const password = temporaryPassword();
-  const user = await prisma.user.create({ data: { username, displayName, role: input.role, passwordHash: hashPassword(password), mustChangePassword: true } });
-  await writeAudit({ actorId: actor.id, targetUserId: user.id, action: "USER_CREATED", entityType: "USER", entityId: user.id, summary: `สร้างผู้ใช้ ${username}`, after: { role: user.role, isActive: true } });
+  const appAccess = cleanAppAccess(input.appAccess);
+  const user = await prisma.user.create({ data: { username, displayName, role: input.role, appAccess, passwordHash: hashPassword(password), mustChangePassword: true } });
+  await writeAudit({ actorId: actor.id, targetUserId: user.id, action: "USER_CREATED", entityType: "USER", entityId: user.id, summary: `สร้างผู้ใช้ ${username} (${user.role === "ADMIN" ? "Admin ใช้ได้ทุกระบบ" : describeAppAccess(appAccess)})`, after: { role: user.role, isActive: true, appAccess } });
   revalidatePath("/admin"); revalidatePath("/admin/users");
   return { ok: true as const, temporaryPassword: password };
 }
@@ -41,6 +49,18 @@ export async function setUserRole(userId: string, role: "USER" | "ADMIN") {
   if (target.role === "ADMIN" && role === "USER" && target.isActive && await prisma.user.count({ where: { role: "ADMIN", isActive: true } }) <= 1) return { ok: false as const, error: "ต้องมี Admin ที่ใช้งานได้อย่างน้อย 1 คน" };
   const user = await prisma.user.update({ where: { id: userId }, data: { role, sessionVersion: { increment: 1 } } });
   await writeAudit({ actorId: actor.id, targetUserId: user.id, action: "USER_ROLE_CHANGED", entityType: "USER", entityId: user.id, summary: `เปลี่ยนสิทธิ์ ${user.username} เป็น ${role}`, before: { role: target.role }, after: { role } });
+  revalidatePath("/admin/users"); return { ok: true as const };
+}
+
+// Which apps a USER may open (lib/access.ts). No session bump needed: every
+// request re-reads the user from the DB, so the change applies on the
+// user's next page load or action.
+export async function setUserAppAccess(userId: string, rawAccess: string[]) {
+  const actor = await requireRole("ADMIN");
+  const target = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const appAccess = cleanAppAccess(rawAccess);
+  const user = await prisma.user.update({ where: { id: userId }, data: { appAccess } });
+  await writeAudit({ actorId: actor.id, targetUserId: user.id, action: "USER_APP_ACCESS_CHANGED", entityType: "USER", entityId: user.id, summary: `เปลี่ยนสิทธิ์เข้าใช้งาน ${user.username}: ${describeAppAccess(target.appAccess)} → ${describeAppAccess(appAccess)}`, before: { appAccess: target.appAccess }, after: { appAccess } });
   revalidatePath("/admin/users"); return { ok: true as const };
 }
 

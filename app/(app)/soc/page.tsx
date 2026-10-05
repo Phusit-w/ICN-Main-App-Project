@@ -1,3 +1,4 @@
+import { requirePageAccess } from "@/lib/authorization";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireSocActor, SOC_STATUS_LABELS } from "@/lib/soc";
@@ -9,6 +10,7 @@ function formatDate(value: Date) {
 }
 
 export default async function SocJobsPage() {
+  await requirePageAccess("soc");
   const actor = await requireSocActor();
   const jobs = await prisma.socJob.findMany({ where: { deletedAt: null, ...(actor.role === "ADMIN" ? {} : { ownerId: actor.id }) }, include: { owner: { select: { displayName: true } }, _count: { select: { results: true } } }, orderBy: { updatedAt: "desc" } });
   return <div className="flex flex-col gap-6">

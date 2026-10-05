@@ -53,7 +53,17 @@ function formatBudget(amount: string | null): string {
 // The list stays deliberately sparse — name, client, year, budget — so a
 // search result reads at a glance; everything else (description, note,
 // file paths, editing) lives in the popup opened by clicking a row.
-export default function ProjectCardList({ cards, taxonomy }: { cards: ProjectCardRow[]; taxonomy: Taxonomy }) {
+// canEdit false = view-only access (lib/access.ts): no edit or confirm-budget
+// buttons. The server actions check the same permission on their own.
+export default function ProjectCardList({
+  cards,
+  taxonomy,
+  canEdit,
+}: {
+  cards: ProjectCardRow[];
+  taxonomy: Taxonomy;
+  canEdit: boolean;
+}) {
   const categoryLabel = (value: string) => termLabel(taxonomy.categories, value);
   const [openId, setOpenId] = useState<string | null>(null);
   // Looked up from the latest props (not a copy held in state) so the popup
@@ -109,7 +119,7 @@ export default function ProjectCardList({ cards, taxonomy }: { cards: ProjectCar
           </li>
         ))}
       </ul>
-      {openCard ? <ProjectCardDetail key={openCard.id} card={openCard} taxonomy={taxonomy} onClose={() => setOpenId(null)} /> : null}
+      {openCard ? <ProjectCardDetail key={openCard.id} card={openCard} taxonomy={taxonomy} canEdit={canEdit} onClose={() => setOpenId(null)} /> : null}
     </>
   );
 }
@@ -117,10 +127,12 @@ export default function ProjectCardList({ cards, taxonomy }: { cards: ProjectCar
 function ProjectCardDetail({
   card,
   taxonomy,
+  canEdit,
   onClose,
 }: {
   card: ProjectCardRow;
   taxonomy: Taxonomy;
+  canEdit: boolean;
   onClose: () => void;
 }) {
   const categoryLabel = (value: string) => termLabel(taxonomy.categories, value);
@@ -243,9 +255,11 @@ function ProjectCardDetail({
                   ) : (
                     <>
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">ยังไม่ยืนยัน</span>
-                      <Button size="sm" variant="primary" onClick={confirmBudget} disabled={pending}>
-                        ยืนยันงบนี้
-                      </Button>
+                      {canEdit ? (
+                        <Button size="sm" variant="primary" onClick={confirmBudget} disabled={pending}>
+                          ยืนยันงบนี้
+                        </Button>
+                      ) : null}
                     </>
                   )
                 ) : null}
@@ -452,9 +466,11 @@ function ProjectCardDetail({
               <Button variant="outline" size="sm" onClick={onClose} disabled={pending}>
                 ปิด
               </Button>
-              <Button variant="dark" size="sm" onClick={() => setEditing(true)} disabled={pending}>
-                แก้ไข
-              </Button>
+              {canEdit ? (
+                <Button variant="dark" size="sm" onClick={() => setEditing(true)} disabled={pending}>
+                  แก้ไข
+                </Button>
+              ) : null}
             </>
           )}
         </div>

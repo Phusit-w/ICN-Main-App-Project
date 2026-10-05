@@ -1,3 +1,4 @@
+import { requirePageAccess } from "@/lib/authorization";
 import { notFound } from "next/navigation";
 import { getProfile, listSavedEmployees } from "@/actions/profile";
 import { listSavedItems } from "@/actions/savedItems";
@@ -22,6 +23,7 @@ export default async function EntryBillPage({
 }: {
   params: Promise<{ type: string }>;
 }) {
+  await requirePageAccess("expense");
   const { type } = await params;
   const recordType = TYPE_MAP[type];
   if (!recordType) notFound();

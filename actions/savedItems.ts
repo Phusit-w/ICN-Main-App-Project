@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { requireAccess } from "@/lib/authorization";
 import type { FA017Item, FA018Item, RecordType, SavedItemEntry } from "@/lib/types";
 
 // Reusable expense-item-row templates — same "save under a key, pick it
@@ -12,6 +13,7 @@ import type { FA017Item, FA018Item, RecordType, SavedItemEntry } from "@/lib/typ
 // creating a duplicate. Scoped by `type` since FA017Item and FA018Item have
 // different shapes (see lib/types.ts).
 export async function listSavedItems(type: RecordType): Promise<SavedItemEntry[]> {
+  await requireAccess("expense");
   const rows = await prisma.savedItem.findMany({
     where: { type },
     orderBy: { desc: "asc" },
@@ -32,6 +34,7 @@ export async function saveItemForReuse(
   type: RecordType,
   item: FA017Item | FA018Item
 ): Promise<SavedItemEntry | null> {
+  await requireAccess("expense");
   const desc = item.desc.trim();
   if (!desc) return null; // no description typed yet — nothing to key the saved entry by
 
@@ -51,5 +54,6 @@ export async function saveItemForReuse(
 }
 
 export async function deleteSavedItem(id: string): Promise<void> {
+  await requireAccess("expense");
   await prisma.savedItem.delete({ where: { id } });
 }

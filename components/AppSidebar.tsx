@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { logout } from "@/actions/auth";
 import { NAV_ITEMS, isNavItemActive } from "@/lib/nav";
+import { hasAccess } from "@/lib/access";
 import {
   disarmAllNavGuards,
   getNavGuardServerSnapshot,
@@ -22,7 +23,7 @@ import ConfirmLogoutModal from "@/components/ConfirmLogoutModal";
 // content, a dim scrim behind it) — the page shell reserves only the 80px
 // collapsed width (see app/(app)/layout.tsx's 128px = 24+80+24 gutter), so
 // expanding never reflows the page.
-export default function AppSidebar({ role }: { role: string }) {
+export default function AppSidebar({ role, appAccess }: { role: string; appAccess: string[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -179,6 +180,7 @@ export default function AppSidebar({ role }: { role: string }) {
             (item) =>
               !item.disabled &&
               (!item.adminOnly || role === "ADMIN") &&
+              (!item.access || hasAccess({ role, appAccess }, item.access)) &&
               (!item.hiddenUnlessActive || isNavItemActive(item, pathname)),
           ).map((item) => {
             const active = isNavItemActive(item, pathname);
