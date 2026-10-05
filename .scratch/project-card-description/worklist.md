@@ -247,11 +247,11 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 13 | CAT032 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT030-032_CM_PM_N_W63_E63` (proposal-archive) — code |  | tor | written |  |
 | 13 | CAT033 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT033_MA_AOTA_DMC` (proposal-archive) — code |  | tor | written |  |
 | 13 | CAT034 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT034_VPOP_PH2` (proposal-archive) — code |  | tor | written |  |
-| 13 | CAT035 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT035_FILTER` (proposal-archive) — code |  | tor | written || Category mobile-base-station (850 MHz filters on mobile sites) — Claude's call, alt. microwave-radio. |
+| 13 | CAT035 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT035_FILTER` (proposal-archive) — code |  | tor | written | Category mobile-base-station (850 MHz filters on mobile sites) — Claude's call, alt. microwave-radio. |
 | 13 | CAT036 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_NTC_CLS3_SP` (proposal-archive) — code |  | tor | written |  |
 | 13 | CAT036-1 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT036_SP_NK_27.5M` (proposal-archive) — user's answer |  | tor | written | CAT036's other folder (NTC_CLS3) is Nonthaburi–Chalee 3 = card CAT036; is SP_NK_27.5M this card (Next-Gen DWDM BKK/East/West/South)? → **User 2026-10-02: accepted Claude's recommendation — folder is the Next Generation DWDM (Spare part) proposal.** |
 | 13 | CAT037 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT037_UPG_NMS` (proposal-archive) — code |  | tor | written |  |
-| 13 | CAT038 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT038-COVID` (proposal-archive) — code |  | tor | written || Category medical + tags smart-city-security, software, video-conferencing — Claude's call. |
+| 13 | CAT038 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT038-COVID` (proposal-archive) — code |  | tor | written | Category medical + tags smart-city-security, software, video-conferencing — Claude's call. |
 | 13 | CAT039 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT039_MA_NMS63` (proposal-archive) — code |  | tor | written |  |
 | 13 | CAT040 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT040_DWDM_FB_GG` (proposal-archive) — code |  | tor | written |  |
 | 13 | CAT041 | CAT | `_Project 2018-2025\CAT\Proposal\2020\CAT041_MA_EQ_NK` (proposal-archive) — code |  | tor | written |  |
