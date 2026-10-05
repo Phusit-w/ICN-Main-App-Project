@@ -26,6 +26,9 @@ const files = args.filter((a) => a !== "--dry-run");
 if (!files.length) throw new Error("usage: push-prod.mjs [--dry-run] <batch.json> [...]");
 const key = process.env.PROD_INGEST_KEY;
 if (!dryRun && !key) throw new Error("set PROD_INGEST_KEY to the production ingest key first");
+if (key && !/^[A-Za-z0-9_\-+/=]+$/.test(key)) {
+  throw new Error("PROD_INGEST_KEY has extra characters (quotes, < >, spaces or a line break) — paste only the key");
+}
 
 const codes = files.flatMap((f) => JSON.parse(fs.readFileSync(path.join(here, f), "utf8")).map((e) => e.projectCode));
 
@@ -68,6 +71,16 @@ const projects = rows.map((r) => ({
   workTypes: r.workTypes,
   projectFolderPath: r.projectFolderPath,
 }));
+// Every card in a written batch has a Description and a Category. Blanks mean the
+// script is reading the wrong database (e.g. it was run on the production server,
+// whose .env points at production) — stop rather than push them.
+const blank = rows.filter((r) => !r.descriptionTh?.trim() || !r.category).map((r) => r.projectCode);
+if (blank.length) {
+  throw new Error(
+    `no Description/Category in this database for: ${blank.join(", ")}\n` +
+      "Run this on the workstation that holds pilot-db, from the Main_Project_Build_App folder.",
+  );
+}
 // A Description edited in the local web is stored as `manual`, which the ingest
 // API refuses (only the web sets it). Decide those by hand rather than guess a source.
 const manual = rows.filter((r) => r.descriptionSource === "manual").map((r) => r.projectCode);
