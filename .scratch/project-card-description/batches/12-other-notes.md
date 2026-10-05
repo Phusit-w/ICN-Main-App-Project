@@ -1,7 +1,8 @@
 # Batch 12 (other Clients) — reading notes
 
-Written 2026-10-05: 35 of 41 cards (write-local: updated 35, rejected 0) from `12-other.json`. The 6 cards that need
-a NEW Category are prepared in `12-other-new-categories.json` but NOT written yet (see below). Per-card source file is
+Written 2026-10-05: 35 of 41 cards (write-local: updated 35, rejected 0) from `12-other.json`; the other 6 (two NEW
+Categories) from `12-other-new-categories.json` after the Categories were added (write-local: updated 6, rejected 0).
+All 41 written. Per-card source file is
 in each `note`. Share read-only, as before (one TOR `.doc` copied to the scratchpad and read with antiword).
 
 - **Sources (35 written):** `tor` 7 (EGAT001, IEAT001, IRCP001, MEA004–007), `proposal` 1 (EXIM001 — official TOR is a
@@ -25,11 +26,10 @@ in each `note`. Share read-only, as before (one TOR `.doc` copied to the scratch
 
 ## Questions for the user
 
-- **New Categories (user 2026-10-05: add new ones).** Prepared with placeholder values; rename in the JSON if the
-  production label differs (value = `termValueFrom(en)`):
+- **New Categories — DONE 2026-10-05.** Claude added both on production Admin Center (user's approval) and mirrored
+  them into pilot-db (sortOrder 122, 123):
   - `mobile-base-station` — EN "Mobile Base Station", TH "สถานีฐานโทรศัพท์เคลื่อนที่": WW007, WW009, WW011.
   - `satellite-communications` — EN "Satellite Communications", TH "สื่อสารผ่านดาวเทียม": RTP001, TKC002, TKC003.
-  Once the entries exist on production and are mirrored into pilot-db: `write-local.mjs 12-other-new-categories.json`.
 - **SVOA009** (Net Pracharat MA, Big Rock): the PO does not say fibre; set to fiber-optic + tag ip-network as Claude's
   call. Change to ip-network if the user prefers (PIS004's USO internet card went to ip-network).
 - **Work Type for survey / design / project-management work** (TKC001, TKC003 → installation; TKC002 →

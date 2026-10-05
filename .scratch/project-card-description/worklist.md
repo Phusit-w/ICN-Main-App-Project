@@ -198,21 +198,21 @@ Cards per batch: 10: 32, 11: 32, 12: 41, 13: 44, 14: 47, 07: 32, 08: 31, 09: 13.
 | 12 | ONDE001 | ONDE | `_Project 2018-2025\ONDE\1. Digital Chumchon` — name+year |  | tor | written |  |
 | 12 | PIS004 | PIS | `_Project 2018-2025\PIS\PIS004 จ้างผู้ดูแลศูนย์ Y68` — code |  | contract | written |  |
 | 12 | PIS005 | PEA (PIS) |  |  | contract | written |  |
-| 12 | RTP001 | RTP | `_Project 2018-2025\RTP\2025\1. Satellite Telephone (Re-bidding)` — user's answer |  | tor | todo | First bid (2024) or re-bid (2025) — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** Fits no Category (satellite) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | RTP001 | RTP | `_Project 2018-2025\RTP\2025\1. Satellite Telephone (Re-bidding)` — user's answer |  | tor | written | First bid (2024) or re-bid (2025) — which led to the contract? → **User 2026-10-02: the Re-bidding round is the one that won.** Fits no Category (satellite) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
 | 12 | SCS002 | CAT (SCS) |  |  | contract | written |  |
 | 12 | SVOA009 | SVOA |  |  | contract | written |  |
 | 12 | TKC001 | RTP (TKC) |  |  | contract | written |  |
-| 12 | TKC002 | NBTC (TKC) |  |  | contract | todo | Fits no Category (satellite) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
-| 12 | TKC003 | NBTC (TKC) |  |  | contract | todo | Fits no Category (satellite) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | TKC002 | NBTC (TKC) |  |  | contract | written | Fits no Category (satellite) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
+| 12 | TKC003 | NBTC (TKC) |  |  | contract | written | Fits no Category (satellite) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
 | 12 | UTEL001 | MEA (UTEL) |  |  | contract | written |  |
 | 12 | WW003 | TRUE (W&W) |  |  | name (Work Certificate only) | written |  |
 | 12 | WW005 | W&W |  |  | contract | written |  |
 | 12 | WW006 | W&W |  |  | contract | written |  |
-| 12 | WW007 | W&W |  |  | contract | todo | Fits no Category (base-station MA) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | WW007 | W&W |  |  | contract | written | Fits no Category (base-station MA) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
 | 12 | WW008 | W&W |  |  | contract | written |  |
-| 12 | WW009 | W&W |  |  | contract | todo | Fits no Category (base-station MA) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | WW009 | W&W |  |  | contract | written | Fits no Category (base-station MA) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
 | 12 | WW010 | W&W |  |  | contract | written |  |
-| 12 | WW011 | W&W |  |  | contract | todo | Fits no Category (base-station MA) → user 2026-10-05: add a new Category; prepared in batches/12-other-new-categories.json. |
+| 12 | WW011 | W&W |  |  | contract | written | Fits no Category (base-station MA) → new Category added on prod + pilot-db 2026-10-05; written from batches/12-other-new-categories.json. |
 | 12 | WW012 | MEA (W&W) | `_Project 2018-2025\W&W\WW012 จัดระเบียบสาย MEA` — code |  | proposal | written |  |
 | 13 | CAT001 | CAT |  |  | contract | todo |  |
 | 13 | CAT002 | CAT |  |  | contract | todo |  |

@@ -8,7 +8,7 @@
     "tags": [],
     "workTypes": ["ma"],
     "folder": null,
-    "note": "Contract scan p.2 (W&W/TPM/2561-014; p.1 is the value-estimate letter). No Project Folder. Category is NEW (user 2026-10-05) — value is a placeholder until the entry exists on production."
+    "note": "Contract scan p.2 (W&W/TPM/2561-014; p.1 is the value-estimate letter). No Project Folder. Category NEW (added on prod + pilot-db 2026-10-05)."
   },
   {
     "projectCode": "WW009",
@@ -19,7 +19,7 @@
     "tags": [],
     "workTypes": ["ma"],
     "folder": null,
-    "note": "Contract scan p.1 (W&W/TPM/2563-033). No Project Folder. Category NEW (placeholder value)."
+    "note": "Contract scan p.1 (W&W/TPM/2563-033). No Project Folder. Category NEW (added on prod + pilot-db 2026-10-05)."
   },
   {
     "projectCode": "WW011",
@@ -30,7 +30,7 @@
     "tags": [],
     "workTypes": ["ma"],
     "folder": null,
-    "note": "Contract scan p.1 (W&W-TPM-2565-013). No Project Folder. Category NEW (placeholder value)."
+    "note": "Contract scan p.1 (W&W-TPM-2565-013). No Project Folder. Category NEW (added on prod + pilot-db 2026-10-05)."
   },
   {
     "projectCode": "RTP001",
@@ -41,7 +41,7 @@
     "tags": [],
     "workTypes": ["supply"],
     "folder": "_Project 2018-2025\\RTP\\2025\\1. Satellite Telephone (Re-bidding)",
-    "note": "_TOR\\TOR.pdf scan p.1 rendered; Inmarsat/IP65 from the proposal catalogue file names. Category NEW (placeholder value)."
+    "note": "_TOR\\TOR.pdf scan p.1 rendered; Inmarsat/IP65 from the proposal catalogue file names. Category NEW (added on prod + pilot-db 2026-10-05)."
   },
   {
     "projectCode": "TKC002",
@@ -52,7 +52,7 @@
     "tags": [],
     "workTypes": ["managed-services"],
     "folder": null,
-    "note": "TKC work order WO2018090158 scan p.1. No Project Folder. Category NEW (placeholder value)."
+    "note": "TKC work order WO2018090158 scan p.1. No Project Folder. Category NEW (added on prod + pilot-db 2026-10-05)."
   },
   {
     "projectCode": "TKC003",
@@ -63,6 +63,6 @@
     "tags": [],
     "workTypes": ["installation"],
     "folder": null,
-    "note": "TKC work order WO2018090160 scan p.1. No Project Folder. Category NEW (placeholder value). Work Type: no survey type; used installation."
+    "note": "TKC work order WO2018090160 scan p.1. No Project Folder. Category NEW (added on prod + pilot-db 2026-10-05). Work Type: no survey type; used installation."
   }
 ]
