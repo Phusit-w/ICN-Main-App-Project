@@ -140,7 +140,12 @@ export default async function ProjectCardPage({
       ],
     });
   }
-  if (categoryText) filters.push({ category: { in: categoryTerms.map((c) => c.value) } });
+  // A Category filter finds cards with it as the main Category or as a
+  // secondary one (a Tag); main-Category matches are listed first below.
+  const categoryValues = categoryTerms.map((c) => c.value);
+  if (categoryText) {
+    filters.push({ OR: [{ category: { in: categoryValues } }, { tags: { hasSome: categoryValues } }] });
+  }
   // A card lists one or more Work Types; it matches if any is among those picked.
   if (workTypeText) filters.push({ workTypes: { hasSome: workTypeTerms.map((w) => w.value) } });
   if (yearFrom !== undefined) filters.push({ year: { gte: yearFrom } });
@@ -148,7 +153,7 @@ export default async function ProjectCardPage({
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
 
-  const [cards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
+  const [matchedCards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
     prisma.projectCard.findMany({
       where: filters.length ? { AND: filters } : undefined,
       // Stable order (not updatedAt) so saving an edit in the popup doesn't
@@ -166,16 +171,24 @@ export default async function ProjectCardPage({
       _count: true,
       orderBy: { client: "asc" },
     }),
-    prisma.projectCard.groupBy({
-      by: ["category"],
-      where: { category: { not: null } },
-      _count: true,
-    }),
+    // Counted the way the filter finds cards: main Category or secondary (Tag).
+    Promise.all(
+      taxonomy.categories.map((c) =>
+        prisma.projectCard.count({ where: { OR: [{ category: c.value }, { tags: { has: c.value } }] } }),
+      ),
+    ),
     // workTypes is an array column, which groupBy can't split — one count per
     // Work Type instead (the list holds only a handful).
     Promise.all(taxonomy.workTypes.map((w) => prisma.projectCard.count({ where: { workTypes: { has: w.value } } }))),
   ]);
-  const countByCategory = new Map(categoryCounts.map((row) => [row.category, row._count]));
+  // Stable sort: cards whose main Category was filtered for come before those
+  // that only have it as a secondary one, each group keeping the year order.
+  const cards = categoryText
+    ? [
+        ...matchedCards.filter((c) => c.category !== null && categoryValues.includes(c.category)),
+        ...matchedCards.filter((c) => c.category === null || !categoryValues.includes(c.category)),
+      ]
+    : matchedCards;
 
   return (
     <div className="flex flex-col gap-6">
@@ -280,11 +293,11 @@ export default async function ProjectCardPage({
               className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
             />
             <datalist id="project-card-categories">
-              {taxonomy.categories.map((c) => (
+              {taxonomy.categories.map((c, i) => (
                 <option
                   key={c.value}
                   value={c.en}
-                  label={`${c.th} · ${(countByCategory.get(c.value) ?? 0).toLocaleString("th-TH")} โครงการ`}
+                  label={`${c.th} · ${categoryCounts[i].toLocaleString("th-TH")} โครงการ`}
                 />
               ))}
             </datalist>

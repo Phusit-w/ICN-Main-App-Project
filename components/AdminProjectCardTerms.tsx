@@ -9,7 +9,7 @@ import type { TermKind } from "@/lib/project-card-taxonomy";
 export type AdminTerm = { id: string; kind: TermKind; value: string; en: string; th: string; cardCount: number };
 
 const SECTIONS: { kind: TermKind; title: string; addLabel: string; hint: string }[] = [
-  { kind: "category", title: "หมวดหมู่ / แท็ก", addLabel: "เพิ่มหมวดหมู่", hint: "สาขาเทคโนโลยีของโครงการ ใช้เป็นทั้งหมวดหลักและแท็ก" },
+  { kind: "category", title: "หมวดหมู่", addLabel: "เพิ่มหมวดหมู่", hint: "สาขาเทคโนโลยีของโครงการ ใช้เป็นทั้งหมวดหลักและหมวดหมู่รอง" },
   { kind: "workType", title: "ลักษณะงาน", addLabel: "เพิ่มลักษณะงาน", hint: "รูปแบบที่ ICN ส่งมอบงาน เช่น จัดหา ติดตั้ง บำรุงรักษา เช่า" },
 ];
 

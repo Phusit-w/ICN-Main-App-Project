@@ -80,11 +80,17 @@ export default function ProjectCardList({ cards, taxonomy }: { cards: ProjectCar
                 <span className="block font-medium leading-snug text-ink">{card.projectName}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                   {card.projectCode}
+                  {/* Main Category dark, secondary ones (Tags) light — same as the popup. */}
                   {card.category ? (
-                    <span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">
+                    <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium text-surface">
                       {categoryLabel(card.category)}
                     </span>
                   ) : null}
+                  {card.tags.map((t) => (
+                    <span key={t} className="rounded-full bg-chip px-2 py-0.5 text-[11px] text-muted">
+                      {categoryLabel(t)}
+                    </span>
+                  ))}
                 </span>
               </span>
               <span className="hidden text-sm text-label md:block">{card.client}</span>
@@ -264,6 +270,7 @@ function ProjectCardDetail({
           <Section label="หมวดหมู่">
             {editing ? (
               <div className="flex flex-col gap-3">
+                <div className="-mb-1.5 text-xs text-muted">หมวดหลัก</div>
                 <select
                   aria-label="หมวดหลัก"
                   value={category}
@@ -279,7 +286,7 @@ function ProjectCardDetail({
                   ))}
                 </select>
                 <div>
-                  <div className="mb-1.5 text-xs text-muted">แท็ก (งานเทคโนโลยีอื่นในโครงการ)</div>
+                  <div className="mb-1.5 text-xs text-muted">หมวดหมู่รอง (งานเทคโนโลยีอื่นในโครงการ)</div>
                   <div className="flex flex-wrap gap-1.5">
                     {taxonomy.categories.filter((c) => c.value !== category).map((c) => {
                       return (
