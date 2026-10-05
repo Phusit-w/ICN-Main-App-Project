@@ -10,7 +10,7 @@
 - [x] Ambiguous Project Folders left blank with candidates listed, and projects that fit no Category listed; both handed to the user, not guessed
 - [x] Worklist rows updated to `written`, with any open question per card
 - [x] User reviews in the local web app; corrections applied; rows set to `reviewed`
-- [ ] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
+- [x] On the user's go-ahead, the batch is exported from `pilot-db` and pushed to production through the ingest API (same flow as the 2026-10-01 272-card push; ingest key supplied by the user, never written to disk); response shows 0 rejected; rows set to `pushed`
 - [ ] User spot-checks 2-3 pushed cards on production
 
 ## Comments
