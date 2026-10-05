@@ -84,8 +84,8 @@
     "category": "ip-network",
     "tags": [],
     "workTypes": ["supply", "installation"],
-    "folder": null,
-    "note": "Contract scan p.1 read (Nokia, 70 nodes, NE). Folder NOT set: the matched folder 'PEA_ IP Access Huawei 135 Nodes and 56 Nodes' holds TORs for the CENTRAL region, Huawei, 135/56 nodes — does not fit this NE Nokia contract. Question for the user."
+    "folder": "_Project 2018-2025\\PEA\\_Pre - Project\\_IP_ACCESS_NE_files\\Y62_IP_Access_Expansion",
+    "note": "Contract scan p.1 read (Nokia, 70 nodes, NE). Folder = the NE Y62 pre-project folder (SoR_NE_Expansion, NE1-3 connectivity diagrams, Opt Power Budget -Nokia), per the user 2026-10-05; NOT the originally matched 'PEA_ IP Access Huawei 135 Nodes and 56 Nodes' (Central region, Huawei, 135/56 nodes)."
   },
   {
     "projectCode": "PEA022",
