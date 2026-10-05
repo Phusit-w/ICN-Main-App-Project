@@ -1,0 +1,145 @@
+[
+  {
+    "projectCode": "CMU001",
+    "descriptionTh": "ขายและติดตั้งระบบ ICT และ Health Tech ให้โรงพยาบาลมหาราชนครเชียงใหม่ คณะแพทยศาสตร์ มหาวิทยาลัยเชียงใหม่ ด้วยงบสนับสนุนจาก กสทช. เพื่อรับมือการระบาดของ COVID-19 ประกอบด้วยระบบเฝ้าระวังติดตามการทำงานของหัวใจและสัญญาณชีพผู้ป่วยแบบรวมศูนย์ (Central Monitoring ICU) 15 เตียง เช่น Philips IntelliVue MX550 ระบบประชุมทางไกล (Teleconference) และระบบกล้องวงจรปิด (CCTV) เฝ้าดูผู้ป่วยในห้องแยกโรค (เครื่องมือแพทย์, Patient Monitor, โควิด)",
+    "descriptionEn": "Supply and installation of ICT and health-tech systems for Maharaj Nakorn Chiang Mai Hospital (Faculty of Medicine, Chiang Mai University), funded by NBTC for the COVID-19 response: a 15-bed central ICU patient monitoring system (e.g. Philips IntelliVue MX550), a teleconference system, and CCTV for observing patients in isolation rooms. Keywords: patient monitor, central monitoring, ICU, telemedicine, CCTV, COVID.",
+    "descriptionSource": "tor",
+    "category": "medical",
+    "tags": ["smart-city-security"],
+    "workTypes": ["supply", "installation"],
+    "folder": "_Project 2018-2025\\CMU\\CMU001 COVID",
+    "note": "TOR: TOR\\Draft TOR CMU Covid - CMU Format_Ae (05.10.2564)_Edited (13.12.2564) (1).docx; model from Section 5 catalogue (IntelliVue MX550)"
+  },
+  {
+    "projectCode": "CMU002",
+    "descriptionTh": "ขายและติดตั้งระบบบริการการแพทย์ทางไกล (Teleconsulting System) พร้อมอุปกรณ์สื่อสารในห้องตรวจผู้ป่วยนอก (OPD) ของโรงพยาบาลมหาราชนครเชียงใหม่ คณะแพทยศาสตร์ มหาวิทยาลัยเชียงใหม่ พร้อมพัฒนาแอปพลิเคชันเชื่อมต่อผู้ป่วยและแพทย์ (Telemedicine and Personal Health Record) ผ่านระบบสารสนเทศโรงพยาบาล และสื่อการเรียนรู้ออนไลน์แบบจำลองสถานการณ์ ด้วยงบกองทุนพัฒนาดิจิทัลเพื่อเศรษฐกิจและสังคม ICN ดำเนินการในนามกิจการค้าร่วม ID Consortium (Smart Hospital, แพทย์ทางไกล, Telehealth)",
+    "descriptionEn": "Supply and installation of a teleconsulting (telemedicine) system with communication equipment for the out-patient clinics of Maharaj Nakorn Chiang Mai Hospital, Chiang Mai University, plus development of a telemedicine and personal health record (PHR) app linked to the hospital information system and simulation-based online learning media, funded by the Digital Economy and Society Development Fund. ICN delivered it as part of the ID Consortium. Keywords: smart hospital, telemedicine, telehealth, PHR app.",
+    "descriptionSource": "tor",
+    "category": "medical",
+    "tags": ["software"],
+    "workTypes": ["supply", "installation", "system-development"],
+    "folder": "_Project 2018-2025\\CMU\\CMU002 SMART_HOS",
+    "note": "TOR: Official_TOR\\TOR-CMU Smart Hospital-คณะกรรมการTOR R.10 ฉบับส่งพัสดุ (19.05.65).pdf (text)"
+  },
+  {
+    "projectCode": "OBEC001",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพป.เชียงราย เขต 3 (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Chiang Rai Primary Educational Service Area 3: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC001 Tablet_สพป.เชียงราย เขต 3",
+    "note": "TOR: _TOR\\68089019844_08092568_1.zip → TOR.pdf (scanned); device from Scan File\\เอกสารส่วนที่ 2\\บทที่ 3 (p.16)"
+  },
+  {
+    "projectCode": "OBEC002",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพป.อุดรธานี เขต 1 (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Udon Thani Primary Educational Service Area 1: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC002 Tablet_สพป.อุดรธานี เขต 1",
+    "note": "TOR: _TOR\\68099185596_12092568_1.zip → TOR.pdf (scanned); SOC SVOA\\…\\02 SOC Samsung SI Consurtium สพป.อุดรธานี เขต 1.docx"
+  },
+  {
+    "projectCode": "OBEC003",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ปีงบประมาณ 2568 ของ สพม.สกลนคร (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme (fiscal 2025), Sakon Nakhon Secondary Educational Service Area: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC003 Tablet_สพม.สกลนคร",
+    "note": "TOR: _TOR\\68079540695_18082568_1.zip → Attach_TOR_1.pdf (scanned); device from Scan file\\เอกสารส่วนที่ 2\\บทที่ 3 (p.16)"
+  },
+  {
+    "projectCode": "OBEC004",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (คอมพิวเตอร์ Chromebook) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพม.อุทัยธานี ชัยนาท (สพฐ.) โดยให้เช่า Lenovo 500e Chromebook Gen 4s แบบจอสัมผัสพร้อมปากกา บริการอินเทอร์เน็ต 4G ผ่าน SIM/eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (โน้ตบุ๊กนักเรียน, Chromebook, เช่าคอมพิวเตอร์)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Uthai Thani–Chai Nat Secondary Educational Service Area: Lenovo 500e Chromebook Gen 4s touch-screen laptops with pen, 4G internet via SIM/eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: Chromebook, student laptop, computer rental, MDM, OBEC.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC004 Tablet_สพม.อุทัยธานี ชัยนาท",
+    "note": "TOR: _TOR\\68089249723_20082568_1.zip → Attach_TOR_1.pdf (scanned); device from _Scan file\\เอกสารส่วนที่ 2\\บทที่ 3 (p.16)"
+  },
+  {
+    "projectCode": "OBEC005",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพป.อุบลราชธานี เขต 1 (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Ubon Ratchathani Primary Educational Service Area 1: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC005 Tablet_สพป.อุบลราชธานี เขต 1",
+    "note": "TOR: _TOR\\68099440066_23092568_1.zip → Attach_TOR_1.pdf (scanned); SOC SVOA\\…\\02 SOC Samsung SI Consurtium สพป.อุบลราชธานี เขต 1.docx"
+  },
+  {
+    "projectCode": "OBEC007",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพม.จันทบุรี ตราด (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Chanthaburi–Trat Secondary Educational Service Area: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC007 Tablet_สพม.จันทบุรี ตราด",
+    "note": "TOR: _TOR\\68089661936_19092568_2.zip → Attach_TOR_1.pdf; SOC SVOA\\…\\02 SOC Samsung SI Consurtium สพม.จันทบุรี ตราด R1.docx"
+  },
+  {
+    "projectCode": "OBEC009",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพม.นครสวรรค์ (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Nakhon Sawan Secondary Educational Service Area: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC009 Tablet_สพม.นครสวรรค์",
+    "note": "TOR: _TOR\\68099341082_07102568_3.zip → Attach_TOR_1.pdf (scanned); SOC SVOA\\…\\02 SOC Samsung SI สพม.นครสวรรค์.docx"
+  },
+  {
+    "projectCode": "OBEC010",
+    "descriptionTh": "เช่าใช้อุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพม.สุพรรณบุรี (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Suphan Buri Secondary Educational Service Area: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC010 Tablet_สพม.สุพรรณบุรี",
+    "note": "TOR: _TOR\\68089540257_15102568_1.zip → TOR.pdf (scanned); SOC SVOA\\…\\02 SOC Samsung SI สพม.สุพรรณบุรี.docx"
+  },
+  {
+    "projectCode": "OBEC011",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (คอมพิวเตอร์ Chromebook) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพม.สมุทรปราการ (สพฐ.) โดยให้เช่า Lenovo 500e Chromebook Gen 4s แบบจอสัมผัสพร้อมปากกา บริการอินเทอร์เน็ต 4G ผ่าน SIM/eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (โน้ตบุ๊กนักเรียน, Chromebook, เช่าคอมพิวเตอร์)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Samut Prakan Secondary Educational Service Area: Lenovo 500e Chromebook Gen 4s touch-screen laptops with pen, 4G internet via SIM/eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: Chromebook, student laptop, computer rental, MDM, OBEC.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2018-2025\\OBEC\\OBEC011 Tablet_สพม.สมุทรปราการ",
+    "note": "TOR: _TOR\\68109135945_16102568_1.zip → Attach_TOR_1.pdf (scanned); SOC SVOA\\…\\02 SOC Lenovo SI Consortium สพม.สมุทรปราการ.docx"
+  },
+  {
+    "projectCode": "OBEC012",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพป.อุบลราชธานี เขต 4 (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Ubon Ratchathani Primary Educational Service Area 4: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2026\\OBEC\\OBEC012 Tablet_สพป.อุบลราชธานี เขต 4",
+    "note": "TOR: _TOR\\68109259471_26012569_1.zip → Attach_TOR_1.pdf (broken text layer); SOC SVOA\\02 SOC Samsung SI Consurtium สพป.อุบลราชธานี เขต 4.docx"
+  },
+  {
+    "projectCode": "OBEC013",
+    "descriptionTh": "เช่าอุปกรณ์การเรียนการสอน (Tablet) สำหรับครูและนักเรียน ภายใต้โครงการส่งเสริมการเรียนรู้ขั้นพื้นฐานทุกที่ทุกเวลา (Anywhere Anytime) ของ สพป.อุบลราชธานี เขต 5 (สพฐ.) โดยให้เช่าแท็บเล็ต Samsung Galaxy Tab S10 FE (5G) พร้อมปากกาและแป้นพิมพ์ บริการอินเทอร์เน็ต 4G ผ่าน eSIM และระบบบริหารจัดการอุปกรณ์ (MDM) รวมการบำรุงรักษาตลอดอายุสัญญา ในนามกิจการค้าร่วม SI Consortium (แท็บเล็ตนักเรียน, เช่าอุปกรณ์, MDM)",
+    "descriptionEn": "Rental of learning devices for teachers and students under OBEC's Anywhere Anytime learning programme, Ubon Ratchathani Primary Educational Service Area 5: Samsung Galaxy Tab S10 FE (5G) tablets with pen and keyboard, 4G internet via eSIM and a mobile device management (MDM) system, with maintenance for the contract term, through the SI Consortium. Keywords: student tablet, device rental, MDM, OBEC, education.",
+    "descriptionSource": "tor",
+    "category": "education-devices",
+    "tags": [],
+    "workTypes": ["rental"],
+    "folder": "_Project 2026\\OBEC\\OBEC013 Tablet_สพป.อุบลราชธานี เขต 5",
+    "note": "TOR: _TOR\\69029032371_11022569_1.zip → Attach_TOR_1.pdf (broken text layer); SOC SVOA\\…\\02 SOC Samsung SI Consurtium สพป.อุบลราชธานี เขต 5.docx"
+  }
+]
