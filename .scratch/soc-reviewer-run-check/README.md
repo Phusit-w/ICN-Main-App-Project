@@ -34,7 +34,7 @@
 | 11 | Skill hosting | 01 | done |
 | 12 | Runner link + token + heartbeat | 04 | done |
 | 13 | Check Requests + runner API (seam 2) | 05, 11, 12 | done |
-| 14 | SOC Runner core (seam 3) | 13 | in-progress (live demo left) |
+| 14 | SOC Runner core (seam 3) | 13 | done |
 | 15 | Runner special states | 14 | ready-for-agent |
 | 16 | Installer (no admin) | 14 + IT answer | ready-for-human |
 

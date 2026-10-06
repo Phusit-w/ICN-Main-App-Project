@@ -82,7 +82,7 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print) -> str:
         server.report(request_id, {"state": "running", "progress": f"Claude กำลังตรวจข้อ {item['label']}"})
         log(f"[{request_id}] ตรวจข้อ {item['label']} ด้วย skill {skill_version}")
         run = claude.run(ClaudeTask(prompt=build_prompt(request, skill_name, documents), cwd=work, out_dir=out_dir))
-        results, soc_check = _outputs(out_dir)
+        results, soc_check = _outputs(out_dir, run.summary)
         server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตรวจ"})
         submitted = server.submit(request_id, results, soc_check, run.model, skill_version)
     except NotClaimed:
@@ -193,15 +193,16 @@ def _download_documents(request: dict, server, inputs: Path) -> list[tuple[str, 
     return saved
 
 
-def _outputs(out_dir: Path) -> tuple[Path, Path]:
+def _outputs(out_dir: Path, summary: str = "") -> tuple[Path, Path]:
+    said = f" Claude ตอบว่า: {summary[:300]}" if summary else ""
     results = out_dir / "results.json"
     if not results.is_file():
-        raise RunFailed("Claude ตรวจจบแต่ไม่ได้สร้างไฟล์ results.json")
+        raise RunFailed("Claude ตรวจจบแต่ไม่ได้สร้างไฟล์ results.json." + said)
     soc_check = out_dir / "SOC_Check.docx"
     if not soc_check.is_file():
         candidates = sorted(out_dir.glob("SOC_Check*.docx"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not candidates:
-            raise RunFailed("Claude ตรวจจบแต่ไม่ได้สร้างเอกสาร SOC_Check (.docx)")
+            raise RunFailed("Claude ตรวจจบแต่ไม่ได้สร้างเอกสาร SOC_Check (.docx)." + said)
         soc_check = candidates[0]
     return results, soc_check
 

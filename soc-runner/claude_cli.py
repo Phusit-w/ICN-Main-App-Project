@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # The skill reads Word/PDF and runs its own Python scripts, and writes into out/.
-ALLOWED_TOOLS = "Bash,Read,Write,Edit,Glob,Grep,Skill,TodoWrite"
+# On Windows Claude Code runs shell commands through its PowerShell tool, not Bash.
+ALLOWED_TOOLS = "Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite"
 # Vendor PDFs are untrusted input: no web access from a check.
 DISALLOWED_TOOLS = "WebFetch,WebSearch"
 
@@ -29,6 +30,7 @@ class ClaudeTask:
 @dataclass
 class ClaudeRun:
     model: str
+    summary: str = ""  # Claude's last message, shown when the outputs are missing
 
 
 class ClaudeFailed(Exception):
@@ -71,7 +73,7 @@ class ClaudeCli:
         if process.returncode != 0 or output.get("is_error"):
             detail = str(output.get("result") or stderr or stdout or "").strip()[:300]
             raise ClaudeFailed(f"Claude หยุดทำงานก่อนตรวจเสร็จ (exit {process.returncode}): {detail}")
-        return ClaudeRun(model=pick_model(output))
+        return ClaudeRun(model=pick_model(output), summary=str(output.get("result") or "").strip())
 
 
 def _kill_tree(process: subprocess.Popen) -> None:

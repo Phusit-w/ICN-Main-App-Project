@@ -6,11 +6,11 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 **Blocked by:** 13
 
-**Status:** in-progress
+**Status:** done
 
 - [x] The happy path is tested with a fake server and a fake Claude CLI
 - [x] The skill version used is recorded in the submission
-- [ ] A real end-to-end demo on one major item works and is noted in Comments
+- [x] A real end-to-end demo on one major item works and is noted in Comments
 - [x] No listening port; it polls only
 
 ## Comments
@@ -36,3 +36,18 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
   `demo14-1791269838` for major item ๑ (inserted directly, no uitest13 password). To finish: restart the dev server, run
   `npm run soc:runner -- <config>`, wait for the submit, check the review page, tick the box and note it here.
 - Ticket 15: the skill's `missing_documents.json` currently ends as `failed` ("no results.json"); map it to `needs_documents`.
+
+### 2026-10-06: live demo done, ticket closed
+
+- Dev server on :3000 restarted (the old one had lost pilot-db: `ECONNREFUSED`; pilot-db restarted with
+  `npx.cmd prisma dev --name pilot-db -P 51218 --shadow-db-port 51219`, data intact).
+- **Run 1 (`demo14-1791269838`) failed, and showed a real bug**: on Windows Claude Code runs shell commands through its
+  `PowerShell` tool, so `--allowedTools Bash,...` left every `python` call waiting for approval and headless Claude gave up.
+  The failure path worked end to end (request + item `failed`, Thai reason). Fix: allow `PowerShell` too; a missing
+  results.json/SOC_Check now also carries Claude's last message in the reason (test added, 30 tests).
+- **Run 2 (`demo14b-1791271995`) succeeded**: claimed → skill `sha256:75f3d06292b90b40` + SOC_Demo.docx + the real
+  Datasheet_Demo.pdf downloaded → `claude -p` (claude-sonnet-5-5) checked major item ๑ in about 2 minutes → submitted
+  7 rows (๑. heading `not_applicable`, ๑.๑–๑.๓.๑ `match`). Server: request `done`, item `checked`, run source `runner`,
+  skill version and model stored, audit `CHECK_REQUEST_CLAIMED` → `RUN_IMPORTED`; work folder removed.
+- Both requests were inserted into pilot-db directly instead of clicking ตรวจ (no uitest13 password), and the review page
+  was not opened in a browser. Worth a look in ticket 15, which needs the browser anyway.

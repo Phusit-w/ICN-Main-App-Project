@@ -95,6 +95,7 @@ class FakeClaude:
         }
         self.error = error
         self.model = model
+        self.summary = ""
 
     def run(self, task):
         self.tasks.append(task)
@@ -105,7 +106,7 @@ class FakeClaude:
             raise self.error
         for name, data in self.writes.items():
             (task.out_dir / name).write_bytes(data)
-        return ClaudeRun(model=self.model)
+        return ClaudeRun(model=self.model, summary=self.summary)
 
 
 def quiet(*_):
@@ -234,6 +235,12 @@ class CarryOutTest(unittest.TestCase):
         self.assertEqual(self.server.submits, [])
         self.assertEqual(self.server.reports[-1][1]["state"], "failed")
         self.assertIn("results.json", self.server.reports[-1][1]["reason"])
+
+    def test_claudes_last_message_explains_missing_outputs(self):
+        claude = FakeClaude(writes={})
+        claude.summary = "รัน Python ไม่ได้ เพราะคำสั่งต้องได้รับอนุมัติ"
+        carry_out(self.request, self.server, claude, self.work_root, quiet)
+        self.assertIn("รัน Python ไม่ได้", self.server.reports[-1][1]["reason"])
 
     def test_missing_soc_check_document_reports_failed(self):
         claude = FakeClaude(writes={"results.json": b"{}"})
