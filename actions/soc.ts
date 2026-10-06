@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { authorizeSocJob, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
+import { authorizeSocJob, authorizeSocJobOwner, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
 import { writeAudit } from "@/lib/authorization";
 
 function isCheckStatus(value: string): boolean {
@@ -44,6 +44,9 @@ export async function updateSocResult(input: {
 export async function confirmSocJob(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
   if (job.status !== "NEEDS_REVIEW") throw new Error("งานนี้ไม่ได้อยู่ในขั้นตรวจทาน");
+  // soc-worker builds the DOCX for confirmed check jobs only; an imported
+  // job's SOC_Check download is a later ticket (10).
+  if (job.kind === "IMPORTED") throw new Error("งานนำเข้ายังยืนยันทั้งงานไม่ได้");
   const [total, unreviewed] = await Promise.all([
     prisma.socCheckResult.count({ where: { jobId } }),
     prisma.socCheckResult.count({ where: { jobId, reviewedAt: null } }),
@@ -61,7 +64,7 @@ export async function confirmSocJob(jobId: string) {
 
 export async function retrySocJob(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
-  if (job.status !== "FAILED") throw new Error("ลองใหม่ได้เฉพาะงานที่เกิดข้อผิดพลาด");
+  if (job.status !== "FAILED" || job.kind === "IMPORTED") throw new Error("ลองใหม่ได้เฉพาะงานที่เกิดข้อผิดพลาด");
   const hasResults = await prisma.socCheckResult.count({ where: { jobId } });
   const status = hasResults ? "CONFIRMED" : "QUEUED";
   await prisma.$transaction([
@@ -73,7 +76,7 @@ export async function retrySocJob(jobId: string) {
 }
 
 export async function trashSocJob(jobId: string) {
-  const { actor, job } = await authorizeSocJob(jobId);
+  const { actor, job } = await authorizeSocJobOwner(jobId);
   const now = new Date();
   await prisma.socJob.update({ where: { id: jobId }, data: { deletedAt: now, deletedById: actor.id, purgeAfter: new Date(now.getTime() + 30 * 86400000) } });
   await writeAudit({ actorId: actor.id, action: "SOC_TRASHED", entityType: "SOC_JOB", entityId: jobId, summary: `ย้ายงาน SOC ${job.title} ไปถังขยะ` });

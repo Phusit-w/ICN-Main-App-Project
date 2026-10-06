@@ -41,7 +41,7 @@ export default function SocUploadForm() {
       {error ? <p role="alert" className="rounded-input border border-danger-border bg-surface px-4 py-3 text-sm text-danger">{error}</p> : null}
       <div className="flex justify-end gap-3">
         <Button variant="outline" onClick={() => router.push("/soc")} disabled={pending}>ยกเลิก</Button>
-        <Button type="submit" disabled={pending}>{pending ? "กำลังอัปโหลด…" : "เริ่มตรวจสอบ"}</Button>
+        <Button type="submit" disabled={pending}>{pending ? "กำลังอัปโหลด…" : "สร้างงานตรวจ"}</Button>
       </div>
     </form>
   );

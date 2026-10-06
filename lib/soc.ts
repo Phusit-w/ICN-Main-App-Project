@@ -1,9 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { requireAccess } from "@/lib/authorization";
+import { requireAccess, writeAudit } from "@/lib/authorization";
+import { readSocMajorItems } from "@/lib/soc-major-items";
+import { majorItemProgress } from "@/lib/soc-shared";
 export * from "@/lib/soc-shared";
+
+type SocActor = Awaited<ReturnType<typeof requireAccess>>;
+type Upload = { name: string; bytes: Uint8Array };
+
+const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_EVIDENCE_FILE_BYTES = 120 * 1024 * 1024;
@@ -18,13 +26,111 @@ export async function requireSocActor() {
   return requireAccess("soc");
 }
 
+// Who may open a job: its owner and ADMIN; for an Imported SOC Check, any
+// user with `soc` access (spec Q17 = b: the team splits one SOC between them).
+function canOpenSocJob(actor: SocActor, job: { ownerId: string; kind: string }) {
+  return job.kind === "IMPORTED" || job.ownerId === actor.id || actor.role === "ADMIN";
+}
+
 export async function authorizeSocJob(jobId: string) {
   const actor = await requireSocActor();
   const job = await prisma.socJob.findUnique({ where: { id: jobId } });
-  if (!job || job.deletedAt || (job.ownerId !== actor.id && actor.role !== "ADMIN")) {
+  if (!job || job.deletedAt || !canOpenSocJob(actor, job)) {
     throw new Error("NOT_FOUND");
   }
   return { actor, job };
+}
+
+// Moving a job to the trash stays with its owner and ADMIN, even for an
+// imported job that the whole team may open.
+export async function authorizeSocJobOwner(jobId: string) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  if (job.ownerId !== actor.id && actor.role !== "ADMIN") throw new Error("FORBIDDEN");
+  return { actor, job };
+}
+
+// The /soc list: every job the actor may open, with major-item progress for
+// imported jobs (null for legacy check jobs, which show `progress` instead).
+export async function listSocJobs(actor: SocActor) {
+  const jobs = await prisma.socJob.findMany({
+    where: { deletedAt: null, ...(actor.role === "ADMIN" ? {} : { OR: [{ ownerId: actor.id }, { kind: "IMPORTED" }] }) },
+    include: {
+      owner: { select: { displayName: true } },
+      majorItems: { select: { state: true } },
+      _count: { select: { results: true } },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  return jobs.map(({ majorItems, ...job }) => ({
+    ...job,
+    majorItemProgress: job.kind === "IMPORTED" ? majorItemProgress(majorItems) : null,
+  }));
+}
+
+// HTTP status for an error thrown by the SOC helpers.
+export function socErrorStatus(message: string): number {
+  if (message === "UNAUTHORIZED") return 401;
+  if (message === "FORBIDDEN") return 403;
+  if (message === "NOT_FOUND") return 404;
+  return 400;
+}
+
+// Creates an Imported SOC Check (ADR 0008) from an upload that
+// validateUpload() has already checked: stores the files and creates one
+// not_checked major item per ข้อใหญ่ of the SOC. It starts in NEEDS_REVIEW;
+// soc-worker never claims it. Nothing is kept if any step fails.
+export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }) {
+  const majorItems = readSocMajorItems(input.soc.bytes);
+  if (!majorItems.length) throw new Error("ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์แรกของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1");
+  const jobId = randomUUID();
+  try {
+    const storedSoc = await storeSocFile(jobId, input.soc.name, ".docx", input.soc.bytes);
+    const storedEvidence = await Promise.all(input.evidence.map((file) => storeSocFile(jobId, file.name, ".pdf", file.bytes)));
+    const detail = { kind: "IMPORTED", evidenceCount: input.evidence.length, majorItemCount: majorItems.length };
+    await prisma.$transaction([
+      prisma.socJob.create({
+        data: {
+          id: jobId, kind: "IMPORTED", title: input.title, ownerId: actor.id,
+          status: "NEEDS_REVIEW", stage: "รอตรวจข้อใหญ่", progress: 0,
+          expiresAt: new Date(Date.now() + RETENTION_MS),
+        },
+      }),
+      prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: DOCX_MIME, ...storedSoc } }),
+      ...storedEvidence.map((stored) => prisma.socDocument.create({ data: { jobId, type: "EVIDENCE", mimeType: "application/pdf", ...stored } })),
+      prisma.socMajorItem.createMany({ data: majorItems.map((item, i) => ({ jobId, ...item, position: i + 1 })) }),
+      prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "JOB_CREATED", detail } }),
+    ]);
+    await writeAudit({ actorId: actor.id, action: "SOC_CREATED", entityType: "SOC_JOB", entityId: jobId, summary: `สร้างงาน SOC ${input.title}`, metadata: detail });
+  } catch (error) {
+    await prisma.socJob.delete({ where: { id: jobId } }).catch(() => undefined);
+    await rm(path.join(socStorageRoot(), jobId), { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+  return jobId;
+}
+
+// Adds evidence PDFs (already checked by validateUpload) to an Imported SOC
+// Check the actor may open, e.g. a document Claude reported as missing.
+export async function addSocEvidence(actor: SocActor, job: { id: string; title: string; kind: string }, evidence: Upload[]) {
+  if (job.kind !== "IMPORTED") throw new Error("เพิ่มเอกสารได้เฉพาะงานตรวจแบบนำเข้าผล");
+  const stored: Awaited<ReturnType<typeof storeSocFile>>[] = [];
+  try {
+    for (const file of evidence) stored.push(await storeSocFile(job.id, file.name, ".pdf", file.bytes));
+    const documents = stored.map((s) => ({ id: randomUUID(), jobId: job.id, type: "EVIDENCE", mimeType: "application/pdf", ...s }));
+    const detail = { documentIds: documents.map((d) => d.id), names: documents.map((d) => d.originalName) };
+    await prisma.$transaction([
+      prisma.socDocument.createMany({ data: documents }),
+      prisma.socJob.update({ where: { id: job.id }, data: { updatedAt: new Date() } }),
+      prisma.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "EVIDENCE_ADDED", detail } }),
+    ]);
+    await writeAudit({ actorId: actor.id, action: "SOC_EVIDENCE_ADDED", entityType: "SOC_JOB", entityId: job.id, summary: `เพิ่มเอกสารหลักฐาน ${documents.length} ไฟล์ในงาน ${job.title}`, metadata: detail });
+    return documents;
+  } catch (error) {
+    // Files are removed only if their SocDocument rows were never committed.
+    const committed = stored.length > 0 && await prisma.socDocument.count({ where: { storageKey: stored[0].storageKey } }) > 0;
+    if (!committed) await Promise.all(stored.map((s) => rm(resolveStorageKey(s.storageKey), { force: true }).catch(() => undefined)));
+    throw error;
+  }
 }
 
 function magicIsDocx(bytes: Uint8Array): boolean {

@@ -24,3 +24,17 @@ export const CHECK_LABELS: Record<string, string> = {
   match: "ตรง", mismatch: "ไม่ตรง", review: "ต้องตรวจทาน", not_found: "ไม่พบเลขหน้า",
   unverifiable: "ยืนยันไม่ได้", not_applicable: "ไม่ต้องตรวจ",
 };
+
+// Major item (ข้อใหญ่) check states of an Imported SOC Check. "confirmed" is
+// not stored: an item shows as confirmed once every row has a Final Decision.
+export const SOC_MAJOR_ITEM_STATE_LABELS: Record<string, string> = {
+  not_checked: "ยังไม่ตรวจ", requested: "รอเครื่องของผู้ขอ", running: "กำลังตรวจ",
+  paused_quota: "หยุดชั่วคราว", needs_documents: "ขาดเอกสาร", checked: "ตรวจแล้ว",
+  failed: "ตรวจไม่สำเร็จ", confirmed: "ยืนยันแล้ว",
+};
+
+// "ตรวจแล้ว checked/total ข้อใหญ่" on the /soc list and the job page.
+export function majorItemProgress(items: readonly { state: string }[]) {
+  const checked = items.filter((item) => item.state === "checked").length;
+  return { checked, total: items.length, percent: items.length ? Math.round((checked / items.length) * 100) : 0 };
+}

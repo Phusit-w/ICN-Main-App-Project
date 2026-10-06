@@ -88,9 +88,11 @@ def update_job(conn, job_id: str, **values) -> None:
 
 
 def claim_job(conn) -> tuple[str, str] | None:
+    # Only server-checked jobs. An Imported SOC Check (kind IMPORTED, ADR 0008)
+    # is checked on reviewers' machines and must never be claimed here.
     with conn.transaction():
         row = conn.execute(
-            'SELECT id, status FROM "SocJob" WHERE status IN (\'QUEUED\', \'CONFIRMED\') AND "deletedAt" IS NULL '
+            'SELECT id, status FROM "SocJob" WHERE kind = \'CHECK\' AND status IN (\'QUEUED\', \'CONFIRMED\') AND "deletedAt" IS NULL '
             'ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1'
         ).fetchone()
         if not row:

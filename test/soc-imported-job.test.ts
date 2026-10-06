@@ -1,0 +1,205 @@
+// Imported SOC Check (ADR 0008, ticket 04): creating one from an upload, its
+// major items and progress, and who may open it and add evidence. Driven
+// through the HTTP route handlers, with the signed-in user stubbed.
+import { after, before, mock, test } from "node:test";
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { prisma } from "@/lib/prisma";
+import { setupTestDatabase } from "@/test/db";
+import { buildSocDocx } from "@/test/docx-fixture";
+
+const skip = setupTestDatabase();
+
+type Actor = Awaited<ReturnType<typeof prisma.user.create>>;
+let signedIn: Actor | null = null;
+mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
+mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
+
+const { POST: createJob } = await import("@/app/api/soc/jobs/route");
+const { POST: addEvidence } = await import("@/app/api/soc/jobs/[id]/evidence/route");
+const { authorizeSocJob, listSocJobs } = await import("@/lib/soc");
+const { trashSocJob } = await import("@/actions/soc");
+
+let storageRoot = "";
+before(async () => {
+  storageRoot = await mkdtemp(path.join(os.tmpdir(), "soc-storage-"));
+  process.env.SOC_STORAGE_ROOT = storageRoot;
+});
+after(() => rm(storageRoot, { recursive: true, force: true }));
+
+const SOC = buildSocDocx([
+  ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"],
+  ["๑.", "ระบบเฝ้าระวัง", "", ""],
+  ["๑.๑", "กล้อง", "CASRI", "หน้า 3"],
+  ["๒.", "ระบบแจ้งเตือน", "", ""],
+  ["๒.๑", "เรดาร์", "X", "หน้า 5"],
+  ["๓.๑", "ซอฟต์แวร์", "Y", "หน้า 9"],
+]);
+const PDF = new TextEncoder().encode("%PDF-1.4\n%fake evidence\n");
+
+function user(username: string, appAccess: string[] = ["soc"], role = "USER") {
+  return prisma.user.create({ data: { username, displayName: username, passwordHash: "x", role, appAccess } });
+}
+
+function upload(fields: { title?: string; soc?: Uint8Array<ArrayBuffer>; evidence?: { name: string; bytes: Uint8Array<ArrayBuffer> }[] }) {
+  const form = new FormData();
+  if (fields.title !== undefined) form.set("title", fields.title);
+  if (fields.soc) form.set("soc", new File([fields.soc], "SOC ภาคผนวก ก.docx"));
+  for (const file of fields.evidence ?? []) form.append("evidence", new File([file.bytes], file.name));
+  return new Request("http://localhost/api/soc/jobs", { method: "POST", body: form });
+}
+
+async function createImported(owner: Actor) {
+  signedIn = owner;
+  const response = await createJob(upload({ title: "Udon CASRI", soc: SOC, evidence: [{ name: "CASRI.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  return ((await response.json()) as { id: string }).id;
+}
+
+function postEvidence(jobId: string, files: { name: string; bytes: Uint8Array<ArrayBuffer> }[]) {
+  const form = new FormData();
+  for (const file of files) form.append("evidence", new File([file.bytes], file.name));
+  return addEvidence(new Request(`http://localhost/api/soc/jobs/${jobId}/evidence`, { method: "POST", body: form }), { params: Promise.resolve({ id: jobId }) });
+}
+
+test("creating an Imported SOC Check stores the files and one not_checked major item per ข้อใหญ่, in order", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+
+  const job = await prisma.socJob.findUniqueOrThrow({ where: { id: jobId }, include: { documents: true, majorItems: { orderBy: { position: "asc" } } } });
+  assert.equal(job.kind, "IMPORTED");
+  assert.equal(job.status, "NEEDS_REVIEW");
+  assert.equal(job.ownerId, owner.id);
+  const daysToExpiry = (job.expiresAt.getTime() - Date.now()) / 86400000;
+  assert.ok(daysToExpiry > 89 && daysToExpiry <= 90);
+  assert.deepEqual(job.documents.map((d) => d.type).sort(), ["EVIDENCE", "SOC"]);
+  for (const doc of job.documents) assert.ok(existsSync(path.join(storageRoot, ...doc.storageKey.split("/"))));
+  assert.deepEqual(
+    job.majorItems.map((m) => [m.position, m.key, m.label, m.title, m.state]),
+    [[1, "1", "๑", "ระบบเฝ้าระวัง", "not_checked"], [2, "2", "๒", "ระบบแจ้งเตือน", "not_checked"], [3, "3", "๓", null, "not_checked"]],
+  );
+
+  const socEvents = await prisma.socAuditEvent.findMany({ where: { jobId } });
+  assert.deepEqual(socEvents.map((e) => [e.action, e.actorId]), [["JOB_CREATED", owner.id]]);
+  const log = await prisma.auditLog.findFirstOrThrow({ where: { entityId: jobId } });
+  assert.equal(log.action, "SOC_CREATED");
+  assert.deepEqual(log.metadata, { kind: "IMPORTED", evidenceCount: 1, majorItemCount: 3 });
+});
+
+test("a SOC with no item numbers is rejected and nothing is kept", { skip }, async () => {
+  signedIn = await user("owner");
+  const storedBefore = await readdir(storageRoot);
+  const response = await createJob(upload({ title: "x", soc: buildSocDocx([["ลำดับ", "ข้อกำหนด"], ["", "ข้อความ"]]), evidence: [{ name: "a.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 400);
+  assert.match(((await response.json()) as { error: string }).error, /ข้อใหญ่/);
+  assert.equal(await prisma.socJob.count(), 0);
+  assert.deepEqual(await readdir(storageRoot), storedBefore);
+});
+
+test("a user without soc access can't create a job", { skip }, async () => {
+  signedIn = await user("expense-only", ["expense"]);
+  const response = await createJob(upload({ title: "x", soc: SOC, evidence: [{ name: "a.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 403);
+  assert.equal(await prisma.socJob.count(), 0);
+});
+
+test("any soc user sees an imported job on the list with progress 0/N; a legacy check job stays owner-only", { skip }, async () => {
+  const owner = await user("owner");
+  const colleague = await user("colleague");
+  const jobId = await createImported(owner);
+  const legacy = await prisma.socJob.create({ data: { title: "legacy", ownerId: owner.id, expiresAt: new Date(Date.now() + 86400000) } });
+
+  const seen = await listSocJobs(colleague);
+  assert.deepEqual(seen.map((j) => [j.id, j.majorItemProgress]), [[jobId, { checked: 0, total: 3, percent: 0 }]]);
+
+  const ownerSees = await listSocJobs(owner);
+  assert.deepEqual(ownerSees.map((j) => j.id).sort(), [jobId, legacy.id].sort());
+  assert.equal(ownerSees.find((j) => j.id === legacy.id)?.majorItemProgress, null);
+
+  signedIn = colleague;
+  await assert.doesNotReject(authorizeSocJob(jobId));
+  await assert.rejects(authorizeSocJob(legacy.id), /NOT_FOUND/);
+});
+
+test("another soc user can add an evidence PDF to an imported job, and it is audited", { skip }, async () => {
+  const owner = await user("owner");
+  const colleague = await user("colleague");
+  const jobId = await createImported(owner);
+
+  signedIn = colleague;
+  const response = await postEvidence(jobId, [{ name: "Section 3.2 Datasheet.pdf", bytes: PDF }]);
+  assert.equal(response.status, 201);
+
+  const evidence = await prisma.socDocument.findMany({ where: { jobId, type: "EVIDENCE" }, orderBy: { createdAt: "asc" } });
+  assert.deepEqual(evidence.map((d) => d.originalName), ["CASRI.pdf", "Section 3.2 Datasheet.pdf"]);
+  assert.ok(existsSync(path.join(storageRoot, ...evidence[1].storageKey.split("/"))));
+
+  const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "EVIDENCE_ADDED" } });
+  assert.equal(event.actorId, colleague.id);
+  assert.deepEqual(event.detail, { documentIds: [evidence[1].id], names: ["Section 3.2 Datasheet.pdf"] });
+  const log = await prisma.auditLog.findFirstOrThrow({ where: { entityId: jobId, action: "SOC_EVIDENCE_ADDED" } });
+  assert.equal(log.actorId, colleague.id);
+});
+
+test("a user without soc access can neither open an imported job nor add evidence", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+
+  signedIn = await user("expense-only", ["expense"]);
+  await assert.rejects(authorizeSocJob(jobId), /FORBIDDEN/);
+  const response = await postEvidence(jobId, [{ name: "x.pdf", bytes: PDF }]);
+  assert.equal(response.status, 403);
+  assert.equal(await prisma.socDocument.count({ where: { jobId, type: "EVIDENCE" } }), 1);
+  assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: "EVIDENCE_ADDED" } }), 0);
+});
+
+test("adding evidence to someone else's legacy check job is refused", { skip }, async () => {
+  const owner = await user("owner");
+  const legacy = await prisma.socJob.create({ data: { title: "legacy", ownerId: owner.id, expiresAt: new Date(Date.now() + 86400000) } });
+  signedIn = await user("colleague");
+  const response = await postEvidence(legacy.id, [{ name: "x.pdf", bytes: PDF }]);
+  assert.equal(response.status, 404);
+  assert.equal(await prisma.socDocument.count(), 0);
+});
+
+test("evidence can't be added to a legacy check job, even by its owner", { skip }, async () => {
+  const owner = await user("owner");
+  const legacy = await prisma.socJob.create({ data: { title: "legacy", ownerId: owner.id, status: "PROCESSING", expiresAt: new Date(Date.now() + 86400000) } });
+  signedIn = owner;
+  const response = await postEvidence(legacy.id, [{ name: "x.pdf", bytes: PDF }]);
+  assert.equal(response.status, 400);
+  assert.equal(await prisma.socDocument.count(), 0);
+});
+
+test("evidence that isn't a PDF is rejected and nothing is added", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+  const response = await postEvidence(jobId, [{ name: "notes.pdf", bytes: new TextEncoder().encode("hello") }]);
+  assert.equal(response.status, 400);
+  assert.equal(await prisma.socDocument.count({ where: { jobId, type: "EVIDENCE" } }), 1);
+});
+
+test("an admin without explicit soc access can still open any job", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+  const legacy = await prisma.socJob.create({ data: { title: "legacy", ownerId: owner.id, expiresAt: new Date(Date.now() + 86400000) } });
+  signedIn = await user("admin", [], "ADMIN");
+  await assert.doesNotReject(authorizeSocJob(jobId));
+  await assert.doesNotReject(authorizeSocJob(legacy.id));
+});
+
+test("only the owner or an admin may move an imported job to the trash", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+
+  signedIn = await user("colleague");
+  await assert.rejects(trashSocJob(jobId), /FORBIDDEN/);
+  assert.equal((await prisma.socJob.findUniqueOrThrow({ where: { id: jobId } })).deletedAt, null);
+
+  signedIn = owner;
+  await trashSocJob(jobId);
+  assert.ok((await prisma.socJob.findUniqueOrThrow({ where: { id: jobId } })).deletedAt);
+});

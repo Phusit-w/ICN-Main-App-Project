@@ -136,6 +136,8 @@ model User {
   updatedAt                  DateTime        @updatedAt
   socJobs                    SocJob[]
   socAuditEvents             SocAuditEvent[]
+  socMajorItemsRequested     SocMajorItem[]  @relation("SocMajorItemRequestedBy")
+  socMajorItemsRan           SocMajorItem[]  @relation("SocMajorItemRanBy")
   expenseRecords             ExpenseRecord[] @relation("ExpenseOwner")
   auditEvents                AuditLog[]      @relation("AuditActor")
   targetedAuditEvents        AuditLog[]      @relation("AuditTarget")
@@ -147,6 +149,10 @@ model User {
 model SocJob {
   id           String           @id @default(cuid())
   title        String
+  // "CHECK" = checked by soc-worker on the server (legacy). "IMPORTED" = an
+  // Imported SOC Check (ADR 0008): results come from Local Check Runs, it
+  // starts in NEEDS_REVIEW and soc-worker never claims it.
+  kind         String           @default("CHECK")
   ownerId      String
   owner        User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   status       String           @default("DRAFT")
@@ -166,6 +172,7 @@ model SocJob {
   documents    SocDocument[]
   results      SocCheckResult[]
   auditEvents  SocAuditEvent[]
+  majorItems   SocMajorItem[]
 
   @@index([ownerId, updatedAt])
   @@index([status, createdAt])
@@ -187,6 +194,34 @@ model SocDocument {
   createdAt    DateTime @default(now())
 
   @@index([jobId, type])
+}
+
+// One major item (ข้อใหญ่) of an Imported SOC Check, created with the job
+// from the SOC's top-level item numbers (lib/soc-major-items.ts). One Local
+// Check Run covers one major item.
+model SocMajorItem {
+  id               String    @id @default(cuid())
+  jobId            String
+  job              SocJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  key              String // item number in Arabic digits, e.g. "1"
+  label            String // as written in the SOC, e.g. "๑"
+  title            String?
+  position         Int
+  // not_checked | requested | running | paused_quota | needs_documents | checked | failed
+  state            String    @default("not_checked")
+  skillVersion     String?
+  model            String?
+  lastRunAt        DateTime?
+  requestedById    String?
+  requestedBy      User?     @relation("SocMajorItemRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  ranById          String?
+  ranBy            User?     @relation("SocMajorItemRanBy", fields: [ranById], references: [id], onDelete: SetNull)
+  missingDocuments Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([jobId, key])
+  @@index([jobId, position])
 }
 
 model SocCheckResult {
