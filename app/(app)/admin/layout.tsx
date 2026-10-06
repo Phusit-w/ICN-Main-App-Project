@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-const links = [["/admin", "ภาพรวม"], ["/admin/users", "ผู้ใช้"], ["/admin/activity", "ประวัติกิจกรรม"], ["/admin/project-card-terms", "หมวดหมู่โครงการ"], ["/admin/soc-skills", "SOC skill"], ["/admin/trash", "ถังขยะ"], ["/admin/system", "สถานะระบบ"]];
+const links = [["/admin", "ภาพรวม"], ["/admin/users", "ผู้ใช้"], ["/admin/activity", "ประวัติกิจกรรม"], ["/admin/project-card-terms", "หมวดหมู่โครงการ"], ["/admin/soc-skills", "SOC skill"], ["/admin/soc-runners", "SOC Runner"], ["/admin/trash", "ถังขยะ"], ["/admin/system", "สถานะระบบ"]];
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");

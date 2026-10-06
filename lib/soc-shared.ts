@@ -69,3 +69,23 @@ export function skillVersionStatus(
   if (!hosted || !current) return "unhosted";
   return hosted.createdAt < current.createdAt ? "older" : "newer";
 }
+
+// SOC Runner links (ticket 12). A runner is online while its latest
+// heartbeat is under SOC_RUNNER_ONLINE_MS old; runners send one every 30 s
+// (docs/SOC-RUNNER.md), so this allows a few missed beats.
+export const SOC_RUNNER_ONLINE_MS = 2 * 60 * 1000;
+export type SocRunnerState = "online" | "offline" | "never_seen";
+export function socRunnerState(lastSeenAt: Date | null, now = new Date()): SocRunnerState {
+  if (!lastSeenAt) return "never_seen";
+  return now.getTime() - lastSeenAt.getTime() < SOC_RUNNER_ONLINE_MS ? "online" : "offline";
+}
+
+export const SOC_RUNNER_STATE_LABELS: Record<SocRunnerState, string> = {
+  online: "ออนไลน์", offline: "ออฟไลน์", never_seen: "ยังไม่เคยเชื่อมต่อ",
+};
+
+// The Claude login state a runner reports in its heartbeat.
+export const SOC_CLAUDE_LOGINS = ["logged_in", "logged_out", "unknown"] as const;
+export const SOC_CLAUDE_LOGIN_LABELS: Record<string, string> = {
+  logged_in: "เข้าสู่ระบบ Claude แล้ว", logged_out: "ต้องเข้าสู่ระบบ Claude ใหม่", unknown: "ไม่ทราบสถานะ Claude",
+};

@@ -117,33 +117,35 @@ model ExpenseRecord {
 // the app itself was explicitly out of scope when this was added; approval
 // is still a paper signature after printing).
 model User {
-  id                         String          @id @default(cuid())
-  username                   String          @unique
+  id                         String            @id @default(cuid())
+  username                   String            @unique
   // PBKDF2-SHA256, see lib/auth.ts's hashPassword — never plaintext.
   passwordHash               String
   displayName                String
-  role                       String          @default("USER") // "USER" | "ADMIN"
-  isActive                   Boolean         @default(true)
-  mustChangePassword         Boolean         @default(false)
-  sessionVersion             Int             @default(1)
+  role                       String            @default("USER") // "USER" | "ADMIN"
+  isActive                   Boolean           @default(true)
+  mustChangePassword         Boolean           @default(false)
+  sessionVersion             Int               @default(1)
   passwordChangedAt          DateTime?
   disabledAt                 DateTime?
   // Which apps a USER may open — values in lib/access.ts (APP_ACCESS). ADMIN
   // ignores this and may open everything. The default grants everything, so
   // accounts that existed before per-app access keep what they had.
-  appAccess                  String[]        @default(["expense", "soc", "project-card-edit"])
-  createdAt                  DateTime        @default(now())
-  updatedAt                  DateTime        @updatedAt
+  appAccess                  String[]          @default(["expense", "soc", "project-card-edit"])
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
   socJobs                    SocJob[]
   socAuditEvents             SocAuditEvent[]
-  socMajorItemsRequested     SocMajorItem[]  @relation("SocMajorItemRequestedBy")
-  socMajorItemsRan           SocMajorItem[]  @relation("SocMajorItemRanBy")
+  socMajorItemsRequested     SocMajorItem[]    @relation("SocMajorItemRequestedBy")
+  socMajorItemsRan           SocMajorItem[]    @relation("SocMajorItemRanBy")
   socCheckRunsImported       SocCheckRun[]
   socSkillPackagesUploaded   SocSkillPackage[]
-  expenseRecords             ExpenseRecord[] @relation("ExpenseOwner")
-  auditEvents                AuditLog[]      @relation("AuditActor")
-  targetedAuditEvents        AuditLog[]      @relation("AuditTarget")
-  verifiedProjectCardBudgets ProjectCard[]   @relation("ProjectCardBudgetVerifier")
+  socRunnerLinks             SocRunnerLink[]   @relation("SocRunnerLinkUser")
+  socRunnerLinksRevoked      SocRunnerLink[]   @relation("SocRunnerLinkRevokedBy")
+  expenseRecords             ExpenseRecord[]   @relation("ExpenseOwner")
+  auditEvents                AuditLog[]        @relation("AuditActor")
+  targetedAuditEvents        AuditLog[]        @relation("AuditTarget")
+  verifiedProjectCardBudgets ProjectCard[]     @relation("ProjectCardBudgetVerifier")
 }
 
 // A durable SOC audit job. PostgreSQL doubles as the low-volume work queue:
@@ -347,6 +349,29 @@ model SocCurrentSkill {
   packageId String          @unique
   package   SocSkillPackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
   updatedAt DateTime        @updatedAt
+}
+
+// One SOC Runner link (ADR 0008, ticket 12): the token in a runner config a
+// user downloaded from /soc, bound to that user. Only the token's sha256 is
+// kept. A user has at most one active link (revokedAt null): downloading
+// again revokes the previous one ("replaced"); an admin may revoke ("admin").
+model SocRunnerLink {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation("SocRunnerLinkUser", fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique
+  createdAt     DateTime  @default(now())
+  // From the latest heartbeat; null until the runner first reports.
+  lastSeenAt    DateTime?
+  runnerVersion String?
+  claudeLogin   String? // "logged_in" | "logged_out" | "unknown"
+  revokedAt     DateTime?
+  revokeReason  String? // "replaced" | "admin"
+  revokedById   String?
+  revokedBy     User?     @relation("SocRunnerLinkRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, revokedAt])
+  @@index([createdAt])
 }
 
 model SocAuditEvent {
