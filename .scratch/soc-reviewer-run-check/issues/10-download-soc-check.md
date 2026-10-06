@@ -15,7 +15,7 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 ## Comments
 
-### 2026-10-06: done (commit on `feature/soc-reviewer-run-check`)
+### 2026-10-06: done (commit `71ae97f` on `feature/soc-reviewer-run-check`)
 
 What was built:
 - `lib/soc-combined-check.ts`: `downloadCombinedSocCheck(actor, jobId)` builds the file on demand. Nothing is stored, so it is always the latest.
