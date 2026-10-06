@@ -3,7 +3,7 @@
 ## Contexts
 
 - [Expense Billing](./CONTEXT.md): expense documents created, reviewed, printed, and downloaded by authenticated users
-- SOC Compliance (`app/(app)/soc/`, `soc-worker/`): automated compliance-document checking, currently disabled — no `CONTEXT.md` yet
+- SOC Compliance (`app/(app)/soc/`, `soc-worker/`): compliance-document checking; per ADR 0008 checks run on each reviewer's machine and the server only stores and shows results — vocabulary in `docs/SOC-DOMAIN-GLOSSARY.md`, no `CONTEXT.md` yet
 - [Project Card](./app/(app)/project-card/CONTEXT.md): a searchable catalog of past/current proposal projects (client, budget, year, description) extracted from the company's `PS` network share
 
 ## Relationships
