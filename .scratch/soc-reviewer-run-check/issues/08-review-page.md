@@ -16,3 +16,7 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 - [ ] Checked in a browser against a real imported job; lint, typecheck and build pass
 
 ## Comments
+
+### 2026-10-06: note from ticket 06
+
+A re-check warns before replacing rows with a Final Decision, and it decides that by `reviewedAt !== null` (`hasFinalDecision` in `lib/soc-import.ts`). Whatever columns this ticket adds for the Final Decision, setting one must also set `reviewedAt`/`reviewedById`. Add a test that a row decided through the new page makes a re-check answer 409.

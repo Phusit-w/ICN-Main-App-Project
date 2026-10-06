@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
 import Button from "@/components/ui/Button";
+import type { ConfirmedRow } from "@/lib/soc-import";
 import { CHECK_LABELS, majorItemProgress, SOC_AXIS_VALUE_LABELS, SOC_MAJOR_ITEM_STATE_LABELS, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS } from "@/lib/soc-shared";
 
 type DocumentItem = { id: string; type: string; name: string };
@@ -64,9 +65,11 @@ function MajorItemsPanel({ jobId, items }: { jobId: string; items: MajorItem[] }
 }
 
 function MajorItemRow({ jobId, item, open, onToggle, onDone }: { jobId: string; item: MajorItem; open: boolean; onToggle: () => void; onDone: () => void }) {
-  const canImport = item.state === "not_checked";
+  // A checked item can be imported again: a re-check replaces its rows.
+  const canImport = item.state === "not_checked" || item.state === "checked";
+  const recheck = item.state === "checked";
   return <>
-    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="whitespace-nowrap px-5 py-3"><span className="rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state}</span></td><td className="px-5 py-3 text-xs text-muted">{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right">{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : "นำเข้าผล"}</Button> : null}</td></tr>
+    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="whitespace-nowrap px-5 py-3"><span className="rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state}</span></td><td className="px-5 py-3 text-xs text-muted">{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right">{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "ตรวจซ้ำ" : "นำเข้าผล"}</Button> : null}</td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} onDone={onDone} /></td></tr> : null}
   </>;
 }
@@ -75,7 +78,10 @@ function MajorItemRow({ jobId, item, open, onToggle, onDone }: { jobId: string; 
 function ImportRunForm({ jobId, item, onDone }: { jobId: string; item: MajorItem; onDone: () => void }) {
   const router = useRouter();
   const [errors, setErrors] = useState<string[]>([]);
+  // Set when a re-check would replace rows that have a Final Decision.
+  const [confirmedRows, setConfirmedRows] = useState<ConfirmedRow[]>([]);
   const [pending, startTransition] = useTransition();
+  const recheck = item.state === "checked";
   // onSubmit rather than a form action, which would clear the chosen files
   // when the import is rejected.
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -85,7 +91,9 @@ function ImportRunForm({ jobId, item, onDone }: { jobId: string; item: MajorItem
     startTransition(async () => {
       try {
         const response = await fetch(`/api/soc/jobs/${jobId}/major-items/${item.id}/import`, { method: "POST", body: formData });
-        const body = (await response.json()) as { error?: string; errors?: string[] };
+        const body = (await response.json()) as { error?: string; errors?: string[]; confirmedRows?: ConfirmedRow[] };
+        if (response.status === 409 && body.confirmedRows) { setConfirmedRows(body.confirmedRows); return; }
+        setConfirmedRows([]);
         if (!response.ok) { setErrors(body.errors?.length ? body.errors : [body.error || "นำเข้าผลไม่สำเร็จ"]); return; }
         onDone();
         router.refresh();
@@ -97,6 +105,7 @@ function ImportRunForm({ jobId, item, onDone }: { jobId: string; item: MajorItem
   const field = "rounded-input border border-line bg-surface px-3 py-2 text-sm font-normal";
   return <form onSubmit={submit} className="flex flex-col gap-3">
     <p className="text-xs text-muted">แนบผลจากการรัน skill ใน Claude Code สำหรับข้อ {item.label} เท่านั้น (โหมด Full audit พร้อม evidence_support และ tor_decision)</p>
+    {recheck ? <p className="text-xs text-muted">ข้อนี้มีผลตรวจแล้ว ผลใหม่จะแทนที่ผลเดิมทั้งข้อ ผลเดิมยังเก็บไว้ในประวัติการแก้ไข</p> : null}
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="flex flex-col gap-1.5 text-xs font-medium text-label">results.json<input name="results" type="file" required accept=".json,application/json" className={field} /></label>
       <label className="flex flex-col gap-1.5 text-xs font-medium text-label">SOC_Check (.docx)<input name="socCheck" type="file" required accept=".docx" className={field} /></label>
@@ -104,7 +113,8 @@ function ImportRunForm({ jobId, item, onDone }: { jobId: string; item: MajorItem
       <label className="flex flex-col gap-1.5 text-xs font-medium text-label">โมเดล Claude<input name="model" maxLength={200} placeholder="เว้นว่างเพื่อใช้ค่า model ในไฟล์" className={field} /></label>
     </div>
     {errors.length ? <div role="alert" className="rounded-input border border-danger-border p-3 text-xs text-danger"><p className="font-medium">ไม่ได้นำเข้า ไฟล์มีปัญหา:</p><ul className="mt-1 list-disc pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div> : null}
-    <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังนำเข้า…" : "นำเข้าผล"}</Button></div>
+    {confirmedRows.length ? <div role="alert" className="rounded-input border border-danger-border p-3 text-xs text-danger"><p className="font-medium">มี {confirmedRows.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้:</p><p className="mt-1">{confirmedRows.map((r) => `ข้อ ${r.item}`).join(", ")}</p><label className="mt-2 flex items-center gap-2 font-medium text-ink"><input name="replaceConfirmed" type="checkbox" value={confirmedRows.map((r) => r.rowNumber).join(",")} required />แทนที่แถวที่ยืนยันแล้ว</label></div> : null}
+    <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังนำเข้า…" : recheck ? "ตรวจซ้ำ" : "นำเข้าผล"}</Button></div>
   </form>;
 }
 

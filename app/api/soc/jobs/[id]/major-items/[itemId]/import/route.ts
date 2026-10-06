@@ -10,6 +10,10 @@ const MAX_RESULTS_BYTES = 10 * 1024 * 1024;
 // SOC_Check document a reviewer got from running the skill in Claude Code.
 // Any user who may open the job may import. Skill version and model come
 // from the form, or else from the file's top-level `skill_version`/`model`.
+// Importing into an item that has results re-checks it; if that would replace
+// rows with a Final Decision, the answer is 409 { errors, confirmedRows }
+// until the form is sent again with those row numbers, comma-separated, as
+// `replaceConfirmed`.
 export async function POST(request: Request, context: { params: Promise<{ id: string; itemId: string }> }) {
   try {
     const { id, itemId } = await context.params;
@@ -39,7 +43,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       results,
       socCheck: { name: socCheck.name, bytes: new Uint8Array(await socCheck.arrayBuffer()) },
       run: { skillVersion: typed("skillVersion") || fromFile("skill_version"), model: typed("model") || fromFile("model"), source: "manual" },
+      replaceConfirmed: typed("replaceConfirmed").split(",").map(Number).filter(Number.isInteger),
     });
+    if (!imported.ok && imported.confirmedRows) return NextResponse.json({ errors: imported.errors, confirmedRows: imported.confirmedRows }, { status: 409 });
     if (!imported.ok) return NextResponse.json({ errors: imported.errors }, { status: 422 });
     return NextResponse.json({ runId: imported.runId, rowCount: imported.rowCount }, { status: 201 });
   } catch (error) {

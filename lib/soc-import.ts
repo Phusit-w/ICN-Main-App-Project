@@ -22,11 +22,20 @@ export type LocalCheckRunInput = {
   results: unknown; // the parsed results.json
   socCheck: { name: string; bytes: Uint8Array }; // the run's SOC_Check .docx
   run: { skillVersion: string; model: string; source: LocalCheckRunSource };
+  // Re-check only: the row numbers with a Final Decision that the reviewer
+  // was warned about and agreed to replace ("แทนที่แถวที่ยืนยันแล้ว"). A row
+  // decided after the warning isn't in the list, so it warns again.
+  replaceConfirmed?: number[];
 };
 
+export type ConfirmedRow = { rowNumber: number; item: string };
+
+// `confirmedRows` is set only when a re-check would replace rows that have a
+// Final Decision: nothing was written, and the same import with these rows
+// as `replaceConfirmed` goes ahead.
 export type LocalCheckRunImport =
   | { ok: true; runId: string; rowCount: number }
-  | { ok: false; errors: string[] };
+  | { ok: false; errors: string[]; confirmedRows?: ConfirmedRow[] };
 
 const MAX_ERRORS = 50;
 
@@ -121,12 +130,28 @@ function asColumnText(value: unknown): string | null {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-const ALREADY_CHECKED = "ALREADY_CHECKED";
+// A row has a Final Decision once a reviewer has decided it. The review page
+// (ticket 08) must set reviewedAt whenever it records a Final Decision.
+const hasFinalDecision = (row: { reviewedAt: Date | null }) => row.reviewedAt !== null;
+
+const RACED = "RACED";
+
+class ConfirmationRequired extends Error {
+  rows: ConfirmedRow[];
+  constructor(rows: ConfirmedRow[]) {
+    super("CONFIRMATION_REQUIRED");
+    this.rows = rows;
+  }
+}
 
 // Validates and stores one Local Check Run for one major item. The caller
 // has already authorised the actor for the job. Throws NOT_FOUND when the
 // job or major item doesn't exist; returns the problems when the run is
 // invalid, in which case nothing is written.
+//
+// Re-check: when the item already has results, they are replaced in the same
+// transaction and copied, every column, into a RESULTS_REPLACED audit event.
+// Earlier runs and their SOC_Check documents are kept.
 export async function importLocalCheckRun(actor: { id: string }, input: LocalCheckRunInput): Promise<LocalCheckRunImport> {
   const job = await prisma.socJob.findUnique({ where: { id: input.jobId } });
   const item = await prisma.socMajorItem.findUnique({ where: { id: input.majorItemId } });
@@ -141,8 +166,6 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   if (!magicIsDocx(input.socCheck.bytes) || input.socCheck.bytes.byteLength > MAX_SOC_FILE_BYTES) {
     errors.push("ไฟล์ SOC_Check ต้องเป็น Word (.docx) ที่ถูกต้อง ขนาดไม่เกิน 25 MB");
   }
-  // Re-checking an item (replacing its rows) is ticket 06.
-  if (item.state === "checked") errors.push(`ข้อ ${item.label} มีผลตรวจแล้ว ยังนำเข้าซ้ำไม่ได้`);
   const validated = validateLocalCheckRun(input.results, item);
   if ("errors" in validated) errors.push(...validated.errors);
   if (errors.length || !("rows" in validated)) return { ok: false, errors };
@@ -152,17 +175,18 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   const stored = await storeSocFile(job.id, input.socCheck.name, ".docx", input.socCheck.bytes);
   const source = input.run.source;
   const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: validated.rows.length, source, skillVersion, model, documentId };
-  const alreadyChecked = `ข้อ ${item.label} มีผลตรวจแล้ว ยังนำเข้าซ้ำไม่ได้`;
+  let replacedRowCount = 0;
   try {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
-      // Marking the item checked first locks its row, so of two imports
-      // racing for the same item only one gets past here.
+      // Claiming the item first locks its row. Every import moves lastRunAt,
+      // so of two imports racing for the same item only one gets past here.
       const claimed = await tx.socMajorItem.updateMany({
-        where: { id: item.id, state: { not: "checked" } },
+        where: { id: item.id, lastRunAt: item.lastRunAt },
         data: { state: "checked", skillVersion, model, runSource: source, lastRunAt: now, ranById: actor.id },
       });
-      if (claimed.count !== 1) throw new Error(ALREADY_CHECKED);
+      if (claimed.count !== 1) throw new Error(RACED);
+      replacedRowCount = await replacePreviousRows(tx, { jobId: job.id, actorId: actor.id, item, runId, replaceConfirmed: input.replaceConfirmed ?? [] });
       await tx.socDocument.create({ data: { id: documentId, jobId: job.id, type: "RUN_OUTPUT", mimeType: DOCX_MIME, ...stored } });
       await tx.socCheckRun.create({
         data: { id: runId, jobId: job.id, majorItemId: item.id, source, skillVersion, model, documentId, rowCount: validated.rows.length, importedById: actor.id },
@@ -173,14 +197,45 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
     });
   } catch (error) {
     await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
-    if (error instanceof Error && error.message === ALREADY_CHECKED) return { ok: false, errors: [alreadyChecked] };
+    if (error instanceof ConfirmationRequired) {
+      const listed = error.rows.map((r) => `ข้อ ${r.item}`).join(", ");
+      return { ok: false, confirmedRows: error.rows, errors: [`ข้อ ${item.label} มี ${error.rows.length} แถวที่ยืนยันผลแล้ว (${listed}) การตรวจซ้ำจะแทนที่แถวเหล่านี้ ต้องเลือก "แทนที่แถวที่ยืนยันแล้ว" ก่อนนำเข้า`] };
+    }
+    if (error instanceof Error && error.message === RACED) return { ok: false, errors: [`ข้อ ${item.label} เพิ่งมีการนำเข้าผลพร้อมกัน กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง`] };
     throw error;
   }
   await writeAudit({
     actorId: actor.id, action: "SOC_RUN_IMPORTED", entityType: "SOC_JOB", entityId: job.id,
-    summary: `นำเข้าผลตรวจข้อ ${item.label} (${validated.rows.length} แถว) ในงาน ${job.title}`, metadata: detail,
+    summary: replacedRowCount
+      ? `ตรวจซ้ำข้อ ${item.label} (${validated.rows.length} แถว แทนที่ ${replacedRowCount} แถวเดิม) ในงาน ${job.title}`
+      : `นำเข้าผลตรวจข้อ ${item.label} (${validated.rows.length} แถว) ในงาน ${job.title}`,
+    metadata: replacedRowCount ? { ...detail, replacedRowCount } : detail,
   });
   return { ok: true, runId, rowCount: validated.rows.length };
+}
+
+// Deletes the major item's current rows, after copying them into a
+// RESULTS_REPLACED audit event. Runs inside the import's transaction, after
+// the item is claimed. Throws ConfirmationRequired, rolling everything back,
+// when a row has a Final Decision and the reviewer hasn't agreed to replace it.
+async function replacePreviousRows(
+  tx: Prisma.TransactionClient,
+  { jobId, actorId, item, runId, replaceConfirmed }: { jobId: string; actorId: string; item: { id: string; label: string }; runId: string; replaceConfirmed: number[] },
+): Promise<number> {
+  const previous = await tx.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  if (!previous.length) return 0;
+  const confirmedRows = previous.filter(hasFinalDecision).map((r) => ({ rowNumber: r.rowNumber, item: r.item }));
+  if (confirmedRows.some((r) => !replaceConfirmed.includes(r.rowNumber))) throw new ConfirmationRequired(confirmedRows);
+  await tx.socCheckResult.deleteMany({ where: { majorItemId: item.id } });
+  const replacedRunIds = [...new Set(previous.map((r) => r.runId).filter((id): id is string => id !== null))];
+  await tx.socAuditEvent.create({
+    data: {
+      jobId, actorId, action: "RESULTS_REPLACED",
+      // Every column of every replaced row, as JSON (dates become ISO strings).
+      detail: { majorItemId: item.id, majorItem: item.label, runId, replacedRunIds, confirmedRows, rows: JSON.parse(JSON.stringify(previous)) },
+    },
+  });
+  return previous.length;
 }
 
 // One results.json row as a SocCheckResult. The skill's standard axes fill

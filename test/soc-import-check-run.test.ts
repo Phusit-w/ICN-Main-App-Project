@@ -82,8 +82,9 @@ async function assertNothingWritten(jobId: string, majorItemId: string) {
   assert.equal((await readdir(path.join(storageRoot, jobId))).length, 2);
 }
 
-function postImport(jobId: string, itemId: string, fields: { results?: string; socCheck?: Uint8Array<ArrayBuffer>; skillVersion?: string; model?: string }) {
+function postImport(jobId: string, itemId: string, fields: { results?: string; socCheck?: Uint8Array<ArrayBuffer>; skillVersion?: string; model?: string; replaceConfirmed?: string }) {
   const form = new FormData();
+  if (fields.replaceConfirmed !== undefined) form.set("replaceConfirmed", fields.replaceConfirmed);
   if (fields.results !== undefined) form.set("results", new File([fields.results], "results.json", { type: "application/json" }));
   if (fields.socCheck) form.set("socCheck", new File([fields.socCheck], "SOC_Check-ข้อ1.docx"));
   if (fields.skillVersion !== undefined) form.set("skillVersion", fields.skillVersion);
@@ -261,14 +262,120 @@ test("a SOC_Check that isn't a Word document is rejected", { skip }, async () =>
   await assertNothingWritten(jobId, item.id);
 });
 
-test("a major item that already has results can't be imported again (re-check is ticket 06)", { skip }, async () => {
+// Re-checking a major item (ticket 06): a new run for an item that already has
+// results replaces its rows, keeping the old rows in a RESULTS_REPLACED event.
+function rerun(key: string, detail: string): RunFile {
+  const run = runFor(key);
+  for (const row of run.results) row.detail = detail;
+  return run;
+}
+
+// Stands in for a reviewer's Final Decision until the review page (ticket 08).
+function decide(rowId: string, reviewerId: string) {
+  return prisma.socCheckResult.update({ where: { id: rowId }, data: { reviewedAt: new Date(), reviewedById: reviewerId, finalReferenceCheck: "match", finalDetail: "ยืนยันแล้ว" } });
+}
+
+test("a re-check replaces only that major item's rows and keeps the old ones in the audit trail", { skip }, async () => {
   const { owner, jobId, item } = await setup();
-  assert.equal((await importRun(owner, jobId, item.id, runFor("1"))).ok, true);
-  const again = await importRun(owner, jobId, item.id, runFor("1"));
-  assert.equal(again.ok, false);
-  assert.ok(!again.ok && again.errors.some((e) => /มีผลตรวจแล้ว/.test(e)));
+  const other = await prisma.socMajorItem.findFirstOrThrow({ where: { jobId, key: "2" } });
+  const first = await importRun(owner, jobId, item.id, runFor("1"));
+  assert.ok(first.ok);
+  assert.ok((await importRun(owner, jobId, other.id, runFor("2"))).ok);
+  const before = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  const otherBefore = await prisma.socCheckResult.findMany({ where: { majorItemId: other.id }, orderBy: { rowNumber: "asc" } });
+
+  const rechecker = await user("rechecker");
+  const again = await importRun(rechecker, jobId, item.id, rerun("1", "ตรวจซ้ำ"), { run: { skillVersion: "v2", model: "claude-opus-5-5" } });
+  assert.ok(again.ok, JSON.stringify(again));
+  assert.equal(again.rowCount, 7);
+
+  const after = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  assert.deepEqual(after.map((r) => r.rowNumber), before.map((r) => r.rowNumber));
+  assert.ok(after.every((r) => r.runId === again.runId && r.aiDetail === "ตรวจซ้ำ"));
+  assert.deepEqual(await prisma.socCheckResult.findMany({ where: { majorItemId: other.id }, orderBy: { rowNumber: "asc" } }), otherBefore);
+
+  const recheckedItem = await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item.id } });
+  assert.deepEqual([recheckedItem.state, recheckedItem.skillVersion, recheckedItem.model, recheckedItem.ranById], ["checked", "v2", "claude-opus-5-5", rechecker.id]);
+  // Both runs and their SOC_Check documents stay.
+  assert.equal(await prisma.socCheckRun.count({ where: { majorItemId: item.id } }), 2);
+  assert.equal(await prisma.socDocument.count({ where: { jobId, type: "RUN_OUTPUT" } }), 3);
+
+  // The replaced rows can be recovered, every column, from the audit event.
+  const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "RESULTS_REPLACED" } });
+  assert.equal(event.actorId, rechecker.id);
+  const detail = event.detail as { majorItemId: string; replacedRunIds: string[]; runId: string; confirmedRows: unknown[]; rows: unknown[] };
+  assert.deepEqual([detail.majorItemId, detail.replacedRunIds, detail.runId, detail.confirmedRows], [item.id, [first.runId], again.runId, []]);
+  assert.deepEqual(detail.rows, JSON.parse(JSON.stringify(before)));
+  assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: "RUN_IMPORTED" } }), 3);
+});
+
+test("a re-check over rows with a Final Decision warns and writes nothing until confirmed", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  assert.ok((await importRun(owner, jobId, item.id, runFor("1"))).ok);
+  const rows = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  await decide(rows[1].id, owner.id);
+  await decide(rows[4].id, owner.id);
+  const before = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  const itemBefore = await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item.id } });
+
+  const warned = await importRun(owner, jobId, item.id, rerun("1", "ตรวจซ้ำ"));
+  assert.equal(warned.ok, false);
+  assert.ok(!warned.ok && warned.errors.some((e) => /ยืนยันแล้ว/.test(e)));
+  assert.deepEqual(!warned.ok && warned.confirmedRows, [rows[1], rows[4]].map((r) => ({ rowNumber: r.rowNumber, item: r.item })));
+  assert.deepEqual(await prisma.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } }), before);
+  assert.deepEqual(await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item.id } }), itemBefore);
   assert.equal(await prisma.socCheckRun.count({ where: { jobId } }), 1);
+  assert.equal(await prisma.socDocument.count({ where: { jobId, type: "RUN_OUTPUT" } }), 1);
+  assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: { in: ["RESULTS_REPLACED", "RUN_IMPORTED"] } } }), 1);
+  assert.equal((await readdir(path.join(storageRoot, jobId))).length, 3);
+
+  // A row decided after the warning wasn't agreed to, so it warns again.
+  await decide(rows[6].id, owner.id);
+  const recheck = (replaceConfirmed: number[]) => importLocalCheckRun(owner, {
+    jobId, majorItemId: item.id, results: rerun("1", "ตรวจซ้ำ"),
+    socCheck: { name: "SOC_Check.docx", bytes: SOC_CHECK }, run: MANUAL, replaceConfirmed,
+  });
+  const stale = await recheck([rows[1].rowNumber, rows[4].rowNumber]);
+  assert.equal(stale.ok, false);
+  assert.deepEqual(!stale.ok && stale.confirmedRows?.map((r) => r.rowNumber), [rows[1], rows[4], rows[6]].map((r) => r.rowNumber));
+  assert.equal(await prisma.socCheckRun.count({ where: { jobId } }), 1);
+
+  const confirmed = await recheck([rows[1], rows[4], rows[6]].map((r) => r.rowNumber));
+  assert.ok(confirmed.ok, JSON.stringify(confirmed));
+  const after = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id } });
+  assert.ok(after.every((r) => r.aiDetail === "ตรวจซ้ำ" && r.reviewedAt === null));
+  const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "RESULTS_REPLACED" } });
+  const detail = event.detail as { confirmedRows: unknown[]; rows: { id: string; finalDetail: string }[] };
+  assert.deepEqual(detail.confirmedRows, [rows[1], rows[4], rows[6]].map((r) => ({ rowNumber: r.rowNumber, item: r.item })));
+  assert.equal(detail.rows.find((r) => r.id === rows[1].id)?.finalDetail, "ยืนยันแล้ว");
+});
+
+test("the upload route answers 409 over confirmed rows, and 201 once the reviewer confirms", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  signedIn = owner;
+  assert.equal((await postImport(jobId, item.id, { results: JSON.stringify(runFor("1")), socCheck: SOC_CHECK })).status, 201);
+  const row = await prisma.socCheckResult.findFirstOrThrow({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  await decide(row.id, owner.id);
+
+  const warned = await postImport(jobId, item.id, { results: JSON.stringify(rerun("1", "ตรวจซ้ำ")), socCheck: SOC_CHECK });
+  assert.equal(warned.status, 409);
+  const body = (await warned.json()) as { errors: string[]; confirmedRows: { rowNumber: number; item: string }[] };
+  assert.deepEqual(body.confirmedRows, [{ rowNumber: row.rowNumber, item: row.item }]);
+
+  const confirmed = await postImport(jobId, item.id, { results: JSON.stringify(rerun("1", "ตรวจซ้ำ")), socCheck: SOC_CHECK, replaceConfirmed: String(row.rowNumber) });
+  assert.equal(confirmed.status, 201, JSON.stringify(await confirmed.clone().json()));
+  assert.equal((await prisma.socCheckResult.findUniqueOrThrow({ where: { jobId_rowNumber: { jobId, rowNumber: row.rowNumber } } })).aiDetail, "ตรวจซ้ำ");
+});
+
+test("of two re-checks racing for the same major item, only one is stored", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  assert.ok((await importRun(owner, jobId, item.id, runFor("1"))).ok);
+  const results = await Promise.all([importRun(owner, jobId, item.id, rerun("1", "ก")), importRun(owner, jobId, item.id, rerun("1", "ข"))]);
+  assert.deepEqual(results.map((r) => r.ok).sort(), [false, true]);
+  assert.equal(await prisma.socCheckRun.count({ where: { jobId } }), 2);
   assert.equal(await prisma.socCheckResult.count({ where: { jobId } }), 7);
+  assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: "RESULTS_REPLACED" } }), 1);
+  assert.equal((await readdir(path.join(storageRoot, jobId))).length, 4);
 });
 
 test("of two imports racing for the same major item, only one is stored", { skip }, async () => {
