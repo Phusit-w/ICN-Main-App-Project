@@ -11,9 +11,9 @@ type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 type Upload = { name: string; bytes: Uint8Array };
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_EVIDENCE_FILE_BYTES = 120 * 1024 * 1024;
 const MAX_EVIDENCE_TOTAL_BYTES = 250 * 1024 * 1024;
 const MAX_EVIDENCE_FILES = 10;
@@ -133,7 +133,7 @@ export async function addSocEvidence(actor: SocActor, job: { id: string; title: 
   }
 }
 
-function magicIsDocx(bytes: Uint8Array): boolean {
+export function magicIsDocx(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }
 

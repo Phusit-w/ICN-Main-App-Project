@@ -38,3 +38,15 @@ export function majorItemProgress(items: readonly { state: string }[]) {
   const checked = items.filter((item) => item.state === "checked").length;
   return { checked, total: items.length, percent: items.length ? Math.round((checked / items.length) * 100) : 0 };
 }
+
+export const SOC_RUN_SOURCE_LABELS: Record<string, string> = { manual: "นำเข้าด้วยมือ", runner: "SOC Runner" };
+
+// Thai labels for the values of an imported row's axes, as the skill's
+// SOC_Check document writes them (append_results_to_docx.py).
+export const SOC_AXIS_VALUE_LABELS: Record<string, string> = {
+  match: "ตรง", mismatch: "ไม่ตรง", not_found: "ไม่พบ", unverifiable: "ยืนยันไม่ได้", not_applicable: "ไม่เกี่ยวข้อง",
+  complete: "ครบ", partial: "บางส่วน",
+  fully_supported: "รองรับครบ", partially_supported: "รองรับบางส่วน", not_supported: "ไม่รองรับ", wording_conflict: "ถ้อยคำขัดกัน",
+  compliant: "ผ่าน", better: "ดีกว่า", non_compliant: "ไม่ผ่าน", mixed: "ผสม",
+  not_selected: "ไม่ได้เลือก", ambiguous: "กำกวม", both: "เลือกทั้งสอง",
+};

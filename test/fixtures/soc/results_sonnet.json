@@ -1,0 +1,778 @@
+{
+  "title": "SOC-Demo",
+  "audit_date": "2026-09-03",
+  "mode": "full_audit",
+  "options": [
+    "evidence_support",
+    "tor_decision"
+  ],
+  "engine": "orchestrator-prototype",
+  "backend": "claude-cli",
+  "model": "claude-cli:sonnet",
+  "skill_version": "sha256:66938c26cb0ed5ae",
+  "results": [
+    {
+      "row": 4,
+      "item": "๑.",
+      "item_normalized": "1",
+      "row_type": "section_heading_row",
+      "reference": "ระบบเฝ้าระวังพื้นที่ขนาดใหญ่ มีคุณลักษณะดังนี้",
+      "reference_check": "not_applicable",
+      "reference_detail": "section heading — no row-level evidence",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "not_applicable",
+      "item_label_check": "not_applicable",
+      "highlight_check": "not_applicable",
+      "highlight_evidence": "—",
+      "evidence_support": "unverifiable",
+      "evidence_detail": "—",
+      "tor_decision": "not_applicable",
+      "tor_decision_basis": "no TOR criterion on a heading row",
+      "verified_value": "—",
+      "tor_threshold": "—",
+      "tor_claim_results": [],
+      "declared_status": "not_selected",
+      "declared_status_check": "not_applicable",
+      "detail": "หัวข้อหมวด — ไม่มีเกณฑ์ให้ตัดสิน",
+      "confidence": "high"
+    },
+    {
+      "row": 5,
+      "item": "๑.๑",
+      "item_normalized": "1.1",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 1",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: 'Datasheet Demo, page 1' เป็นหน้าแนะนำผลิตภัณฑ์รุ่น CASRI-AP16-116-30 โดยตรง ระบุว่าเป็นกล้อง array หลายเลนส์ (14× 4K) ให้การครอบคลุมภาพพาโนรามาเต็มพื้นที่ ไร้จุดบอด, horizontal FOV ≥180°, vertical FOV ≥40°, ใช้งานในสนามบิน/เมือง ซึ่งรองรับข้อกำหนด 'อุปกรณ์ตรวจจับสำหรับพื้นที่ขนาดใหญ่' ได้ครบ ไม่มีหน้าส่วนเกินหรือหน้าขาด",
+      "heading_title_check": "not_applicable",
+      "product_identity": "match",
+      "content_relevance": "related",
+      "item_label_check": "not_applicable",
+      "highlight_check": "not_found",
+      "highlight_evidence": "ไม่พบ Highlight/annotation หรือ evidence_block ที่จับคู่กับข้อ 1.1 บนหน้า 1 แม้เนื้อหาในหน้าจะรองรับ claim — เป็นข้อบกพร่องเฉพาะการทำ Highlight ไม่กระทบผลอ้างอิง",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "TOR เป็นข้อกำหนดเชิงคุณสมบัติเดียว: อุปกรณ์ตรวจจับสำหรับพื้นที่ขนาดใหญ่. หน้า 1 ยืนยันว่า CASRI-AP16-116-30 เป็นกล้องหลายเลนส์แบบ integrated array ที่ให้ 'full-field coverage and zero-blind-spot multi-lens coordinated imaging', horizontal FOV ≥180°, vertical FOV ≥40°, 'full panoramic site coverage' และระบุการใช้งานกับ 'airport traffic and urban security' ครอบคลุม sub-claim ทั้ง 'อุปกรณ์ตรวจจับ' และ 'พื้นที่ขนาดใหญ่' บนหน้าที่อ้างโดยตรง",
+      "tor_decision": "compliant",
+      "tor_decision_basis": "TOR ไม่มี threshold เชิงตัวเลข เป็นข้อกำหนดเชิงคุณสมบัติว่าเป็นอุปกรณ์ตรวจจับสำหรับพื้นที่ขนาดใหญ่. หลักฐานหน้า 1 ยืนยันว่าอุปกรณ์เป็นกล้อง array หลายเลนส์ออกแบบมาเพื่อครอบคลุมพื้นที่ขนาดใหญ่แบบพาโนรามาไร้จุดบอด (FOV แนวนอน ≥180°, แนวตั้ง ≥40°) ใช้งานในสนามบิน/เมือง จึงถึงเกณฑ์ TOR. ผู้เสนอ tick ช่อง Comply สอดคล้องกับผล compliant. ไม่มีเกณฑ์เชิงปริมาณให้พิสูจน์ว่า 'ดีกว่า' จึงไม่ยกเป็น better",
+      "verified_value": "กล้อง multi-lens integrated array CASRI-AP16-116-30: 14× เลนส์ 4K, horizontal FOV ≥180°, vertical FOV ≥40°, full panoramic site coverage / zero blind spot, ระบุใช้งานกับ airport traffic และ urban security (หน้า 1)",
+      "tor_threshold": "ไม่มีเกณฑ์เชิงตัวเลข — ข้อกำหนดเชิงคุณสมบัติ: 'อุปกรณ์ตรวจจับสำหรับพื้นที่ขนาดใหญ่'",
+      "tor_claim_results": [],
+      "tor_values_cross_check": {
+        "ran": false,
+        "reason": "no fully-structured numeric claim from the model"
+      },
+      "declared_status": "compliant",
+      "declared_status_evidence": "tick in the Comply column",
+      "declared_status_check": "match",
+      "detail": "หน้าอ้างอิงและหลักฐานรองรับข้อกำหนดครบ แต่ไม่พบ Highlight กำกับข้อ 1.1 บนหน้า 1 — ควรเพิ่ม Highlight ระบุข้อความหลักฐาน",
+      "key_issue": "หน้าอ้างอิงและหลักฐานรองรับข้อกำหนดครบ แต่ไม่พบ Highlight กำกับข้อ 1.1 บนหน้า 1 — ควรเพิ่ม Highlight ระบุข้อความหลักฐาน",
+      "confidence": "medium",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 6,
+      "item": "๑.๑.๑",
+      "item_normalized": "1.1.1",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 2",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: Datasheet Demo p.2 ระบุ 'Acquisition Resolution: 116 million pixels' ตรง metric/ค่า/หน่วยกับข้อเสนอ (116 million pixel) รองรับ claim ความละเอียดของภาพครบ ไม่มีหน้าเกินหรือหน้าขาด",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "complete",
+      "highlight_evidence": "p.2 confident block (rule=same_y_row) เน้น 'Acquisition Resolution | 116 million pixels' อยู่แถวเดียวกับเลขข้อ 1.1.1 ครอบคลุม sub-claim เดียวที่บังคับของ TOR คือค่าความละเอียด",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "TOR: Resolution ≥ 70 ล้านพิกเซล ↔ ข้อเสนอ: 116 million pixel ↔ p.2: 'Acquisition Resolution: 116 million pixels'. จับคู่ metric=image_resolution, unit=million pixels, direction=minimum ได้ตรง ค่า 116 ยืนยันบนหน้าที่อ้างและถูก Highlight; ถ้อยคำ 'real-time panoramic video / capturing scene details' เป็นคำบรรยายเสริมที่ TOR ไม่บังคับ จึงไม่ลดระดับความครบ",
+      "tor_decision": "better",
+      "tor_decision_basis": "เกณฑ์ TOR เป็น minimum 70 ล้านพิกเซล 'หรือดีกว่า'. verified_value = 116 ล้านพิกเซล (Acquisition Resolution, p.2) สูงกว่าเกณฑ์อย่างมีนัยสำคัญและเป็น claim บังคับเดียว จึงเป็น 'better'. Declared selection = Better สอดคล้องกับผลตัดสิน  [compare_tor_values.py: unverifiable]",
+      "verified_value": "116 million pixels (Acquisition Resolution, Datasheet Demo p.2)",
+      "tor_threshold": "≥ 70 million pixels (minimum)",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "image_resolution",
+          "direction": "minimum",
+          "threshold": 70,
+          "threshold_unit": "million pixels",
+          "verified_metric": "image_resolution (Acquisition Resolution)",
+          "verified_value": 116,
+          "verified_unit": "million pixels",
+          "source_text": "Acquisition Resolution 116 million pixels",
+          "result": "better"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim"
+          }
+        ]
+      },
+      "declared_status": "better",
+      "declared_status_evidence": "tick in the Better column",
+      "declared_status_check": "match",
+      "detail": "ผ่านแบบดีกว่า: Acquisition Resolution 116 ล้านพิกเซล เกินเกณฑ์ 70 ล้านพิกเซล หลักฐานหน้า 2 ตรงและถูก Highlight; ช่อง Better ที่เลือกสอดคล้อง",
+      "key_issue": "ผ่านแบบดีกว่า: Acquisition Resolution 116 ล้านพิกเซล เกินเกณฑ์ 70 ล้านพิกเซล หลักฐานหน้า 2 ตรงและถูก Highlight; ช่อง Better ที่เลือกสอดคล้อง",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 7,
+      "item": "๑.๑.๕",
+      "item_normalized": "1.1.5",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 2",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: Datasheet Demo p.2 มีแถว 'Minimum Illumination — Color: 0.0001 Lux; B&W: 0.0001 Lux' รองรับทั้งสอง sub-claim (สี/ขาวดำ) ของข้อเสนอครบ ไม่มีหน้าเกินหรือหน้าขาด",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "complete",
+      "highlight_evidence": "confident block (same_y_row) label '1.1.5' ครอบคลุม 'Minimum Illumination | Color: 0.0001 Lux; B&W: 0.0001 Lux' ซึ่งเป็นทั้งสอง sub-claim ที่ TOR บังคับ (ค่า lux สี และ ขาวดำ); เงื่อนไข F1.2/AGC ON ไม่ได้ถูกเน้นแต่ TOR ไม่บังคับ",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "claim สี: TOR ≤0.13 lux — หลักฐาน 'Color: 0.0001 Lux' ที่ p.2 (metric=minimum_illumination_color, unit=lux) รองรับ. claim ขาวดำ: TOR ≤0.05 lux — หลักฐาน 'B&W: 0.0001 Lux' ที่ p.2 รองรับ. ทั้งสองค่าจับคู่ metric→ค่า→หน่วยตรง. เงื่อนไข F1.2 ปรากฏใน Lens Parameters (8mm/F1.2) และ auto gain ใน Image Processing บนหน้าเดียวกัน แต่ไม่ได้ระบุบนบรรทัด Minimum Illumination โดยตรง; TOR ไม่บังคับเงื่อนไขนี้",
+      "tor_decision": "better",
+      "tor_decision_basis": "TOR กำหนดสองเกณฑ์แบบ 'และ' ทิศทาง maximum: สี ≤0.13 lux, ขาวดำ ≤0.05 lux. ค่าที่ยืนยันได้บนหน้าอ้าง p.2 คือ 0.0001 lux ทั้งสองโหมด ผ่านทั้งสอง claim และต่ำกว่าเกณฑ์มาก (ประมาณ 1,300 เท่า และ 500 เท่า) จึงดีกว่าอย่างพิสูจน์ได้ ไม่มี claim ใดต่ำกว่าเกณฑ์หรือยืนยันไม่ได้. ช่อง Comply/Better ที่ผู้ยื่นติ๊ก 'better' สอดคล้องกับผลนี้. เงื่อนไข F1.2/AGC ON เป็นข้อมูลประกอบที่ TOR ไม่บังคับ จึงไม่ลดผล  [compare_tor_values.py: unverifiable; unverifiable]",
+      "verified_value": "Color: 0.0001 lux; Black/White: 0.0001 lux (Minimum Illumination, Datasheet Demo p.2)",
+      "tor_threshold": "Color ≤ 0.13 lux; Black/White ≤ 0.05 lux",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "minimum_illumination_color",
+          "direction": "maximum",
+          "threshold": "0.13",
+          "threshold_unit": "lux",
+          "verified_metric": "minimum_illumination_color",
+          "verified_value": "0.0001",
+          "verified_unit": "lux",
+          "source_text": "Minimum Illumination — Color: 0.0001 Lux (Datasheet Demo p.2)",
+          "result": "better"
+        },
+        {
+          "claim": "",
+          "metric": "minimum_illumination_bw",
+          "direction": "maximum",
+          "threshold": "0.05",
+          "threshold_unit": "lux",
+          "verified_metric": "minimum_illumination_bw",
+          "verified_value": "0.0001",
+          "verified_unit": "lux",
+          "source_text": "Minimum Illumination — B&W: 0.0001 Lux (Datasheet Demo p.2)",
+          "result": "better"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim"
+          }
+        ]
+      },
+      "declared_status": "better",
+      "declared_status_evidence": "tick in the Better column",
+      "declared_status_check": "match",
+      "detail": "ค่าความไวแสงที่ยืนยันได้ (0.0001 lux ทั้ง Color และ B&W) ต่ำกว่าเกณฑ์ TOR มาก (≤0.13 / ≤0.05 lux) จึงดีกว่าอย่างมีนัยสำคัญทั้งสอง claim; เงื่อนไข F1.2/AGC ON ไม่ได้ระบุบนบรรทัดหลักฐานโดยตรงแต่ TOR ไม่บังคับ",
+      "key_issue": "ค่าความไวแสงที่ยืนยันได้ (0.0001 lux ทั้ง Color และ B&W) ต่ำกว่าเกณฑ์ TOR มาก (≤0.13 / ≤0.05 lux) จึงดีกว่าอย่างมีนัยสำคัญทั้งสอง claim; เงื่อนไข F1.2/AGC ON ไม่ได้ระบุบนบรรทัดหลักฐานโดยตรงแต่ TOR ไม่บังคับ",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 8,
+      "item": "๑.๑.๙",
+      "item_normalized": "1.1.9",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 3",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: Datasheet Demo p.3 บรรทัด 'Network Functions' ระบุ IPv4/IPv6, HTTP, RTSP, RTCP, RTP, TCP/IP, UDP, DHCP รองรับทุกโปรโตคอลที่ TOR บังคับ (HTTP, RTSP, RTCP, RTP) และครอบคลุม UDP ที่ผู้เสนอเพิ่ม ไม่มีหน้าส่วนเกินหรือ claim ที่ขาด",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "complete",
+      "highlight_evidence": "confident block (same_y_row) label '1.1.9' ครอบคลุมบรรทัด Network Functions ทั้งบรรทัด รวม HTTP, RTSP, RTCP, RTP และ UDP จึงมาร์กครบทุก sub-claim บังคับของข้อเสนอ",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "TOR ต้องการอย่างน้อย HTTP และ RTSP และ RTCP และ RTP; หน้า p.3 ยืนยันครบทั้งสี่โปรโตคอลในบรรทัดเดียว (Network Functions) และยืนยัน UDP ที่ผู้เสนอระบุเพิ่ม ทุก claim ย่อยมีหลักฐานอิสระบนหน้าที่อ้างและถูก Highlight",
+      "tor_decision": "compliant",
+      "tor_decision_basis": "TOR เป็นรายการเชื่อม 'and' แบบขั้นต่ำ (ได้เป็นอย่างน้อย): ต้องรองรับ HTTP, RTSP, RTCP, RTP ทั้งหมด หลักฐาน p.3 ยืนยันครบทั้งสี่ ผู้เสนอเพิ่ม UDP ซึ่งพบในหลักฐานเช่นกันแต่เป็นส่วนเกินนอกเกณฑ์บังคับ ไม่ยกระดับเป็น better อย่างมีนัยสำคัญ สอดคล้องกับช่อง Comply ที่ผู้ยื่นติ๊ก compliant  [compare_tor_values.py: unverifiable]",
+      "verified_value": "Network Functions (p.3): HTTP, RTSP, RTCP, RTP รองรับครบ (รวมทั้ง UDP, TCP/IP, DHCP, IPv4/IPv6)",
+      "tor_threshold": "รองรับอย่างน้อย HTTP และ RTSP และ RTCP และ RTP",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "supported_network_protocols",
+          "direction": "minimum",
+          "threshold": "HTTP, RTSP, RTCP, RTP (ต้องครบทุกตัว)",
+          "threshold_unit": "protocol set",
+          "verified_metric": "Network Functions protocol list (p.3)",
+          "verified_value": "IPv4/IPv6, HTTP, RTSP, RTCP, RTP, TCP/IP, UDP, DHCP",
+          "verified_unit": "protocol set",
+          "source_text": "",
+          "result": "compliant"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          }
+        ]
+      },
+      "declared_status": "compliant",
+      "declared_status_evidence": "tick in the Comply column",
+      "declared_status_check": "match",
+      "detail": "หน้าอ้างอิงถูกต้อง หลักฐานและ Highlight รองรับครบทุกโปรโตคอลที่ TOR กำหนด",
+      "key_issue": "หน้าอ้างอิงถูกต้อง หลักฐานและ Highlight รองรับครบทุกโปรโตคอลที่ TOR กำหนด",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 9,
+      "item": "๑.๒.๓",
+      "item_normalized": "1.2.3",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, pages 4, 5",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: p.4 (Lens > Zoom: 40×) รองรับ optical zoom; p.5 (Digital Zoom: 16×) รองรับ digital zoom ทั้งสองหน้าที่อ้างถูกใช้และไม่มีหน้าส่วนเกิน",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "complete",
+      "highlight_evidence": "confident block เลขข้อ 1.2.3 ครอบคลุมทั้งสอง sub-claim: p.4 ทำ Highlight ค่า optical zoom 40× และ p.5 ทำ Highlight ค่า digital zoom 16×",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "TOR เป็นเงื่อนไข 'and' สองส่วน: digital zoom ≥12× พบ 'Digital Zoom: 16×' ที่ p.5; optical zoom ≥31× พบ 'Zoom: 40×' ใต้หมวด Lens ที่ p.4 ทั้งสอง claim มีหลักฐานรายหน้าครบและตรงกับข้อความผู้เสนอ (16x digital, 40x optical)",
+      "tor_decision": "better",
+      "tor_decision_basis": "ทั้งสอง claim บังคับผ่านเกณฑ์และเกินอย่างพิสูจน์ได้: digital zoom 16× > 12× (minimum), optical zoom 40× > 31× (minimum) ไม่มี claim ต่ำกว่าเกณฑ์หรือยืนยันไม่ได้ สอดคล้องกับช่อง Better ที่ผู้เสนอเลือก  [compare_tor_values.py: unverifiable; unverifiable]",
+      "verified_value": "digital zoom 16×; optical zoom 40×",
+      "tor_threshold": "digital zoom ≥ 12× และ optical zoom ≥ 31×",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "digital_zoom",
+          "direction": "minimum",
+          "threshold": "12",
+          "threshold_unit": "x",
+          "verified_metric": "digital_zoom",
+          "verified_value": "16",
+          "verified_unit": "x",
+          "source_text": "Digital Zoom 16× (page 5)",
+          "result": "better"
+        },
+        {
+          "claim": "",
+          "metric": "optical_zoom",
+          "direction": "minimum",
+          "threshold": "31",
+          "threshold_unit": "x",
+          "verified_metric": "optical_zoom",
+          "verified_value": "40",
+          "verified_unit": "x",
+          "source_text": "Lens > Zoom 40× (page 4)",
+          "result": "better"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim"
+          }
+        ]
+      },
+      "declared_status": "better",
+      "declared_status_evidence": "tick in the Better column",
+      "declared_status_check": "match",
+      "detail": "ผล Better: digital zoom 16× (เกิน 12×) และ optical zoom 40× (เกิน 31×) เกินเกณฑ์ TOR ทั้งสองส่วนของเงื่อนไข and",
+      "key_issue": "ผล Better: digital zoom 16× (เกิน 12×) และ optical zoom 40× (เกิน 31×) เกินเกณฑ์ TOR ทั้งสองส่วนของเงื่อนไข and",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 10,
+      "item": "๑.๓.๑",
+      "item_normalized": "1.3.1",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 6",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: Datasheet Demo p.6 ระบุ 'Max. Resolution 3840 (H) × 2160 (V)' และ 'Resolution 8M (3840 × 2160)' รองรับข้อความผู้เสนอ 'Image resolution: 3840(H)x2160(V)' ครบทุก claim ไม่มีหน้าส่วนเกินหรือหน้าขาด",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "complete",
+      "highlight_evidence": "confident block (same_y_row) label '1.3.1' เน้นค่า '3840 (H) × 2160 (V)' บน p.6 ตรงแถวหลักฐานความละเอียด ครอบคลุม claim เดียวที่ผู้เสนออ้าง",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "claim เดียวของผู้เสนอ (image resolution 3840(H)x2160(V)) ได้รับการยืนยันโดยตรงจาก 'Max. Resolution 3840 (H) × 2160 (V)' บนหน้าที่อ้าง (p.6) และมี Highlight กำกับ; ไม่มี sub-claim บังคับอื่นค้าง",
+      "tor_decision": "better",
+      "tor_decision_basis": "TOR เป็นเงื่อนไข OR: ไม่น้อยกว่า 2,560×1,920 px หรือไม่น้อยกว่า 4,915,200 px (สองรูปแบบของเกณฑ์เดียวกัน) direction=minimum. ค่าที่ยืนยันได้ 3840×2160 = 8,294,400 px ผ่านทั้งสองแกน (3840≥2560, 2160≥1920) และเกินเกณฑ์รวมราว 69% เป็นการดีกว่าอย่างพิสูจน์ได้ ไม่มี claim ต่ำกว่าเกณฑ์หรือยืนยันไม่ได้ สอดคล้องกับช่อง Better ที่ผู้เสนอเลือก  [compare_tor_values.py: unverifiable; unverifiable]",
+      "verified_value": "3840 × 2160 พิกเซล (8,294,400 pixel), จาก Max. Resolution บน Datasheet Demo p.6",
+      "tor_threshold": "ไม่น้อยกว่า 2,560×1,920 พิกเซล หรือไม่น้อยกว่า 4,915,200 pixel (minimum)",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "image_resolution_dimensions",
+          "direction": "minimum",
+          "threshold": "2560x1920",
+          "threshold_unit": "pixel",
+          "verified_metric": "Max. Resolution",
+          "verified_value": "3840x2160",
+          "verified_unit": "pixel",
+          "source_text": "",
+          "result": "better"
+        },
+        {
+          "claim": "",
+          "metric": "image_resolution_total_pixels",
+          "direction": "minimum",
+          "threshold": "4915200",
+          "threshold_unit": "pixel",
+          "verified_metric": "Max. Resolution (3840×2160)",
+          "verified_value": "8294400",
+          "verified_unit": "pixel",
+          "source_text": "",
+          "result": "better"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          }
+        ]
+      },
+      "declared_status": "better",
+      "declared_status_evidence": "tick in the Better column",
+      "declared_status_check": "match",
+      "detail": "ผล TOR = better: ความละเอียดที่ยืนยันได้ 3840×2160 (8.29 ล้านพิกเซล) สูงกว่าเกณฑ์ขั้นต่ำ 2,560×1,920 / 4,915,200 พิกเซล ทั้งสองแกน ตรงกับช่อง Better ที่เลือก",
+      "key_issue": "ผล TOR = better: ความละเอียดที่ยืนยันได้ 3840×2160 (8.29 ล้านพิกเซล) สูงกว่าเกณฑ์ขั้นต่ำ 2,560×1,920 / 4,915,200 พิกเซล ทั้งสองแกน ตรงกับช่อง Better ที่เลือก",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 11,
+      "item": "๒.๑",
+      "item_normalized": "2.1",
+      "row_type": "content_row",
+      "reference": "",
+      "reference_check": "not_found",
+      "reference_detail": "ช่องอ้างอิงว่าง ไม่มีเลขหน้าในแถวเนื้อหาที่ต้องมีหลักฐานรองรับ claim 'อุปกรณ์ระบุตำแหน่งผ่านดาวเทียม' จึงไม่สามารถตรวจชุดหน้าได้ ไม่มี candidate page เพราะไม่มีเอกสารหลักฐานแนบ",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "unverifiable",
+      "item_label_check": "unverifiable",
+      "highlight_check": "unverifiable",
+      "highlight_evidence": "ไม่มีเลขหน้าอ้างอิงและไม่มี evidence_block ที่จับคู่กับข้อ 2.1 จึงไม่สามารถตรวจ Highlight ได้",
+      "evidence_support": "unverifiable",
+      "evidence_detail": "TOR claim: มีอุปกรณ์ระบุตำแหน่งผ่านดาวเทียม (GNSS/satellite positioning). ข้อเสนอระบุรหัสรุ่น CATM/CATM-VT0101 แต่ไม่มีหน้าที่อ้างและไม่มีข้อความหลักฐานให้ผูกกับ claim จึงตามรอย TOR ↔ ข้อเสนอ ↔ หน้าอ้าง ↔ Highlight ไม่ได้",
+      "tor_decision": "unverifiable",
+      "tor_decision_basis": "ไม่มีหน้าอ้างอิงและไม่มีหลักฐานยืนยันว่า CATM-VT0101 ทำหน้าที่ระบุตำแหน่งผ่านดาวเทียมได้ การไม่มีหลักฐานใช้ unverifiable ไม่ใช่ non_compliant. Declared selection = compliant (tick ใน Comply) แต่เครื่องหมายที่ประกาศไว้ใช้เป็นหลักฐานไม่ได้ ต้องมีเอกสารรองรับ",
+      "verified_value": "—",
+      "tor_threshold": "functional requirement: อุปกรณ์ต้องมีความสามารถระบุตำแหน่งผ่านดาวเทียม (ไม่มีเกณฑ์เชิงตัวเลข)",
+      "tor_claim_results": [],
+      "tor_values_cross_check": {
+        "ran": false,
+        "reason": "no fully-structured numeric claim from the model"
+      },
+      "declared_status": "compliant",
+      "declared_status_evidence": "tick in the Comply column",
+      "declared_status_check": "mismatch",
+      "detail": "ช่องอ้างอิงว่าง ไม่มีเลขหน้า จึงตรวจไม่ได้ทุกแกนที่ต้องเปิดหน้า; ต้องเพิ่มหน้าอ้างอิง Datasheet/Catalog ของ CATM-VT0101 ที่แสดงฟังก์ชัน satellite positioning (GNSS) เพื่อยืนยัน",
+      "key_issue": "ช่องอ้างอิงว่าง ไม่มีเลขหน้า จึงตรวจไม่ได้ทุกแกนที่ต้องเปิดหน้า; ต้องเพิ่มหน้าอ้างอิง Datasheet/Catalog ของ CATM-VT0101 ที่แสดงฟังก์ชัน satellite positioning (GNSS) เพื่อยืนยัน",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 12,
+      "item": "๒.๒",
+      "item_normalized": "2.2",
+      "row_type": "content_row",
+      "reference": "",
+      "reference_check": "not_found",
+      "reference_detail": "ช่องอ้างอิงว่าง ไม่มีเลขหน้าใด ๆ สำหรับข้อ 2.2 ทั้งที่เป็น content_row ที่ต้องมีหลักฐานรองรับความสามารถระบบติดตามอากาศยาน ADS-B จึงไม่สามารถตรวจความครบของชุดหน้าได้ ไม่มี candidate page เพราะไม่ได้เปิดเอกสารหลักฐาน",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "unverifiable",
+      "item_label_check": "unverifiable",
+      "highlight_check": "unverifiable",
+      "highlight_evidence": "ไม่มีเลขหน้าอ้างอิงและไม่มี evidence_block ที่จับคู่กับข้อ 2.2 จึงยังไม่ได้ตรวจ Highlight",
+      "evidence_support": "unverifiable",
+      "evidence_detail": "TOR ต้องการระบบติดตามอากาศยาน Automatic Dependent Surveillance Broadcast (ADS-B) ข้อเสนอระบุรุ่น CATM/CATM-ADS-B01 แต่ไม่มีหน้าอ้างอิงหรือข้อความหลักฐานให้ตามรอย จึงผูก claim กับหลักฐานไม่ได้",
+      "tor_decision": "unverifiable",
+      "tor_decision_basis": "ไม่มีหน้าอ้างอิงและไม่มีหลักฐานยืนยันว่าผลิตภัณฑ์รองรับ ADS-B ตาม TOR การไม่มีหลักฐานใช้ unverifiable ไม่ใช่ non_compliant ช่อง Comply ถูกติกไว้เป็น compliant แต่ไม่มีหลักฐานประกอบการตัดสิน",
+      "verified_value": "—",
+      "tor_threshold": "ระบบต้องรองรับ Automatic Dependent Surveillance Broadcast (ADS-B) (เชิงคุณสมบัติ ไม่มีเกณฑ์ตัวเลข)",
+      "tor_claim_results": [],
+      "tor_values_cross_check": {
+        "ran": false,
+        "reason": "no fully-structured numeric claim from the model"
+      },
+      "declared_status": "compliant",
+      "declared_status_evidence": "tick in the Comply column",
+      "declared_status_check": "mismatch",
+      "detail": "ไม่มีเลขหน้าอ้างอิงในแถวนี้ ทุกแกนที่ต้องเปิดหน้าเป็น unverifiable ต้องเพิ่มหน้า Datasheet/Catalog ที่ยืนยันว่า CATM-ADS-B01 รองรับ ADS-B จึงจะตัดสิน TOR ได้",
+      "key_issue": "ไม่มีเลขหน้าอ้างอิงในแถวนี้ ทุกแกนที่ต้องเปิดหน้าเป็น unverifiable ต้องเพิ่มหน้า Datasheet/Catalog ที่ยืนยันว่า CATM-ADS-B01 รองรับ ADS-B จึงจะตัดสิน TOR ได้",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 13,
+      "item": "๓.๒",
+      "item_normalized": "3.2",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 10",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: น.10 มีหัวข้อ §3.5 'Route Simulation for the Apron Area' พร้อมอนุข้อ ① 'Simulate the aircraft's ground flight path on the E-Map of the aircraft landing area' และ ② 'Can simulate routes and set vehicle entry/exit restrictions' รองรับ claim ของ TOR (การจำลองเส้นทางในเขตลานจอด) ครบ ไม่มีหน้าเกินหรือ claim ขาด",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "complete",
+      "highlight_evidence": "confident block (rule=same_y_row, label '3.2') ครอบคลุมหัวข้อ '3.5 Route Simulation for the Apron Area ①' บนน.10 ตรงกับข้อเสนอซึ่งเป็น claim ระดับหัวข้อฟีเจอร์เดียว",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "TOR (การจำลองเส้นทางในเขตลานจอด) ↔ ข้อเสนอ (CATM Route Simulation for the Apron Area) ↔ น.10 §3.5 ชื่อหัวข้อตรงกันแบบ metric-match; อนุข้อ ① ยืนยันการจำลองเส้นทางการบินภาคพื้นของอากาศยานบน E-Map ของเขตลงจอด และ ② ยืนยันการจำลองเส้นทาง/กำหนดข้อจำกัดการเข้า-ออกของยานพาหนะ รองรับ claim เดียวที่ TOR บังคับครบถ้วน",
+      "tor_decision": "compliant",
+      "tor_decision_basis": "TOR เป็นข้อกำหนดเชิงคุณสมบัติ (feature presence) ไม่มีเกณฑ์ตัวเลขหรือทิศทางให้เทียบ; น.10 §3.5 ยืนยันการมีฟังก์ชันจำลองเส้นทางในเขตลานจอดบน E-Map ครบ จึงถึงเกณฑ์ TOR = compliant; ไม่มีหลักฐานยืนยันว่าดีกว่าอย่างมีนัยสำคัญจึงไม่ใช่ better; สอดคล้องกับช่อง Comply ที่ผู้ยื่นติ๊กไว้  [compare_tor_values.py: unverifiable]",
+      "verified_value": "Datasheet Demo น.10 §3.5 'Route Simulation for the Apron Area' — จำลองเส้นทางการบินภาคพื้นของอากาศยานบน E-Map ของพื้นที่ลงจอด, จำลองเส้นทางและตั้งข้อจำกัดการเข้า-ออกของยานพาหนะได้",
+      "tor_threshold": "Feature presence: การจำลองเส้นทางในเขตลานจอด (ไม่มีเกณฑ์เชิงตัวเลข)",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "apron_area_route_simulation_feature",
+          "direction": "exact",
+          "threshold": "present",
+          "threshold_unit": "boolean",
+          "verified_metric": "route_simulation_for_apron_area",
+          "verified_value": "present",
+          "verified_unit": "boolean",
+          "source_text": "",
+          "result": "met"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          }
+        ]
+      },
+      "declared_status": "compliant",
+      "declared_status_evidence": "tick in the Comply column",
+      "declared_status_check": "match",
+      "detail": "น.10 มีหัวข้อ §3.5 'Route Simulation for the Apron Area' ตรงกับข้อเสนอและรองรับ TOR โดยตรง; ผลตรงกับช่อง Comply ที่ติ๊กไว้",
+      "key_issue": "น.10 มีหัวข้อ §3.5 'Route Simulation for the Apron Area' ตรงกับข้อเสนอและรองรับ TOR โดยตรง; ผลตรงกับช่อง Comply ที่ติ๊กไว้",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 14,
+      "item": "๓.๓.๑",
+      "item_normalized": "3.3.1",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 9",
+      "reference_check": "match",
+      "reference_detail": "หน้า 9 ที่อ้างถึงมีหัวข้อย่อย b) 'Stand number / stand entry or exit time information (By connecting with data of the stand management system)' ซึ่งตรงประเด็น claim หลักเรื่องเวลาอากาศยานเข้า/ออกหลุมจอด จึงถือว่าหน้าอ้างถูกต้องตามเนื้อหา (ไม่ลดเป็น mismatch เพราะปมอยู่ที่ถ้อยคำ ไม่ใช่หน้าอ้าง). ข้อสังเกต: ส่วน claim 'สถานะหลุมจอดสลับอัตโนมัติแบบเรียลไทม์โดยไม่ต้องดำเนินการเอง' ไม่ปรากฏบนหน้า 9 และไม่พบ candidate page อื่น",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "partial",
+      "highlight_evidence": "confident block ของเลขข้อ 3.3.1 (rule=same_y_row) บนหน้า 9 ครอบคลุมข้อความ item a) Flight number และ b) 'stand entry or exit time information (By connecting with data of the stand management system)'. ยังขาด: (1) ข้อความที่ mark ใช้คำเชื่อม 'or' ไม่ใช่ 'and' ตามที่ TOR กำหนด; (2) ไม่มี Highlight/ข้อความรองรับ claim 'สถานะหลุมจอดสลับอัตโนมัติแบบเรียลไทม์ ไม่ต้องทำมือ'",
+      "evidence_support": "wording_conflict",
+      "evidence_detail": "TOR กำหนดให้แสดงเวลาที่อากาศยาน 'เข้าและออก' จากหลุมจอด (เข้า AND ออก). หลักฐานเดียวบนหน้า 9 ระบุ 'stand entry or exit time information' ใช้คำเชื่อม 'or'. ผู้เสนอเขียนข้อเสนอเป็น 'stand entry and exit time information' ซึ่งไม่ตรงกับถ้อยคำในหลักฐานที่อ้าง = wording_conflict (and vs or). นอกจากนี้ claim เสริมเรื่องการสลับสถานะหลุมจอดอัตโนมัติแบบเรียลไทม์โดยไม่ต้องดำเนินการเอง ไม่มีหลักฐานรองรับบนหน้าที่อ้าง",
+      "tor_decision": "non_compliant",
+      "tor_decision_basis": "หลักฐาน confident (block 3.3.1) บนหน้า 9 ระบุ 'stand entry or exit time information' ใช้ 'or' จึงไม่รับประกันการแสดงเวลาทั้ง 'เข้า' และ 'ออก' ตามถ้อยคำ TOR (เข้าและออก); ตามกติกา connective conflict (TOR 'and' vs evidence 'or') = non_compliant ไม่ใช่ compliant. Declared selection = compliant (tick ช่อง Comply) แต่หลักฐานที่อ้างไม่รองรับถ้อยคำ 'และ' และไม่รองรับส่วนขยายเรื่องสลับสถานะอัตโนมัติ. ไม่มี candidate page มายกระดับผล  [compare_tor_values.py: unverifiable; unverifiable]",
+      "verified_value": "stand entry or exit time information (By connecting with data of the stand management system) — page 9",
+      "tor_threshold": "สามารถแสดงข้อมูลเวลาที่อากาศยานเข้า 'และ' ออกจากหลุมจอด (ต้องครอบคลุมทั้งเวลาเข้าและเวลาออก)",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "stand_entry_exit_time_display",
+          "direction": "exact",
+          "threshold": "entry AND exit time information",
+          "threshold_unit": "capability",
+          "verified_metric": "stand_entry_exit_time_display",
+          "verified_value": "entry OR exit time information",
+          "verified_unit": "capability",
+          "source_text": "",
+          "result": "wording_conflict"
+        },
+        {
+          "claim": "",
+          "metric": "realtime_auto_status_switch",
+          "direction": "exact",
+          "threshold": "not required by TOR (offered extra claim)",
+          "threshold_unit": "capability",
+          "verified_metric": "realtime_auto_status_switch",
+          "verified_value": "no supporting text on cited page 9",
+          "verified_unit": "capability",
+          "source_text": "",
+          "result": "unverifiable"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          }
+        ]
+      },
+      "declared_status": "compliant",
+      "declared_status_evidence": "tick in the Comply column",
+      "declared_status_check": "mismatch",
+      "detail": "หลักฐานหน้า 9 ระบุ 'stand entry or exit time information' (or) แต่ TOR ต้องการ 'เข้าและออก' และข้อเสนอแก้เป็น 'and' — connective conflict → non_compliant; claim สลับสถานะหลุมจอดอัตโนมัติเรียลไทม์ไม่มีหลักฐานบนหน้าที่อ้าง; Highlight ครอบคลุมไม่ครบทุก sub-claim",
+      "key_issue": "หลักฐานหน้า 9 ระบุ 'stand entry or exit time information' (or) แต่ TOR ต้องการ 'เข้าและออก' และข้อเสนอแก้เป็น 'and' — connective conflict → non_compliant; claim สลับสถานะหลุมจอดอัตโนมัติเรียลไทม์ไม่มีหลักฐานบนหน้าที่อ้าง; Highlight ครอบคลุมไม่ครบทุก sub-claim",
+      "confidence": "medium",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 15,
+      "item": "๔.๓.๓",
+      "item_normalized": "4.3.3",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 11",
+      "reference_check": "mismatch",
+      "reference_detail": "missing_reference: หน้า 11 เป็นตาราง Technical specifications ของเครื่อง (H3C 2U, AMD EPYC 9005). ส่วน Storage ระบุเพียงความสามารถรองรับ 'Up to 41 2.5-inch SATA/SAS hard drives', 'Up to 20 3.5-inch SATA/SAS hard drives', 'Up to 28 U.2 NVMe SSDs', 'Up to 2 SATA/NVMe M.2'. รองรับเฉพาะชนิดอินเทอร์เฟซ SAS/SATA และการมี SSD เท่านั้น. ไม่มีค่า claim ที่จำเป็น: ความเร็วรอบ 10,000 รอบ/นาที, ความจุ HDD 2.4 TB, ความจุ SSD 960 GB, และจำนวน 4+4 หน่วย. ไม่พบ candidate page อื่นในหลักฐานที่ให้มา.",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "partial",
+      "highlight_evidence": "หน้า 11 มีเลขข้อ 4.3.3 พิมพ์อยู่สองบรรทัด (SAS 10,000 รอบ/นาที 2.4 TB 4 หน่วย และ Solid State Drive 960 GB 4 หน่วย) และ evidence_blocks สถานะ confident ผูกเลขข้อทั้งสองเข้ากับบรรทัด Storage '2.5-inch SATA/SAS hard drives'. Highlight ครอบเฉพาะบรรทัดชนิดไดรฟ์ SATA/SAS เท่านั้น ไม่ได้ทำเครื่องหมายค่าความเร็วรอบ ความจุ HDD/SSD หรือจำนวนหน่วย เพราะค่าเหล่านั้นไม่ปรากฏบนหน้า.",
+      "evidence_support": "partially_supported",
+      "evidence_detail": "TOR/ข้อเสนอมี 4 sub-claim บังคับ: (1) ชนิด SCSI/SAS/SATA — รองรับ: หน้า 11 ระบุ 2.5-inch SATA/SAS hard drives; (2) ความเร็วรอบ ≥ 10,000 รอบ/นาที — ไม่รองรับ: ไม่มีค่า RPM บนหน้า; (3) ความจุ HDD ≥ 2 TB (เสนอ 2.4 TB) — ไม่รองรับ: ไม่มีค่าความจุไดรฟ์บนหน้า; (4) ชนิด SSD ≥ 900 GB (เสนอ 960 GB) จำนวน ≥ 4 หน่วย — รองรับเฉพาะการมี SSD (U.2 NVMe / SATA M.2) แต่ไม่มีความจุ 960 GB และไม่มีการยืนยันจำนวน 4+4 หน่วย (หน้าระบุเพียง 'up to' ของช่องใส่ไดรฟ์). สรุป: รองรับเฉพาะชนิดอินเทอร์เฟซ/การมี SSD; ค่าเชิงตัวเลขที่บังคับทั้งหมดไม่มีหลักฐานบนหน้าที่อ้าง.",
+      "tor_decision": "unverifiable",
+      "tor_decision_basis": "หน้าที่อ้าง (p.11) เป็นสเปกความสามารถของเครื่อง ไม่ใช่การยืนยันคอนฟิกไดรฟ์จริง จึงยืนยันไม่ได้ว่าไดรฟ์ที่เสนอมีความเร็วรอบ 10,000 รอบ/นาที, ความจุ HDD 2.4 TB, ความจุ SSD 960 GB และจำนวน 4+4 หน่วยตามที่ TOR บังคับ. ไม่มีหลักฐานที่ขัดแย้งกับ TOR (ชนิดไดรฟ์ SAS/SATA อยู่ในขอบเขตที่ TOR ยอมรับ) จึงเป็น unverifiable ไม่ใช่ non_compliant. ช่องที่ประกาศไว้คือ Better แต่หลักฐานบนหน้าที่อ้างไม่สามารถพิสูจน์แม้แต่ระดับ compliant ได้ จึงยังยืนยันสถานะ Better ไม่ได้.  [compare_tor_values.py: unverifiable; unverifiable; unverifiable; unverifiable; unverifiable]",
+      "verified_value": "หน้า 11 ยืนยันเฉพาะ: รองรับ 2.5-inch SATA/SAS hard drives (up to 41), 3.5-inch SATA/SAS (up to 20), U.2 NVMe SSDs (up to 28), SATA/NVMe M.2 (up to 2). ไม่มีค่า: ความเร็วรอบไดรฟ์, ความจุ HDD (2.4 TB), ความจุ SSD (960 GB), จำนวนไดรฟ์ที่ติดตั้งจริง (4 + 4).",
+      "tor_threshold": "ความเร็วรอบ ≥ 10,000 รอบ/นาที; ความจุ HDD ≥ 2 TB; ชนิด SSD ความจุ ≥ 900 GB; จำนวน ≥ 4 หน่วย; ชนิดอินเทอร์เฟซ SCSI หรือ SAS หรือ SATA",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "drive_interface_type",
+          "direction": "exact",
+          "threshold": "SCSI or SAS or SATA",
+          "threshold_unit": "type",
+          "verified_metric": "supported drive interface",
+          "verified_value": "2.5-inch SATA/SAS hard drives; U.2 NVMe / SATA M.2 SSDs",
+          "verified_unit": "type",
+          "source_text": "",
+          "result": "supported"
+        },
+        {
+          "claim": "",
+          "metric": "hdd_spindle_speed",
+          "direction": "minimum",
+          "threshold": "10000",
+          "threshold_unit": "rpm",
+          "verified_metric": "spindle speed on cited page",
+          "verified_value": "not stated",
+          "verified_unit": "rpm",
+          "source_text": "",
+          "result": "unverifiable"
+        },
+        {
+          "claim": "",
+          "metric": "hdd_capacity",
+          "direction": "minimum",
+          "threshold": "2",
+          "threshold_unit": "TB",
+          "verified_metric": "HDD capacity on cited page",
+          "verified_value": "not stated",
+          "verified_unit": "TB",
+          "source_text": "",
+          "result": "unverifiable"
+        },
+        {
+          "claim": "",
+          "metric": "ssd_capacity",
+          "direction": "minimum",
+          "threshold": "900",
+          "threshold_unit": "GB",
+          "verified_metric": "SSD capacity on cited page",
+          "verified_value": "not stated",
+          "verified_unit": "GB",
+          "source_text": "",
+          "result": "unverifiable"
+        },
+        {
+          "claim": "",
+          "metric": "drive_quantity",
+          "direction": "minimum",
+          "threshold": "4",
+          "threshold_unit": "units",
+          "verified_metric": "installed drive count on cited page",
+          "verified_value": "not stated (only 'up to' bay counts)",
+          "verified_unit": "units",
+          "source_text": "",
+          "result": "unverifiable"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          }
+        ]
+      },
+      "declared_status": "better",
+      "declared_status_evidence": "tick in the Better column",
+      "declared_status_check": "mismatch",
+      "detail": "Datasheet p.11 ยืนยันเฉพาะการรองรับชนิดไดรฟ์ SATA/SAS และการมี SSD เท่านั้น ไม่มีค่าความเร็วรอบ 10,000 รอบ/นาที, ความจุ HDD 2.4 TB, ความจุ SSD 960 GB หรือจำนวน 4+4 หน่วย จึงยืนยัน TOR ไม่ได้ (unverifiable); reference_check=mismatch เพราะ claim เชิงตัวเลขบังคับทั้งหมดไม่ปรากฏบนหน้าที่อ้าง และไม่พบ candidate page; highlight ครอบเฉพาะบรรทัดชนิดไดรฟ์; สถานะ Better ที่ประกาศยังไม่มีหลักฐานรองรับ.",
+      "key_issue": "Datasheet p.11 ยืนยันเฉพาะการรองรับชนิดไดรฟ์ SATA/SAS และการมี SSD เท่านั้น ไม่มีค่าความเร็วรอบ 10,000 รอบ/นาที, ความจุ HDD 2.4 TB, ความจุ SSD 960 GB หรือจำนวน 4+4 หน่วย จึงยืนยัน TOR ไม่ได้ (unverifiable); reference_check=mismatch เพราะ claim เชิงตัวเลขบังคับทั้งหมดไม่ปรากฏบนหน้าที่อ้าง และไม่พบ candidate page; highlight ครอบเฉพาะบรรทัดชนิดไดรฟ์; สถานะ Better ที่ประกาศยังไม่มีหลักฐานรองรับ.",
+      "confidence": "high",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    },
+    {
+      "row": 16,
+      "item": "4.8.2.6",
+      "item_normalized": "4.8.2.6",
+      "row_type": "content_row",
+      "reference": "Datasheet Demo, page 12",
+      "reference_check": "match",
+      "reference_detail": "complete_reference: Datasheet Demo p.12, Table 24 (Display specifications). Offered config '400 nits + 1920 x 1200 + 16\"' maps uniquely to the 'Option four' column (Option five is also 400 nits but 2560 x 1600). That column lists Diagonal 406.46 mm (16.00 in.) and Display-panel native resolution 1920 x 1200, covering both TOR sub-claims (resolution and size). No extra/missing pages; no candidate pages needed.",
+      "heading_title_check": "not_applicable",
+      "product_identity": "not_applicable",
+      "content_relevance": "related",
+      "item_label_check": "match",
+      "highlight_check": "partial",
+      "highlight_evidence": "Confident block (rule=same_y_row) ties label '4.8.2.6' to the 'Option four' column on p.12, so the correct option is identified. However the marking captures only the 'Option four' column label, not the individual value cells for native resolution (1920 x 1200) or Diagonal (16.00 in.); the mandatory numeric sub-claims are on the page but not independently highlighted.",
+      "evidence_support": "fully_supported",
+      "evidence_detail": "Both mandatory sub-claims independently covered on the cited page for Option four: (1) native resolution 1920 x 1200 >= TOR 1920 x 1080 on both axes; (2) Diagonal 406.46 mm / 16.00 in. >= TOR 14 in. Offered text (400 nits, 1920 x 1200, 16\") maps unambiguously to Option four. Non-mandatory extras (400 nits luminance) also match. Only gap is highlight granularity, which affects highlight_check, not evidence coverage.",
+      "tor_decision": "better",
+      "tor_decision_basis": "TOR is 'A and B': resolution >= 1920 x 1080 AND diagonal size >= 14 in. Verified at p.12 Option four: resolution 1920 x 1200 (width meets threshold exactly, height 1200 exceeds 1080) and diagonal 16.00 in exceeds the 14 in minimum. All mandatory claims pass, at least one axis (size, and resolution height) provably exceeds the TOR, and none is below threshold or unverifiable -> better. Declared selection 'better' is consistent with this result.  [compare_tor_values.py: unverifiable; unverifiable; unverifiable]",
+      "verified_value": "Diagonal 406.46 mm (16.00 in.); display-panel native resolution 1920 x 1200 (Table 24, Option four, p.12)",
+      "tor_threshold": "Resolution >= 1,920 x 1,080 pixel AND display diagonal size >= 14 in",
+      "tor_claim_results": [
+        {
+          "claim": "",
+          "metric": "display_resolution_width",
+          "direction": "minimum",
+          "threshold": "1920",
+          "threshold_unit": "pixel",
+          "verified_metric": "display-panel native resolution width (Option four)",
+          "verified_value": "1920",
+          "verified_unit": "pixel",
+          "source_text": "",
+          "result": "compliant"
+        },
+        {
+          "claim": "",
+          "metric": "display_resolution_height",
+          "direction": "minimum",
+          "threshold": "1080",
+          "threshold_unit": "pixel",
+          "verified_metric": "display-panel native resolution height (Option four)",
+          "verified_value": "1200",
+          "verified_unit": "pixel",
+          "source_text": "",
+          "result": "better"
+        },
+        {
+          "claim": "",
+          "metric": "display_diagonal_size",
+          "direction": "minimum",
+          "threshold": "14",
+          "threshold_unit": "inch",
+          "verified_metric": "Diagonal (Option four)",
+          "verified_value": "16.00",
+          "verified_unit": "inch",
+          "source_text": "",
+          "result": "better"
+        }
+      ],
+      "tor_values_cross_check": {
+        "ran": true,
+        "claims": [
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          },
+          {
+            "claim": "",
+            "result": "unverifiable",
+            "detail": "missing structured fields: claim, source_text"
+          }
+        ]
+      },
+      "declared_status": "better",
+      "declared_status_evidence": "tick in the Better column",
+      "declared_status_check": "match",
+      "detail": "Datasheet p.12 lists five display options; offered config pins to 'Option four' via its unique 400 nits + 1920 x 1200 combination, confirmed by the confident item-label block. Highlight marks only the 'Option four' column label, not the resolution/diagonal value cells (highlight_check partial). TOR met and exceeded (16 in > 14 in; 1200 > 1080) -> better, matching the declared selection.",
+      "key_issue": "Datasheet p.12 lists five display options; offered config pins to 'Option four' via its unique 400 nits + 1920 x 1200 combination, confirmed by the confident item-label block. Highlight marks only the 'Option four' column label, not the resolution/diagonal value cells (highlight_check partial). TOR met and exceeded (16 in > 14 in; 1200 > 1080) -> better, matching the declared selection.",
+      "confidence": "medium",
+      "recommendation_note": "System Recommendation — awaiting human Final Decision"
+    }
+  ]
+}

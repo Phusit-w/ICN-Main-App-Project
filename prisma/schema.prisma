@@ -138,6 +138,7 @@ model User {
   socAuditEvents             SocAuditEvent[]
   socMajorItemsRequested     SocMajorItem[]  @relation("SocMajorItemRequestedBy")
   socMajorItemsRan           SocMajorItem[]  @relation("SocMajorItemRanBy")
+  socCheckRunsImported       SocCheckRun[]
   expenseRecords             ExpenseRecord[] @relation("ExpenseOwner")
   auditEvents                AuditLog[]      @relation("AuditActor")
   targetedAuditEvents        AuditLog[]      @relation("AuditTarget")
@@ -173,6 +174,7 @@ model SocJob {
   results      SocCheckResult[]
   auditEvents  SocAuditEvent[]
   majorItems   SocMajorItem[]
+  checkRuns    SocCheckRun[]
 
   @@index([ownerId, updatedAt])
   @@index([status, createdAt])
@@ -181,17 +183,20 @@ model SocJob {
 }
 
 model SocDocument {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   jobId        String
-  job          SocJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  type         String // "SOC" | "EVIDENCE" | "OUTPUT" | "PREVIEW"
+  job          SocJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  // "SOC" | "EVIDENCE" | "OUTPUT" | "PREVIEW" | "RUN_OUTPUT" (the SOC_Check
+  // document of one Local Check Run)
+  type         String
   originalName String
-  storageKey   String   @unique
+  storageKey   String        @unique
   mimeType     String
   sizeBytes    Int
   checksum     String
   pageCount    Int?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
+  checkRuns    SocCheckRun[]
 
   @@index([jobId, type])
 }
@@ -200,34 +205,60 @@ model SocDocument {
 // from the SOC's top-level item numbers (lib/soc-major-items.ts). One Local
 // Check Run covers one major item.
 model SocMajorItem {
-  id               String    @id @default(cuid())
+  id               String           @id @default(cuid())
   jobId            String
-  job              SocJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job              SocJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
   key              String // item number in Arabic digits, e.g. "1"
   label            String // as written in the SOC, e.g. "๑"
   title            String?
   position         Int
   // not_checked | requested | running | paused_quota | needs_documents | checked | failed
-  state            String    @default("not_checked")
+  state            String           @default("not_checked")
+  // Of the latest Local Check Run.
   skillVersion     String?
   model            String?
+  runSource        String? // "manual" | "runner"
   lastRunAt        DateTime?
   requestedById    String?
-  requestedBy      User?     @relation("SocMajorItemRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  requestedBy      User?            @relation("SocMajorItemRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   ranById          String?
-  ranBy            User?     @relation("SocMajorItemRanBy", fields: [ranById], references: [id], onDelete: SetNull)
+  ranBy            User?            @relation("SocMajorItemRanBy", fields: [ranById], references: [id], onDelete: SetNull)
   missingDocuments Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  checkRuns        SocCheckRun[]
+  results          SocCheckResult[]
 
   @@unique([jobId, key])
   @@index([jobId, position])
 }
 
+// One imported Local Check Run (ADR 0008): the results of one major item,
+// written only by lib/soc-import.ts.
+model SocCheckRun {
+  id           String           @id @default(cuid())
+  jobId        String
+  job          SocJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  majorItemId  String
+  majorItem    SocMajorItem     @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
+  source       String // "manual" | "runner"
+  skillVersion String
+  model        String
+  documentId   String // the run's SOC_Check document (SocDocument type RUN_OUTPUT)
+  document     SocDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  rowCount     Int
+  importedById String?
+  importedBy   User?            @relation(fields: [importedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  results      SocCheckResult[]
+
+  @@index([majorItemId, createdAt])
+}
+
 model SocCheckResult {
-  id                     String    @id @default(cuid())
+  id                     String        @id @default(cuid())
   jobId                  String
-  job                    SocJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job                    SocJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
   rowNumber              Int
   item                   String
   rowType                String
@@ -250,6 +281,29 @@ model SocCheckResult {
   verdictReason          String?
   semanticEngineVersion  String?
   benchmarkVersion       String?
+  // Imported rows (ADR 0008). The skill's reference_check, heading_title_check,
+  // product_identity, content_relevance, detail and confidence go to the ai*
+  // columns above; the other full-mode axes are stored here, and `rawResult`
+  // keeps the row exactly as results.json gave it.
+  majorItemId            String?
+  majorItem              SocMajorItem? @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
+  runId                  String?
+  run                    SocCheckRun?  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  referenceDetail        String?
+  itemLabelCheck         String?
+  highlightCheck         String?
+  highlightEvidence      String?
+  evidenceSupport        String?
+  evidenceDetail         String?
+  torDecision            String?
+  torDecisionBasis       String?
+  verifiedValue          String?
+  torThreshold           String?
+  torClaimResults        Json?
+  declaredStatus         String?
+  declaredStatusCheck    String?
+  keyIssue               String?
+  rawResult              Json?
   finalReferenceCheck    String
   finalHeadingTitleCheck String
   finalProductIdentity   String
@@ -257,11 +311,12 @@ model SocCheckResult {
   finalDetail            String
   reviewedById           String?
   reviewedAt             DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   @@unique([jobId, rowNumber])
   @@index([jobId, finalReferenceCheck])
+  @@index([majorItemId])
 }
 
 model SocAuditEvent {
@@ -320,75 +375,75 @@ model WorkerHeartbeat {
 // `budgetVerified: false` until a person confirms it (never shown as
 // authoritative before that — see CONTEXT.md's Budget entry).
 model ProjectCard {
-  id                 String    @id @default(cuid())
+  id                           String    @id @default(cuid())
   // The client-prefixed sequence number (e.g. `NT004`, `PEA012`) that
   // identifies a project across `_BID`'s Contract/Work Certificate
   // collections — see CONTEXT.md's Project Code entry. Replaces the old
   // full-archive crawl's folderPath as the card's identity, since a `_BID`
   // project routinely has two paths (contract + certificate), not one.
-  projectCode        String    @unique
-  client             String
-  projectName        String
+  projectCode                  String    @unique
+  client                       String
+  projectName                  String
   // Bilingual so a query in either language can match (ADR: Project Card
   // plain full-text search — see docs/adr/0004).
-  descriptionTh      String
-  descriptionEn      String
+  descriptionTh                String
+  descriptionEn                String
   // What the Description was written from: tor | proposal | contract | name
   // (pushed), or manual once a person edits it in the popup — after which a
   // push never overwrites it (CONTEXT.md's Description Source entry). Null
   // while the card has no Description. Values: DESCRIPTION_SOURCES in
   // lib/project-card-taxonomy.ts.
-  descriptionSource  String?
+  descriptionSource            String?
   // UNC path to the project's Contract / Work Certificate under `_BID`
   // (CONTEXT.md's Folder Path entry; the third is projectFolderPath). Either
   // may be null when the project has no such document.
-  contractPath       String?
-  certificatePath    String?
+  contractPath                 String?
+  certificatePath              String?
   // UNC path to the project's own folder in the wider archive (`_Project …`
   // on `PS`) — CONTEXT.md's Project Folder entry. Null when the project has
   // none or nobody is sure which folder it is; never a guess.
-  projectFolderPath  String?
+  projectFolderPath            String?
   // THB. Decimal(15,2) rather than ExpenseRecord's (12,2): some USO/telecom
   // projects run into the billions.
-  budgetAmount       Decimal?  @db.Decimal(15, 2)
+  budgetAmount                 Decimal?  @db.Decimal(15, 2)
   // Which document the Budget figure came from — "certificate" when a Work
   // Certificate exists (the authoritative source), "contract" when it was
   // read from the Contract instead (CONTEXT.md's Budget entry: the card
   // must label this so the two are never presented as the same kind of
   // number). Null when there's no Budget figure at all.
-  budgetSource       String?
+  budgetSource                 String?
   // As the source document states it — "included" | "excluded" |
   // "unspecified" — never normalized across projects (CONTEXT.md's VAT
   // Status entry).
-  vatStatus          String?
+  vatStatus                    String?
   // Free text for what one number can't say: a joint-venture's total
   // alongside the smaller share used as the Budget, subcontract context,
   // or why no figure was found (CONTEXT.md's Budget Note entry). "" (not
   // null) when there's nothing to add — same non-nullable-string
   // convention as descriptionTh/descriptionEn above.
-  budgetNote         String    @default("")
-  budgetVerified     Boolean   @default(false)
-  budgetVerifiedAt   DateTime?
-  budgetVerifiedById String?
-  budgetVerifiedBy   User?     @relation("ProjectCardBudgetVerifier", fields: [budgetVerifiedById], references: [id], onDelete: SetNull)
+  budgetNote                   String    @default("")
+  budgetVerified               Boolean   @default(false)
+  budgetVerifiedAt             DateTime?
+  budgetVerifiedById           String?
+  budgetVerifiedBy             User?     @relation("ProjectCardBudgetVerifier", fields: [budgetVerifiedById], references: [id], onDelete: SetNull)
   // The year the project's Contract was signed (CONTEXT.md's Year entry) —
   // not a delivery date or certificate issue date.
-  year               Int?
+  year                         Int?
   // Technology area: a ProjectCardTerm `value` of kind "category"
   // (CONTEXT.md's Category / Tag entries): exactly one Category per card
   // once classified, plus any further areas as Tags. Null / empty until a
   // batch classifies the card.
-  category           String?
-  tags               String[]  @default([])
+  category                     String?
+  tags                         String[]  @default([])
   // How ICN delivered the project: ProjectCardTerm values of kind
   // "workType" (CONTEXT.md's Work Type entry). Empty until classified.
-  workTypes          String[]  @default([])
+  workTypes                    String[]  @default([])
   // Set when a person changes Category/Tags/Work Types in the popup, so a later push
   // never overwrites their classification (CONTEXT.md's Description Source
   // entry: person edits are never overwritten).
-  classificationEditedByPerson Boolean @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  classificationEditedByPerson Boolean   @default(false)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 
   @@index([client])
   @@index([category])

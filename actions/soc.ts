@@ -22,6 +22,8 @@ export async function updateSocResult(input: {
 }) {
   const { actor, job } = await authorizeSocJob(input.jobId);
   if (job.status !== "NEEDS_REVIEW") throw new Error("งานนี้ไม่ได้อยู่ในขั้นตรวจทาน");
+  // An imported job's Final Decision is set on the new review page (ticket 08).
+  if (job.kind === "IMPORTED") throw new Error("งานนำเข้าผลยังแก้ผลตรวจทีละรายการไม่ได้");
   if (!isCheckStatus(input.referenceCheck) || !isHeadingStatus(input.headingTitleCheck)) throw new Error("สถานะผลตรวจไม่ถูกต้อง");
   const detail = input.detail.trim();
   if (!detail || detail.length > 2000) throw new Error("กรุณาระบุรายละเอียดไม่เกิน 2,000 ตัวอักษร");

@@ -25,7 +25,7 @@
 | 02 | Measure accuracy + quota on a real SOC | – | ready-for-human |
 | 03 | node:test harness | 01 | done |
 | 04 | Imported SOC Check + major items | 01, 03 | done |
-| 05 | Import one Local Check Run (seam 1) | 04 | ready-for-agent |
+| 05 | Import one Local Check Run (seam 1) | 04 | done |
 | 06 | Re-check a major item | 05 | ready-for-agent |
 | 07 | Prototype the review page | – | ready-for-human |
 | 08 | New review page | 05, 07 | ready-for-agent |
