@@ -16,7 +16,7 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 ## Comments
 
 **2026-10-06 (done).** Commits 42933e8 (harness) and the follow-up review-fix commit after it, on `codex-wip/admin-soc-2026-08-28`.
-Ticket 01 was still `ready-for-human`, so this went onto the WIP branch. Only new files plus `package.json` and `.gitignore` were committed, by explicit path, so cherry-picking them onto the feature branch from 01 is clean.
+Committed before 01 was done. 01 then branched `feature/soc-reviewer-run-check` from this same HEAD, so both commits are already on the feature branch.
 
 - `npm test` runs `node --test` with no test library. Node 24 strips types itself. `test/resolve-ts.mjs` handles the `@/` alias, extensionless relative imports, and `next/*` (adds `.js`).
 - `test/global-setup.mjs` creates one `test_run_*` schema per run on `TEST_DATABASE_URL` (local only, from `.env.test`), runs `prisma migrate deploy` into it, and drops it at the end. `test/register.mjs` binds `@/lib/prisma` to that schema, so code under test needs no changes.

@@ -4,7 +4,7 @@
 
 ## How to continue in a new session
 
-1. `/clear`, or open a new session in `Main_Project_Build_App`.
+1. `/clear`, or open a new session in `Main_Project_Build_App`. Work on branch **`feature/soc-reviewer-run-check`**.
 2. Say: **`/implement .scratch/soc-reviewer-run-check/issues/<NN>-....md`**. Pick the first ticket on the board
    below that is `ready-for-agent` and whose blockers are all `done`.
 3. The agent reads the ticket, `spec.md`, ADR 0008 and `docs/SOC-DOMAIN-GLOSSARY.md`. Everything it needs is
@@ -21,9 +21,9 @@
 
 | # | Ticket | Blocked by | Status |
 |---|---|---|---|
-| 01 | Settle the WIP baseline | – | ready-for-human |
+| 01 | Settle the WIP baseline | – | done |
 | 02 | Measure accuracy + quota on a real SOC | – | ready-for-human |
-| 03 | node:test harness | 01 | done (on WIP branch; see ticket) |
+| 03 | node:test harness | 01 | done |
 | 04 | Imported SOC Check + major items | 01, 03 | ready-for-agent |
 | 05 | Import one Local Check Run (seam 1) | 04 | ready-for-agent |
 | 06 | Re-check a major item | 05 | ready-for-agent |

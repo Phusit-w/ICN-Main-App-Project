@@ -24,7 +24,7 @@ npm run soc:worker
 
 เปิดอีก terminal แล้วรัน `npm run dev` เข้าระบบที่ `/login` และเปิด `/soc` แม้ development proxy จะไม่บังคับ login แต่ฟีเจอร์ SOC ต้องมี session เพื่อกำหนดเจ้าของไฟล์
 
-ทดสอบ worker ด้วย `npm run soc:test`
+ทดสอบ worker ด้วย `npm run soc:test` ส่วนเทสต์ TypeScript ของเว็บรันด้วย `npm test` ดูวิธีตั้งค่าฐานข้อมูลเทสต์ใน [SOC-TESTING.md](SOC-TESTING.md)
 
 ## Deploy ด้วย Docker
 
