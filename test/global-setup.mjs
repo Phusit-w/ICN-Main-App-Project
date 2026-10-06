@@ -4,8 +4,12 @@
 // the end. Test-file processes inherit TEST_DATABASE_SCHEMA from here.
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { SCHEMA_PREFIX, testDatabaseUrl } from "./db-config.mjs";
+import { SCHEMA_PREFIX, SCHEMA_PREFIX_LIKE, quoteIdent, testDatabaseUrl } from "./db-config.mjs";
+
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const PRISMA_CLI = fileURLToPath(new URL("../node_modules/prisma/build/index.js", import.meta.url));
 
 /** @param {(client: pg.Client) => Promise<void>} fn */
 async function withClient(fn) {
@@ -20,7 +24,7 @@ async function withClient(fn) {
 
 /** @param {pg.Client} client @param {string[]} names */
 async function dropSchemas(client, names) {
-  for (const name of names) await client.query(`DROP SCHEMA IF EXISTS "${name}" CASCADE`);
+  for (const name of names) await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(name)} CASCADE`);
 }
 
 export async function globalSetup() {
@@ -35,19 +39,21 @@ export async function globalSetup() {
   await withClient(async (client) => {
     const stale = await client.query(
       "SELECT schema_name AS name FROM information_schema.schemata WHERE schema_name LIKE $1",
-      [`${SCHEMA_PREFIX}%`],
+      [SCHEMA_PREFIX_LIKE],
     );
     await dropSchemas(client, stale.rows.map((r) => r.name));
   });
 
   const migrateUrl = new URL(url);
   migrateUrl.searchParams.set("schema", schema);
-  const result = spawnSync(process.execPath, ["node_modules/prisma/build/index.js", "migrate", "deploy"], {
+  const result = spawnSync(process.execPath, [PRISMA_CLI, "migrate", "deploy"], {
+    cwd: ROOT,
     env: { ...process.env, DATABASE_URL: migrateUrl.toString() },
     encoding: "utf8",
+    timeout: 120_000,
   });
   if (result.status !== 0) {
-    throw new Error(`prisma migrate deploy into ${schema} failed:\n${result.stdout}\n${result.stderr}`);
+    throw new Error(`prisma migrate deploy into ${schema} failed:\n${result.error ?? ""}\n${result.stdout}\n${result.stderr}`);
   }
 
   process.env.TEST_DATABASE_SCHEMA = schema;

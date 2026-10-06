@@ -34,5 +34,10 @@ export async function resolve(specifier, context, nextResolve) {
     const found = withTsExtension(target);
     if (found) return nextResolve(found.href, context);
   }
+  // `next` has no package.json "exports", so Node's ESM loader needs the file
+  // extension that webpack/tsc add for us: `next/cache` → `next/cache.js`.
+  if (/^next\/[\w/-]+$/.test(specifier)) {
+    return nextResolve(`${specifier}.js`, context);
+  }
   return nextResolve(specifier, context);
 }

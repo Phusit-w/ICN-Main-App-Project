@@ -39,35 +39,52 @@ npm.cmd test
 - รัน `npm test` หนึ่งครั้ง จะได้ schema ใหม่ของตัวเองบน `TEST_DATABASE_URL` ชื่อ `test_run_<เวลา>_<สุ่ม>`
   `test/global-setup.mjs` สร้าง schema นี้แล้วรัน `prisma migrate deploy` ลงไป และลบทิ้งเมื่อรันจบ
   schema `test_run_*` ที่ค้างจากรอบที่ถูก kill กลางทาง จะถูกลบตอนเริ่มรอบถัดไป
-- เทสต์ไม่อ่าน `.env` เลย และ `test/register.mjs` ลบ `DATABASE_URL` ออกจาก environment
-  ก่อนโหลดโค้ดของแอป
+- process ที่รันเทสต์ไม่โหลด `.env` และ `test/register.mjs` เขียนทับ `DATABASE_URL` ด้วย address ที่เชื่อมต่อไม่ได้
+  ก่อนโหลดโค้ดของแอป เทสต์ที่ลืมใส่ `{ skip }` จึง error ทันที ไม่หลุดไปเขียนฐานข้อมูลจริง
+  (ยกเว้นตอน `prisma migrate deploy` ที่ `prisma.config.ts` โหลด `.env` เอง แต่ไม่ทับ `DATABASE_URL` ที่ harness ส่งให้)
 - `TEST_DATABASE_URL` ต้องชี้ไปที่ `localhost`/`127.0.0.1` เท่านั้น ถ้าชี้ไปเครื่องอื่น เช่น server จริง
-  harness จะปฏิเสธทันที
+  harness จะปฏิเสธทันที (ใส่ `?host=`/`?hostaddr=` เพื่อเลี่ยงก็ไม่ได้)
 
 ## เขียนเทสต์ที่ใช้ฐานข้อมูล
 
 `test/register.mjs` ผูก `@/lib/prisma` เข้ากับ schema ของรอบนั้นไว้ก่อนที่ไฟล์เทสต์ใดๆ จะโหลด
 ดังนั้นโค้ดที่ถูกเทสต์ (server action, route handler, store) ใช้ฐานข้อมูลเทสต์ได้เลย ไม่ต้องแก้โค้ดของแอป
-ล้างข้อมูลด้วย `resetDatabase()` ใน `beforeEach` แล้วสร้างข้อมูลที่เทสต์ต้องใช้เอง
+เรียก `setupTestDatabase()` ครั้งเดียวที่หัวไฟล์ ฟังก์ชันนี้จะล้างทุกตารางก่อนแต่ละเทสต์ และคืนค่า `skip`
+ไว้ใส่ให้เทสต์ที่ต้องใช้ฐานข้อมูล จากนั้นแต่ละเทสต์สร้างข้อมูลที่ต้องใช้เอง
 ดูตัวอย่างได้ที่ `test/harness.test.ts`
 
 ```ts
-import { test, beforeEach } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@/lib/prisma";
-import { hasTestDatabase, resetDatabase } from "@/test/db";
+import { setupTestDatabase } from "@/test/db";
 
-const skip = hasTestDatabase() ? false : "TEST_DATABASE_URL not set — see docs/SOC-TESTING.md";
-
-beforeEach(async () => {
-  if (hasTestDatabase()) await resetDatabase();
-});
+const skip = setupTestDatabase();
 
 test("…", { skip }, async () => {
   await prisma.socJob.create({ data: { /* … */ } });
   // เรียกโค้ดที่ต้องการเทสต์ผ่าน interface ภายนอก แล้ว assert ผลลัพธ์
 });
 ```
+
+## โค้ดที่ import `next/*`
+
+import `next/server`, `next/cache`, `next/headers`, `next/navigation` ได้ตามปกติ (resolve hook เติม `.js` ให้)
+`NextResponse` ใช้ได้เลย แต่ API ที่ต้องอยู่ใน request ของ Next เช่น `revalidatePath()`, `cookies()` และ `redirect()`
+จะ throw เมื่อเรียกนอก request ให้ stub ด้วย `t.mock.module(...)` **ก่อน** dynamic-import โมดูลที่จะเทสต์
+(`npm test` เปิด `--experimental-test-module-mocks` ไว้แล้ว)
+
+```ts
+test("…", { skip }, async (t) => {
+  t.mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
+  const { importLocalCheckRun } = await import("@/actions/soc");
+  // …
+});
+```
+
+ไฟล์ `.tsx` (JSX) โหลดในเทสต์ไม่ได้ เพราะ Node ตัดได้แค่ type แต่แปลง JSX ไม่ได้ ให้เทสต์ผ่าน action, route handler หรือ `lib/`
+
+## Model ใหม่
 
 ถ้าเทสต์ต้องเพิ่ม model ใหม่ ให้สร้าง migration ตามปกติก่อน (`npx prisma migrate dev`)
 `npm test` รอบถัดไปจะ migrate schema ใหม่ให้เอง

@@ -4,9 +4,11 @@ import { register } from "node:module";
 
 register("./resolve-ts.mjs", import.meta.url);
 
-// Tests never read .env, but drop DATABASE_URL anyway (e.g. one exported in
-// the shell) so app code can't fall back to the dev/prod database.
-delete process.env.DATABASE_URL;
+// Test processes never load .env, but a DATABASE_URL exported in the shell
+// would still reach lib/prisma.ts. Replace it with an address that can't
+// resolve, so a DB test that forgot `{ skip }` fails loudly instead of
+// reaching dev/prod or pg's localhost:5432 default.
+process.env.DATABASE_URL = "postgres://no-test-database.invalid:1/none";
 
 // Inside test-file processes the global setup has already created and
 // migrated this run's schema; bind `@/lib/prisma` to it before any test
