@@ -28,10 +28,66 @@ export const CHECK_LABELS: Record<string, string> = {
 // Major item (ข้อใหญ่) check states of an Imported SOC Check. "confirmed" is
 // not stored: an item shows as confirmed once every row has a Final Decision.
 export const SOC_MAJOR_ITEM_STATE_LABELS: Record<string, string> = {
-  not_checked: "ยังไม่ตรวจ", requested: "รอเครื่องของผู้ขอ", running: "กำลังตรวจ",
-  paused_quota: "หยุดชั่วคราว", needs_documents: "ขาดเอกสาร", checked: "ตรวจแล้ว",
-  failed: "ตรวจไม่สำเร็จ", confirmed: "ยืนยันแล้ว",
+  not_checked: "ยังไม่ตรวจ", requested: "รอคิวตรวจ", running: "กำลังตรวจ",
+  paused_quota: "หยุดชั่วคราว", needs_login: "รอเข้าสู่ระบบ Claude", needs_documents: "ขาดเอกสาร",
+  checked: "ตรวจแล้ว", failed: "ตรวจไม่สำเร็จ", confirmed: "ยืนยันแล้ว",
 };
+
+// Check Requests (ticket 13). An open request belongs to its major item until
+// it is done, cancelled or closed with needs_documents/failed; the item's
+// state mirrors it. A user may ask for a check when the item is in one of
+// SOC_REQUESTABLE_ITEM_STATES.
+export const SOC_CHECK_REQUEST_OPEN_STATES = ["requested", "running", "paused_quota", "needs_login"] as const;
+export const SOC_REQUESTABLE_ITEM_STATES = ["not_checked", "checked", "failed", "needs_documents"] as const;
+export const isOpenCheckRequestState = (state: string) => (SOC_CHECK_REQUEST_OPEN_STATES as readonly string[]).includes(state);
+export const isRequestableItemState = (state: string) => (SOC_REQUESTABLE_ITEM_STATES as readonly string[]).includes(state);
+
+// A running request returns to `requested` when its runner has shown no sign
+// of life (claim, report or heartbeat) for this long.
+export const SOC_CHECK_REQUEST_STALE_MS = 2 * 60 * 1000;
+
+// The open request on a major item, as the job page shows it.
+export type SocCheckRequestView = {
+  id: string; state: string; requestedById: string; requestedByName: string;
+  // The requester's SOC Runner, or null when they have no active link.
+  runnerState: SocRunnerState | null;
+  progressNote: string | null; resumeAt: string | null;
+};
+
+// "HH:MM" in Thai time, the same on the server and in the browser.
+export function socClockTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Bangkok" });
+}
+
+// A major item's state in Thai, for the viewer: the label, plus a detail line
+// when there is one. "รอเครื่องของคุณเปิด" when the requester's runner is off.
+export function majorItemStateText(
+  item: { state: string; missingDocuments?: readonly string[] | null; failureReason?: string | null; request?: SocCheckRequestView | null },
+  viewerId: string,
+): { label: string; detail: string | null } {
+  const request = item.request ?? null;
+  const self = !request || request.requestedById === viewerId;
+  const machine = `เครื่องของ${self ? "คุณ" : ` ${request.requestedByName}`}`;
+  switch (item.state) {
+    case "requested":
+      if (request && request.runnerState !== "online") {
+        return { label: `รอ${machine}เปิด`, detail: request.runnerState ? null : `${self ? "คุณ" : request.requestedByName}ยังไม่ได้เชื่อม SOC Runner` };
+      }
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.requested, detail: request ? `บน${machine}` : null };
+    case "running":
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.running, detail: request?.progressNote ?? null };
+    case "paused_quota":
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.paused_quota, detail: request?.resumeAt ? `จะตรวจต่อประมาณ ${socClockTime(request.resumeAt)}` : "รอโควตา Claude กลับมา" };
+    case "needs_login":
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.needs_login, detail: `SOC Runner บน${machine}ต้องเข้าสู่ระบบ Claude ใหม่` };
+    case "needs_documents":
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.needs_documents, detail: item.missingDocuments?.length ? `ไม่มีไฟล์: ${item.missingDocuments.join(", ")}` : null };
+    case "failed":
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.failed, detail: item.failureReason ?? null };
+    default:
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state, detail: null };
+  }
+}
 
 // "ตรวจแล้ว checked/total ข้อใหญ่" on the /soc list and the job page.
 export function majorItemProgress(items: readonly { state: string }[]) {

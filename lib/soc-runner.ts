@@ -91,6 +91,8 @@ export function parseSocRunnerHeartbeat(body: unknown): SocRunnerHeartbeat | nul
 }
 
 // Records a heartbeat on an active link. Not audited: it arrives every 30 s.
+// A runner that reported needs_login is marked logged_out until a heartbeat
+// says logged_in again; claims wait meanwhile.
 // Throws "UNAUTHORIZED" when the link was revoked since it was authenticated.
 export async function recordSocRunnerHeartbeat(linkId: string, heartbeat: SocRunnerHeartbeat) {
   const lastSeenAt = new Date();
@@ -99,6 +101,9 @@ export async function recordSocRunnerHeartbeat(linkId: string, heartbeat: SocRun
     data: { lastSeenAt, runnerVersion: heartbeat.runnerVersion, claudeLogin: heartbeat.claudeLogin },
   });
   if (count === 0) throw new Error("UNAUTHORIZED");
+  // A heartbeat keeps this runner's running Check Request from going stale
+  // (releaseStaleCheckRequests in lib/soc-check-requests.ts).
+  await prisma.socCheckRequest.updateMany({ where: { claimedByLinkId: linkId, state: "running" }, data: { lastSeenAt } });
   return { lastSeenAt };
 }
 

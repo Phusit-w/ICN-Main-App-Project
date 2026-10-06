@@ -40,7 +40,7 @@ The program installed on a reviewer's machine. It takes only that reviewer's che
 _Avoid_: worker, agent, bot
 
 **Check Request**:
-A reviewer's click to check one major item, or a whole SOC, in an Imported SOC Check. It belongs to that reviewer, and only that reviewer's SOC Runner may carry it out.
+A reviewer's click to check one major item, or a whole SOC, in an Imported SOC Check. It belongs to that reviewer, and only that reviewer's SOC Runner may carry it out. A whole-SOC click makes one Check Request per unchecked major item, and a major item has at most one open Check Request at a time (see `docs/SOC-RUNNER.md`).
 _Avoid_: job (a job is the whole SOC)
 
 **Imported SOC Check**:

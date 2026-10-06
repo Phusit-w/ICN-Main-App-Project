@@ -8,11 +8,12 @@
 // whole file and nothing is written.
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
-import type { Prisma } from "@/lib/generated/prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSocFile } from "@/lib/soc";
 import { majorItemKey } from "@/lib/soc-major-items";
+import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
 
@@ -26,6 +27,9 @@ export type LocalCheckRunInput = {
   // was warned about and agreed to replace ("แทนที่แถวที่ยืนยันแล้ว"). A row
   // decided after the warning isn't in the list, so it warns again.
   replaceConfirmed?: number[];
+  // Runner submissions only: the Check Request this run carries out. It must
+  // be running; it is closed as done in the same transaction.
+  checkRequest?: { id: string; requestedById: string; acknowledgedMissing: string[] };
 };
 
 export type ConfirmedRow = { rowNumber: number; item: string };
@@ -159,6 +163,10 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
 
   const errors: string[] = [];
   if (job.kind !== "IMPORTED") errors.push("นำเข้าผลได้เฉพาะงานตรวจแบบนำเข้าผล");
+  const openStates: readonly string[] = SOC_CHECK_REQUEST_OPEN_STATES;
+  if (!input.checkRequest && openStates.includes(item.state)) {
+    errors.push(`ข้อ ${item.label} มีคำขอตรวจด้วย SOC Runner ที่ยังไม่เสร็จ ยกเลิกคำขอก่อนนำเข้าผลด้วยมือ`);
+  }
   const skillVersion = input.run.skillVersion.trim().slice(0, 200);
   const model = input.run.model.trim().slice(0, 200);
   if (!skillVersion) errors.push("กรุณาระบุเวอร์ชันของ skill ที่ใช้ตรวจ");
@@ -174,18 +182,33 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   const documentId = randomUUID();
   const stored = await storeSocFile(job.id, input.socCheck.name, ".docx", input.socCheck.bytes);
   const source = input.run.source;
-  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: validated.rows.length, source, skillVersion, model, documentId };
+  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: validated.rows.length, source, skillVersion, model, documentId, ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}) };
   let replacedRowCount = 0;
   try {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       // Claiming the item first locks its row. Every import moves lastRunAt,
       // so of two imports racing for the same item only one gets past here.
+      // A manual import can't land while a Check Request is open on the item;
+      // a runner's lands only while its request is running.
+      const request = input.checkRequest;
       const claimed = await tx.socMajorItem.updateMany({
-        where: { id: item.id, lastRunAt: item.lastRunAt },
-        data: { state: "checked", skillVersion, model, runSource: source, lastRunAt: now, ranById: actor.id },
+        where: { id: item.id, lastRunAt: item.lastRunAt, state: request ? "running" : { notIn: [...SOC_CHECK_REQUEST_OPEN_STATES] } },
+        data: {
+          state: "checked", skillVersion, model, runSource: source, lastRunAt: now, ranById: actor.id,
+          requestedById: request?.requestedById ?? null,
+          // Documents the requester chose to check without (the missing-documents banner).
+          missingDocuments: request?.acknowledgedMissing.length ? request.acknowledgedMissing : Prisma.DbNull,
+        },
       });
       if (claimed.count !== 1) throw new Error(RACED);
+      if (request) {
+        const closed = await tx.socCheckRequest.updateMany({
+          where: { id: request.id, majorItemId: item.id, state: "running" },
+          data: { state: "done", runId, finishedAt: now, progressNote: null },
+        });
+        if (closed.count !== 1) throw new Error(RACED);
+      }
       replacedRowCount = await replacePreviousRows(tx, { jobId: job.id, actorId: actor.id, item, runId, replaceConfirmed: input.replaceConfirmed ?? [] });
       await tx.socDocument.create({ data: { id: documentId, jobId: job.id, type: "RUN_OUTPUT", mimeType: DOCX_MIME, ...stored } });
       await tx.socCheckRun.create({

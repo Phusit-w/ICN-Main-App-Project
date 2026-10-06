@@ -142,6 +142,7 @@ model User {
   socSkillPackagesUploaded   SocSkillPackage[]
   socRunnerLinks             SocRunnerLink[]   @relation("SocRunnerLinkUser")
   socRunnerLinksRevoked      SocRunnerLink[]   @relation("SocRunnerLinkRevokedBy")
+  socCheckRequests           SocCheckRequest[]
   expenseRecords             ExpenseRecord[]   @relation("ExpenseOwner")
   auditEvents                AuditLog[]        @relation("AuditActor")
   targetedAuditEvents        AuditLog[]        @relation("AuditTarget")
@@ -151,33 +152,34 @@ model User {
 // A durable SOC audit job. PostgreSQL doubles as the low-volume work queue:
 // the worker atomically claims QUEUED rows and advances the status/progress.
 model SocJob {
-  id           String           @id @default(cuid())
-  title        String
+  id            String            @id @default(cuid())
+  title         String
   // "CHECK" = checked by soc-worker on the server (legacy). "IMPORTED" = an
   // Imported SOC Check (ADR 0008): results come from Local Check Runs, it
   // starts in NEEDS_REVIEW and soc-worker never claims it.
-  kind         String           @default("CHECK")
-  ownerId      String
-  owner        User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  status       String           @default("DRAFT")
-  stage        String           @default("รอเริ่มงาน")
-  progress     Int              @default(0)
-  errorMessage String?
-  expiresAt    DateTime
-  confirmedAt  DateTime?
-  completedAt  DateTime?
-  deletedAt    DateTime?
-  deletedById  String?
-  purgeAfter   DateTime?
-  restoredAt   DateTime?
-  purgedAt     DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  documents    SocDocument[]
-  results      SocCheckResult[]
-  auditEvents  SocAuditEvent[]
-  majorItems   SocMajorItem[]
-  checkRuns    SocCheckRun[]
+  kind          String            @default("CHECK")
+  ownerId       String
+  owner         User              @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  status        String            @default("DRAFT")
+  stage         String            @default("รอเริ่มงาน")
+  progress      Int               @default(0)
+  errorMessage  String?
+  expiresAt     DateTime
+  confirmedAt   DateTime?
+  completedAt   DateTime?
+  deletedAt     DateTime?
+  deletedById   String?
+  purgeAfter    DateTime?
+  restoredAt    DateTime?
+  purgedAt      DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  documents     SocDocument[]
+  results       SocCheckResult[]
+  auditEvents   SocAuditEvent[]
+  majorItems    SocMajorItem[]
+  checkRuns     SocCheckRun[]
+  checkRequests SocCheckRequest[]
 
   @@index([ownerId, updatedAt])
   @@index([status, createdAt])
@@ -208,29 +210,32 @@ model SocDocument {
 // from the SOC's top-level item numbers (lib/soc-major-items.ts). One Local
 // Check Run covers one major item.
 model SocMajorItem {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   jobId            String
-  job              SocJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job              SocJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
   key              String // item number in Arabic digits, e.g. "1"
   label            String // as written in the SOC, e.g. "๑"
   title            String?
   position         Int
-  // not_checked | requested | running | paused_quota | needs_documents | checked | failed
-  state            String           @default("not_checked")
+  // not_checked | requested | running | paused_quota | needs_login |
+  // needs_documents | checked | failed. While a Check Request is open it
+  // mirrors that request's state.
+  state            String            @default("not_checked")
   // Of the latest Local Check Run.
   skillVersion     String?
   model            String?
   runSource        String? // "manual" | "runner"
   lastRunAt        DateTime?
   requestedById    String?
-  requestedBy      User?            @relation("SocMajorItemRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  requestedBy      User?             @relation("SocMajorItemRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   ranById          String?
-  ranBy            User?            @relation("SocMajorItemRanBy", fields: [ranById], references: [id], onDelete: SetNull)
+  ranBy            User?             @relation("SocMajorItemRanBy", fields: [ranById], references: [id], onDelete: SetNull)
   missingDocuments Json?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   checkRuns        SocCheckRun[]
   results          SocCheckResult[]
+  checkRequests    SocCheckRequest[]
 
   @@unique([jobId, key])
   @@index([jobId, position])
@@ -326,18 +331,19 @@ model SocCheckResult {
 // admin (ADR 0008, lib/soc-skill-package.ts). The stored file is the package
 // as served to SOC Runners: the upload plus the headless step-0 instruction.
 model SocSkillPackage {
-  id             String           @id @default(cuid())
-  version        String           @unique
+  id             String            @id @default(cuid())
+  version        String            @unique
   originalName   String
-  storageKey     String           @unique // under SOC_STORAGE_ROOT/skill-packages/
+  storageKey     String            @unique // under SOC_STORAGE_ROOT/skill-packages/
   sizeBytes      Int
   checksum       String // sha256 of the served package
   sourceChecksum String // sha256 of the file the admin uploaded
   rootDir        String // folder holding SKILL.md inside the zip, "" or "<name>/"
   uploadedById   String?
-  uploadedBy     User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  createdAt      DateTime         @default(now())
+  uploadedBy     User?             @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
   current        SocCurrentSkill?
+  checkRequests  SocCheckRequest[]
 
   @@index([createdAt])
 }
@@ -356,11 +362,11 @@ model SocCurrentSkill {
 // kept. A user has at most one active link (revokedAt null): downloading
 // again revokes the previous one ("replaced"); an admin may revoke ("admin").
 model SocRunnerLink {
-  id            String    @id @default(cuid())
+  id            String            @id @default(cuid())
   userId        String
-  user          User      @relation("SocRunnerLinkUser", fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash     String    @unique
-  createdAt     DateTime  @default(now())
+  user          User              @relation("SocRunnerLinkUser", fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String            @unique
+  createdAt     DateTime          @default(now())
   // From the latest heartbeat; null until the runner first reports.
   lastSeenAt    DateTime?
   runnerVersion String?
@@ -368,10 +374,52 @@ model SocRunnerLink {
   revokedAt     DateTime?
   revokeReason  String? // "replaced" | "admin"
   revokedById   String?
-  revokedBy     User?     @relation("SocRunnerLinkRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedBy     User?             @relation("SocRunnerLinkRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  checkRequests SocCheckRequest[]
 
   @@index([userId, revokedAt])
   @@index([createdAt])
+}
+
+// A Check Request (ADR 0008, ticket 13): a user's click to check one major
+// item. Only the requester's own SOC Runner may claim it. Open states:
+// requested | running | paused_quota | needs_login. Closed: needs_documents |
+// failed | done | cancelled. See lib/soc-check-requests.ts.
+model SocCheckRequest {
+  id                  String           @id @default(cuid())
+  jobId               String
+  job                 SocJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  majorItemId         String
+  majorItem           SocMajorItem     @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
+  requestedById       String
+  requestedBy         User             @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  state               String           @default("requested")
+  // The major item's state before the request, restored on cancel.
+  priorState          String
+  // Row numbers with a Final Decision the requester agreed to replace (re-check).
+  replaceConfirmed    Int[]            @default([])
+  // Missing documents the requester chose to check without (ticket 15).
+  acknowledgedMissing String[]         @default([])
+  claimedByLinkId     String?
+  claimedByLink       SocRunnerLink?   @relation(fields: [claimedByLinkId], references: [id], onDelete: SetNull)
+  claimedAt           DateTime?
+  // Last sign of life from the claiming runner: claim, report or heartbeat.
+  lastSeenAt          DateTime?
+  // The Skill Package served for this request, pinned at claim.
+  skillPackageId      String?
+  skillPackage        SocSkillPackage? @relation(fields: [skillPackageId], references: [id], onDelete: SetNull)
+  progressNote        String?
+  resumeAt            DateTime?
+  missingDocuments    String[]         @default([])
+  failureReason       String?
+  runId               String?
+  finishedAt          DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([requestedById, state, createdAt])
+  @@index([majorItemId, createdAt])
+  @@index([state, lastSeenAt])
 }
 
 model SocAuditEvent {

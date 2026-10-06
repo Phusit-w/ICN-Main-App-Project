@@ -1,7 +1,9 @@
-# SOC Runner: ลิงก์ โทเคน และ heartbeat
+# SOC Runner: ลิงก์ โทเคน heartbeat และคำขอตรวจ
 
 > ADR 0008, ticket 12 — โค้ดอยู่ที่ `lib/soc-runner.ts`, `app/api/soc/runner-link/route.ts`,
-> `app/api/soc-runner/heartbeat/route.ts` ส่วน claim/ดาวน์โหลด/รายงานผล เป็นของ ticket 13
+> `app/api/soc-runner/heartbeat/route.ts`
+> ticket 13 (คำขอตรวจ + claim/ดาวน์โหลด/รายงาน/ส่งผล) — `lib/soc-check-requests.ts`, `actions/socCheckRequests.ts`,
+> `app/api/soc-runner/claim`, `app/api/soc-runner/requests/[id]/*`
 
 ## ผู้ใช้เชื่อมเครื่อง
 
@@ -50,6 +52,81 @@
 - `claudeLogin`: `logged_in` | `logged_out` | `unknown` (`logged_out` ทำให้หน้า `/soc` เตือนให้เข้าสู่ระบบ Claude ใหม่)
 - ตอบ `200 { "ok": true, "username": "...", "serverTime": "<ISO>" }`, `400` เมื่อ body ไม่ถูกต้อง (ไม่บันทึกอะไร)
 - heartbeat ไม่ถูกบันทึกใน audit (มาทุก 30 วินาที)
+- heartbeat ต่ออายุคำขอที่ runner นี้กำลังตรวจ (ไม่ให้กลับเป็น `requested`)
+
+## คำขอตรวจ (Check Request, ticket 13)
+
+ในหน้างาน SOC แบบนำเข้าผล ผู้ใช้ที่มีสิทธิ์ `soc` กด **ตรวจ** (หรือ **ตรวจซ้ำ**) ที่ข้อใหญ่ หรือ **ตรวจทั้งชุด** สำหรับทุกข้อที่ยังไม่ตรวจ
+ระบบสร้าง `SocCheckRequest` เป็นของผู้กด และมีแต่ SOC Runner ของผู้กดเท่านั้นที่รับไปตรวจได้
+
+- ขอตรวจได้เมื่อข้อใหญ่อยู่ในสถานะ `not_checked`, `checked` (ตรวจซ้ำ), `failed` หรือ `needs_documents` และไม่มีคำขอที่ยังเปิดอยู่
+- ตรวจซ้ำข้อที่มีแถวยืนยันผลแล้ว: หน้าเว็บถามยืนยันก่อน แล้วบันทึกเลขแถวนั้นไว้ในคำขอ (`replaceConfirmed`) ตอนส่งผลจึงแทนที่ได้เฉพาะแถวเหล่านั้น
+  ถ้ามีแถวถูกยืนยันเพิ่มหลังขอตรวจ การส่งผลจะถูกปฏิเสธ (409) และคำขอกลายเป็น `failed`
+- **ยกเลิกคำขอ** ได้เฉพาะตอนยัง `requested` (runner ยังไม่รับ) โดยผู้ขอหรือ ADMIN ข้อใหญ่กลับไปเป็นสถานะก่อนขอ
+- ระหว่างมีคำขอเปิดอยู่ นำเข้าผลด้วยมือในข้อนั้นไม่ได้
+- Audit: `SOC_CHECK_REQUESTED`, `SOC_CHECK_REQUEST_CANCELLED`, `SOC_CHECK_REQUEST_REPORTED` (เฉพาะสถานะพิเศษ) และ `SOC_RUN_IMPORTED`
+  ตอนส่งผล ส่วนประวัติของงาน (`SocAuditEvent`) มี `CHECK_REQUESTED`, `CHECK_REQUEST_CLAIMED`, `CHECK_REQUEST_REPORTED`,
+  `CHECK_REQUEST_RELEASED`, `CHECK_REQUEST_CANCELLED`
+
+### สถานะ
+
+| คำขอ | ข้อใหญ่แสดง | ความหมาย |
+|---|---|---|
+| `requested` | รอคิวตรวจ / **รอเครื่องของคุณเปิด** (runner ของผู้ขอออฟไลน์หรือยังไม่เชื่อม) | รอ runner ของผู้ขอ |
+| `running` | กำลังตรวจ (+ ข้อความ progress) | runner รับไปแล้ว |
+| `paused_quota` | หยุดชั่วคราว จะตรวจต่อประมาณ HH:MM | runner รับใหม่ได้เมื่อถึง `resumeAt` |
+| `needs_login` | รอเข้าสู่ระบบ Claude | runner รับใหม่ได้เมื่อ heartbeat บอก `logged_in` |
+| `needs_documents` | ขาดเอกสาร (+ ชื่อไฟล์) | ปิดคำขอ ผู้ใช้เพิ่ม PDF แล้วกดตรวจใหม่ (ปุ่ม [ตรวจต่อโดยไม่มีไฟล์นี้] เป็นของ ticket 15) |
+| `failed` | ตรวจไม่สำเร็จ (+ เหตุผล) | ปิดคำขอ กดตรวจใหม่ได้ |
+| `done` | ตรวจแล้ว | ส่งผลผ่านการนำเข้าแล้ว |
+| `cancelled` | สถานะก่อนขอ | ผู้ใช้ยกเลิก |
+
+คำขอที่ `running` แต่ไม่มีสัญญาณจาก runner (claim, report, ดาวน์โหลด หรือ heartbeat) นานกว่า 2 นาที (`SOC_CHECK_REQUEST_STALE_MS`)
+จะกลับเป็น `requested` (ตรวจตอนมีการ claim และตอนเปิดหน้างาน) แล้ว runner ของผู้ใช้คนเดิมรับไปใหม่ได้
+
+### `POST /api/soc-runner/claim`
+
+ไม่มี body ตอบ `200 { "request": null }` เมื่อไม่มีงาน หรือ
+
+```json
+{ "request": {
+  "id": "...", "claimedAt": "<ISO>",
+  "job": { "id": "...", "title": "..." },
+  "majorItem": { "id": "...", "key": "1", "label": "๑", "title": "..." },
+  "acknowledgedMissing": [],
+  "skill": { "version": "...", "fileName": "....skill", "sizeBytes": 123, "checksum": "<sha256>", "url": "/api/soc-runner/requests/<id>/skill" },
+  "documents": [ { "id": "...", "type": "SOC" | "EVIDENCE", "name": "...", "sizeBytes": 1, "checksum": "<sha256>", "url": "/api/soc-runner/requests/<id>/documents/<docId>" } ]
+} }
+```
+
+- ได้เฉพาะคำขอของผู้ใช้เจ้าของโทเคน เก่าสุดก่อน (`createdAt`) และ skill ปัจจุบันถูก **ตรึง** ไว้กับคำขอตอน claim
+- ถ้า link นี้มีคำขอ `running` ค้างอยู่ (เช่น runner restart) จะได้คำขอเดิมคืน
+- ถ้า runner รายงาน Claude `logged_out` จะไม่ได้งานจนกว่า heartbeat บอก `logged_in`
+- `409 { "error": "NO_SKILL_PACKAGE", "message": "ยังไม่มี skill บน server ติดต่อ admin" }` เมื่อมีงานรอแต่ยังไม่มี skill ปัจจุบัน
+
+### `GET /api/soc-runner/requests/:id/documents/:documentId` และ `GET .../skill`
+
+ไฟล์ SOC/PDF ของงาน และ skill ที่ตรึงไว้ (header `X-Soc-Skill-Version`, `X-Soc-Checksum`) ใช้ได้เฉพาะคำขอที่ link นี้กำลังตรวจ
+
+### `POST /api/soc-runner/requests/:id/report`
+
+```json
+{ "state": "running", "progress": "ตรวจแล้ว 3/7 แถว" }
+{ "state": "paused_quota", "resumeAt": "<ISO ไม่เกิน 7 วัน>", "progress": "..." }
+{ "state": "needs_documents", "missingDocuments": ["ชื่อเอกสาร", "..."] }
+{ "state": "failed", "reason": "ข้อความภาษาไทย" }
+{ "state": "needs_login" }
+```
+
+ตอบ `200 { "ok": true }`, `400` body ไม่ถูกต้อง (ไม่บันทึกอะไร), `409 NOT_CLAIMED` เมื่อ link นี้ไม่ได้ตรวจคำขอนี้อยู่แล้ว
+
+### `POST /api/soc-runner/requests/:id/submit`
+
+multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion` (เว้นได้ ใช้เวอร์ชันที่ตรึงไว้)
+ผ่านการนำเข้าเดียวกับการอัปโหลดด้วยมือ (`importLocalCheckRun`, source `runner`) ตอบ `201 { runId, rowCount }`
+หรือ `422 { errors }` / `409 { errors, confirmedRows }` ซึ่งปิดคำขอเป็น `failed` พร้อมเหตุผล (ส่งไฟล์เดิมซ้ำก็ไม่ผ่าน)
+
+ทุก endpoint: คำขอของผู้ใช้อื่นตอบ `404` เสมอ (ไม่บอกว่ามีอยู่) ส่วน `401`/`403` เหมือน heartbeat
 
 ## Admin
 
