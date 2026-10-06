@@ -139,6 +139,7 @@ model User {
   socMajorItemsRequested     SocMajorItem[]  @relation("SocMajorItemRequestedBy")
   socMajorItemsRan           SocMajorItem[]  @relation("SocMajorItemRanBy")
   socCheckRunsImported       SocCheckRun[]
+  socSkillPackagesUploaded   SocSkillPackage[]
   expenseRecords             ExpenseRecord[] @relation("ExpenseOwner")
   auditEvents                AuditLog[]      @relation("AuditActor")
   targetedAuditEvents        AuditLog[]      @relation("AuditTarget")
@@ -317,6 +318,35 @@ model SocCheckResult {
   @@unique([jobId, rowNumber])
   @@index([jobId, finalReferenceCheck])
   @@index([majorItemId])
+}
+
+// A version of the SOC skill (tor-word-compliance-check) uploaded by an
+// admin (ADR 0008, lib/soc-skill-package.ts). The stored file is the package
+// as served to SOC Runners: the upload plus the headless step-0 instruction.
+model SocSkillPackage {
+  id             String           @id @default(cuid())
+  version        String           @unique
+  originalName   String
+  storageKey     String           @unique // under SOC_STORAGE_ROOT/skill-packages/
+  sizeBytes      Int
+  checksum       String // sha256 of the served package
+  sourceChecksum String // sha256 of the file the admin uploaded
+  rootDir        String // folder holding SKILL.md inside the zip, "" or "<name>/"
+  uploadedById   String?
+  uploadedBy     User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  current        SocCurrentSkill?
+
+  @@index([createdAt])
+}
+
+// Which SocSkillPackage SOC Runners use: a single row (key "current"), so
+// exactly one version is current once any package has been uploaded.
+model SocCurrentSkill {
+  key       String          @id @default("current")
+  packageId String          @unique
+  package   SocSkillPackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  updatedAt DateTime        @updatedAt
 }
 
 model SocAuditEvent {

@@ -5,7 +5,7 @@
 //
 // Reads the .docx directly (zip + word/document.xml), so the web server needs
 // no Python or extra dependency.
-import { inflateRawSync } from "node:zlib";
+import { readZip } from "@/lib/zip";
 
 export type SocMajorItemSpec = {
   key: string; // the number in Arabic digits, e.g. "1" for both "๑" and "1."
@@ -98,38 +98,14 @@ function decodeXml(value: string): string {
   });
 }
 
-// Reads one file out of a zip archive (stored or deflated; no zip64, which a
-// SOC under the 25 MB upload limit never needs).
+// Reads one text file out of a .docx (or any zip archive).
 export function readZipEntry(zip: Uint8Array, name: string): string {
-  const buffer = Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength);
+  let entry;
   try {
-    let end = -1;
-    for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 22 - 0xffff); i--) {
-      if (buffer.readUInt32LE(i) === 0x06054b50) { end = i; break; }
-    }
-    if (end < 0) throw new Error("no end of central directory");
-    const count = buffer.readUInt16LE(end + 10);
-    let offset = buffer.readUInt32LE(end + 16);
-    for (let i = 0; i < count; i++) {
-      if (buffer.readUInt32LE(offset) !== 0x02014b50) throw new Error("bad central directory");
-      const method = buffer.readUInt16LE(offset + 10);
-      const compressedSize = buffer.readUInt32LE(offset + 20);
-      const nameLength = buffer.readUInt16LE(offset + 28);
-      const extraLength = buffer.readUInt16LE(offset + 30);
-      const commentLength = buffer.readUInt16LE(offset + 32);
-      const localOffset = buffer.readUInt32LE(offset + 42);
-      const entryName = buffer.toString("utf8", offset + 46, offset + 46 + nameLength);
-      offset += 46 + nameLength + extraLength + commentLength;
-      if (entryName !== name) continue;
-      if (buffer.readUInt32LE(localOffset) !== 0x04034b50) throw new Error("bad local header");
-      const dataStart = localOffset + 30 + buffer.readUInt16LE(localOffset + 26) + buffer.readUInt16LE(localOffset + 28);
-      const data = buffer.subarray(dataStart, dataStart + compressedSize);
-      if (method === 0) return data.toString("utf8");
-      if (method === 8) return inflateRawSync(data).toString("utf8");
-      throw new Error(`unsupported compression ${method}`);
-    }
+    [entry] = readZip(zip, { only: (entryName) => entryName === name });
   } catch {
     throw new Error(UNREADABLE);
   }
-  throw new Error(UNREADABLE);
+  if (!entry) throw new Error(UNREADABLE);
+  return entry.data.toString("utf8");
 }

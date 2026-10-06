@@ -47,6 +47,10 @@ _Avoid_: job (a job is the whole SOC)
 A SOC job made from the uploaded outputs of one or more Local Check Runs for the same SOC. It starts in review and is never processed on the server.
 _Avoid_: auto check, queued check
 
+**Skill Package**:
+One version of the SOC skill (`tor-word-compliance-check`) that an admin uploaded to the server. Exactly one Skill Package is **current**: the one SOC Runners download for their next check. The server serves it with a headless instruction added (see `docs/SOC-SKILL-HOSTING.md`).
+_Avoid_: skill file, plugin
+
 ## Core objects
 
 | Term | Meaning |

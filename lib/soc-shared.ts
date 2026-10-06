@@ -50,3 +50,22 @@ export const SOC_AXIS_VALUE_LABELS: Record<string, string> = {
   compliant: "ผ่าน", better: "ดีกว่า", non_compliant: "ไม่ผ่าน", mixed: "ผสม",
   not_selected: "ไม่ได้เลือก", ambiguous: "กำกวม", both: "เลือกทั้งสอง",
 };
+
+// How a major item's skill version compares with the current hosted one, by
+// upload order: "older"/"newer" for a hosted version uploaded before/after
+// the current one, "unhosted" for a version the server doesn't hold (e.g. a
+// manual run of a local copy). null when the item has no version or nothing
+// is current.
+export type SkillVersionStatus = "current" | "older" | "newer" | "unhosted";
+export function skillVersionStatus(
+  version: string | null,
+  packages: readonly { version: string; createdAt: Date }[],
+  currentVersion: string | null,
+): SkillVersionStatus | null {
+  if (!version || !currentVersion) return null;
+  if (version === currentVersion) return "current";
+  const hosted = packages.find((p) => p.version === version);
+  const current = packages.find((p) => p.version === currentVersion);
+  if (!hosted || !current) return "unhosted";
+  return hosted.createdAt < current.createdAt ? "older" : "newer";
+}

@@ -31,7 +31,7 @@
 | 08 | New review page | 05, 07 | ready-for-agent |
 | 09 | PDF evidence panel | 08 | ready-for-agent |
 | 10 | Download combined SOC_Check | 05 | done |
-| 11 | Skill hosting | 01 | ready-for-agent |
+| 11 | Skill hosting | 01 | done |
 | 12 | Runner link + token + heartbeat | 04 | ready-for-agent |
 | 13 | Check Requests + runner API (seam 2) | 05, 11, 12 | ready-for-agent |
 | 14 | SOC Runner core (seam 3) | 13 | ready-for-agent |

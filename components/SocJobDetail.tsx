@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import type { ConfirmedRow } from "@/lib/soc-import";
-import { CHECK_LABELS, majorItemProgress, SOC_AXIS_VALUE_LABELS, SOC_MAJOR_ITEM_STATE_LABELS, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS } from "@/lib/soc-shared";
+import { CHECK_LABELS, majorItemProgress, SOC_AXIS_VALUE_LABELS, SOC_MAJOR_ITEM_STATE_LABELS, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, type SkillVersionStatus } from "@/lib/soc-shared";
 
 type DocumentItem = { id: string; type: string; name: string };
 type ResultItem = {
@@ -15,10 +15,10 @@ type ResultItem = {
   aiReferenceCheck: string; aiHeadingTitleCheck: string; aiDetail: string; aiConfidence: string;
   finalReferenceCheck: string; finalHeadingTitleCheck: string; finalDetail: string; reviewed: boolean;
 };
-type MajorItem = { id: string; label: string; title: string | null; state: string; skillVersion: string | null; model: string | null; runSource: string | null; ranByName: string | null; socCheckDocumentId: string | null };
+type MajorItem = { id: string; label: string; title: string | null; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; socCheckDocumentId: string | null };
 // A row of a Local Check Run, shown as a plain list until the review page (ticket 08).
 type ImportedRow = { id: string; majorItemId: string | null; item: string; reference: string; referenceCheck: string; highlightCheck: string | null; evidenceSupport: string | null; torDecision: string | null; declaredStatusCheck: string | null; keyIssue: string };
-type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; results: ResultItem[]; importedRows: ImportedRow[]; documents: DocumentItem[]; majorItems: MajorItem[] };
+type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; results: ResultItem[]; importedRows: ImportedRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null };
 
 const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING"]);
 const FILTERS = ["all", "match", "mismatch", "review", "not_found", "unverifiable", "not_applicable"];
@@ -42,7 +42,7 @@ export default function SocJobDetail({ job }: { job: Job }) {
 
   return <div className="flex flex-col gap-6">
     <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <TrashJobButton jobId={job.id} /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
-    {imported ? <><MajorItemsPanel jobId={job.id} items={job.majorItems} /><DocumentsPanel jobId={job.id} documents={job.documents} /><ImportedRowsPanel items={job.majorItems} rows={job.importedRows} /></> : <JobProgress job={job} />}
+    {imported ? <><MajorItemsPanel jobId={job.id} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} /><DocumentsPanel jobId={job.id} documents={job.documents} /><ImportedRowsPanel items={job.majorItems} rows={job.importedRows} /></> : <JobProgress job={job} />}
     {job.status === "FAILED" ? <FailurePanel job={job} /> : null}
     {outputs.length ? <section className="rounded-card bg-surface p-5 shadow-card"><h2 className="font-display font-semibold">ไฟล์ผลลัพธ์</h2><div className="mt-3 flex flex-wrap gap-3">{outputs.map((doc) => <a key={doc.id} href={`/api/soc/documents/${doc.id}`} target={doc.type === "PREVIEW" ? "_blank" : undefined} className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">{doc.type === "PREVIEW" ? "เปิดตัวอย่าง PDF" : "ดาวน์โหลด DOCX"}</a>)}</div></section> : null}
     {job.status === "NEEDS_REVIEW" && !imported ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-5 shadow-card"><div><div className="font-medium">ตรวจทานแล้ว {job.results.length - unreviewed}/{job.results.length} รายการ</div><p className="mt-1 text-xs text-muted">ผลจากระบบเป็นเพียงคำแนะนำ ต้องยืนยันทุกข้อก่อนสร้าง DOCX</p></div><ReviewActions jobId={job.id} unreviewed={unreviewed} /></div> : null}
@@ -55,13 +55,20 @@ export default function SocJobDetail({ job }: { job: Job }) {
 
 function TrashJobButton({ jobId }: { jobId: string }) { const router = useRouter(); const [pending, start] = useTransition(); return <Button size="sm" variant="danger" disabled={pending} onClick={() => { if (!window.confirm("ย้ายงานนี้ไปถังขยะ 30 วัน?")) return; start(async () => { await trashSocJob(jobId); router.push("/soc"); router.refresh(); }); }}>{pending ? "กำลังลบ…" : "ลบ"}</Button>; }
 
-function MajorItemsPanel({ jobId, items }: { jobId: string; items: MajorItem[] }) {
+function MajorItemsPanel({ jobId, items, currentSkillVersion }: { jobId: string; items: MajorItem[]; currentSkillVersion: string | null }) {
   const { checked, total, percent } = majorItemProgress(items);
   const [importing, setImporting] = useState<string | null>(null);
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{checked ? <a href={`/api/soc/jobs/${jobId}/soc-check`} title="SOC ต้นฉบับพร้อมผลตรวจล่าสุดของทุกข้อใหญ่ ข้อที่ยังไม่ตรวจจะระบุไว้ในเอกสาร" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลด SOC_Check</a> : null}</div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
+    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span>{checked ? <a href={`/api/soc/jobs/${jobId}/soc-check`} title="SOC ต้นฉบับพร้อมผลตรวจล่าสุดของทุกข้อใหญ่ ข้อที่ยังไม่ตรวจจะระบุไว้ในเอกสาร" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลด SOC_Check</a> : null}</div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="นำเข้าผล" /></tr></thead><tbody>{items.map((item) => <MajorItemRow key={item.id} jobId={jobId} item={item} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} />)}</tbody></table></div>
   </section>;
+}
+
+// Next to a checked item's skill version, when it isn't the current one.
+function SkillVersionFlag({ status }: { status: SkillVersionStatus | null }) {
+  if (status === "older") return <span className="ml-1.5 rounded-full border border-danger-border px-2 py-0.5 text-[11px] font-medium text-danger" title="ข้อนี้ตรวจด้วย skill ที่อัปโหลดก่อนเวอร์ชันปัจจุบัน พิจารณาตรวจซ้ำ">เก่ากว่าเวอร์ชันปัจจุบัน</span>;
+  if (status === "unhosted") return <span className="ml-1.5 rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium" title="เวอร์ชันนี้ไม่อยู่ในรายการ skill บน server เทียบกับเวอร์ชันปัจจุบันไม่ได้">ไม่ใช่เวอร์ชันบน server</span>;
+  return null;
 }
 
 function MajorItemRow({ jobId, item, open, onToggle, onDone }: { jobId: string; item: MajorItem; open: boolean; onToggle: () => void; onDone: () => void }) {
@@ -69,7 +76,7 @@ function MajorItemRow({ jobId, item, open, onToggle, onDone }: { jobId: string; 
   const canImport = item.state === "not_checked" || item.state === "checked";
   const recheck = item.state === "checked";
   return <>
-    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="whitespace-nowrap px-5 py-3"><span className="rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state}</span></td><td className="px-5 py-3 text-xs text-muted">{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right">{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "ตรวจซ้ำ" : "นำเข้าผล"}</Button> : null}</td></tr>
+    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="whitespace-nowrap px-5 py-3"><span className="rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state}</span></td><td className="px-5 py-3 text-xs text-muted">{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right">{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "ตรวจซ้ำ" : "นำเข้าผล"}</Button> : null}</td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} onDone={onDone} /></td></tr> : null}
   </>;
 }
