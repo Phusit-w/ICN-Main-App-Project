@@ -128,6 +128,36 @@ multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion`
 
 ทุก endpoint: คำขอของผู้ใช้อื่นตอบ `404` เสมอ (ไม่บอกว่ามีอยู่) ส่วน `401`/`403` เหมือน heartbeat
 
+## ตัว SOC Runner (ticket 14, `soc-runner/`)
+
+โปรแกรม Python (standard library ล้วน) รันจาก source จนกว่าจะมีตัวติดตั้ง (ticket 16)
+
+```
+npm run soc:runner -- path\to\soc-runner.json   # ไม่ระบุ = soc-runner/soc-runner.json (อยู่ใน .gitignore)
+npm run soc:runner:test                          # unittest ด้วย server ปลอมและ Claude CLI ปลอม
+```
+
+- **ไม่เปิด port**: ส่ง heartbeat ทุก 30 วินาที (thread แยก จึงต่ออายุคำขอระหว่าง Claude ตรวจนานๆ) และ claim ทุก 15 วินาทีเมื่อว่าง
+- ต่อหนึ่งคำขอ (`carry_out` ใน `runner.py`): รายงาน `running` → ดาวน์โหลด skill ที่ตรึงไว้ แตก zip ไปที่
+  `<งาน>/.claude/skills/<name>/` (ตรวจ checksum และปฏิเสธ path ที่มี `..`) → ดาวน์โหลด SOC/หลักฐานไป `<งาน>/inputs/`
+  (ตรวจ checksum) → รัน `claude -p` ในโฟลเดอร์งาน ให้เขียน `out/results.json` และ `out/SOC_Check.docx`
+  → submit พร้อม `model` (โมเดลที่เขียนมากที่สุดใน `modelUsage`) และ `skillVersion` (header `X-Soc-Skill-Version`)
+- prompt มี `SOC_RUNNER_HEADLESS=1`, ข้อใหญ่, โฟลเดอร์ output และ `acknowledged_missing` ตามสัญญาใน `docs/SOC-SKILL-HOSTING.md`
+  และชี้ไปที่ skill ในโฟลเดอร์งานตรงๆ (กันชนกับ skill ชื่อเดียวกันที่ผู้ตรวจติดตั้งไว้เอง)
+- `claude -p --output-format json --model sonnet --permission-mode acceptEdits --allowedTools Bash,Read,Write,Edit,Glob,Grep,Skill,TodoWrite --disallowedTools WebFetch,WebSearch`
+  ใต้ login Claude ของผู้ใช้เครื่องนั้น สคริปต์ของ skill ต้องการ Python ที่มี python-docx / PyMuPDF บนเครื่อง (ตัวติดตั้งต้องจัดให้, ticket 16)
+- ผลลัพธ์: ส่งสำเร็จ → ลบโฟลเดอร์งาน / ล้มเหลว (ดาวน์โหลดไม่ครบ, Claude error, ไม่มี results.json หรือ SOC_Check)
+  , server ตอบ error ระหว่างตรวจ หรือ runner ผิดพลาดเอง → รายงาน `failed` พร้อมเหตุผลภาษาไทย และเก็บโฟลเดอร์ไว้ดู
+  / `409 NOT_CLAIMED` (ยกเลิกหรือหมดเวลา) → ลบโฟลเดอร์แล้วข้ามไปเงียบๆ
+  / submit ถูกปฏิเสธ → server ปิดเป็น `failed` เองแล้ว runner ไม่รายงานซ้ำ (เก็บโฟลเดอร์ไว้ดู)
+- `401` → บอกให้ดาวน์โหลดไฟล์เชื่อมใหม่ / `403` → บอกว่าไม่มีสิทธิ์ SOC แล้ว ทั้งคู่ลองใหม่ทุก 60 วินาที
+- ความเสี่ยงที่รู้อยู่: skill ต้องใช้ Bash รันสคริปต์ Python ของตัวเอง จึงเปิด Bash ไว้ทั้งหมด PDF ของผู้ขายเป็นข้อมูลที่ไม่น่าเชื่อถือ
+  (prompt injection) ปิด WebFetch/WebSearch แล้ว แต่ยังไม่ได้จำกัดคำสั่ง Bash
+- ตัวแปร: `SOC_RUNNER_WORK_DIR` (ค่าเริ่มต้น `%LOCALAPPDATA%\SOCRunner\work`), `SOC_RUNNER_MODEL` (`sonnet`),
+  `SOC_RUNNER_TIMEOUT_MINUTES` (180), `SOC_RUNNER_CA_FILE` (root CA ของ Caddy `tls internal`)
+- ยังไม่ทำ (ticket 15): `needs_documents`, `paused_quota`, `needs_login` และการตรวจสถานะ login ของ Claude
+  (heartbeat ส่ง `claudeLogin: "unknown"`)
+
 ## Admin
 
 หน้า **Admin Center → SOC Runner** (`/admin/soc-runners`) แสดงทุกลิงก์ ทั้งที่ใช้งานอยู่และที่ยกเลิกแล้ว

@@ -6,11 +6,33 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] The happy path is tested with a fake server and a fake Claude CLI
-- [ ] The skill version used is recorded in the submission
+- [x] The happy path is tested with a fake server and a fake Claude CLI
+- [x] The skill version used is recorded in the submission
 - [ ] A real end-to-end demo on one major item works and is noted in Comments
-- [ ] No listening port; it polls only
+- [x] No listening port; it polls only
 
 ## Comments
+
+### 2026-10-06: code done, live demo still to do
+
+- `soc-runner/` (Python, standard library only): `runner.py` (config, `carry_out` = one Check Request, `SocRunner` loop),
+  `server_client.py` (HTTP adapter), `claude_cli.py` (`claude -p` adapter). Docs: "ตัว SOC Runner" in `docs/SOC-RUNNER.md`.
+  `npm run soc:runner -- <soc-runner.json>`, `npm run soc:runner:test` (29 tests: fake server + fake Claude CLI, plus the HTTP
+  client against a stub on 127.0.0.1). `soc-runner.json` is gitignored (holds the token).
+- Heartbeat thread every 30 s (`claudeLogin: "unknown"` until ticket 15); claim every 15 s when idle. Skill zip installed to
+  `<work>/.claude/skills/<name>/`, checksums checked, unsafe zip paths refused. The prompt points at that skill path directly,
+  because a reviewer may also have the same skill installed. `model` = most output tokens in `modelUsage`; `skillVersion` =
+  `X-Soc-Skill-Version`. NOT_CLAIMED → drop; submit 422/409 → server already closed it; any other error → report `failed`.
+- Review fixes: unexpected errors and server errors mid-run report `failed` (else the claim hands back the same request forever),
+  403 handled, Windows process-tree kill on timeout, WebFetch/WebSearch disallowed. Known risk: Bash is fully allowed (the skill
+  runs its own Python scripts); vendor PDFs could carry a prompt injection.
+- Full suite 125/125, lint, typecheck pass.
+- **Live demo not done**: the dev server on :3000 (started 13:08, before ticket 13) returns 500 on claim/heartbeat with a valid
+  token; it needs a restart (`npm run dev`), which this session wasn't allowed to do. Prepared in pilot-db: "uitest13 SOC Demo"
+  evidence replaced with the real `SOC_Demo_Package/Datasheet_Demo.pdf` (size/checksum updated); uitest13's runner link token
+  re-set (config in the session scratchpad, not in the repo; download a new one from /soc if lost); Check Request
+  `demo14-1791269838` for major item ๑ (inserted directly, no uitest13 password). To finish: restart the dev server, run
+  `npm run soc:runner -- <config>`, wait for the submit, check the review page, tick the box and note it here.
+- Ticket 15: the skill's `missing_documents.json` currently ends as `failed` ("no results.json"); map it to `needs_documents`.

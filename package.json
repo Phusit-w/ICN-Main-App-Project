@@ -12,6 +12,8 @@
     "test": "node --env-file-if-exists=.env.test --import ./test/register.mjs --test-global-setup=./test/global-setup.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --experimental-test-module-mocks --test-concurrency=1 --test \"{test,lib,actions,app}/**/*.test.ts\"",
     "soc:worker": "python soc-worker/worker.py",
     "soc:test": "python -m unittest soc-worker/test_worker.py -v",
+    "soc:runner": "python soc-runner/runner.py",
+    "soc:runner:test": "python -m unittest discover -s soc-runner -p \"test_*.py\" -v",
     "postinstall": "prisma generate"
   },
   "dependencies": {
