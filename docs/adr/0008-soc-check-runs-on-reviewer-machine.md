@@ -23,3 +23,4 @@ Using the SOC Runner should be one download and one install. The download is mad
 - No rule-based pre-check runs on the server. Every check result comes from Claude, so reviewers see one source of findings.
 - A large SOC is checked in batches, one per major item (ข้อใหญ่). The batches land in the same job.
 - Every reviewer who runs checks needs their own Claude subscription. That cost moves from the server to each person.
+- A user has one SOC Runner link (one machine) at a time. Downloading the runner config again replaces the link and stops the old config at once, so reinstalling or moving to a new PC needs no admin, and a lost PC's config dies with the next download (decided in ticket 12, 2026-10-06; spec story 43). A reviewer who needs two machines at once would need this changed.

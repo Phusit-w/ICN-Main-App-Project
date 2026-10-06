@@ -3,23 +3,23 @@
 // the server keeps only the token's sha256. The runner authenticates every
 // call with `Authorization: Bearer <token>`, starting with the heartbeat that
 // reports its version and Claude login state. A user has at most one active
-// link: downloading again replaces it. An admin can list and revoke links.
-// See docs/SOC-RUNNER.md.
-import { createHash, randomBytes } from "node:crypto";
+// link: downloading again replaces it (ADR 0008). An admin can list and
+// revoke links. See docs/SOC-RUNNER.md.
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { requireAccess, requireRole, writeAudit } from "@/lib/authorization";
 import { hasAccess } from "@/lib/access";
-import { SOC_CLAUDE_LOGINS, socRunnerState } from "@/lib/soc-shared";
+import { newSocRunnerToken, socRunnerBearerToken } from "@/lib/soc-runner-token";
+import { SOC_CLAUDE_LOGINS, socRunnerState, type SocClaudeLogin, type SocRunnerRevokeReason, type SocRunnerView } from "@/lib/soc-shared";
 
 export const SOC_RUNNER_CONFIG_FORMAT = "soc-runner-config/1";
-export const SOC_RUNNER_CONFIG_FILE = "soc-runner.json";
-const TOKEN_PREFIX = "socr_";
 const RUNNER_VERSION = /^[A-Za-z0-9._+-]{1,64}$/;
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+const iso = (value: Date | null) => value?.toISOString() ?? null;
 
 // The address the runner calls back: SOC_RUNNER_SERVER_URL when set (e.g.
 // behind Caddy, where the app sees its internal address), else the origin
@@ -33,20 +33,20 @@ export function socRunnerServerUrl(request: Request): string {
 // ("replaced"), so an old config, e.g. on a lost PC, stops working. Returns
 // the config file's content; this is the only place the token exists.
 export async function createSocRunnerLink(actor: SocActor, serverUrl: string) {
-  const token = `${TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
-  const { link, replacedLinkIds } = await serializable(async (tx) => {
+  const token = newSocRunnerToken();
+  const link = await serializable(async (tx) => {
     const active = await tx.socRunnerLink.findMany({ where: { userId: actor.id, revokedAt: null }, select: { id: true } });
     const replacedLinkIds = active.map((l) => l.id);
     if (replacedLinkIds.length) {
       await tx.socRunnerLink.updateMany({ where: { id: { in: replacedLinkIds } }, data: { revokedAt: new Date(), revokeReason: "replaced", revokedById: actor.id } });
     }
     const link = await tx.socRunnerLink.create({ data: { userId: actor.id, tokenHash: hashToken(token) } });
-    return { link, replacedLinkIds };
-  });
-  await writeAudit({
-    actorId: actor.id, targetUserId: actor.id, action: "SOC_RUNNER_LINKED", entityType: "SOC_RUNNER", entityId: link.id,
-    summary: `ดาวน์โหลดไฟล์เชื่อม SOC Runner${replacedLinkIds.length ? " (แทนลิงก์เดิม)" : ""}`,
-    metadata: { replacedLinkIds },
+    await writeAudit({
+      actorId: actor.id, targetUserId: actor.id, action: "SOC_RUNNER_LINKED", entityType: "SOC_RUNNER", entityId: link.id,
+      summary: `ดาวน์โหลดไฟล์เชื่อม SOC Runner${replacedLinkIds.length ? " (แทนลิงก์เดิม)" : ""}`,
+      metadata: { replacedLinkIds },
+    }, tx);
+    return link;
   });
   return {
     format: SOC_RUNNER_CONFIG_FORMAT, serverUrl, token, linkId: link.id,
@@ -68,24 +68,26 @@ async function serializable<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>)
 
 // The runner calling: its active link and user. Throws "UNAUTHORIZED" for a
 // missing, unknown or revoked token or a deactivated user, "FORBIDDEN" when
-// the user no longer has `soc` access. Ticket 13's endpoints use it too.
+// the user no longer has `soc` access. Ticket 13's endpoints use it too; a
+// write that must not happen after a revoke should also filter on
+// `revokedAt: null`, as recordSocRunnerHeartbeat does.
 export async function authenticateSocRunner(request: Request) {
-  const [scheme, token] = (request.headers.get("authorization") || "").split(" ");
-  if (scheme !== "Bearer" || !token?.startsWith(TOKEN_PREFIX)) throw new Error("UNAUTHORIZED");
+  const token = socRunnerBearerToken(request);
+  if (!token) throw new Error("UNAUTHORIZED");
   const link = await prisma.socRunnerLink.findUnique({ where: { tokenHash: hashToken(token) }, include: { user: true } });
   if (!link || link.revokedAt || !link.user.isActive) throw new Error("UNAUTHORIZED");
   if (!hasAccess(link.user, "soc")) throw new Error("FORBIDDEN");
   return link;
 }
 
-export type SocRunnerHeartbeat = { runnerVersion: string; claudeLogin: (typeof SOC_CLAUDE_LOGINS)[number] };
+export type SocRunnerHeartbeat = { runnerVersion: string; claudeLogin: SocClaudeLogin };
 
 // A heartbeat body, or null when it isn't one.
 export function parseSocRunnerHeartbeat(body: unknown): SocRunnerHeartbeat | null {
   const { runnerVersion, claudeLogin } = (body ?? {}) as Record<string, unknown>;
   if (typeof runnerVersion !== "string" || !RUNNER_VERSION.test(runnerVersion)) return null;
   if (typeof claudeLogin !== "string" || !(SOC_CLAUDE_LOGINS as readonly string[]).includes(claudeLogin)) return null;
-  return { runnerVersion, claudeLogin: claudeLogin as SocRunnerHeartbeat["claudeLogin"] };
+  return { runnerVersion, claudeLogin: claudeLogin as SocClaudeLogin };
 }
 
 // Records a heartbeat on an active link. Not audited: it arrives every 30 s.
@@ -100,14 +102,21 @@ export async function recordSocRunnerHeartbeat(linkId: string, heartbeat: SocRun
   return { lastSeenAt };
 }
 
-// The user's own runner for /soc, or null when they have no active link.
-export async function mySocRunner(userId: string) {
-  const link = await prisma.socRunnerLink.findFirst({ where: { userId, revokedAt: null }, orderBy: { createdAt: "desc" } });
-  if (!link) return null;
+type SocRunnerLinkRow = Awaited<ReturnType<typeof prisma.socRunnerLink.findFirstOrThrow>>;
+
+function socRunnerView(link: SocRunnerLinkRow, now = new Date()): SocRunnerView {
   return {
-    state: socRunnerState(link.lastSeenAt), lastSeenAt: link.lastSeenAt, runnerVersion: link.runnerVersion,
-    claudeLogin: link.claudeLogin, linkedAt: link.createdAt,
+    state: socRunnerState(link.lastSeenAt, now), lastSeenAt: iso(link.lastSeenAt), runnerVersion: link.runnerVersion,
+    claudeLogin: link.claudeLogin as SocClaudeLogin | null, linkedAt: link.createdAt.toISOString(),
+    revokedAt: iso(link.revokedAt), revokeReason: link.revokeReason as SocRunnerRevokeReason | null,
   };
+}
+
+// The user's latest link for /soc: the active one, or the revoked one when
+// an admin revoked it (so the page can say so). null if they never linked.
+export async function mySocRunner(userId: string): Promise<SocRunnerView | null> {
+  const link = await prisma.socRunnerLink.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
+  return link ? socRunnerView(link) : null;
 }
 
 // ADMIN only. Every link, active ones first, newest first.
@@ -119,26 +128,27 @@ export async function listSocRunnerLinks() {
   });
   const now = new Date();
   return links.map((l) => ({
-    id: l.id, username: l.user.username, userDisplayName: l.user.displayName, createdAt: l.createdAt,
-    state: socRunnerState(l.lastSeenAt, now), lastSeenAt: l.lastSeenAt, runnerVersion: l.runnerVersion, claudeLogin: l.claudeLogin,
-    revokedAt: l.revokedAt, revokeReason: l.revokeReason, revokedByName: l.revokedBy?.displayName ?? null,
+    ...socRunnerView(l, now),
+    id: l.id, username: l.user.username, userDisplayName: l.user.displayName, revokedByName: l.revokedBy?.displayName ?? null,
   }));
 }
 
 // ADMIN only. Revokes an active link; its runner is refused from the next call.
 export async function revokeSocRunnerLink(linkId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const actor = await requireRole("ADMIN");
-  const revokedAt = new Date();
-  const { count } = await prisma.socRunnerLink.updateMany({
-    where: { id: linkId, revokedAt: null },
-    data: { revokedAt, revokeReason: "admin", revokedById: actor.id },
+  const revoked = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.socRunnerLink.updateMany({
+      where: { id: linkId, revokedAt: null },
+      data: { revokedAt: new Date(), revokeReason: "admin", revokedById: actor.id },
+    });
+    if (count === 0) return false;
+    const link = await tx.socRunnerLink.findUniqueOrThrow({ where: { id: linkId }, include: { user: { select: { displayName: true } } } });
+    await writeAudit({
+      actorId: actor.id, targetUserId: link.userId, action: "SOC_RUNNER_REVOKED", entityType: "SOC_RUNNER", entityId: link.id,
+      summary: `ยกเลิกลิงก์ SOC Runner ของ ${link.user.displayName}`,
+      metadata: { linkCreatedAt: link.createdAt.toISOString(), lastSeenAt: iso(link.lastSeenAt), runnerVersion: link.runnerVersion },
+    }, tx);
+    return true;
   });
-  if (count === 0) return { ok: false, error: "ไม่พบลิงก์นี้ หรือถูกยกเลิกไปแล้ว" };
-  const link = await prisma.socRunnerLink.findUniqueOrThrow({ where: { id: linkId }, include: { user: { select: { displayName: true } } } });
-  await writeAudit({
-    actorId: actor.id, targetUserId: link.userId, action: "SOC_RUNNER_REVOKED", entityType: "SOC_RUNNER", entityId: link.id,
-    summary: `ยกเลิกลิงก์ SOC Runner ของ ${link.user.displayName}`,
-    metadata: { linkCreatedAt: link.createdAt.toISOString(), lastSeenAt: link.lastSeenAt?.toISOString() ?? null, runnerVersion: link.runnerVersion },
-  });
-  return { ok: true };
+  return revoked ? { ok: true } : { ok: false, error: "ไม่พบลิงก์นี้ หรือถูกยกเลิกไปแล้ว" };
 }

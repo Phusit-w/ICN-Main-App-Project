@@ -84,8 +84,26 @@ export const SOC_RUNNER_STATE_LABELS: Record<SocRunnerState, string> = {
   online: "ออนไลน์", offline: "ออฟไลน์", never_seen: "ยังไม่เคยเชื่อมต่อ",
 };
 
+// The name of the runner config a user downloads from /soc.
+export const SOC_RUNNER_CONFIG_FILE = "soc-runner.json";
+
 // The Claude login state a runner reports in its heartbeat.
 export const SOC_CLAUDE_LOGINS = ["logged_in", "logged_out", "unknown"] as const;
-export const SOC_CLAUDE_LOGIN_LABELS: Record<string, string> = {
+export type SocClaudeLogin = (typeof SOC_CLAUDE_LOGINS)[number];
+export const SOC_CLAUDE_LOGIN_LABELS: Record<SocClaudeLogin, string> = {
   logged_in: "เข้าสู่ระบบ Claude แล้ว", logged_out: "ต้องเข้าสู่ระบบ Claude ใหม่", unknown: "ไม่ทราบสถานะ Claude",
+};
+
+// Why a Runner Link stopped working: the user downloaded a new config, or an
+// admin revoked it.
+export type SocRunnerRevokeReason = "replaced" | "admin";
+export const SOC_RUNNER_REVOKE_REASON_LABELS: Record<SocRunnerRevokeReason, string> = {
+  replaced: "ผู้ใช้ดาวน์โหลดใหม่", admin: "ผู้ดูแลยกเลิก",
+};
+
+// A Runner Link as /soc and the admin page show it (dates as ISO strings).
+export type SocRunnerView = {
+  state: SocRunnerState; lastSeenAt: string | null; runnerVersion: string | null;
+  claudeLogin: SocClaudeLogin | null; linkedAt: string;
+  revokedAt: string | null; revokeReason: SocRunnerRevokeReason | null;
 };

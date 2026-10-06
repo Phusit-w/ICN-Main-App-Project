@@ -30,8 +30,10 @@
 
 ## Runner API
 
-ทุก endpoint ของ runner อยู่ใต้ `/api/soc-runner/` ซึ่ง `proxy.ts` ปล่อยผ่านโดยไม่ต้องมี session cookie
-แต่ละ route ตรวจ `Authorization: Bearer <token>` เองผ่าน `authenticateSocRunner()`
+ทุก endpoint ของ runner อยู่ใต้ `/api/soc-runner/` ซึ่งไม่ต้องมี session cookie
+`proxy.ts` ปฏิเสธ (401) request ที่ไม่มี `Authorization: Bearer socr_...` รูปแบบถูกต้องตั้งแต่ก่อนเข้า route
+(scheme ไม่สนตัวพิมพ์เล็กใหญ่) แล้วแต่ละ route ต้องเรียก `authenticateSocRunner()` เพื่อตรวจว่าโทเคนยังใช้ได้
+ถ้า route ใดเขียนข้อมูลที่ต้องไม่เกิดหลังลิงก์ถูกยกเลิก ให้กรอง `revokedAt: null` ในคำสั่งเขียนด้วย แบบ heartbeat
 
 - `401 UNAUTHORIZED`: ไม่มีโทเคน, ไม่รู้จัก, ถูกยกเลิก หรือบัญชีผู้ใช้ถูกปิด → runner ควรบอกให้ดาวน์โหลดไฟล์เชื่อมใหม่
 - `403 FORBIDDEN`: ผู้ใช้ไม่มีสิทธิ์ `soc` แล้ว
@@ -53,5 +55,10 @@
 
 หน้า **Admin Center → SOC Runner** (`/admin/soc-runners`) แสดงทุกลิงก์ ทั้งที่ใช้งานอยู่และที่ยกเลิกแล้ว
 พร้อมสถานะ เวลาที่เห็นล่าสุด และเวอร์ชัน ปุ่ม **ยกเลิกลิงก์** ใช้เมื่อเครื่องหายหรือเปลี่ยนผู้ใช้ เครื่องนั้นถูกปฏิเสธตั้งแต่ request ถัดไป
+และหน้า `/soc` ของผู้ใช้คนนั้นขึ้นว่า "ลิงก์ของเครื่องคุณถูกยกเลิก" จนกว่าจะดาวน์โหลดไฟล์เชื่อมใหม่
 
 Audit (ประวัติกิจกรรม): `SOC_RUNNER_LINKED` (ดาวน์โหลด, มี `replacedLinkIds`), `SOC_RUNNER_REVOKED` (admin ยกเลิก)
+บันทึกใน transaction เดียวกับการเปลี่ยนลิงก์
+
+ลิงก์ที่ใช้ได้หนึ่งลิงก์ต่อผู้ใช้ (ADR 0008) บังคับด้วย transaction แบบ Serializable (retry 3 ครั้ง) ไม่มี partial unique index
+เพราะ Prisma schema แสดง index แบบมีเงื่อนไขไม่ได้ และ `migrate dev` ครั้งถัดไปจะพยายามลบทิ้ง

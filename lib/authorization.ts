@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { getCurrentUser } from "@/lib/session";
 import { hasAccess, type AppPermission } from "@/lib/access";
 
@@ -44,6 +45,8 @@ export async function authorizeExpenseRecord(recordId: string) {
   return { actor, record };
 }
 
+// Pass a transaction client to write the audit row atomically with the
+// change it records.
 export async function writeAudit(input: {
   actorId?: string | null;
   targetUserId?: string | null;
@@ -54,8 +57,8 @@ export async function writeAudit(input: {
   before?: object | null;
   after?: object | null;
   metadata?: object | null;
-}) {
-  return prisma.auditLog.create({
+}, client: Prisma.TransactionClient = prisma) {
+  return client.auditLog.create({
     data: {
       actorId: input.actorId || null,
       targetUserId: input.targetUserId || null,

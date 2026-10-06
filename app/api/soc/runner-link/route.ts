@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAccess } from "@/lib/authorization";
 import { socErrorStatus } from "@/lib/soc";
-import { SOC_RUNNER_CONFIG_FILE, createSocRunnerLink, socRunnerServerUrl } from "@/lib/soc-runner";
+import { createSocRunnerLink, socRunnerServerUrl } from "@/lib/soc-runner";
+import { SOC_RUNNER_CONFIG_FILE } from "@/lib/soc-shared";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     const status = socErrorStatus(message);
+    // Only the access errors are expected here; anything else is a server
+    // fault, logged rather than shown.
     if (status === 400) {
       console.error("[soc-runner-link]", error);
       return NextResponse.json({ error: "สร้างไฟล์เชื่อม SOC Runner ไม่สำเร็จ" }, { status: 500 });

@@ -25,6 +25,8 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     const status = socErrorStatus(message);
+    // Only the access errors are expected here; anything else is a server
+    // fault, logged rather than shown.
     if (status === 400) {
       console.error("[soc-runner]", error);
       return NextResponse.json({ error: "SERVER_ERROR" }, { status: 500 });

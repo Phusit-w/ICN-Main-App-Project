@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import { revokeSocRunner } from "@/actions/socRunners";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_STATE_LABELS, type SocRunnerState } from "@/lib/soc-shared";
+import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_REVOKE_REASON_LABELS, SOC_RUNNER_STATE_LABELS, type SocRunnerView } from "@/lib/soc-shared";
 
-export type AdminSocRunnerLink = {
-  id: string; username: string; userDisplayName: string; createdAt: string;
-  state: SocRunnerState; lastSeenAt: string | null; runnerVersion: string | null; claudeLogin: string | null;
-  revokedAt: string | null; revokeReason: string | null; revokedByName: string | null;
-};
-
-const REVOKE_REASON_LABELS: Record<string, string> = { replaced: "ผู้ใช้ดาวน์โหลดใหม่", admin: "ผู้ดูแลยกเลิก" };
+export type AdminSocRunnerLink = SocRunnerView & { id: string; username: string; userDisplayName: string; revokedByName: string | null };
 const formatTime = (value: string) => new Date(value).toLocaleString("th-TH");
 
 export default function AdminSocRunners({ links }: { links: AdminSocRunnerLink[] }) {
@@ -38,10 +32,10 @@ export default function AdminSocRunners({ links }: { links: AdminSocRunnerLink[]
       <tbody>{links.map((l) => <tr key={l.id} className={`border-t border-line ${l.revokedAt ? "text-muted" : ""}`}>
         <td className="px-5 py-3">{l.userDisplayName}<div className="text-xs text-muted">{l.username}</div></td>
         <td className="px-5 py-3 text-xs">{l.revokedAt
-          ? <>ยกเลิกแล้ว · {REVOKE_REASON_LABELS[l.revokeReason ?? ""] ?? l.revokeReason}{l.revokedByName && l.revokeReason === "admin" ? ` (${l.revokedByName})` : ""}<div>{formatTime(l.revokedAt)}</div></>
-          : <><span className="rounded-full bg-chip px-3 py-1 font-medium">{SOC_RUNNER_STATE_LABELS[l.state]}</span>{l.claudeLogin ? <div className="mt-1.5">{SOC_CLAUDE_LOGIN_LABELS[l.claudeLogin] ?? l.claudeLogin}</div> : null}</>}</td>
+          ? <>ยกเลิกแล้ว{l.revokeReason ? ` · ${SOC_RUNNER_REVOKE_REASON_LABELS[l.revokeReason]}` : ""}{l.revokedByName && l.revokeReason === "admin" ? ` (${l.revokedByName})` : ""}<div>{formatTime(l.revokedAt)}</div></>
+          : <><span className="rounded-full bg-chip px-3 py-1 font-medium">{SOC_RUNNER_STATE_LABELS[l.state]}</span>{l.claudeLogin ? <div className="mt-1.5">{SOC_CLAUDE_LOGIN_LABELS[l.claudeLogin]}</div> : null}</>}</td>
         <td className="whitespace-nowrap px-5 py-3 text-xs text-muted">{l.lastSeenAt ? formatTime(l.lastSeenAt) : "–"}{l.runnerVersion ? <div className="font-mono">v{l.runnerVersion}</div> : null}</td>
-        <td className="whitespace-nowrap px-5 py-3 text-xs text-muted">{formatTime(l.createdAt)}</td>
+        <td className="whitespace-nowrap px-5 py-3 text-xs text-muted">{formatTime(l.linkedAt)}</td>
         <td className="whitespace-nowrap px-5 py-3 text-right">{l.revokedAt ? null : <Button size="sm" variant="danger" disabled={pending} onClick={() => setTarget(l)}>ยกเลิกลิงก์</Button>}</td>
       </tr>)}</tbody>
     </table>

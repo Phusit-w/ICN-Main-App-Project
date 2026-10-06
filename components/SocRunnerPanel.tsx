@@ -4,18 +4,18 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_STATE_LABELS, type SocRunnerState } from "@/lib/soc-shared";
-
-export type MySocRunner = {
-  state: SocRunnerState; lastSeenAt: string | null; runnerVersion: string | null; claudeLogin: string | null; linkedAt: string;
-} | null;
+import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_CONFIG_FILE, SOC_RUNNER_STATE_LABELS, type SocRunnerState, type SocRunnerView } from "@/lib/soc-shared";
 
 const DOT: Record<SocRunnerState, string> = { online: "bg-[#22a06b]", offline: "bg-danger", never_seen: "bg-muted" };
 const formatTime = (value: string) => new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
 
 // The signed-in user's SOC Runner on /soc (ticket 12): whether it is online,
 // when it was last seen, and the download of the runner config tied to them.
-export default function SocRunnerPanel({ runner }: { runner: MySocRunner }) {
+export default function SocRunnerPanel({ runner: latest }: { runner: SocRunnerView | null }) {
+  // A revoked latest link means an admin revoked it (a replaced link always
+  // has a newer active one): show it as unlinked, with a note.
+  const runner = latest && !latest.revokedAt ? latest : null;
+  const revokedAt = latest?.revokedAt ?? null;
   const router = useRouter();
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -35,7 +35,7 @@ export default function SocRunnerPanel({ runner }: { runner: MySocRunner }) {
         const url = URL.createObjectURL(await response.blob());
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = "soc-runner.json";
+        anchor.download = SOC_RUNNER_CONFIG_FILE;
         anchor.click();
         URL.revokeObjectURL(url);
         router.refresh();
@@ -55,11 +55,12 @@ export default function SocRunnerPanel({ runner }: { runner: MySocRunner }) {
         <div className="text-xs text-muted">
           {runner.state === "never_seen" ? `ดาวน์โหลดไฟล์เชื่อมเมื่อ ${formatTime(runner.linkedAt)} · รอ SOC Runner บนเครื่องของคุณเชื่อมต่อครั้งแรก` : null}
           {runner.runnerVersion ? `เวอร์ชัน ${runner.runnerVersion}` : null}
-          {runner.claudeLogin ? ` · ${SOC_CLAUDE_LOGIN_LABELS[runner.claudeLogin] ?? runner.claudeLogin}` : null}
+          {runner.claudeLogin ? ` · ${SOC_CLAUDE_LOGIN_LABELS[runner.claudeLogin]}` : null}
         </div>
       </> : <>
-        <div className="font-medium">ยังไม่ได้เชื่อมเครื่อง</div>
-        <div className="text-xs text-muted">ดาวน์โหลดไฟล์เชื่อม (soc-runner.json) แล้ววางไว้ข้างโปรแกรม SOC Runner เครื่องนั้นจะรับเฉพาะงานตรวจของคุณ</div>
+        <div className="font-medium">{revokedAt ? "ลิงก์ของเครื่องคุณถูกยกเลิก" : "ยังไม่ได้เชื่อมเครื่อง"}</div>
+        {revokedAt ? <div className="text-xs text-muted">ผู้ดูแลยกเลิกเมื่อ {formatTime(revokedAt)} · ดาวน์โหลดไฟล์เชื่อมใหม่เพื่อใช้ SOC Runner อีกครั้ง</div> : null}
+        <div className="text-xs text-muted">ดาวน์โหลดไฟล์เชื่อม ({SOC_RUNNER_CONFIG_FILE}) แล้ววางไว้ข้างโปรแกรม SOC Runner เครื่องนั้นจะรับเฉพาะงานตรวจของคุณ</div>
       </>}
       {runner?.claudeLogin === "logged_out" ? <p role="alert" className="text-xs text-danger">SOC Runner ต้องการให้คุณเข้าสู่ระบบ Claude ใหม่บนเครื่องนั้น</p> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}

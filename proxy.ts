@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { requireIngestKey } from "@/lib/project-card";
+import { socRunnerBearerToken } from "@/lib/soc-runner-token";
 
 // Per-user login (see actions/auth.ts, lib/auth.ts, lib/session.ts,
 // app/login/page.tsx): every request needs a valid signed session cookie or
@@ -28,8 +29,10 @@ const LOGIN_PATH = "/login";
 const PROJECT_CARD_INGEST_PATH = "/api/project-card/ingest";
 
 // SOC Runner endpoints (ADR 0008, docs/SOC-RUNNER.md) are called by the
-// program on a reviewer's PC, which has no session cookie: each route checks
-// the runner's own bearer token (lib/soc-runner.ts authenticateSocRunner).
+// program on a reviewer's PC, which has no session cookie. A request without
+// a well-formed runner token is refused here (fail closed, even for a route
+// that forgot its own check); each route then checks the token is known and
+// not revoked (lib/soc-runner.ts authenticateSocRunner).
 const SOC_RUNNER_API_PREFIX = "/api/soc-runner/";
 
 // Per-IP rate limit — a plain sliding-ish window counter kept in memory.
@@ -108,7 +111,8 @@ export function proxy(request: NextRequest) {
   }
 
   if (request.nextUrl.pathname.startsWith(SOC_RUNNER_API_PREFIX)) {
-    return NextResponse.next();
+    if (socRunnerBearerToken(request)) return NextResponse.next();
+    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
 
   const session = verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);

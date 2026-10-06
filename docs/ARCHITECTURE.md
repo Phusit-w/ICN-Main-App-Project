@@ -15,6 +15,8 @@
 ## Backend
 
 - **ไม่มี REST API / GraphQL แยกต่างหาก** — ใช้ **Server Actions** แทน (ไฟล์ใน `actions/*.ts` ที่มี `"use server"` บรรทัดแรก) เป็นฟังก์ชันที่รันบนเซิร์ฟเวอร์เท่านั้น แต่เรียกจาก component ฝั่ง frontend ได้ตรงๆ เหมือนเรียกฟังก์ชันธรรมดา (เช่น `BillEditor.tsx` เรียก `saveRecord()` จาก `actions/records.ts` ได้เลย ไม่ต้อง fetch("/api/...") เอง) — Next.js จัดการส่งข้อมูลไป-กลับให้อัตโนมัติ
+  ข้อยกเว้น: route handler ใต้ `app/api/` สำหรับไฟล์อัปโหลด/ดาวน์โหลด และสำหรับโปรแกรมภายนอกที่ไม่มี session cookie
+  (crawler ของ Project Card, SOC Runner ใต้ `/api/soc-runner/` ซึ่งยืนยันตัวด้วย bearer token — ดู `docs/SOC-RUNNER.md`)
 - **Middleware** (`proxy.ts`) — โค้ดที่ดักทุก request ก่อนถึงหน้าไหนก็ตาม ตรวจ session cookie ของระบบ login รายคน (`lib/auth.ts`) + rate limiting ที่นี่จุดเดียว ไม่ผ่าน → redirect ไป `/login`
 
 ## Database

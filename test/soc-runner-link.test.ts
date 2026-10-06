@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
 import { socRunnerState } from "@/lib/soc-shared";
+import { socRunnerBearerToken } from "@/lib/soc-runner-token";
 
 const skip = setupTestDatabase();
 
@@ -119,7 +120,8 @@ test("a heartbeat with a valid token records the version, Claude login and last-
   const alice = await user("alice");
   signedIn = alice;
   const config = await download();
-  assert.deepEqual(await mySocRunner(alice.id), { state: "never_seen", lastSeenAt: null, runnerVersion: null, claudeLogin: null, linkedAt: (await prisma.socRunnerLink.findUniqueOrThrow({ where: { id: config.linkId } })).createdAt });
+  const linkedAt = (await prisma.socRunnerLink.findUniqueOrThrow({ where: { id: config.linkId } })).createdAt.toISOString();
+  assert.deepEqual(await mySocRunner(alice.id), { state: "never_seen", lastSeenAt: null, runnerVersion: null, claudeLogin: null, linkedAt, revokedAt: null, revokeReason: null });
 
   const before = Date.now();
   const response = await heartbeat(config.token, { runnerVersion: "0.2.0", claudeLogin: "logged_out" });
@@ -177,7 +179,7 @@ test("a runner is online while its last heartbeat is recent, offline after", () 
   assert.equal(socRunnerState(new Date("2026-10-06T09:57:00Z"), now), "offline");
 });
 
-test("a user with no active link has no runner", { skip }, async () => {
+test("a user who never linked has no runner", { skip }, async () => {
   const alice = await user("alice");
   assert.equal(await mySocRunner(alice.id), null);
 });
@@ -201,7 +203,9 @@ test("an admin sees every link and revokes one; its token is then refused", { sk
 
   assert.deepEqual(await revokeSocRunnerLink(config.linkId), { ok: true });
   assert.equal((await heartbeat(config.token)).status, 401);
-  assert.equal(await mySocRunner(alice.id), null);
+  const mine = await mySocRunner(alice.id);
+  assert.ok(mine?.revokedAt, "the user's /soc panel can say an admin revoked the link");
+  assert.equal(mine?.revokeReason, "admin");
 
   const revoked = await prisma.socRunnerLink.findUniqueOrThrow({ where: { id: config.linkId } });
   assert.equal(revoked.revokeReason, "admin");
@@ -232,4 +236,36 @@ test("only ADMIN may list or revoke links", { skip }, async () => {
   await assert.rejects(listSocRunnerLinks(), /FORBIDDEN/);
   await assert.rejects(revokeSocRunnerLink(config.linkId), /FORBIDDEN/);
   assert.equal((await heartbeat(config.token)).status, 200);
+});
+
+// ---- Token shape and the proxy ------------------------------------------------------
+
+test("only a well-formed Bearer runner token is read from the header", () => {
+  const token = "socr_" + "a".repeat(43);
+  const req = (authorization?: string) => new Request("http://localhost/", { headers: authorization ? { authorization } : {} });
+  assert.equal(socRunnerBearerToken(req(`Bearer ${token}`)), token);
+  assert.equal(socRunnerBearerToken(req(`bearer  ${token}`)), token, "the scheme is case-insensitive");
+  assert.equal(socRunnerBearerToken(req()), null);
+  assert.equal(socRunnerBearerToken(req(`Basic ${token}`)), null);
+  assert.equal(socRunnerBearerToken(req("Bearer socr_short")), null);
+  assert.equal(socRunnerBearerToken(req(`Bearer ${token} extra`)), null);
+});
+
+test("in production the proxy refuses a runner API call without a runner token, and lets one with a token reach the route", async () => {
+  const { proxy } = await import("@/proxy");
+  const { NextRequest } = await import("next/server");
+  const env = process.env as Record<string, string | undefined>;
+  const saved = { NODE_ENV: env.NODE_ENV, SESSION_SECRET: env.SESSION_SECRET };
+  env.NODE_ENV = "production";
+  env.SESSION_SECRET = "test-secret";
+  try {
+    const call = (authorization?: string) => proxy(new NextRequest("http://localhost/api/soc-runner/heartbeat", { method: "POST", headers: authorization ? { authorization } : {} }));
+    assert.equal(call().status, 401);
+    assert.equal(call("Bearer not-a-runner-token").status, 401);
+    const passed = call(`Bearer socr_${"a".repeat(43)}`);
+    assert.equal(passed.headers.get("x-middleware-next"), "1", "passed on to the route, which checks the token itself");
+  } finally {
+    env.NODE_ENV = saved.NODE_ENV;
+    env.SESSION_SECRET = saved.SESSION_SECRET;
+  }
 });
