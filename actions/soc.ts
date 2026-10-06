@@ -41,15 +41,6 @@ export async function updateSocResult(input: {
   revalidatePath(`/soc/${input.jobId}`);
 }
 
-export async function acceptAllSocResults(jobId: string) {
-  const { actor, job } = await authorizeSocJob(jobId);
-  if (job.status !== "NEEDS_REVIEW") throw new Error("งานนี้ไม่ได้อยู่ในขั้นตรวจทาน");
-  await prisma.socCheckResult.updateMany({ where: { jobId, reviewedAt: null }, data: { reviewedById: actor.id, reviewedAt: new Date() } });
-  await prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "ALL_RESULTS_ACCEPTED" } });
-  await writeAudit({ actorId: actor.id, action: "SOC_RESULTS_ACCEPTED", entityType: "SOC_JOB", entityId: jobId, summary: `ยืนยันผลทั้งหมดในงาน ${job.title}` });
-  revalidatePath(`/soc/${jobId}`);
-}
-
 export async function confirmSocJob(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
   if (job.status !== "NEEDS_REVIEW") throw new Error("งานนี้ไม่ได้อยู่ในขั้นตรวจทาน");

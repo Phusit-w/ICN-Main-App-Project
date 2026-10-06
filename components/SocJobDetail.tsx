@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { acceptAllSocResults, confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
+import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import { CHECK_LABELS, SOC_STATUS_LABELS } from "@/lib/soc-shared";
 
@@ -79,7 +79,7 @@ function ResultEditor({ jobId, result, evidence, editable }: { jobId: string; re
 function ReviewActions({ jobId, unreviewed }: { jobId: string; unreviewed: number }) {
   const router = useRouter(); const [error, setError] = useState(""); const [pending, startTransition] = useTransition();
   function run(action: () => Promise<void>) { setError(""); startTransition(async () => { try { await action(); router.refresh(); } catch (cause) { setError(cause instanceof Error ? cause.message : "ดำเนินการไม่สำเร็จ"); } }); }
-  return <div className="flex flex-wrap items-center justify-end gap-2">{error ? <span className="text-xs text-danger">{error}</span> : null}{unreviewed ? <Button variant="outline" size="sm" disabled={pending} onClick={() => run(() => acceptAllSocResults(jobId))}>ยืนยันผลเดิมทั้งหมด</Button> : null}<Button size="sm" disabled={pending || unreviewed > 0} onClick={() => run(() => confirmSocJob(jobId))}>ยืนยันและสร้าง DOCX</Button></div>;
+  return <div className="flex flex-wrap items-center justify-end gap-2">{error ? <span className="text-xs text-danger">{error}</span> : null}{unreviewed ? <span className="text-xs text-muted">ต้องยืนยันทีละรายการอีก {unreviewed} ข้อ</span> : null}<Button size="sm" disabled={pending || unreviewed > 0} onClick={() => run(() => confirmSocJob(jobId))}>ยืนยันและสร้าง DOCX</Button></div>;
 }
 
 function FailurePanel({ job }: { job: Job }) {
