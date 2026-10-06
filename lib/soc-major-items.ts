@@ -100,7 +100,7 @@ function decodeXml(value: string): string {
 
 // Reads one file out of a zip archive (stored or deflated; no zip64, which a
 // SOC under the 25 MB upload limit never needs).
-function readZipEntry(zip: Uint8Array, name: string): string {
+export function readZipEntry(zip: Uint8Array, name: string): string {
   const buffer = Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength);
   try {
     let end = -1;
