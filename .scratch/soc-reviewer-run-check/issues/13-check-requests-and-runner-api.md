@@ -17,7 +17,7 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 ## Comments
 
-### 2026-10-06: done (commit: see git log "Ticket 13")
+### 2026-10-06: done (commit abf62d2)
 
 - `SocCheckRequest` (migration `20261006220000_soc_check_requests`). Open states `requested | running | paused_quota | needs_login`,
   closed `needs_documents | failed | done | cancelled`. One open request per major item; the item's `state` mirrors it
