@@ -11,6 +11,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { requireAccess, requireRole, writeAudit } from "@/lib/authorization";
 import { hasAccess } from "@/lib/access";
 import { newSocRunnerToken, socRunnerBearerToken } from "@/lib/soc-runner-token";
+import { socRunnerCaCert } from "@/lib/soc-runner-installer";
 import { SOC_CLAUDE_LOGINS, socRunnerState, type SocClaudeLogin, type SocRunnerRevokeReason, type SocRunnerView } from "@/lib/soc-shared";
 
 export const SOC_RUNNER_CONFIG_FORMAT = "soc-runner-config/1";
@@ -33,6 +34,8 @@ export function socRunnerServerUrl(request: Request): string {
 // ("replaced"), so an old config, e.g. on a lost PC, stops working. Returns
 // the config file's content; this is the only place the token exists.
 export async function createSocRunnerLink(actor: SocActor, serverUrl: string) {
+  // Read first: a bad CA setting must not revoke the user's working link.
+  const caCert = await socRunnerCaCert();
   const token = newSocRunnerToken();
   const link = await serializable(async (tx) => {
     const active = await tx.socRunnerLink.findMany({ where: { userId: actor.id, revokedAt: null }, select: { id: true } });
@@ -51,6 +54,7 @@ export async function createSocRunnerLink(actor: SocActor, serverUrl: string) {
   return {
     format: SOC_RUNNER_CONFIG_FORMAT, serverUrl, token, linkId: link.id,
     username: actor.username, displayName: actor.displayName, createdAt: link.createdAt.toISOString(),
+    ...(caCert ? { caCert } : {}),
   };
 }
 

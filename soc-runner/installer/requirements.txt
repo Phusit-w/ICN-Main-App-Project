@@ -1,0 +1,9 @@
+# Packages the SOC skill's scripts import (python-docx, PyMuPDF; openpyxl for
+# the Excel output), bundled into the installer's Python. Pinned to the
+# versions the skill was run with on the developer PC (2026-10-07).
+python-docx==1.2.0
+lxml==6.1.1
+typing_extensions==4.16.0
+pymupdf==1.28.2
+openpyxl==3.1.5
+et_xmlfile==2.0.0

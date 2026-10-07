@@ -11,7 +11,8 @@
 เวลาที่เห็นล่าสุด เวอร์ชันของ runner และสถานะการเข้าสู่ระบบ Claude
 
 ปุ่ม **ดาวน์โหลดไฟล์เชื่อม SOC Runner** (`POST /api/soc/runner-link`, ต้องมีสิทธิ์ `soc`) สร้างไฟล์ `soc-runner.json`
-ที่ผูกกับบัญชีผู้ใช้ที่ล็อกอินอยู่ ไม่ต้องใส่รหัสจับคู่ จนกว่าจะมีตัวติดตั้ง (ticket 16) ให้วางไฟล์นี้ไว้ข้าง SOC Runner ที่รันจาก source
+ที่ผูกกับบัญชีผู้ใช้ที่ล็อกอินอยู่ ไม่ต้องใส่รหัสจับคู่ ใช้กับ SOC Runner ที่รันจาก source ผู้ตรวจทั่วไปใช้**ตัวติดตั้ง**แทน (หัวข้อ "ตัวติดตั้ง" ด้านล่าง)
+ซึ่งมีไฟล์เชื่อมเดียวกันนี้แนบอยู่ ถ้าตั้ง `SOC_RUNNER_CA_CERT_FILE` ไว้ ไฟล์เชื่อมจะมี `caCert` (PEM ของ root CA ของ server) เพิ่มด้วย
 
 ```json
 {
@@ -135,7 +136,7 @@ multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion`
 
 ## ตัว SOC Runner (ticket 14, `soc-runner/`)
 
-โปรแกรม Python (standard library ล้วน) รันจาก source จนกว่าจะมีตัวติดตั้ง (ticket 16)
+โปรแกรม Python (standard library ล้วน) ผู้ตรวจติดตั้งด้วยตัวติดตั้ง (ticket 16) นักพัฒนารันจาก source ได้
 
 ```
 npm run soc:runner -- path\to\soc-runner.json   # ไม่ระบุ = soc-runner/soc-runner.json (อยู่ใน .gitignore)
@@ -152,7 +153,8 @@ npm run soc:runner:test                          # unittest ด้วย server 
 - `claude -p --output-format stream-json --verbose --model sonnet --permission-mode acceptEdits --allowedTools Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite --disallowedTools WebFetch,WebSearch`
   พร้อม `--session-id <uuid>` (รอบแรก) หรือ `--resume <uuid>` (ตรวจต่อ)
   (บน Windows Claude Code รันคำสั่ง shell ผ่าน tool `PowerShell` ไม่ใช่ `Bash` ถ้าไม่อนุญาต ทุกคำสั่ง `python` จะติด "requires approval" แล้วหยุด)
-  ใต้ login Claude ของผู้ใช้เครื่องนั้น สคริปต์ของ skill ต้องการ Python ที่มี python-docx / PyMuPDF บนเครื่อง (ตัวติดตั้งต้องจัดให้, ticket 16)
+  ใต้ login Claude ของผู้ใช้เครื่องนั้น สคริปต์ของ skill ต้องการ Python ที่มี python-docx / PyMuPDF: runner ใส่โฟลเดอร์ของ Python ที่ตัวเองรันอยู่
+  ไว้หน้าสุดของ PATH ของ `claude` (ตัวติดตั้งให้ Python ที่มี package เหล่านี้) และรัน `claude` แบบไม่เปิดหน้าต่าง console
 - โฟลเดอร์งานตั้งชื่อตาม id ของคำขอ และเก็บ session ของ Claude ไว้ใน `soc-runner-run.json` คำขอที่กลับมา
   (หลังหยุดรอโควตา, login ใหม่ หรือ runner restart) จึง `--resume` session เดิมพร้อมผลระหว่างทางใน `out/` แถวที่ตรวจแล้วไม่หาย
   ถ้า skill ที่ตรึงตอน claim ใหม่เป็นคนละเวอร์ชันกับรอบก่อน จะล้าง `out/` แล้วเริ่ม session ใหม่
@@ -164,7 +166,11 @@ npm run soc:runner:test                          # unittest ด้วย server 
 - ความเสี่ยงที่รู้อยู่: skill ต้องใช้ Bash รันสคริปต์ Python ของตัวเอง จึงเปิด Bash ไว้ทั้งหมด PDF ของผู้ขายเป็นข้อมูลที่ไม่น่าเชื่อถือ
   (prompt injection) ปิด WebFetch/WebSearch แล้ว แต่ยังไม่ได้จำกัดคำสั่ง Bash
 - ตัวแปร: `SOC_RUNNER_WORK_DIR` (ค่าเริ่มต้น `%LOCALAPPDATA%\SOCRunner\work`), `SOC_RUNNER_MODEL` (`sonnet`),
-  `SOC_RUNNER_TIMEOUT_MINUTES` (180), `SOC_RUNNER_CA_FILE` (root CA ของ Caddy `tls internal`)
+  `SOC_RUNNER_TIMEOUT_MINUTES` (180), `SOC_RUNNER_CA_FILE` (root CA ของ Caddy `tls internal` ถ้าไม่ตั้งใช้ `caCert` ในไฟล์เชื่อม
+  ทั้งสองแบบเชื่อเพิ่มจาก root ของ Windows)
+- `runner.py <config> [--log ไฟล์]`: `--log` เขียนทุกข้อความ (มีเวลา) ลงไฟล์ เกิน 5 MB (ตอนเริ่มและระหว่างทำงาน) เก็บของเก่าไว้หนึ่งชุด (`.1`)
+  รันได้ทีละตัวต่อไฟล์เชื่อม (`runner.lock` ข้างไฟล์เชื่อม) ตัวที่สองจะจบเองทันที
+- หา `claude` จาก PATH ก่อน ไม่เจอใช้ `%USERPROFILE%\.local\bin\claude.exe` (runner ที่เริ่มตอน login อาจยังไม่เห็น PATH ใหม่)
 
 ### สถานะพิเศษ (ticket 15)
 
@@ -200,6 +206,72 @@ heartbeat ส่ง `claudeLogin` จาก `claude auth status --json` (`logged
   - `billing_error` ("credit balance too low") → `failed` เพราะไม่หายเองเมื่อถึงเวลา จึงไม่ควรรอแล้วลองใหม่อัตโนมัติ
   - อย่างอื่น → `failed`
   ข้อความ `/login` / usage limit จะเชื่อก็ต่อเมื่อการรันจบด้วย API error เท่านั้น ไม่ใช่แค่ Claude เขียนคำเหล่านี้ในข้อความสุดท้าย
+
+## ตัวติดตั้ง (ticket 16, `soc-runner/installer/`)
+
+ผู้ตรวจกด **ดาวน์โหลดตัวติดตั้ง SOC Runner** ในหน้า `/soc` (`POST /api/soc/runner-installer`, ต้องมีสิทธิ์ `soc`)
+ได้ `SOCRunnerSetup.exe` ที่มีไฟล์เชื่อมของผู้ใช้คนนั้น (โทเคนใหม่) แนบท้ายไฟล์ จึงไม่ต้องจับคู่เครื่อง
+การดาวน์โหลดสร้างลิงก์ใหม่และยกเลิกลิงก์เดิม (`replaced`) เหมือนดาวน์โหลดไฟล์เชื่อม ถ้า server ยังไม่มีตัวติดตั้ง ตอบ `503`
+และ**ไม่**แตะลิงก์เดิม หน้า `/soc` อธิบายคำเตือนของเบราว์เซอร์และ SmartScreen เป็นภาษาไทย (ตัวติดตั้งไม่ได้ลงลายเซ็น, ADR 0008)
+
+รูปแบบไฟล์ที่ดาวน์โหลด (`lib/soc-runner-installer.ts`):
+`<SOCRunnerSetup.exe> <JSON ไฟล์เชื่อม UTF-8> <ความยาว JSON uint32 LE> "SOCRCFG1"`
+
+### ติดตั้งแล้วเกิดอะไรขึ้น (ไม่ใช้สิทธิ์ admin ทุกขั้น ทุกอย่างอยู่ใน `%LOCALAPPDATA%\SOCRunner`)
+
+1. ตัว `.exe` (C# `SocRunnerSetup.cs`, manifest `asInvoker`) อ่านไฟล์เชื่อมท้ายไฟล์ตัวเอง ไม่มี = บอกให้ดาวน์โหลดจาก `/soc`
+2. ปิด SOC Runner ตัวเดิม (python/pythonw/SOCRunner ที่รันจาก `app\` พร้อม process ลูก เช่น `claude` ที่กำลังตรวจ)
+3. แตก payload เป็นโฟลเดอร์ `app\` ใหม่ทั้งหมด (`app\python\` = Python 3.12 จาก NuGet + python-docx/PyMuPDF/openpyxl,
+   `app\runner\` = โค้ด runner) แล้วเขียน `soc-runner.json` **ติดตั้งซ้ำ = ซ่อม** เพราะ `app\` ถูกแทนทั้งชุด
+   ส่วน `work\` (งานที่หยุดรอโควตา) และ `runner.log` ไม่ถูกลบ
+4. รัน `app\python\python.exe app\runner\install.py <root>` (`soc-runner/install.py`):
+   - ตรวจไฟล์เชื่อม
+   - ถ้ายังไม่มี Claude Code ที่ใช้ได้ (PATH หรือ `%USERPROFILE%\.local\bin\claude.exe`, ทดสอบด้วย `--version`)
+     ดาวน์โหลด native build จาก `downloads.claude.ai` ตรวจ sha256 กับ manifest แล้ว `claude.exe install stable`
+     (ขั้นตอนเดียวกับ `claude.ai/install.ps1` แต่ไม่รันไฟล์ `.ps1` จึงไม่ติด Execution Policy)
+   - **ไม่ติดตั้ง Git**: Claude Code 2.1.292 รัน `claude -p` ได้โดยไม่มี Git และ bash ใน PATH และเรียก `python` ผ่าน shell tool ได้ (ทดสอบ 2026-10-07) บน Windows ใช้ tool PowerShell
+   - เพิ่มโฟลเดอร์ของ `claude.exe` ใน PATH ของผู้ใช้ (HKCU\Environment) ถ้ายังไม่มี เพื่อให้พิมพ์ `claude` แล้ว `/login` ได้
+     ตอน login หมดอายุ (ปัญหาเดิมใน `Problem/install-claude-code-no-admin.md`)
+   - ตั้ง autostart: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ค่า `SOCRunner` =
+     `"…\app\python\SOCRunner.exe" "…\app\runner\runner.py" "…\soc-runner.json" "--log" "…\runner.log"`
+   - ถ้า `claude auth status` บอกว่ายังไม่ได้ login เปิดหน้าต่าง `claude auth login --claudeai` (เปิดเบราว์เซอร์ให้) รอสูงสุด 15 นาที
+     ถ้า login อยู่แล้ว (เช่น ติดตั้งซ้ำ) ข้ามขั้นนี้
+   - เริ่ม runner ด้วย `SOCRunner.exe` (สำเนาของ `pythonw.exe` ชื่อนี้ให้เห็นใน Task Manager ไม่มีหน้าต่าง) ถ้ามีอีกตัวทำงานอยู่ ตัวใหม่จะจบเองเพราะ `runner.lock`
+5. แสดงกล่อง "ติดตั้ง SOC Runner เสร็จแล้ว" (บอกให้ลบ `SOCRunnerSetup.exe` ที่ดาวน์โหลดไว้ เพราะมีโทเคนของผู้ใช้
+   ใครเอาไปติดตั้งก็รับงานในนามผู้ใช้นั้นได้) หรือเหตุผลที่ไม่สำเร็จ (รายละเอียดอยู่ในหน้าต่าง console)
+
+ข้อควรรู้: ลิงก์เดิมถูกยกเลิกตอน**ดาวน์โหลด** ไม่ใช่ตอนติดตั้ง ถ้าดาวน์โหลดแล้วไม่ติดตั้ง หรือติดตั้งไม่สำเร็จ เครื่องเดิมจะรับงานไม่ได้
+จนกว่าจะติดตั้งไฟล์ใหม่ให้สำเร็จ (ตามการตัดสินใจ "หนึ่งลิงก์ต่อผู้ใช้" ใน ADR 0008) ลิงก์ "ดาวน์โหลดเฉพาะไฟล์เชื่อม" ในหน้า `/soc`
+แสดงเฉพาะ ADMIN (นักพัฒนาที่รันจาก source) เพื่อไม่ให้ผู้ตรวจกดแล้วเครื่องที่ติดตั้งไว้หลุดโดยไม่ตั้งใจ
+
+ดูปัญหาบนเครื่องผู้ตรวจ: `%LOCALAPPDATA%\SOCRunner\runner.log`
+ถอนการติดตั้ง (ยังไม่มีปุ่ม): ลบค่า `SOCRunner` ใน `HKCU\…\Run`, ปิด `SOCRunner.exe` ใน Task Manager แล้วลบ `%LOCALAPPDATA%\SOCRunner`
+(Claude Code และ login ของผู้ใช้ไม่ถูกลบ) แล้วให้ admin ยกเลิกลิงก์ที่ `/admin/soc-runners`
+
+### Build และนำขึ้น server
+
+```
+npm run soc:runner:build      # = python soc-runner/installer/build.py → soc-runner/dist/SOCRunnerSetup.exe (~39 MB)
+```
+
+ต้อง build บน Windows (ใช้ `csc.exe` ของ .NET Framework 4.x ที่มากับ Windows) ต้องมีอินเทอร์เน็ตครั้งแรก
+(NuGet `python` 3.12.10 ตรึง sha256 ไว้, PyPI ตาม `installer/requirements.txt`) ผลลัพธ์อยู่ใน `.gitignore`
+แก้โค้ด runner แล้วต้อง build และนำขึ้นใหม่ ผู้ตรวจได้เวอร์ชันใหม่เมื่อติดตั้งซ้ำ (ยังไม่มีการอัปเดตเอง)
+
+server หาไฟล์ที่ `SOC_RUNNER_INSTALLER_PATH` หรือค่าเริ่มต้น `<SOC_STORAGE_ROOT>/runner/SOCRunnerSetup.exe`
+บน docker-compose (volume `soc_data` ที่ `/data/soc`):
+
+```
+docker compose exec app mkdir -p /data/soc/runner
+docker compose cp soc-runner/dist/SOCRunnerSetup.exe app:/data/soc/runner/SOCRunnerSetup.exe
+```
+
+ตั้งค่า server ที่ runner ต้องใช้ (ยังไม่ได้ตั้งใน `docker-compose.yml`):
+
+- `SOC_RUNNER_SERVER_URL` = URL ที่เครื่องผู้ตรวจเรียกถึง เช่น `https://192.168.51.43`
+- `SOC_RUNNER_CA_CERT_FILE` = root CA ของ Caddy `tls internal` (PEM) เพื่อให้ runner เชื่อ HTTPS ของ server
+  เช่น mount volume `caddy_data` แบบ read-only เข้า `app` แล้วชี้ไปที่ `/caddy-data/caddy/pki/authorities/local/root.crt`
+  ไฟล์เชื่อมทุกไฟล์จะมี `caCert` ถ้าตั้งค่านี้แต่ไฟล์ไม่ใช่ PEM การดาวน์โหลดจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
 
 ## Admin
 

@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from datetime import datetime, timedelta, timezone
 
 from claude_cli import ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
-from runner import RUNNER_VERSION, SocRunner, carry_out, load_config
+from runner import RUNNER_VERSION, SocRunner, carry_out, load_config, open_log, parse_args, single_instance
 from server_client import NotClaimed, ServerError, SubmitRejected
 
 SKILL_MD = "---\nname: tor-word-compliance-check\ndescription: test\n---\n# skill\n"
@@ -567,6 +567,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(config.server_url, "https://soc.example")
         self.assertEqual(config.token, "socr_abc")
 
+    def test_keeps_the_servers_ca_certificate(self):
+        pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+        config = load_config(self.write({"format": "soc-runner-config/1", "serverUrl": "https://soc", "token": "socr_a", "caCert": pem}))
+        self.assertEqual(config.ca_cert, pem)
+        self.assertEqual(load_config(self.write({"format": "soc-runner-config/1", "serverUrl": "https://soc", "token": "socr_a"})).ca_cert, "")
+
     def test_rejects_another_format(self):
         with self.assertRaises(ValueError):
             load_config(self.write({"format": "other", "serverUrl": "https://x", "token": "socr_a"}))
@@ -574,6 +580,52 @@ class ConfigTest(unittest.TestCase):
     def test_rejects_a_missing_token(self):
         with self.assertRaises(ValueError):
             load_config(self.write({"format": "soc-runner-config/1", "serverUrl": "https://x"}))
+
+
+class ProcessTest(unittest.TestCase):
+    """What the installed runner needs: one copy at a time, a log file, its arguments."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="soc-runner-process-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_only_one_runner_holds_the_lock(self):
+        lock = self.dir / "runner.lock"
+        first = single_instance(lock)
+        self.assertIsNotNone(first)
+        self.assertIsNone(single_instance(lock))
+        first.close()
+        again = single_instance(lock)
+        self.assertIsNotNone(again)
+        again.close()
+
+    def test_a_large_log_is_rotated_once(self):
+        log = self.dir / "runner.log"
+        log.write_text("x" * 50, encoding="utf-8")
+        with open_log(log, max_bytes=10) as stream:
+            stream.write("new\n")
+        self.assertEqual(log.read_text(encoding="utf-8"), "new\n")
+        self.assertEqual((self.dir / "runner.log.1").read_text(encoding="utf-8"), "x" * 50)
+        with open_log(log, max_bytes=1000) as stream:
+            stream.write("more\n")
+        self.assertEqual(log.read_text(encoding="utf-8"), "new\nmore\n")
+
+    def test_a_long_running_log_rotates_too(self):
+        log = self.dir / "runner.log"
+        with open_log(log, max_bytes=10) as stream:
+            stream.write("0123456789ab\n")
+            stream.write("next\n")
+        self.assertEqual(log.read_text(encoding="utf-8"), "next\n")
+        self.assertEqual((self.dir / "runner.log.1").read_text(encoding="utf-8"), "0123456789ab\n")
+
+    def test_arguments(self):
+        self.assertEqual(parse_args(["runner.py", "c.json", "--log", "r.log"]), (Path("c.json"), Path("r.log")))
+        self.assertEqual(parse_args(["runner.py", "c.json"]), (Path("c.json"), None))
+        config, log = parse_args(["runner.py"])
+        self.assertEqual(config.name, "soc-runner.json")
+        self.assertIsNone(log)
 
 
 class PickModelTest(unittest.TestCase):

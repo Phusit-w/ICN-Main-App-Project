@@ -15,7 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from claude_cli import ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask, interpret_stream, run_arguments
+from claude_cli import (ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask, child_env,
+                        find_claude, interpret_stream, run_arguments)
 
 SESSION = "5aa7306e-bce2-4edc-822e-c5ba3e00f205"
 
@@ -134,6 +135,32 @@ class RunArgumentsTest(unittest.TestCase):
         argv = run_arguments("claude", "sonnet", ClaudeTask(prompt="p", cwd=Path("."), out_dir=Path("out"), session_id=SESSION, resume=True))
         self.assertEqual(argv[argv.index("--resume") + 1], SESSION)
         self.assertNotIn("--session-id", argv)
+
+
+class InstalledClaudeTest(unittest.TestCase):
+    """The runner starts at login, before a new PATH from the Claude Code install reaches it."""
+
+    def test_claude_on_path_wins(self):
+        self.assertEqual(find_claude(which=lambda name: r"C:\tools\claude.exe", home=Path("/nowhere")), r"C:\tools\claude.exe")
+
+    def test_falls_back_to_the_native_install_in_the_profile(self):
+        import tempfile
+        home = Path(tempfile.mkdtemp(prefix="soc-runner-home-"))
+        try:
+            self.assertEqual(find_claude(which=lambda name: None, home=home), "claude")
+            exe = home / ".local" / "bin" / "claude.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+            self.assertEqual(find_claude(which=lambda name: None, home=home), str(exe))
+        finally:
+            import shutil
+            shutil.rmtree(home, ignore_errors=True)
+
+    def test_the_skill_scripts_get_the_runners_own_python_first(self):
+        env = child_env({"PATH": r"C:\Windows", "OTHER": "1"}, python_dir=Path(r"C:\SOCRunner\app\python"))
+        self.assertEqual(env["PATH"].split(";" if sys.platform == "win32" else ":")[0], str(Path(r"C:\SOCRunner\app\python")))
+        self.assertEqual(env["OTHER"], "1")
+        self.assertEqual(env["PYTHONUTF8"], "1")
 
 
 if __name__ == "__main__":

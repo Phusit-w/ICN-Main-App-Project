@@ -1,8 +1,11 @@
 """SOC Runner: carries out its user's Check Requests on this machine (ADR 0008).
 
-Run from source (until the installer, ticket 16):
+Run from source:
 
-    python soc-runner/runner.py path/to/soc-runner.json
+    python soc-runner/runner.py path/to/soc-runner.json [--log runner.log]
+
+The installer (ticket 16, installer/) runs it on its bundled pythonw.exe at
+login with `--log`, one copy at a time.
 
 It sends a heartbeat every 30 s, polls the server for the oldest Check Request
 of its user, downloads the SOC, the evidence and the pinned skill package,
@@ -29,7 +32,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.1.0"
+RUNNER_VERSION = "0.2.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -59,6 +62,7 @@ class Config:
     server_url: str
     token: str
     username: str = ""
+    ca_cert: str = ""  # PEM of the server's own CA (Caddy `tls internal`), from the download
 
 
 def load_config(path: Path) -> Config:
@@ -70,7 +74,8 @@ def load_config(path: Path) -> Config:
         raise ValueError(f"{path} ไม่มี serverUrl")
     if not isinstance(token, str) or not token.startswith("socr_"):
         raise ValueError(f"{path} ไม่มีโทเคน ให้ดาวน์โหลดไฟล์เชื่อมจากหน้า /soc ใหม่")
-    return Config(server_url.rstrip("/"), token, str(data.get("username") or ""))
+    ca_cert = data.get("caCert")
+    return Config(server_url.rstrip("/"), token, str(data.get("username") or ""), ca_cert if isinstance(ca_cert, str) else "")
 
 
 # ---------------------------------------------------------------- one request
@@ -484,28 +489,124 @@ def default_work_root() -> Path:
     return (Path(base) / "SOCRunner" / "work") if base else Path.home() / ".soc-runner" / "work"
 
 
+def parse_args(argv: list[str]) -> tuple[Path, Path | None]:
+    """`runner.py [config] [--log FILE]`: the config file and the log file, if any."""
+    args = list(argv[1:])
+    log = None
+    if "--log" in args:
+        at = args.index("--log")
+        log = Path(args[at + 1]) if at + 1 < len(args) else None
+        del args[at:at + 2]
+    config = Path(args[0]) if args else Path(__file__).with_name("soc-runner.json")
+    return config, log
+
+
+def single_instance(lock_path: Path):
+    """An open, locked file while this is the only runner, else None.
+
+    Autostart at login and the installer may both start one; two runners on
+    one token would claim requests against each other. Closing the file (or
+    the process ending) releases the lock.
+    """
+    Path(lock_path).parent.mkdir(parents=True, exist_ok=True)
+    handle = open(lock_path, "a+b")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
+class LogFile:
+    """The runner's log, appended to; once it grows past max_bytes it moves to .1
+    (one older copy kept), at start and while the runner runs for weeks."""
+
+    def __init__(self, path: Path, max_bytes: int):
+        self.path = Path(path)
+        self.max_bytes = max_bytes
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()  # the heartbeat thread logs too
+        self._stream = self._open()
+
+    def _open(self):
+        try:
+            if self.path.stat().st_size > self.max_bytes:
+                os.replace(self.path, self.path.with_name(self.path.name + ".1"))
+        except OSError:
+            pass  # not there yet, or held open by another process: keep appending
+        return open(self.path, "a", encoding="utf-8", buffering=1)
+
+    def write(self, text: str) -> int:
+        with self._lock:
+            written = self._stream.write(text)
+            if text.endswith("\n") and self._stream.tell() > self.max_bytes:
+                self._stream.close()
+                self._stream = self._open()
+            return written
+
+    def flush(self) -> None:
+        with self._lock:
+            self._stream.flush()
+
+    def close(self) -> None:
+        with self._lock:
+            self._stream.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+
+def open_log(path: Path, max_bytes: int = 5 * 1024 * 1024) -> LogFile:
+    return LogFile(path, max_bytes)
+
+
+def _timestamped(message: str) -> None:
+    print(f"{datetime.now():%Y-%m-%d %H:%M:%S} {message}", flush=True)
+
+
 def main(argv: list[str]) -> int:
+    config_path, log_path = parse_args(argv)
+    # The lock comes first: a second runner must not touch the first one's log.
+    lock = single_instance(config_path.with_name("runner.lock"))
+    if lock is None:
+        return 0
+    if log_path:
+        # pythonw has no console (sys.stdout is None): everything goes to the log.
+        sys.stdout = sys.stderr = open_log(log_path)
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
-    config_path = Path(argv[1]) if len(argv) > 1 else Path(__file__).with_name("soc-runner.json")
     try:
         config = load_config(config_path)
     except (OSError, ValueError) as error:
         print(f"อ่านไฟล์เชื่อมไม่ได้: {error}", file=sys.stderr)
+        lock.close()
         return 2
-    server = HttpServerClient(config.server_url, config.token, ca_file=os.environ.get("SOC_RUNNER_CA_FILE") or None)
+    ca_file = os.environ.get("SOC_RUNNER_CA_FILE") or None
+    server = HttpServerClient(config.server_url, config.token, ca_file=ca_file, ca_pem=None if ca_file else config.ca_cert or None)
     claude = ClaudeCli(model=os.environ.get("SOC_RUNNER_MODEL", "sonnet"),
                        timeout_seconds=float(os.environ.get("SOC_RUNNER_TIMEOUT_MINUTES", "180")) * 60)
     work_root = default_work_root()
     work_root.mkdir(parents=True, exist_ok=True)
-    print(f"เชื่อมกับ {config.server_url} ในนาม {config.username or '?'} โฟลเดอร์งาน {work_root}")
+    _timestamped(f"เชื่อมกับ {config.server_url} ในนาม {config.username or '?'} โฟลเดอร์งาน {work_root} Claude: {claude.executable}")
     try:
-        SocRunner(server, claude, work_root).run_forever()
+        SocRunner(server, claude, work_root, log=_timestamped).run_forever()
     except KeyboardInterrupt:
-        print("หยุด SOC Runner แล้ว")
+        _timestamped("หยุด SOC Runner แล้ว")
+    finally:
+        lock.close()
     return 0
 
 

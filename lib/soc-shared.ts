@@ -151,6 +151,8 @@ export const SOC_RUNNER_STATE_LABELS: Record<SocRunnerState, string> = {
 
 // The name of the runner config a user downloads from /soc.
 export const SOC_RUNNER_CONFIG_FILE = "soc-runner.json";
+// The installer a user downloads from /soc (ticket 16).
+export const SOC_RUNNER_INSTALLER_FILE = "SOCRunnerSetup.exe";
 
 // The Claude login state a runner reports in its heartbeat.
 export const SOC_CLAUDE_LOGINS = ["logged_in", "logged_out", "unknown"] as const;

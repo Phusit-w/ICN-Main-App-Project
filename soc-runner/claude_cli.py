@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,6 +32,10 @@ from pathlib import Path
 ALLOWED_TOOLS = "Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite"
 # Vendor PDFs are untrusted input: no web access from a check.
 DISALLOWED_TOOLS = "WebFetch,WebSearch"
+
+# The installed runner runs on pythonw (no console): without this every
+# `claude` it starts would open a console window on the reviewer's desktop.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 LOGIN_ERRORS = {"authentication_failed", "oauth_org_not_allowed"}
 # Not billing_error ("credit balance too low"): it doesn't reset on its own, so it is `failed`.
@@ -151,18 +156,44 @@ def run_arguments(executable: str, model: str, task: ClaudeTask) -> list[str]:
     return argv
 
 
+def find_claude(which=shutil.which, home: Path | None = None) -> str:
+    """`claude` on PATH, else the native install in the user profile.
+
+    The installer (ticket 16) installs Claude Code to ~/.local/bin, and a
+    runner started at login may not see the PATH that install added yet.
+    """
+    found = which("claude")
+    if found:
+        return found
+    native = (home or Path.home()) / ".local" / "bin" / "claude.exe"
+    return str(native) if native.is_file() else "claude"
+
+
+def child_env(base: dict, python_dir: Path) -> dict:
+    """The environment `claude -p` runs in.
+
+    The skill's scripts run `python` and need python-docx and PyMuPDF; the
+    installer bundles them with the Python the runner itself runs on, so that
+    Python comes first on PATH.
+    """
+    env = {**base, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    key = next((k for k in env if k.upper() == "PATH"), "PATH")
+    env[key] = os.pathsep.join(p for p in (str(python_dir), env.get(key, "")) if p)
+    return env
+
+
 class ClaudeCli:
     def __init__(self, model: str = "sonnet", timeout_seconds: float = 3 * 3600, executable: str | None = None):
         self.model = model
         self.timeout_seconds = timeout_seconds
-        self.executable = executable or shutil.which("claude") or "claude"
+        self.executable = executable or find_claude()
 
     def run(self, task: ClaudeTask) -> ClaudeRun:
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+        env = child_env(dict(os.environ), Path(sys.executable).parent)
         try:
             process = subprocess.Popen(run_arguments(self.executable, self.model, task), stdin=subprocess.PIPE,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=task.cwd, env=env,
-                                       text=True, encoding="utf-8", errors="replace")
+                                       text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
         except FileNotFoundError:
             raise ClaudeFailed("ไม่พบโปรแกรม Claude Code (claude) บนเครื่องนี้") from None
         timed_out = threading.Event()
@@ -202,7 +233,7 @@ class ClaudeCli:
         """
         try:
             done = subprocess.run([self.executable, "auth", "status", "--json"], capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", timeout=60)
+                                  encoding="utf-8", errors="replace", timeout=60, creationflags=NO_WINDOW)
             status = json.loads(done.stdout)
         except (OSError, subprocess.TimeoutExpired, ValueError):
             return "unknown"
@@ -221,6 +252,6 @@ def _tail(stream, sink: list[str], keep: int = 4000) -> None:
 def _kill_tree(process: subprocess.Popen) -> None:
     # `claude` may be a .cmd shim; killing only the child would leave Claude running on the user's quota.
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True)
+        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, creationflags=NO_WINDOW)
     else:
         process.kill()

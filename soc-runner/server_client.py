@@ -1,6 +1,6 @@
 """HTTP client for the SOC Runner API (docs/SOC-RUNNER.md).
 
-Standard library only, so the runner packs into one executable (ticket 16).
+Standard library only: the installer (ticket 16) ships no extra packages for it.
 The runner only calls out to the server; it never listens on a port.
 """
 from __future__ import annotations
@@ -53,12 +53,17 @@ class Download:
 
 
 class HttpServerClient:
-    def __init__(self, server_url: str, token: str, ca_file: str | None = None, timeout: float = 120):
+    def __init__(self, server_url: str, token: str, ca_file: str | None = None, timeout: float = 120, ca_pem: str | None = None):
         self.server_url = server_url.rstrip("/")
         self.token = token
         self.timeout = timeout
-        # Caddy on the LAN uses `tls internal`: point SOC_RUNNER_CA_FILE at its root CA.
-        self.context = ssl.create_default_context(cafile=ca_file) if ca_file else None
+        # Caddy on the LAN uses `tls internal`: the downloaded config carries its
+        # root CA (caCert, set on the server), or SOC_RUNNER_CA_FILE points at it.
+        # Either is trusted on top of Windows' own roots.
+        self.context = None
+        if ca_file or ca_pem:
+            self.context = ssl.create_default_context()
+            self.context.load_verify_locations(cafile=ca_file, cadata=ca_pem)
 
     def heartbeat(self, runner_version: str, claude_login: str) -> None:
         self._json("POST", "/api/soc-runner/heartbeat", {"runnerVersion": runner_version, "claudeLogin": claude_login})
