@@ -77,12 +77,12 @@ dev server (:3000, pilot-db), user `uitest13`:
 - Edge/Chrome's download warning and SmartScreen "Windows protected your PC" on a double-click from Explorer;
 - autostart after a reboot;
 - Defender/AV reaction to the unsigned installer;
-- prod: copy the built installer to `<SOC_STORAGE_ROOT>unner\SOCRunnerSetup.exe` on the server (see below).
+- prod: copy the built installer to `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe` on the server (see below).
 
 **Manual test steps (fill in the results here):**
 
 1. On the dev PC: `npm run soc:runner:build`; copy `soc-runner\dist\SOCRunnerSetup.exe` to the server's
-   `<SOC_STORAGE_ROOT>unner\SOCRunnerSetup.exe`.
+   `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe`.
 2. On a company PC without admin, preferably one without Claude Code: sign in to `/soc`, click ดาวน์โหลดตัวติดตั้ง.
    Note the browser warning → Keep.
 3. Double-click in Explorer. Note SmartScreen → More info → Run anyway. No UAC prompt must appear.
@@ -110,5 +110,5 @@ dev server (:3000, pilot-db), user `uitest13`:
 ("Virtualization support not detected", disabled by IT). Prod follows `docs/DEPLOY-WINDOWS.md` (Node, `http://<ip>:3000`,
 no Caddy). So `SOC_RUNNER_CA_CERT_FILE` isn't needed (the runner uses plain `http://` on the LAN, like the web's own
 session cookie) and `SOC_RUNNER_SERVER_URL` defaults to the page's origin. Putting the installer on prod is one copy
-into `<SOC_STORAGE_ROOT>unner\`. `docs/SOC-RUNNER.md` and `DEPLOY-WINDOWS.md` now say so; the Docker path is kept as the
+into `<SOC_STORAGE_ROOT>\runner\`. `docs/SOC-RUNNER.md` and `DEPLOY-WINDOWS.md` now say so; the Docker path is kept as the
 alternative. The installer itself never needed Docker or virtualization.
