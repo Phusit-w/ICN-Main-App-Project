@@ -1,0 +1,1790 @@
+[
+  {
+    "page": 1,
+    "labels": [
+      {
+        "kind": "FreeText",
+        "content": "5.5 (1)",
+        "items": [
+          "5.5"
+        ],
+        "rect": [
+          191.71910095214844,
+          26.62762451171875,
+          270.8629150390625,
+          60.08282470703125
+        ]
+      }
+    ],
+    "highlights": [
+      {
+        "kind": "Highlight",
+        "text": "TC22/TC27 Mobile Computers",
+        "rect": [
+          38.462398529052734,
+          68.6199951171875,
+          342.59759521484375,
+          95.8599853515625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "5.5 (1)",
+        "rect": [
+          222.9199981689453,
+          31.22003173828125,
+          266.2699890136719,
+          49.34002685546875
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "TC22/TC27 Mobile Computers",
+        "rect": [
+          38.46240234375,
+          68.6199951171875,
+          342.59759521484375,
+          95.8599853515625
+        ]
+      }
+    ],
+    "evidence_by_item": {
+      "5.5": [
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "5.5 (1)"
+        }
+      ]
+    },
+    "evidence_blocks": {
+      "5.5": [
+        {
+          "status": "confident",
+          "label": "5.5 (1)",
+          "label_rect": [
+            191.71910095214844,
+            26.62762451171875,
+            270.8629150390625,
+            60.08282470703125
+          ],
+          "evidence": [
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "5.5 (1)",
+              "rect": [
+                222.9199981689453,
+                31.22003173828125,
+                266.2699890136719,
+                49.34002685546875
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ]
+    }
+  },
+  {
+    "page": 2,
+    "labels": [
+      {
+        "kind": "FreeText",
+        "content": "1.1",
+        "items": [
+          "1.1"
+        ],
+        "rect": [
+          489.0535888671875,
+          341.1571960449219,
+          519.8878173828125,
+          358.7225036621094
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.2",
+        "items": [
+          "1.2"
+        ],
+        "rect": [
+          138.0,
+          548.7999877929688,
+          162.39999389648438,
+          566.4000244140625
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "5.5 (1)",
+        "items": [
+          "5.5"
+        ],
+        "rect": [
+          362.28759765625,
+          273.78619384765625,
+          473.498291015625,
+          338.6482849121094
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "5.5 (1)",
+        "items": [
+          "5.5"
+        ],
+        "rect": [
+          170.568603515625,
+          553.0344848632812,
+          251.7592010498047,
+          600.82763671875
+        ]
+      }
+    ],
+    "highlights": [
+      {
+        "kind": "Highlight",
+        "text": "Create a Lightning-Fast RFID Reader Take inventory in record time with the standard range RFD40 UHF RFID sleds and the standard- or extended-range RFD90 Ultra-Rugged UHF RFID sleds. Connect via Zebra’s eConnex™ adaptor or hassle-free Bluetooth—and easily manage sleds over-the-air via Wi-Fi.⁹ 1.1",
+        "rect": [
+          324.22149658203125,
+          345.1134948730469,
+          573.4650268554688,
+          407.56549072265625
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Maximize Device Functionality, Workforce Productivity and the User Experience With the Optional Mobility DNA Enterprise License 1.2",
+        "rect": [
+          42.221500396728516,
+          525.7135009765625,
+          287.32550048828125,
+          556.8405151367188
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "use, printer, s radle and do separate fixe n to create PO 5.5 (1)",
+        "rect": [
+          421.4599914550781,
+          278.3800048828125,
+          468.8999938964844,
+          296.5
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Create a Lightning-Fast RFID Reader Take inventory in record time with the standard range RFD40 UHF RFID sleds and the standard- or extended-range RFD90 Ultra-Rugged UHF RFID sleds. Connect via Zebra’s eConnex™ adaptor or hassle-free Bluetooth—and easily manage sleds over-the-air via Wi-Fi.⁹ 1.1",
+        "rect": [
+          324.2215270996094,
+          341.6524963378906,
+          573.465087890625,
+          407.5655212402344
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Maximize Device Functionality, Workforce Productivity and the User Experience With the Optional Mobility DNA Enterprise License 1.2",
+        "rect": [
+          42.22151565551758,
+          525.7135009765625,
+          287.3254699707031,
+          565.9000244140625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "5.5 (1)",
+        "rect": [
+          200.41000366210938,
+          578.1099853515625,
+          247.1699981689453,
+          596.22998046875
+        ]
+      }
+    ],
+    "evidence_by_item": {
+      "1.1": [
+        {
+          "kind": "Highlight",
+          "text": "Create a Lightning-Fast RFID Reader Take inventory in record time with the standard range RFD40 UHF RFID sleds and the standard- or extended-range RFD90 Ultra-Rugged UHF RFID sleds. Connect via Zebra’s eConnex™ adaptor or hassle-free Bluetooth—and easily manage sleds over-the-air via Wi-Fi.⁹ 1.1"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Create a Lightning-Fast RFID Reader Take inventory in record time with the standard range RFD40 UHF RFID sleds and the standard- or extended-range RFD90 Ultra-Rugged UHF RFID sleds. Connect via Zebra’s eConnex™ adaptor or hassle-free Bluetooth—and easily manage sleds over-the-air via Wi-Fi.⁹ 1.1"
+        }
+      ],
+      "1.2": [
+        {
+          "kind": "Highlight",
+          "text": "Maximize Device Functionality, Workforce Productivity and the User Experience With the Optional Mobility DNA Enterprise License 1.2"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Maximize Device Functionality, Workforce Productivity and the User Experience With the Optional Mobility DNA Enterprise License 1.2"
+        }
+      ],
+      "5.5": [
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "use, printer, s radle and do separate fixe n to create PO 5.5 (1)"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "5.5 (1)"
+        }
+      ]
+    },
+    "evidence_blocks": {
+      "1.1": [
+        {
+          "status": "confident",
+          "label": "1.1",
+          "label_rect": [
+            489.0535888671875,
+            341.1571960449219,
+            519.8878173828125,
+            358.7225036621094
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Create a Lightning-Fast RFID Reader Take inventory in record time with the standard range RFD40 UHF RFID sleds and the standard- or extended-range RFD90 Ultra-Rugged UHF RFID sleds. Connect via Zebra’s eConnex™ adaptor or hassle-free Bluetooth—and easily manage sleds over-the-air via Wi-Fi.⁹ 1.1",
+              "rect": [
+                324.22149658203125,
+                345.1134948730469,
+                573.4650268554688,
+                407.56549072265625
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Create a Lightning-Fast RFID Reader Take inventory in record time with the standard range RFD40 UHF RFID sleds and the standard- or extended-range RFD90 Ultra-Rugged UHF RFID sleds. Connect via Zebra’s eConnex™ adaptor or hassle-free Bluetooth—and easily manage sleds over-the-air via Wi-Fi.⁹ 1.1",
+              "rect": [
+                324.2215270996094,
+                341.6524963378906,
+                573.465087890625,
+                407.5655212402344
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.2": [
+        {
+          "status": "confident",
+          "label": "1.2",
+          "label_rect": [
+            138.0,
+            548.7999877929688,
+            162.39999389648438,
+            566.4000244140625
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Maximize Device Functionality, Workforce Productivity and the User Experience With the Optional Mobility DNA Enterprise License 1.2",
+              "rect": [
+                42.221500396728516,
+                525.7135009765625,
+                287.32550048828125,
+                556.8405151367188
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Maximize Device Functionality, Workforce Productivity and the User Experience With the Optional Mobility DNA Enterprise License 1.2",
+              "rect": [
+                42.22151565551758,
+                525.7135009765625,
+                287.3254699707031,
+                565.9000244140625
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "5.5": [
+        {
+          "status": "confident",
+          "label": "5.5 (1)",
+          "label_rect": [
+            362.28759765625,
+            273.78619384765625,
+            473.498291015625,
+            338.6482849121094
+          ],
+          "evidence": [
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "use, printer, s radle and do separate fixe n to create PO 5.5 (1)",
+              "rect": [
+                421.4599914550781,
+                278.3800048828125,
+                468.8999938964844,
+                296.5
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        },
+        {
+          "status": "confident",
+          "label": "5.5 (1)",
+          "label_rect": [
+            170.568603515625,
+            553.0344848632812,
+            251.7592010498047,
+            600.82763671875
+          ],
+          "evidence": [
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "5.5 (1)",
+              "rect": [
+                200.41000366210938,
+                578.1099853515625,
+                247.1699981689453,
+                596.22998046875
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ]
+    }
+  },
+  {
+    "page": 3,
+    "labels": [
+      {
+        "kind": "FreeText",
+        "content": "1.3",
+        "items": [
+          "1.3"
+        ],
+        "rect": [
+          70.4000015258789,
+          112.4000244140625,
+          101.5999984741211,
+          130.0
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.4",
+        "items": [
+          "1.4"
+        ],
+        "rect": [
+          218.0,
+          505.6000061035156,
+          249.1999969482422,
+          523.2000122070312
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.5",
+        "items": [
+          "1.5"
+        ],
+        "rect": [
+          254.0,
+          216.0,
+          285.20001220703125,
+          233.5999755859375
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.6",
+        "items": [
+          "1.6"
+        ],
+        "rect": [
+          200.39999389648438,
+          550.4000244140625,
+          231.60000610351562,
+          568.0
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.7",
+        "items": [
+          "1.7"
+        ],
+        "rect": [
+          62.79999923706055,
+          687.5999755859375,
+          94.0,
+          705.2000122070312
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.8",
+        "items": [
+          "1.8"
+        ],
+        "rect": [
+          281.20001220703125,
+          96.4000244140625,
+          312.3999938964844,
+          114.0
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.9",
+        "items": [
+          "1.9"
+        ],
+        "rect": [
+          64.0,
+          460.3999938964844,
+          95.19999694824219,
+          478.0
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.8",
+        "items": [
+          "1.8"
+        ],
+        "rect": [
+          295.6000061035156,
+          480.3999938964844,
+          326.79998779296875,
+          498.0
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "1.10",
+        "items": [
+          "1.10"
+        ],
+        "rect": [
+          197.60000610351562,
+          524.7999877929688,
+          228.8000030517578,
+          542.4000244140625
+        ]
+      },
+      {
+        "kind": "FreeText",
+        "content": "5.5 (1)",
+        "items": [
+          "5.5"
+        ],
+        "rect": [
+          103.70570373535156,
+          40.96551513671875,
+          228.56190490722656,
+          129.72412109375
+        ]
+      }
+    ],
+    "highlights": [
+      {
+        "kind": "Highlight",
+        "text": "Subject to the terms of Zebra’s hardware warranty statement, the TC22 and TC27 are warranted against defects in workmanship and materials for a period of 1 (one) year from the date of shipment. For the complete warranty statement, please visit: www.zebra.com/warranty",
+        "rect": [
+          262.87530517578125,
+          642.926513671875,
+          466.9541931152344,
+          674.2044677734375
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Drop Spec. Multiple 5 ft./1.5 m drops to concrete over operating temp (-10° C to 50° C/14° F to 122° F) with protective boot per MIL-STD-810H Multiple 4.5 ft/1.3 m drops to tile over concrete over operating temp (-10° C to 50° C/14° F to 122° F) per MIL-STD 810H 1.7",
+        "rect": [
+          42.875301361083984,
+          667.5015258789062,
+          243.585693359375,
+          713.7294921875
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Tumble Spec. 500 tumbles, 1.6 ft./0.5 m; 500 tumbles, 3.3 ft./1.0 m with optional protective boot",
+        "rect": [
+          42.875301361083984,
+          722.3515014648438,
+          238.63270568847656,
+          738.6795043945312
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz",
+        "rect": [
+          42.875301361083984,
+          508.72650146484375,
+          217.5467071533203,
+          517.5794677734375
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Operating System Upgradeable to Android 16",
+        "rect": [
+          42.875301361083984,
+          526.2015380859375,
+          190.09719848632812,
+          542.5294799804688
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Memory 6 GB RAM/64 GB UFS Flash; 8 GB RAM/128 GB UFS Flash",
+        "rect": [
+          42.875301361083984,
+          551.1514892578125,
+          192.39169311523438,
+          567.4794921875
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8",
+        "rect": [
+          262.87530517578125,
+          466.10150146484375,
+          466.4197082519531,
+          482.42950439453125
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Interface Ports USB 3.1 (Bottom Type C)—Super Speed (host and client); 2-pin or 8-pin rear connector 1.9",
+        "rect": [
+          42.875301361083984,
+          452.2764892578125,
+          243.13720703125,
+          468.6044921875
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "PowerPrecision for real-time battery met Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh;",
+        "rect": [
+          102.87529754638672,
+          222.7764892578125,
+          227.65420532226562,
+          231.6295166015625
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "User removable, rechargeable Li-Ion, PowerPrecision for real-time battery metrics; Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh; BLE",
+        "rect": [
+          102.87529754638672,
+          207.82647705078125,
+          243.845703125,
+          231.6295166015625
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Extended Capacity: 5200 mAh battery: 3800 mAh/14.63Wh",
+        "rect": [
+          102.87529754638672,
+          237.72650146484375,
+          192.46319580078125,
+          246.57952880859375
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Imager Window Corning™ Gorilla™ Glass",
+        "rect": [
+          42.875301361083984,
+          165.4014892578125,
+          181.29620361328125,
+          174.2545166015625
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Display 6.0 in. color Full High Definition+ (1080 x 2160); LED backlight; 450 Nits; Corning™ Gorilla™ Glass",
+        "rect": [
+          42.875301361083984,
+          132.97650146484375,
+          230.13720703125,
+          156.77947998046875
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6",
+        "rect": [
+          322.87530517578125,
+          83.07647705078125,
+          460.0237121582031,
+          114.3544921875
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "• mPOS • Inventory management • Picking and collecting",
+        "rect": [
+          482.7119140625,
+          108.61700439453125,
+          569.63623046875,
+          118.1510009765625
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving",
+        "rect": [
+          482.7119140625,
+          108.61700439453125,
+          569.63623046875,
+          126.20098876953125
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "• Site security • Facilities management",
+        "rect": [
+          482.7119140625,
+          297.4169921875,
+          565.8560791015625,
+          306.95098876953125
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Warehouse/wearable",
+        "rect": [
+          482.7119140625,
+          315.4670104980469,
+          562.1041259765625,
+          325.0010070800781
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "• Sortation • Load and unload • Click and collect",
+        "rect": [
+          482.7117919921875,
+          341.5669860839844,
+          546.9982299804688,
+          351.10101318359375
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "• Sortation • Load and u",
+        "rect": [
+          482.7119140625,
+          333.5169982910156,
+          522.05712890625,
+          343.0509948730469
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Security and Encryption WEP (40 or 104 bit); Enhanced Open (OWE); WPA/WPA2 Personal (TKIP, and AES); WPA3 Personal (SAE); WPA/WPA2 Enterprise (TKIP and AES); WPA3 Enterprise (AES) - EAP-TTLS (PAP, MSCHAP, MSCHAPv2), EAP-TLS, PEAPv0-MSCHAPv2, PEAPv1-EAP-GTC, LEAP, EAP-PWD; WPA3 Enterprise 192-bit mode (GCMP256) - EAP-TLS; TC27 WWAN models only: WPA3 Enterprise EAP-SIM, EAP-AKA, EAP-AKA Prime",
+        "rect": [
+          262.87530517578125,
+          272.57647705078125,
+          460.0692138671875,
+          348.7044982910156
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Certifications Wi-Fi Alliance Certifications: Wi-Fi CERTIFIED n; Wi-Fi CERTIFIED ac; Wi-Fi CERTIFIED 6; Wi-Fi Enhanced Open; WPA2-Personal; WPA2-Enterprise; WPA3-Personal; WPA3-Enterprise (includes 192-bit mode); Protected Management Frames; Wi-Fi Agile Multiband; WMM; WMM-Power Save; WMM Admission Control; Voice-Enterprise; Wi-Fi Direct; QoS Management; OCE",
+        "rect": [
+          262.875,
+          357.32598876953125,
+          466.3160095214844,
+          425.9800109863281
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "WLAN Radio",
+        "rect": [
+          262.87530517578125,
+          83.07647705078125,
+          304.65570068359375,
+          91.92950439453125
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Extended Capacity: 5200 mAh/20.02Wh; BLE battery: 3800 mAh/14.63Wh",
+        "rect": [
+          105.0,
+          232.18798828125,
+          239.30299377441406,
+          238.75299072265625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "5.5 (1)",
+        "rect": [
+          177.2100067138672,
+          45.55999755859375,
+          223.97000122070312,
+          64.3599853515625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6",
+        "rect": [
+          322.8752746582031,
+          83.076416015625,
+          460.0237121582031,
+          114.3544921875
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "WLAN Radio 1.8",
+        "rect": [
+          262.8752746582031,
+          83.07647705078125,
+          311.8999938964844,
+          113.5
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving",
+        "rect": [
+          482.71185302734375,
+          108.61700439453125,
+          569.6361694335938,
+          126.20098876953125
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Weight 8.32 oz/236 g (TC22 3800mAh battery) 9.24 oz/262 g with 5200mAh battery Display 6.0 in. color Full High Definition+ (1080 x 2160); LED backlight; 450 Nits; Corning™ Gorilla™ Glass 1.3",
+        "rect": [
+          42.875274658203125,
+          112.9000244140625,
+          230.13722229003906,
+          156.77947998046875
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Imager Window Corning™ Gorilla™ Glass",
+        "rect": [
+          42.875274658203125,
+          165.40142822265625,
+          181.2962188720703,
+          174.2545166015625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "User removable, rechargeable Li-Ion, PowerPrecision for real-time battery metrics; Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh; BLE battery: 3800 mAh/14.63Wh",
+        "rect": [
+          102.87527465820312,
+          207.826416015625,
+          243.845703125,
+          246.57952880859375
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "1.5",
+        "rect": [
+          254.5,
+          216.5,
+          284.70001220703125,
+          233.0999755859375
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Security and Encryption",
+        "rect": [
+          262.8752746582031,
+          272.576416015625,
+          304.8702392578125,
+          288.9044494628906
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "WEP (40 or 104 bit); Enhanced Open (OWE); WPA/WPA2 Personal (TKIP, and AES); WPA3 Personal (SAE); WPA/WPA2 Enterprise (TKIP and AES); WPA3 Enterprise (AES) - EAP-TTLS (PAP, MSCHAP, MSCHAPv2), EAP-TLS, PEAPv0-MSCHAPv2, PEAPv1-EAP-GTC, LEAP, EAP-PWD; WPA3 Enterprise 192-bit mode (GCMP256) - EAP-TLS; TC27 WWAN models only: WPA3 Enterprise EAP-SIM, EAP-AKA, EAP-AKA Prime",
+        "rect": [
+          322.8752746582031,
+          272.576416015625,
+          460.0692443847656,
+          348.7044677734375
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "• Site security • Facilities management",
+        "rect": [
+          482.71185302734375,
+          297.4169616699219,
+          565.8560180664062,
+          306.9509582519531
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Warehouse/wearable",
+        "rect": [
+          482.71185302734375,
+          315.467041015625,
+          562.1040649414062,
+          325.0010070800781
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "• Sortation • Load and unload • Click and collect",
+        "rect": [
+          482.7118225097656,
+          333.5169982910156,
+          546.998291015625,
+          351.10101318359375
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Certifications Wi-Fi Alliance Certifications: Wi-Fi CERTIFIED n; Wi-Fi CERTIFIED ac; Wi-Fi CERTIFIED 6; Wi-Fi Enhanced Open; WPA2-Personal; WPA2-Enterprise; WPA3-Personal; WPA3-Enterprise (includes 192-bit mode); Protected Management Frames; Wi-Fi Agile Multiband; WMM; WMM-Power Save; WMM Admission Control; Voice-Enterprise; Wi-Fi Direct; QoS Management; OCE",
+        "rect": [
+          265.0,
+          357.3269958496094,
+          464.1910095214844,
+          425.9800109863281
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Interface Ports USB 3.1 (Bottom Type C)—Super Speed (host and client); 2-pin or 8-pin rear connector 1.9",
+        "rect": [
+          42.875282287597656,
+          452.2765197753906,
+          243.13722229003906,
+          477.5
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8",
+        "rect": [
+          262.8752746582031,
+          466.1014709472656,
+          466.4196472167969,
+          497.5
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz Operating System Upgradeable to Android 16 1.4 1.10",
+        "rect": [
+          42.875282287597656,
+          506.1000061035156,
+          248.6999969482422,
+          542.5294799804688
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "1.6",
+        "rect": [
+          200.89999389648438,
+          550.9000244140625,
+          231.10000610351562,
+          567.5
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Memory 6 GB RAM/64 GB UFS Flash; 8 GB RAM/128 GB UFS Flash",
+        "rect": [
+          42.875282287597656,
+          551.1514892578125,
+          192.39169311523438,
+          567.4794921875
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Subject to the terms of Zebra’s hardware warranty statement, the TC22 and TC27 are warranted against defects in workmanship and materials for a period of 1 (one) year from the date of shipment. For the complete warranty statement, please visit: www.zebra.com/warranty",
+        "rect": [
+          262.8752746582031,
+          642.926513671875,
+          466.9542236328125,
+          674.2044677734375
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Drop Spec. Multiple 5 ft./1.5 m drops to concrete over operating temp (-10° C to 50° C/14° F to 122° F) with protective boot per MIL-STD-810H Multiple 4.5 ft/1.3 m drops to tile over concrete over operating temp (-10° C to 50° C/14° F to 122° F) per MIL-STD 810H 1.7",
+        "rect": [
+          42.875282287597656,
+          667.5015258789062,
+          243.58570861816406,
+          713.7294921875
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Tumble Spec. 500 tumbles, 1.6 ft./0.5 m; 500 tumbles, 3.3 ft./1.0 m with optional protective boot",
+        "rect": [
+          42.875282287597656,
+          722.3515014648438,
+          238.63272094726562,
+          738.6795043945312
+        ]
+      }
+    ],
+    "evidence_by_item": {
+      "1.3": [
+        {
+          "kind": "Highlight",
+          "text": "• mPOS • Inventory management • Picking and collecting"
+        },
+        {
+          "kind": "Highlight",
+          "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Weight 8.32 oz/236 g (TC22 3800mAh battery) 9.24 oz/262 g with 5200mAh battery Display 6.0 in. color Full High Definition+ (1080 x 2160); LED backlight; 450 Nits; Corning™ Gorilla™ Glass 1.3"
+        }
+      ],
+      "1.4": [
+        {
+          "kind": "Highlight",
+          "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz Operating System Upgradeable to Android 16 1.4 1.10"
+        }
+      ],
+      "1.5": [
+        {
+          "kind": "Highlight",
+          "text": "PowerPrecision for real-time battery met Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh;"
+        },
+        {
+          "kind": "Highlight",
+          "text": "User removable, rechargeable Li-Ion, PowerPrecision for real-time battery metrics; Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh; BLE"
+        },
+        {
+          "kind": "Highlight",
+          "text": "Extended Capacity: 5200 mAh/20.02Wh; BLE battery: 3800 mAh/14.63Wh"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "User removable, rechargeable Li-Ion, PowerPrecision for real-time battery metrics; Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh; BLE battery: 3800 mAh/14.63Wh"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "1.5"
+        }
+      ],
+      "1.6": [
+        {
+          "kind": "Highlight",
+          "text": "Memory 6 GB RAM/64 GB UFS Flash; 8 GB RAM/128 GB UFS Flash"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "1.6"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Memory 6 GB RAM/64 GB UFS Flash; 8 GB RAM/128 GB UFS Flash"
+        }
+      ],
+      "1.7": [
+        {
+          "kind": "Highlight",
+          "text": "Drop Spec. Multiple 5 ft./1.5 m drops to concrete over operating temp (-10° C to 50° C/14° F to 122° F) with protective boot per MIL-STD-810H Multiple 4.5 ft/1.3 m drops to tile over concrete over operating temp (-10° C to 50° C/14° F to 122° F) per MIL-STD 810H 1.7"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Drop Spec. Multiple 5 ft./1.5 m drops to concrete over operating temp (-10° C to 50° C/14° F to 122° F) with protective boot per MIL-STD-810H Multiple 4.5 ft/1.3 m drops to tile over concrete over operating temp (-10° C to 50° C/14° F to 122° F) per MIL-STD 810H 1.7"
+        }
+      ],
+      "1.8": [
+        {
+          "kind": "Highlight",
+          "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6"
+        },
+        {
+          "kind": "Highlight",
+          "text": "• mPOS • Inventory management • Picking and collecting"
+        },
+        {
+          "kind": "Highlight",
+          "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "WLAN Radio 1.8"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving"
+        },
+        {
+          "kind": "Highlight",
+          "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8"
+        }
+      ],
+      "1.9": [
+        {
+          "kind": "Highlight",
+          "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8"
+        },
+        {
+          "kind": "Highlight",
+          "text": "Interface Ports USB 3.1 (Bottom Type C)—Super Speed (host and client); 2-pin or 8-pin rear connector 1.9"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Interface Ports USB 3.1 (Bottom Type C)—Super Speed (host and client); 2-pin or 8-pin rear connector 1.9"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8"
+        }
+      ],
+      "1.10": [
+        {
+          "kind": "Highlight",
+          "text": "Operating System Upgradeable to Android 16"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz Operating System Upgradeable to Android 16 1.4 1.10"
+        }
+      ],
+      "5.5": [
+        {
+          "kind": "Highlight",
+          "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6"
+        },
+        {
+          "kind": "Highlight",
+          "text": "WLAN Radio"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "WLAN Radio 1.8"
+        }
+      ]
+    },
+    "evidence_blocks": {
+      "1.3": [
+        {
+          "status": "confident",
+          "label": "1.3",
+          "label_rect": [
+            70.4000015258789,
+            112.4000244140625,
+            101.5999984741211,
+            130.0
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "• mPOS • Inventory management • Picking and collecting",
+              "rect": [
+                482.7119140625,
+                108.61700439453125,
+                569.63623046875,
+                118.1510009765625
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving",
+              "rect": [
+                482.7119140625,
+                108.61700439453125,
+                569.63623046875,
+                126.20098876953125
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving",
+              "rect": [
+                482.71185302734375,
+                108.61700439453125,
+                569.6361694335938,
+                126.20098876953125
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Weight 8.32 oz/236 g (TC22 3800mAh battery) 9.24 oz/262 g with 5200mAh battery Display 6.0 in. color Full High Definition+ (1080 x 2160); LED backlight; 450 Nits; Corning™ Gorilla™ Glass 1.3",
+              "rect": [
+                42.875274658203125,
+                112.9000244140625,
+                230.13722229003906,
+                156.77947998046875
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.4": [
+        {
+          "status": "confident",
+          "label": "1.4",
+          "label_rect": [
+            218.0,
+            505.6000061035156,
+            249.1999969482422,
+            523.2000122070312
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz",
+              "rect": [
+                42.875301361083984,
+                508.72650146484375,
+                217.5467071533203,
+                517.5794677734375
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz Operating System Upgradeable to Android 16 1.4 1.10",
+              "rect": [
+                42.875282287597656,
+                506.1000061035156,
+                248.6999969482422,
+                542.5294799804688
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.5": [
+        {
+          "status": "confident",
+          "label": "1.5",
+          "label_rect": [
+            254.0,
+            216.0,
+            285.20001220703125,
+            233.5999755859375
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "PowerPrecision for real-time battery met Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh;",
+              "rect": [
+                102.87529754638672,
+                222.7764892578125,
+                227.65420532226562,
+                231.6295166015625
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "User removable, rechargeable Li-Ion, PowerPrecision for real-time battery metrics; Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh; BLE",
+              "rect": [
+                102.87529754638672,
+                207.82647705078125,
+                243.845703125,
+                231.6295166015625
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "Extended Capacity: 5200 mAh/20.02Wh; BLE battery: 3800 mAh/14.63Wh",
+              "rect": [
+                105.0,
+                232.18798828125,
+                239.30299377441406,
+                238.75299072265625
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "User removable, rechargeable Li-Ion, PowerPrecision for real-time battery metrics; Standard Capacity: 3800 mAh/14.63Wh; Extended Capacity: 5200 mAh/20.02Wh; BLE battery: 3800 mAh/14.63Wh",
+              "rect": [
+                102.87527465820312,
+                207.826416015625,
+                243.845703125,
+                246.57952880859375
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "1.5",
+              "rect": [
+                254.5,
+                216.5,
+                284.70001220703125,
+                233.0999755859375
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.6": [
+        {
+          "status": "confident",
+          "label": "1.6",
+          "label_rect": [
+            200.39999389648438,
+            550.4000244140625,
+            231.60000610351562,
+            568.0
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Memory 6 GB RAM/64 GB UFS Flash; 8 GB RAM/128 GB UFS Flash",
+              "rect": [
+                42.875301361083984,
+                551.1514892578125,
+                192.39169311523438,
+                567.4794921875
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "1.6",
+              "rect": [
+                200.89999389648438,
+                550.9000244140625,
+                231.10000610351562,
+                567.5
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Memory 6 GB RAM/64 GB UFS Flash; 8 GB RAM/128 GB UFS Flash",
+              "rect": [
+                42.875282287597656,
+                551.1514892578125,
+                192.39169311523438,
+                567.4794921875
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.7": [
+        {
+          "status": "confident",
+          "label": "1.7",
+          "label_rect": [
+            62.79999923706055,
+            687.5999755859375,
+            94.0,
+            705.2000122070312
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Drop Spec. Multiple 5 ft./1.5 m drops to concrete over operating temp (-10° C to 50° C/14° F to 122° F) with protective boot per MIL-STD-810H Multiple 4.5 ft/1.3 m drops to tile over concrete over operating temp (-10° C to 50° C/14° F to 122° F) per MIL-STD 810H 1.7",
+              "rect": [
+                42.875301361083984,
+                667.5015258789062,
+                243.585693359375,
+                713.7294921875
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Drop Spec. Multiple 5 ft./1.5 m drops to concrete over operating temp (-10° C to 50° C/14° F to 122° F) with protective boot per MIL-STD-810H Multiple 4.5 ft/1.3 m drops to tile over concrete over operating temp (-10° C to 50° C/14° F to 122° F) per MIL-STD 810H 1.7",
+              "rect": [
+                42.875282287597656,
+                667.5015258789062,
+                243.58570861816406,
+                713.7294921875
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.8": [
+        {
+          "status": "confident",
+          "label": "1.8",
+          "label_rect": [
+            281.20001220703125,
+            96.4000244140625,
+            312.3999938964844,
+            114.0
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6",
+              "rect": [
+                322.87530517578125,
+                83.07647705078125,
+                460.0237121582031,
+                114.3544921875
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "• mPOS • Inventory management • Picking and collecting",
+              "rect": [
+                482.7119140625,
+                108.61700439453125,
+                569.63623046875,
+                118.1510009765625
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving",
+              "rect": [
+                482.7119140625,
+                108.61700439453125,
+                569.63623046875,
+                126.20098876953125
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6",
+              "rect": [
+                322.8752746582031,
+                83.076416015625,
+                460.0237121582031,
+                114.3544921875
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "WLAN Radio 1.8",
+              "rect": [
+                262.8752746582031,
+                83.07647705078125,
+                311.8999938964844,
+                113.5
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "• mPOS • Inventory management • Picking and collecting • Shipping and receiving",
+              "rect": [
+                482.71185302734375,
+                108.61700439453125,
+                569.6361694335938,
+                126.20098876953125
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        },
+        {
+          "status": "confident",
+          "label": "1.8",
+          "label_rect": [
+            295.6000061035156,
+            480.3999938964844,
+            326.79998779296875,
+            498.0
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8",
+              "rect": [
+                262.87530517578125,
+                466.10150146484375,
+                466.4197082519531,
+                482.42950439453125
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8",
+              "rect": [
+                262.8752746582031,
+                466.1014709472656,
+                466.4196472167969,
+                497.5
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.9": [
+        {
+          "status": "confident",
+          "label": "1.9",
+          "label_rect": [
+            64.0,
+            460.3999938964844,
+            95.19999694824219,
+            478.0
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8",
+              "rect": [
+                262.87530517578125,
+                466.10150146484375,
+                466.4197082519531,
+                482.42950439453125
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "Interface Ports USB 3.1 (Bottom Type C)—Super Speed (host and client); 2-pin or 8-pin rear connector 1.9",
+              "rect": [
+                42.875301361083984,
+                452.2764892578125,
+                243.13720703125,
+                468.6044921875
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Interface Ports USB 3.1 (Bottom Type C)—Super Speed (host and client); 2-pin or 8-pin rear connector 1.9",
+              "rect": [
+                42.875282287597656,
+                452.2765197753906,
+                243.13722229003906,
+                477.5
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Bluetooth Class 2, Bluetooth v5.2 and Secondary BLE for beaconing within BLE battery 1.8",
+              "rect": [
+                262.8752746582031,
+                466.1014709472656,
+                466.4196472167969,
+                497.5
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "1.10": [
+        {
+          "status": "confident",
+          "label": "1.10",
+          "label_rect": [
+            197.60000610351562,
+            524.7999877929688,
+            228.8000030517578,
+            542.4000244140625
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Operating System Upgradeable to Android 16",
+              "rect": [
+                42.875301361083984,
+                526.2015380859375,
+                190.09719848632812,
+                542.5294799804688
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "CPU Qualcomm™ 5430 hex-core, 2.1 GHz Operating System Upgradeable to Android 16 1.4 1.10",
+              "rect": [
+                42.875282287597656,
+                506.1000061035156,
+                248.6999969482422,
+                542.5294799804688
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ],
+      "5.5": [
+        {
+          "status": "confident",
+          "label": "5.5 (1)",
+          "label_rect": [
+            103.70570373535156,
+            40.96551513671875,
+            228.56190490722656,
+            129.72412109375
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6",
+              "rect": [
+                322.87530517578125,
+                83.07647705078125,
+                460.0237121582031,
+                114.3544921875
+              ]
+            },
+            {
+              "kind": "Highlight",
+              "text": "WLAN Radio",
+              "rect": [
+                262.87530517578125,
+                83.07647705078125,
+                304.65570068359375,
+                91.92950439453125
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "IEEE 802.11 a/b/g/n/ac/d/h/i/r/k/v/w/mc/ax; 2x2 MU-MIMO, Wi-Fi 6E (802.11ax), Wi-Fi™ certified; Wi-Fi™ 6 Certified, Dual Band Simultaneous; IPv4, IPv6",
+              "rect": [
+                322.8752746582031,
+                83.076416015625,
+                460.0237121582031,
+                114.3544921875
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "WLAN Radio 1.8",
+              "rect": [
+                262.8752746582031,
+                83.07647705078125,
+                311.8999938964844,
+                113.5
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ]
+    }
+  },
+  {
+    "page": 4,
+    "labels": [
+      {
+        "kind": "FreeText",
+        "content": "1.7",
+        "items": [
+          "1.7"
+        ],
+        "rect": [
+          10.800000190734863,
+          59.20001220703125,
+          42.0,
+          76.59197998046875
+        ]
+      }
+    ],
+    "highlights": [
+      {
+        "kind": "Highlight",
+        "text": "Sealing IP68 and IP65, with battery per applicable IEC sealing specifications",
+        "rect": [
+          42.875301361083984,
+          65.07647705078125,
+          246.02969360351562,
+          81.40447998046875
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Light Sensor Automatically adjusts display backlight brightness",
+        "rect": [
+          42.875301361083984,
+          146.47650146484375,
+          225.11270141601562,
+          162.80450439453125
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "Camera Rear camera 16 MP; front camera 5 MP",
+        "rect": [
+          42.875301361083984,
+          327.676513671875,
+          226.44520568847656,
+          336.5295104980469
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "NFC ISO 14443 Type A and B; Sony FeliCa¹¹ and ISO 15693 cards; Card Emulation via Host; Contactless payment support; ECP1.0 and ECP2.0 polling support; Apple VAS certified",
+        "rect": [
+          42.875301361083984,
+          345.1514892578125,
+          237.397705078125,
+          376.42950439453125
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "UHF RFID RFD40 UHF RFID Sled; RFD90 Ultra-Rugged UHF RFID Sled",
+        "rect": [
+          42.875301361083984,
+          385.051513671875,
+          237.6446990966797,
+          401.3794860839844
+        ]
+      },
+      {
+        "kind": "Highlight",
+        "text": "GPS",
+        "rect": [
+          42.875301361083984,
+          567.6514892578125,
+          59.35770034790039,
+          576.5045166015625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Sealing IP68 and IP65, with battery per applicable IEC sealing specifications 1.7",
+        "rect": [
+          11.300000190734863,
+          59.70201110839844,
+          246.0297088623047,
+          81.40447998046875
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Light Sensor Automatically adjusts display backlight brightness",
+        "rect": [
+          42.875274658203125,
+          146.4764404296875,
+          225.1126251220703,
+          162.80450439453125
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "Camera Rear camera 16 MP; front camera 5 MP",
+        "rect": [
+          42.875282287597656,
+          327.6765441894531,
+          226.44522094726562,
+          336.5295104980469
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "NFC ISO 14443 Type A and B; Sony FeliCa¹¹ and ISO 15693 cards; Card Emulation via Host; Contactless payment support; ECP1.0 and ECP2.0 polling support; Apple VAS certified",
+        "rect": [
+          42.875282287597656,
+          345.1514587402344,
+          237.39772033691406,
+          376.42950439453125
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "UHF RFID RFD40 UHF RFID Sled; RFD90 Ultra-Rugged UHF RFID Sled",
+        "rect": [
+          42.875282287597656,
+          385.0515441894531,
+          237.6447296142578,
+          401.3795166015625
+        ]
+      },
+      {
+        "kind": "EmbeddedHighlight",
+        "text": "GPS",
+        "rect": [
+          42.875282287597656,
+          567.6514892578125,
+          59.35771560668945,
+          576.5045166015625
+        ]
+      }
+    ],
+    "evidence_by_item": {
+      "1.7": [
+        {
+          "kind": "Highlight",
+          "text": "Sealing IP68 and IP65, with battery per applicable IEC sealing specifications"
+        },
+        {
+          "kind": "EmbeddedHighlight",
+          "text": "Sealing IP68 and IP65, with battery per applicable IEC sealing specifications 1.7"
+        }
+      ]
+    },
+    "evidence_blocks": {
+      "1.7": [
+        {
+          "status": "confident",
+          "label": "1.7",
+          "label_rect": [
+            10.800000190734863,
+            59.20001220703125,
+            42.0,
+            76.59197998046875
+          ],
+          "evidence": [
+            {
+              "kind": "Highlight",
+              "text": "Sealing IP68 and IP65, with battery per applicable IEC sealing specifications",
+              "rect": [
+                42.875301361083984,
+                65.07647705078125,
+                246.02969360351562,
+                81.40447998046875
+              ]
+            },
+            {
+              "kind": "EmbeddedHighlight",
+              "text": "Sealing IP68 and IP65, with battery per applicable IEC sealing specifications 1.7",
+              "rect": [
+                11.300000190734863,
+                59.70201110839844,
+                246.0297088623047,
+                81.40447998046875
+              ]
+            }
+          ],
+          "selection_rule": "same_y_row"
+        }
+      ]
+    }
+  }
+]
