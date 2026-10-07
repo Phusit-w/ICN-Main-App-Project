@@ -11,12 +11,12 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 **Blocked by:** 14
 
-**Status:** in-progress
+**Status:** done
 
 - [x] How the CLI signals quota and login state is verified and documented
 - [x] Each state is unit-tested with fakes
 - [x] Each state shows correctly on the web, with its action buttons
-- [ ] Continue-without-file runs and the major item gets the missing-documents banner
+- [x] Continue-without-file runs and the major item gets the missing-documents banner (by server test + browser check of the banner; the user chose not to do a real Claude run, 2026-10-07)
 - [x] An automatic resume after the quota pause is tested
 
 ## Comments
@@ -89,3 +89,9 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 - How to start the environment: pilot-db (`npx.cmd prisma dev --name pilot-db` as a long background task), the dev server on
   :3000, and test-db for `npm test`. test-db took about 10 minutes to start on 2026-10-07 (it loads a 670 MB
   durable-streams file), so check that port 51228 is LISTENING before running the tests.
+
+### 2026-10-07: closed
+
+- The user decided the server test is enough for continue-without-file: it covers re-issuing the request with the
+  acknowledgement and the banner, and the banner was checked in the browser on 2026-10-06. No real Claude run was done.
+- Ticket set to done.
