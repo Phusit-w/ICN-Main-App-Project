@@ -1,6 +1,10 @@
 """Builds soc-runner/dist/SOCRunnerSetup.exe (ADR 0008, ticket 16). Windows only.
 
-    npm run soc:runner:build
+    npm run soc:runner:build                       # -> soc-runner/dist/SOCRunnerSetup.exe
+    python soc-runner/installer/build.py --deploy-to <path>   # deploy/windows/update.ps1
+
+`--deploy-to` builds and places the installer at <path> only when its sources
+(source_files) changed since the one already there (a .sources-sha256 marker).
 
 1. Python 3.12 from the official NuGet package `python` (a normal, relocatable
    layout with pythonw.exe and pip; checksum pinned), cached in installer/.cache;
@@ -38,10 +42,52 @@ CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framewo
 INSTALL_PREFIX_LENGTH = len(r"C:\Users\firstname.lastname\AppData\Local\SOCRunner\app.new\\")
 
 
-def main() -> int:
+def main(argv: list[str]) -> int:
     if os.name != "nt":
         print("build.py builds a Windows installer; run it on Windows", file=sys.stderr)
         return 2
+    if len(argv) == 3 and argv[1] == "--deploy-to":
+        # deploy/windows/update.ps1: rebuild only when the sources changed.
+        target = Path(argv[2])
+        if not deploy(target, sources_digest(), build_installer):
+            print(f"{target} is up to date")
+        return 0
+    if len(argv) != 1:
+        print("usage: build.py [--deploy-to <path of SOCRunnerSetup.exe the server serves>]", file=sys.stderr)
+        return 2
+    build_installer()
+    return 0
+
+
+def source_files() -> list[Path]:
+    """Everything that ends up in, or shapes, the installer."""
+    return [RUNNER / name for name in RUNNER_FILES] + [
+        HERE / name for name in ["SocRunnerSetup.cs", "build.py", "requirements.txt", "app.manifest"]]
+
+
+def sources_digest() -> str:
+    digest = hashlib.sha256()
+    for path in source_files():
+        digest.update(path.name.encode() + b"\0" + path.read_bytes().replace(b"\r\n", b"\n") + b"\0")
+    return digest.hexdigest()
+
+
+def deploy(target: Path, digest: str, build_fn) -> bool:
+    """Puts a freshly built installer at target unless the one there came from these sources. True if it built."""
+    marker = target.with_name(target.name + ".sources-sha256")
+    if target.is_file() and marker.is_file() and marker.read_text(encoding="ascii").strip() == digest:
+        return False
+    built = build_fn()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".partial")
+    shutil.copyfile(built, partial)
+    os.replace(partial, target)  # a download in progress never sees half a file
+    marker.write_text(digest, encoding="ascii")
+    print(f"deployed {target}")
+    return True
+
+
+def build_installer() -> Path:
     nupkg = fetch_python()
     shutil.rmtree(BUILD, ignore_errors=True)
     payload = BUILD / "payload"
@@ -71,8 +117,7 @@ def main() -> int:
 
     longest = max((str(p.relative_to(payload)) for p in payload.rglob("*")), key=len)
     if INSTALL_PREFIX_LENGTH + len(longest) >= 260:
-        print(f"path too long once installed: {longest}", file=sys.stderr)
-        return 1
+        raise SystemExit(f"path too long once installed: {longest}")
 
     zipped = BUILD / "payload.zip"
     print("zipping the payload")
@@ -90,7 +135,7 @@ def main() -> int:
                     "/reference:System.Windows.Forms.dll", str(HERE / "SocRunnerSetup.cs")], check=True)
     digest = hashlib.sha256(output.read_bytes()).hexdigest()
     print(f"built {output} ({output.stat().st_size / 1e6:.1f} MB, sha256 {digest})")
-    return 0
+    return output
 
 
 def fetch_python() -> Path:
@@ -111,4 +156,4 @@ def sha256(path: Path) -> str:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))

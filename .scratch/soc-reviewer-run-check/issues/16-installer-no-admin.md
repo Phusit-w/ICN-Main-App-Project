@@ -112,3 +112,22 @@ no Caddy). So `SOC_RUNNER_CA_CERT_FILE` isn't needed (the runner uses plain `htt
 session cookie) and `SOC_RUNNER_SERVER_URL` defaults to the page's origin. Putting the installer on prod is one copy
 into `<SOC_STORAGE_ROOT>\runner\`. `docs/SOC-RUNNER.md` and `DEPLOY-WINDOWS.md` now say so; the Docker path is kept as the
 alternative. The installer itself never needed Docker or virtualization.
+
+**2026-10-07: correction, prod is HTTPS behind IIS.** Prod is deployed with `git pull` + `deploy\windows\update.ps1`
+(user). `docs/SESSION-LOG-2026-08-19.md`: IIS + ARR reverse proxy on 443 with a self-signed certificate; port 3000
+only reachable from the server's own LAN (IT opens 80/443/3389). Probed from this PC: `https://psaidemo.icn21.local`
+fails verification in both Windows and Python (`CERTIFICATE_VERIFY_FAILED`, issuer = subject, expires 2027-08-19);
+with that certificate as `caCert` the runner's HTTPS client connects (307 from prod, which doesn't have the runner
+API yet). So the note above ("no CA or server URL needed") was wrong. Now:
+
+- `update.ps1` step 6b builds the installer with `build.py --deploy-to <path>` only when its sources changed
+  (`.sources-sha256` marker), and only warns if that fails. Tested locally: first run built and placed it (32 s),
+  second run skipped (0 s). `test_build.py` covers the skip/rebuild rule.
+- One-time `.env` on the server: `SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"` and `SOC_RUNNER_CA_CERT_FILE`
+  pointing at the IIS certificate exported as PEM (command in `docs/SOC-RUNNER.md`; the export recipe was checked
+  against the real certificate: the app's PEM check and the runner's TLS both pass).
+- Risk spotted: without `SOC_STORAGE_ROOT` in the server's `.env`, SOC files live under `.next\standalone\data\soc`,
+  which `next build` recreates. Not checked on the server.
+
+**Manual test step 1 is now:** on the server, add the two `.env` lines (and the PEM), then `git pull` +
+`.\deploy\windows\update.ps1`; check step 6b says "deployed …SOCRunnerSetup.exe".

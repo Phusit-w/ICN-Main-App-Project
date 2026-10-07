@@ -260,26 +260,43 @@ npm run soc:runner:build      # = python soc-runner/installer/build.py → soc-r
 
 server หาไฟล์ที่ `SOC_RUNNER_INSTALLER_PATH` หรือค่าเริ่มต้น `<SOC_STORAGE_ROOT>/runner/SOCRunnerSetup.exe`
 
-**Server แบบ native บน Windows (`docs/DEPLOY-WINDOWS.md`, ที่ใช้จริง: ไม่มี Docker เพราะ IT ปิด virtualization ไว้ทุกเครื่อง)**
-build บนเครื่องนักพัฒนา แล้ว copy ไฟล์ไปไว้ใต้ `SOC_STORAGE_ROOT` ของ server (ค่าใน `.env` เช่น `C:\expense-billing-data\soc`)
-ไม่ต้อง restart แอป ปุ่มดาวน์โหลดขึ้นเองเมื่อมีไฟล์
+**Server จริง (`psaidemo.icn21.local`): native บน Windows + IIS reverse proxy** (`docs/DEPLOY-WINDOWS.md`; ไม่มี Docker
+เพราะ IT ปิด virtualization ไว้ทุกเครื่อง) deploy ด้วย `git pull` แล้ว `.\deploy\windows\update.ps1`
 
-```powershell
-New-Item -ItemType Directory -Force C:\expense-billing-data\soc\runner
-Copy-Item soc-runner\dist\SOCRunnerSetup.exe C:\expense-billing-data\soc\runner\SOCRunnerSetup.exe
-```
+- **ตัวติดตั้งขึ้น server เอง:** `update.ps1` ขั้น 6b รัน `build.py --deploy-to <path>` ซึ่ง build ใหม่เฉพาะเมื่อไฟล์ใน
+  `soc-runner/` ที่เข้าไปอยู่ในตัวติดตั้งเปลี่ยน (เทียบกับ `<path>.sources-sha256`) ครั้งแรกใช้เวลาประมาณ 1 นาที
+  ต้องมี Python 3.12 (`python` ใน PATH หรือ `SOC_PYTHON` ใน `.env`) และอินเทอร์เน็ต ถ้า build ไม่ผ่าน `update.ps1` แค่เตือน
+  แอปยัง deploy ต่อได้ และหน้า `/soc` ใช้ตัวติดตั้งเดิม (หรือบอกว่ายังไม่มี)
+  path มาจาก `.env`: `SOC_RUNNER_INSTALLER_PATH` หรือ `SOC_STORAGE_ROOT` (path แบบ relative นับจาก `.next\standalone`)
+- **ตั้งค่าใน `.env` ของ server ครั้งเดียว** (`.env` ไม่อยู่ใน git; `next build` copy เข้า `.next\standalone` ให้ จึงมีผลหลังรัน `update.ps1`):
 
-- `SOC_RUNNER_SERVER_URL`: ไม่ต้องตั้งถ้าผู้ตรวจเปิดเว็บด้วย address เดียวกับที่ runner จะเรียก (เช่น `http://192.168.51.43:3000`)
-  ไฟล์เชื่อมใช้ origin ของหน้าที่ดาวน์โหลด ตั้งเฉพาะเมื่อผู้ตรวจเข้าเว็บด้วย address ที่เครื่องอื่นเรียกไม่ถึง (เช่น `localhost`)
-- `SOC_RUNNER_CA_CERT_FILE`: ไม่ต้องตั้ง วิธี native ไม่มี HTTPS ให้ runner จึงคุยกับ server แบบ `http://`
-  (โทเคนของ runner วิ่งในวง LAN แบบไม่เข้ารหัส เหมือน session cookie ของเว็บ ดูหมายเหตุ HTTPS ใน `DEPLOY-WINDOWS.md`)
-  ใช้เมื่อวันหนึ่งมี reverse proxy ที่ใช้ certificate จาก CA ภายในที่ Windows ของผู้ตรวจยังไม่เชื่อ
+  ```
+  SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"
+  SOC_RUNNER_CA_CERT_FILE="C:\Apps\psaidemo-cert.pem"
+  ```
+
+  - `SOC_RUNNER_SERVER_URL`: แอปอยู่หลัง IIS จึงเห็น address ภายในของตัวเอง ไม่ใช่ address ที่ผู้ตรวจใช้ และพอร์ต 3000
+    เข้าได้แค่จากวง LAN เดียวกับ server (IT เปิด firewall แค่ 80/443/3389) runner จึงต้องเรียกผ่าน `https://psaidemo.icn21.local`
+  - `SOC_RUNNER_CA_CERT_FILE`: certificate ของ IIS เป็น self-signed (`New-SelfSignedCertificate`, หมดอายุ 2027-08-19)
+    Windows และ Python ของผู้ตรวจไม่เชื่อ (ทดสอบ 2026-10-07: `CERTIFICATE_VERIFY_FAILED`; ใส่ cert นี้เป็น `caCert` แล้วเชื่อมต่อได้)
+    export เป็น PEM บน server (PowerShell แบบ admin) ครั้งเดียว:
+
+    ```powershell
+    $c = Get-ChildItem Cert:\LocalMachine\My | Where-Object Subject -eq "CN=psaidemo.icn21.local" | Sort-Object NotAfter -Descending | Select-Object -First 1
+    "-----BEGIN CERTIFICATE-----`n" + [Convert]::ToBase64String($c.RawData, "InsertLineBreaks") + "`n-----END CERTIFICATE-----" | Set-Content C:\Apps\psaidemo-cert.pem -Encoding ascii
+    ```
+
+    เมื่อเปลี่ยน certificate ของ IIS: export ใหม่ทับไฟล์เดิม รัน `update.ps1` แล้วผู้ตรวจทุกคนต้องดาวน์โหลดตัวติดตั้งใหม่
+    (ไฟล์เชื่อมเก็บ cert ตัวเดิมไว้)
+  - ถ้า `SOC_STORAGE_ROOT` ไม่ได้ตั้งไว้ ไฟล์ SOC อยู่ใต้ `.next\standalone\data\soc` ซึ่ง `next build` สร้างใหม่ทุกครั้ง
+    ควรตั้ง `SOC_STORAGE_ROOT` ไปที่โฟลเดอร์นอก repo (เช่น `C:\expense-billing-data\soc`) ตาม `.env.production.example`
 
 **ถ้าใช้ docker-compose (`DEPLOY.md`, ใช้ไม่ได้บนเครื่องของบริษัทตอนนี้)** วางไฟล์ใน volume `soc_data`
 (`docker compose exec app mkdir -p /data/soc/runner` แล้ว `docker compose cp soc-runner/dist/SOCRunnerSetup.exe app:/data/soc/runner/`)
-ตั้ง `SOC_RUNNER_SERVER_URL` เป็น URL ของ Caddy เช่น `https://192.168.51.43` และ `SOC_RUNNER_CA_CERT_FILE` เป็น root CA ของ Caddy
-`tls internal` (mount volume `caddy_data` แบบ read-only แล้วชี้ไปที่ `.../caddy/pki/authorities/local/root.crt`)
-ไฟล์เชื่อมทุกไฟล์จะมี `caCert` ถ้าตั้งค่านี้แต่ไฟล์ไม่ใช่ PEM การดาวน์โหลดจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
+ตั้ง `SOC_RUNNER_SERVER_URL` เป็น URL ของ Caddy และ `SOC_RUNNER_CA_CERT_FILE` เป็น root CA ของ Caddy `tls internal`
+(`.../caddy/pki/authorities/local/root.crt` จาก volume `caddy_data`)
+
+ไฟล์เชื่อมทุกไฟล์มี `caCert` เมื่อตั้ง `SOC_RUNNER_CA_CERT_FILE` ถ้าค่านี้ชี้ไปที่ไฟล์ที่ไม่ใช่ PEM การดาวน์โหลดจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
 
 ## Admin
 
