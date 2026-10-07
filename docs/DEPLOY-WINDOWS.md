@@ -30,6 +30,7 @@
 - [Node.js **24.x (LTS)**](https://nodejs.org/) — เวอร์ชันอื่นอาจใช้ไม่ได้: Next.js 16 ต้องการ >= 20.9.0, Prisma 7 ต้องการเฉพาะช่วง 20.19+/22.12+/24.0+ เท่านั้น (21.x, 23.x ใช้ไม่ได้)
 - [PostgreSQL **16.x** for Windows](https://www.postgresql.org/download/windows/) — ตัวติดตั้งของ EDB จะลงเป็น Windows Service ให้อัตโนมัติ (ขั้นตอนนี้ต้อง admin เสมอไม่ว่าจะเลือกวิธี A หรือ B ในการรันตัวแอปเอง — ปกติ IT เป็นคนติดตั้ง PostgreSQL ให้ครั้งเดียว)
 - สำหรับปุ่ม "ดาวน์โหลด SOC_Check" ในหน้างานตรวจ SOC: ติดตั้ง [Python 3.12](https://www.python.org/downloads/windows/) (แบบ per-user ไม่ต้อง admin ได้) แล้ว `pip install python-docx==1.2.0` ถ้าคำสั่ง `python` ไม่อยู่ใน PATH ของ user ที่รันแอป ให้ตั้ง `SOC_PYTHON` เป็น path เต็มของ `python.exe` (server ใช้รัน `soc-export/combine_soc_check.py` ซึ่งเรียกสคริปต์ของ skill เท่านั้น ไม่เรียก AI)
+- สำหรับปุ่ม "ดาวน์โหลดตัวติดตั้ง SOC Runner" ในหน้า `/soc`: build `SOCRunnerSetup.exe` บนเครื่องนักพัฒนา (`npm run soc:runner:build`) แล้ว copy ไปไว้ที่ `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe` ของ server ไม่ต้องตั้งค่าอื่น (ดู "ตัวติดตั้ง" ใน `docs/SOC-RUNNER.md`)
 - ถ้าต้องอ่าน PDF สแกน: ติดตั้ง Tesseract OCR พร้อม language data `tha` และ `eng` แล้วตั้ง `SOC_OCR_PROVIDER=tesseract`; หากยังไม่พร้อมให้คง `disabled` เพื่อ fail closed
 
 Prisma/Next.js/ไลบรารีอื่นๆ ของแอป **ไม่ต้องติดตั้งแยก** — มากับไฟล์ที่ build เสร็จแล้วในตัวแอปเองทั้งหมด (ดู `FAQ.md`)

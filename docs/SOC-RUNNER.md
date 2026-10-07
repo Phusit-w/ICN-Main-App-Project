@@ -259,19 +259,27 @@ npm run soc:runner:build      # = python soc-runner/installer/build.py → soc-r
 แก้โค้ด runner แล้วต้อง build และนำขึ้นใหม่ ผู้ตรวจได้เวอร์ชันใหม่เมื่อติดตั้งซ้ำ (ยังไม่มีการอัปเดตเอง)
 
 server หาไฟล์ที่ `SOC_RUNNER_INSTALLER_PATH` หรือค่าเริ่มต้น `<SOC_STORAGE_ROOT>/runner/SOCRunnerSetup.exe`
-บน docker-compose (volume `soc_data` ที่ `/data/soc`):
 
+**Server แบบ native บน Windows (`docs/DEPLOY-WINDOWS.md`, ที่ใช้จริง: ไม่มี Docker เพราะ IT ปิด virtualization ไว้ทุกเครื่อง)**
+build บนเครื่องนักพัฒนา แล้ว copy ไฟล์ไปไว้ใต้ `SOC_STORAGE_ROOT` ของ server (ค่าใน `.env` เช่น `C:\expense-billing-data\soc`)
+ไม่ต้อง restart แอป ปุ่มดาวน์โหลดขึ้นเองเมื่อมีไฟล์
+
+```powershell
+New-Item -ItemType Directory -Force C:\expense-billing-data\soc\runner
+Copy-Item soc-runner\dist\SOCRunnerSetup.exe C:\expense-billing-data\soc\runner\SOCRunnerSetup.exe
 ```
-docker compose exec app mkdir -p /data/soc/runner
-docker compose cp soc-runner/dist/SOCRunnerSetup.exe app:/data/soc/runner/SOCRunnerSetup.exe
-```
 
-ตั้งค่า server ที่ runner ต้องใช้ (ยังไม่ได้ตั้งใน `docker-compose.yml`):
+- `SOC_RUNNER_SERVER_URL`: ไม่ต้องตั้งถ้าผู้ตรวจเปิดเว็บด้วย address เดียวกับที่ runner จะเรียก (เช่น `http://192.168.51.43:3000`)
+  ไฟล์เชื่อมใช้ origin ของหน้าที่ดาวน์โหลด ตั้งเฉพาะเมื่อผู้ตรวจเข้าเว็บด้วย address ที่เครื่องอื่นเรียกไม่ถึง (เช่น `localhost`)
+- `SOC_RUNNER_CA_CERT_FILE`: ไม่ต้องตั้ง วิธี native ไม่มี HTTPS ให้ runner จึงคุยกับ server แบบ `http://`
+  (โทเคนของ runner วิ่งในวง LAN แบบไม่เข้ารหัส เหมือน session cookie ของเว็บ ดูหมายเหตุ HTTPS ใน `DEPLOY-WINDOWS.md`)
+  ใช้เมื่อวันหนึ่งมี reverse proxy ที่ใช้ certificate จาก CA ภายในที่ Windows ของผู้ตรวจยังไม่เชื่อ
 
-- `SOC_RUNNER_SERVER_URL` = URL ที่เครื่องผู้ตรวจเรียกถึง เช่น `https://192.168.51.43`
-- `SOC_RUNNER_CA_CERT_FILE` = root CA ของ Caddy `tls internal` (PEM) เพื่อให้ runner เชื่อ HTTPS ของ server
-  เช่น mount volume `caddy_data` แบบ read-only เข้า `app` แล้วชี้ไปที่ `/caddy-data/caddy/pki/authorities/local/root.crt`
-  ไฟล์เชื่อมทุกไฟล์จะมี `caCert` ถ้าตั้งค่านี้แต่ไฟล์ไม่ใช่ PEM การดาวน์โหลดจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
+**ถ้าใช้ docker-compose (`DEPLOY.md`, ใช้ไม่ได้บนเครื่องของบริษัทตอนนี้)** วางไฟล์ใน volume `soc_data`
+(`docker compose exec app mkdir -p /data/soc/runner` แล้ว `docker compose cp soc-runner/dist/SOCRunnerSetup.exe app:/data/soc/runner/`)
+ตั้ง `SOC_RUNNER_SERVER_URL` เป็น URL ของ Caddy เช่น `https://192.168.51.43` และ `SOC_RUNNER_CA_CERT_FILE` เป็น root CA ของ Caddy
+`tls internal` (mount volume `caddy_data` แบบ read-only แล้วชี้ไปที่ `.../caddy/pki/authorities/local/root.crt`)
+ไฟล์เชื่อมทุกไฟล์จะมี `caCert` ถ้าตั้งค่านี้แต่ไฟล์ไม่ใช่ PEM การดาวน์โหลดจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
 
 ## Admin
 
