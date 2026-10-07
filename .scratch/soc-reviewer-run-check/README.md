@@ -27,7 +27,7 @@
 | 04 | Imported SOC Check + major items | 01, 03 | done |
 | 05 | Import one Local Check Run (seam 1) | 04 | done |
 | 06 | Re-check a major item | 05 | done |
-| 07 | Prototype the review page | – | ready-for-human |
+| 07 | Prototype the review page | – | done (layout A; branch prototype/soc-review-page) |
 | 08 | New review page | 05, 07 | ready-for-agent |
 | 09 | PDF evidence panel | 08 | ready-for-agent |
 | 10 | Download combined SOC_Check | 05 | done |
@@ -46,12 +46,10 @@ Phase 1 = 01–10 (useful on its own, with manual upload). Phase 2 = 11–16.
 
 ## Next session (as of 2026-10-07)
 
-- No `ready-for-agent` ticket has all its blockers done: 08/09 wait on 07.
-- Pick one with the user:
-  - (a) [done 2026-10-07: 15 closed, server test accepted]
-  - (b) 07 Prototype the review page (ready-for-human);
-  - (c) 02 Measure accuracy + quota on a real SOC;
-  - (d) 16, which needs IT's answer first.
+- 15 and 07 are done. Next: **08 New review page** (ready-for-agent, blockers done), then 09.
+  - Read 07's Comments first: layout A, the agreed status rule, and the findings that imported rows have no
+    TOR text or page numbers, and that iframes are blocked.
+- Still waiting on the user: 02 (measure on a real SOC), and 16 (needs IT's answer).
 
 ## Open items outside tickets
 

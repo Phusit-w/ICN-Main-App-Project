@@ -20,3 +20,11 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 ### 2026-10-06: note from ticket 06
 
 A re-check warns before replacing rows with a Final Decision, and it decides that by `reviewedAt !== null` (`hasFinalDecision` in `lib/soc-import.ts`). Whatever columns this ticket adds for the Final Decision, setting one must also set `reviewedAt`/`reviewedById`. Add a test that a row decided through the new page makes a re-check answer 409.
+
+### 2026-10-07: note from ticket 07
+
+- Build layout **A** (table + inspector on the right).
+- The status rule, the Thai axis labels and the reference code are in 07's Comments and on branch
+  `prototype/soc-review-page`.
+- Imported rows have no TOR text or page numbers yet (`socText` is "", `referencePages` is []); fill them as part of
+  this ticket.
