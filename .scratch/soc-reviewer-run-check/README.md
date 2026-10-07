@@ -47,8 +47,7 @@ Phase 1 = 01–10 (useful on its own, with manual upload). Phase 2 = 11–16.
 ## Next session (as of 2026-10-07)
 
 - 09 is done (PDF evidence panel, rendered with MuPDF). Every agent-ready ticket in phase 1 and 2 is now done.
-- **The user must decide:** `mupdf` is AGPL-3.0 (see 09's Comments). Confirm it is acceptable before production, or
-  switch to pdf.js.
+- The user accepted on 2026-10-07: `mupdf` (AGPL-3.0) and rendering on the server (see 09's Comments).
 - Still waiting on the user: 02 (measure on a real SOC), and 16 (needs IT's answer).
 
 ## Open items outside tickets

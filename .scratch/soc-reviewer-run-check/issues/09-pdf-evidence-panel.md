@@ -39,8 +39,10 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
     `highlight_evidence` text under the image. The skill's results carry no highlight positions, so nothing is drawn
     by the app.
   - **Licence:** `mupdf` is **AGPL-3.0-or-later**, like the PyMuPDF `soc-worker` already uses. The app is intranet-only.
-    The user should confirm this is acceptable before production. The alternative is pdf.js + `@napi-rs/canvas`
-    (Apache/MIT).
+    The alternative was pdf.js + `@napi-rs/canvas` (Apache/MIT). **Accepted by the user on 2026-10-07:** `mupdf` and
+    rendering each page on the server per request (no tokens, about 0.1 s per page on the demo PDF). If the app is
+    ever sold or offered to people outside the company, revisit AGPL: buy a commercial licence or switch to pdf.js.
+    Add a PNG disk cache only if paging large catalogs proves slow.
 - **Tests:** `test/soc-pdf-evidence.test.ts` (render with the highlight pixel checked, mutation-checked; page 1 has
   none; missing page / bad page number / broken PDF messages; access: signed out, no `soc`, teammate, another job's
   PDF, the SOC docx; the view's citations), plus `citedEvidence` cases in `lib/soc-review.test.ts`.
