@@ -312,6 +312,14 @@ model SocCheckResult {
   declaredStatusCheck    String?
   keyIssue               String?
   rawResult              Json?
+  // Imported rows: the bidder's text, read from the job's SOC at import
+  // (socText holds the TOR text). The Final Decision (compliant / better /
+  // non_compliant) and the reviewer's note are set on the review page, apart
+  // from the System Recommendation (torDecision); setting them also sets
+  // reviewedAt/reviewedById.
+  proposalText           String?
+  finalDecision          String?
+  finalNote              String?
   finalReferenceCheck    String
   finalHeadingTitleCheck String
   finalProductIdentity   String

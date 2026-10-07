@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
+import SocReviewPanel from "@/components/SocReviewPanel";
+import type { SocReviewRow } from "@/lib/soc-review-view";
 import type { ConfirmedRow } from "@/lib/soc-import";
-import { CHECK_LABELS, isOpenCheckRequestState, isRequestableItemState, majorItemProgress, majorItemStateText, SOC_AXIS_VALUE_LABELS, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
+import { CHECK_LABELS, isOpenCheckRequestState, isRequestableItemState, majorItemProgress, majorItemStateText, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
 
 type DocumentItem = { id: string; type: string; name: string };
 type ResultItem = {
@@ -16,10 +18,8 @@ type ResultItem = {
   aiReferenceCheck: string; aiHeadingTitleCheck: string; aiDetail: string; aiConfidence: string;
   finalReferenceCheck: string; finalHeadingTitleCheck: string; finalDetail: string; reviewed: boolean;
 };
-type MajorItem = { id: string; label: string; title: string | null; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; socCheckDocumentId: string | null; missingDocuments: string[]; request: SocCheckRequestView | null; failureReason: string | null };
-// A row of a Local Check Run, shown as a plain list until the review page (ticket 08).
-type ImportedRow = { id: string; majorItemId: string | null; item: string; reference: string; referenceCheck: string; highlightCheck: string | null; evidenceSupport: string | null; torDecision: string | null; declaredStatusCheck: string | null; keyIssue: string };
-type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; importedRows: ImportedRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null };
+type MajorItem = { id: string; label: string; title: string | null; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; socCheckDocumentId: string | null; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
+type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null };
 
 const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING"]);
 const FILTERS = ["all", "match", "mismatch", "review", "not_found", "unverifiable", "not_applicable"];
@@ -45,7 +45,7 @@ export default function SocJobDetail({ job }: { job: Job }) {
 
   return <div className="flex flex-col gap-6">
     <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <TrashJobButton jobId={job.id} /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
-    {imported ? <><MajorItemsPanel jobId={job.id} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><ImportedRowsPanel items={job.majorItems} rows={job.importedRows} /></> : <JobProgress job={job} />}
+    {imported ? <><MajorItemsPanel jobId={job.id} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
     {job.status === "FAILED" ? <FailurePanel job={job} /> : null}
     {outputs.length ? <section className="rounded-card bg-surface p-5 shadow-card"><h2 className="font-display font-semibold">ไฟล์ผลลัพธ์</h2><div className="mt-3 flex flex-wrap gap-3">{outputs.map((doc) => <a key={doc.id} href={`/api/soc/documents/${doc.id}`} target={doc.type === "PREVIEW" ? "_blank" : undefined} className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">{doc.type === "PREVIEW" ? "เปิดตัวอย่าง PDF" : "ดาวน์โหลด DOCX"}</a>)}</div></section> : null}
     {job.status === "NEEDS_REVIEW" && !imported ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-5 shadow-card"><div><div className="font-medium">ตรวจทานแล้ว {job.results.length - unreviewed}/{job.results.length} รายการ</div><p className="mt-1 text-xs text-muted">ผลจากระบบเป็นเพียงคำแนะนำ ต้องยืนยันทุกข้อก่อนสร้าง DOCX</p></div><ReviewActions jobId={job.id} unreviewed={unreviewed} /></div> : null}
@@ -195,18 +195,6 @@ function ImportRunForm({ jobId, item, onDone }: { jobId: string; item: MajorItem
     {confirmedRows.length ? <div role="alert" className="rounded-input border border-danger-border p-3 text-xs text-danger"><p className="font-medium">มี {confirmedRows.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้:</p><p className="mt-1">{confirmedRows.map((r) => `ข้อ ${r.item}`).join(", ")}</p><label className="mt-2 flex items-center gap-2 font-medium text-ink"><input name="replaceConfirmed" type="checkbox" value={confirmedRows.map((r) => r.rowNumber).join(",")} required />แทนที่แถวที่ยืนยันแล้ว</label></div> : null}
     <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังนำเข้า…" : recheck ? "ตรวจซ้ำ" : "นำเข้าผล"}</Button></div>
   </form>;
-}
-
-function ImportedRowsPanel({ items, rows }: { items: MajorItem[]; rows: ImportedRow[] }) {
-  if (!rows.length) return null;
-  const label = (value: string | null) => (value ? SOC_AXIS_VALUE_LABELS[value] || value : "—");
-  return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <h2 className="p-5 font-display font-semibold">ผลตรวจที่นำเข้า</h2>
-    {items.filter((item) => item.state === "checked" && item.missingDocuments.length).map((item) => <div key={item.id} role="alert" className="mx-5 mb-3 rounded-input border border-danger-border p-3 text-xs text-danger"><span className="font-medium">ข้อ {item.label} ตรวจโดยไม่มีไฟล์ {item.missingDocuments.join(", ")}</span> แถวที่อ้างไฟล์เหล่านี้จึงยืนยันไม่ได้ อัปโหลดไฟล์แล้วกดตรวจซ้ำได้</div>)}
-    <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-4 py-3">ข้อ</th><th className="px-4 py-3">หน้าอ้างอิง</th><th className="px-4 py-3">ผลอ้างอิง</th><th className="px-4 py-3">Highlight</th><th className="px-4 py-3">หลักฐาน</th><th className="px-4 py-3">ผล TOR</th><th className="px-4 py-3">Comply/Better เดิม</th><th className="px-4 py-3">ประเด็นหลัก</th></tr></thead>
-      <tbody>{items.flatMap((item) => rows.filter((r) => r.majorItemId === item.id)).map((row) => <tr key={row.id} className="border-t border-line align-top"><td className="whitespace-nowrap px-4 py-3 font-medium">{row.item}</td><td className="px-4 py-3 text-xs text-muted"><span className="line-clamp-2">{row.reference || "—"}</span></td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.referenceCheck)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.highlightCheck)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.evidenceSupport)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.torDecision)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.declaredStatusCheck)}</td><td className="min-w-[280px] px-4 py-3 text-xs text-muted"><span className="line-clamp-3">{row.keyIssue}</span></td></tr>)}</tbody>
-    </table></div>
-  </section>;
 }
 
 function DocumentsPanel({ jobId, documents }: { jobId: string; documents: DocumentItem[] }) {

@@ -54,6 +54,11 @@ export type SocCheckRequestView = {
   progressNote: string | null; resumeAt: string | null;
 };
 
+// "๑๓" → "13".
+export function toArabicDigits(value: string): string {
+  return value.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));
+}
+
 // "HH:MM" in Thai time, the same on the server and in the browser.
 export function socClockTime(iso: string) {
   return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Bangkok" });
@@ -62,7 +67,7 @@ export function socClockTime(iso: string) {
 // A major item's state in Thai, for the viewer: the label, plus a detail line
 // when there is one. "รอเครื่องของคุณเปิด" when the requester's runner is off.
 export function majorItemStateText(
-  item: { state: string; missingDocuments?: readonly string[] | null; failureReason?: string | null; request?: SocCheckRequestView | null },
+  item: { state: string; missingDocuments?: readonly string[] | null; failureReason?: string | null; request?: SocCheckRequestView | null; confirmed?: boolean },
   viewerId: string,
 ): { label: string; detail: string | null } {
   const request = item.request ?? null;
@@ -86,7 +91,8 @@ export function majorItemStateText(
       return { label: SOC_MAJOR_ITEM_STATE_LABELS.failed, detail: item.failureReason ?? null };
     case "checked":
       // Checked after [ตรวจต่อโดยไม่มีไฟล์นี้]: rows citing these are unverifiable.
-      return { label: SOC_MAJOR_ITEM_STATE_LABELS.checked, detail: item.missingDocuments?.length ? `ตรวจโดยไม่มีไฟล์: ${item.missingDocuments.join(", ")}` : null };
+      // Shows as confirmed once every row has a Final Decision (ticket 08).
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS[item.confirmed ? "confirmed" : "checked"], detail: item.missingDocuments?.length ? `ตรวจโดยไม่มีไฟล์: ${item.missingDocuments.join(", ")}` : null };
     default:
       return { label: SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state, detail: null };
   }
@@ -104,7 +110,7 @@ export const SOC_RUN_SOURCE_LABELS: Record<string, string> = { manual: "นำ�
 // SOC_Check document writes them (append_results_to_docx.py).
 export const SOC_AXIS_VALUE_LABELS: Record<string, string> = {
   match: "ตรง", mismatch: "ไม่ตรง", not_found: "ไม่พบ", unverifiable: "ยืนยันไม่ได้", not_applicable: "ไม่เกี่ยวข้อง",
-  complete: "ครบ", partial: "บางส่วน",
+  complete: "ครบ", partial: "บางส่วน", related: "ตรงเรื่อง", unrelated: "ไม่ตรงเรื่อง",
   fully_supported: "รองรับครบ", partially_supported: "รองรับบางส่วน", not_supported: "ไม่รองรับ", wording_conflict: "ถ้อยคำขัดกัน",
   compliant: "ผ่าน", better: "ดีกว่า", non_compliant: "ไม่ผ่าน", mixed: "ผสม",
   not_selected: "ไม่ได้เลือก", ambiguous: "กำกวม", both: "เลือกทั้งสอง",

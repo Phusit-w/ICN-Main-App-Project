@@ -5,6 +5,7 @@
 //
 // Reads the .docx directly (zip + word/document.xml), so the web server needs
 // no Python or extra dependency.
+import { toArabicDigits as toArabic } from "@/lib/soc-shared";
 import { readZip } from "@/lib/zip";
 
 export type SocMajorItemSpec = {
@@ -19,10 +20,6 @@ const MAX_TITLE = 300;
 // "๑.๒.๗", "4.3.1", "1.5.1." — the same shape soc-worker's is_item_label accepts.
 const ITEM_LABEL = /^[0-9๐-๙]+(?:\.[0-9๐-๙]+)*\.?$/;
 
-function toArabic(value: string): string {
-  return value.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));
-}
-
 // The major item an item number belongs to ("๑.๒.๗" → "1"), or null when the
 // text isn't an item number.
 export function majorItemKey(item: string): string | null {
@@ -31,12 +28,16 @@ export function majorItemKey(item: string): string | null {
   return String(Number(toArabic(compact.split(".")[0])));
 }
 
+// Only SOC tables count: ones with at least one dotted item number ("๑.๑").
+// A cover or signature table numbered 1, 2, 3 adds no major items.
+function readSocTables(docx: Uint8Array): string[][][] {
+  return readTables(readZipEntry(docx, "word/document.xml"))
+    .filter((rows) => rows.some((cells) => /[0-9๐-๙]\.[0-9๐-๙]/.test((cells[0] || "").replace(/\s+/g, ""))));
+}
+
 export function readSocMajorItems(docx: Uint8Array): SocMajorItemSpec[] {
   const items = new Map<string, SocMajorItemSpec>();
-  // Only SOC tables count: ones with at least one dotted item number ("๑.๑").
-  // A cover or signature table numbered 1, 2, 3 adds no major items.
-  const tables = readTables(readZipEntry(docx, "word/document.xml"))
-    .filter((rows) => rows.some((cells) => /[0-9๐-๙]\.[0-9๐-๙]/.test((cells[0] || "").replace(/\s+/g, ""))));
+  const tables = readSocTables(docx);
   for (const cells of tables.flat()) {
     const item = (cells[0] || "").replace(/\s+/g, "");
     const key = majorItemKey(item);
@@ -49,6 +50,26 @@ export function readSocMajorItems(docx: Uint8Array): SocMajorItemSpec[] {
     items.set(key, existing);
   }
   return [...items.values()];
+}
+
+const sameItem = (a: string, b: string) => {
+  const normal = (item: string) => toArabic(item.replace(/\s+/g, "")).replace(/\.$/, "");
+  return normal(a) === normal(b);
+};
+
+// A SOC row's TOR text (second cell) and the bidder's text (third cell), for
+// the review page. A results.json `row` is the 1-based row of the SOC table
+// (the skill's inspect_word_table.py); it is trusted only when that row has
+// the same item number, otherwise the one row with that item, if the number
+// is unique in the SOC. Returns a lookup that gives null otherwise.
+export function socRowTexts(docx: Uint8Array): (row: number, item: string) => { tor: string; proposal: string | null } | null {
+  const tables = readSocTables(docx);
+  return (row, item) => {
+    const byRow = tables.map((rows) => rows[row - 1]).find((cells) => cells && sameItem(cells[0] || "", item));
+    const byItem = tables.flat().filter((cells) => sameItem(cells[0] || "", item));
+    const cells = byRow ?? (byItem.length === 1 ? byItem[0] : undefined);
+    return cells ? { tor: cells[1] ?? "", proposal: cells[2] ?? null } : null;
+  };
 }
 
 // Every top-level table as rows of cells (whitespace collapsed). Tables

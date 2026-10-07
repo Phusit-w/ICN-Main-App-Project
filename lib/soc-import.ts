@@ -7,12 +7,13 @@
 // in: full_audit + evidence_support + tor_decision. Any error rejects the
 // whole file and nothing is written.
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSocFile } from "@/lib/soc";
-import { majorItemKey } from "@/lib/soc-major-items";
+import { majorItemKey, socRowTexts } from "@/lib/soc-major-items";
+import { parseReferencePages } from "@/lib/soc-review";
 import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
@@ -134,8 +135,8 @@ function asColumnText(value: unknown): string | null {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-// A row has a Final Decision once a reviewer has decided it. The review page
-// (ticket 08) must set reviewedAt whenever it records a Final Decision.
+// A row has a Final Decision once a reviewer has decided it: decideSocRow
+// (the review page) sets reviewedAt with every Final Decision.
 const hasFinalDecision = (row: { reviewedAt: Date | null }) => row.reviewedAt !== null;
 
 const RACED = "RACED";
@@ -178,6 +179,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   if ("errors" in validated) errors.push(...validated.errors);
   if (errors.length || !("rows" in validated)) return { ok: false, errors };
 
+  const rowText = await jobSocRowTexts(job.id);
   const runId = randomUUID();
   const documentId = randomUUID();
   const stored = await storeSocFile(job.id, input.socCheck.name, ".docx", input.socCheck.bytes);
@@ -214,7 +216,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
       await tx.socCheckRun.create({
         data: { id: runId, jobId: job.id, majorItemId: item.id, source, skillVersion, model, documentId, rowCount: validated.rows.length, importedById: actor.id },
       });
-      await tx.socCheckResult.createMany({ data: validated.rows.map((row) => resultRow(job.id, item.id, runId, row)) });
+      await tx.socCheckResult.createMany({ data: validated.rows.map((row) => resultRow(job.id, item.id, runId, row, rowText(row.row, row.item))) });
       await tx.socJob.update({ where: { id: job.id }, data: { updatedAt: now } });
       await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "RUN_IMPORTED", detail } });
     });
@@ -261,18 +263,32 @@ async function replacePreviousRows(
   return previous.length;
 }
 
+// The TOR and bidder text of each row, from the job's SOC. An unreadable SOC
+// leaves them empty rather than rejecting a valid run.
+async function jobSocRowTexts(jobId: string): Promise<ReturnType<typeof socRowTexts>> {
+  try {
+    const soc = await prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
+    if (soc) return socRowTexts(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey))));
+  } catch (error) {
+    console.error(`SOC ${jobId}: TOR text not read from the SOC`, error);
+  }
+  return () => null;
+}
+
 // One results.json row as a SocCheckResult. The skill's standard axes fill
 // the legacy ai* columns (the System Recommendation). The legacy final*
 // columns stay empty: the Final Decision is a separate, human step.
-function resultRow(jobId: string, majorItemId: string, runId: string, row: ValidRow): Prisma.SocCheckResultCreateManyInput {
+function resultRow(jobId: string, majorItemId: string, runId: string, row: ValidRow, text: { tor: string; proposal: string | null } | null): Prisma.SocCheckResultCreateManyInput {
+  const reference = asColumnText(row.reference) ?? "";
   return {
     jobId, majorItemId, runId,
     rowNumber: row.row,
     item: row.item,
     rowType: asColumnText(row.row_type) ?? "content_row",
-    socText: "",
-    referenceText: asColumnText(row.reference) ?? "",
-    referencePages: [],
+    socText: text?.tor ?? "",
+    proposalText: text?.proposal ?? null,
+    referenceText: reference,
+    referencePages: parseReferencePages(reference),
     aiReferenceCheck: String(row.reference_check),
     aiHeadingTitleCheck: asColumnText(row.heading_title_check) ?? "",
     aiProductIdentity: asColumnText(row.product_identity) ?? "",

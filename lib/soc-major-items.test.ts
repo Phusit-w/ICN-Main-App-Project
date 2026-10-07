@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { majorItemKey, readSocMajorItems } from "@/lib/soc-major-items";
+import { majorItemKey, readSocMajorItems, socRowTexts } from "@/lib/soc-major-items";
 import { buildDocx, buildSocDocx, buildZip, tableXml } from "@/test/docx-fixture";
 
 const HEADER = ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"];
@@ -89,4 +89,19 @@ test("majorItemKey maps any item number to its major item", () => {
   assert.equal(majorItemKey("1.5.1."), "1");
   assert.equal(majorItemKey("หมายเหตุ"), null);
   assert.equal(majorItemKey(""), null);
+});
+
+test("a row's TOR and bidder text come from its row number, or from its item number only when that is unique", () => {
+  const soc = buildSocDocx([
+    HEADER,
+    ["๑.๑", "TOR ๑.๑", "ข้อเสนอ ๑.๑", "หน้า 1"],
+    ["๒.๑", "TOR ๒.๑ แรก", "ข้อเสนอ ๒.๑ แรก", "หน้า 2"],
+    ["2.1", "TOR ๒.๑ ซ้ำ", "ข้อเสนอ ๒.๑ ซ้ำ", "หน้า 3"],
+  ]);
+  const text = socRowTexts(soc);
+  assert.deepEqual(text(2, "๑.๑"), { tor: "TOR ๑.๑", proposal: "ข้อเสนอ ๑.๑" });
+  assert.deepEqual(text(9, "1.1"), { tor: "TOR ๑.๑", proposal: "ข้อเสนอ ๑.๑" });
+  assert.deepEqual(text(4, "๒.๑"), { tor: "TOR ๒.๑ ซ้ำ", proposal: "ข้อเสนอ ๒.๑ ซ้ำ" });
+  assert.equal(text(9, "๒.๑"), null);
+  assert.equal(text(2, "๓.๑"), null);
 });

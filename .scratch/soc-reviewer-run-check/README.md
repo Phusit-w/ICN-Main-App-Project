@@ -28,7 +28,7 @@
 | 05 | Import one Local Check Run (seam 1) | 04 | done |
 | 06 | Re-check a major item | 05 | done |
 | 07 | Prototype the review page | – | done (layout A; branch prototype/soc-review-page) |
-| 08 | New review page | 05, 07 | ready-for-agent |
+| 08 | New review page | 05, 07 | done |
 | 09 | PDF evidence panel | 08 | ready-for-agent |
 | 10 | Download combined SOC_Check | 05 | done |
 | 11 | Skill hosting | 01 | done |
@@ -46,9 +46,9 @@ Phase 1 = 01–10 (useful on its own, with manual upload). Phase 2 = 11–16.
 
 ## Next session (as of 2026-10-07)
 
-- 15 and 07 are done. Next: **08 New review page** (ready-for-agent, blockers done), then 09.
-  - Read 07's Comments first: layout A, the agreed status rule, and the findings that imported rows have no
-    TOR text or page numbers, and that iframes are blocked.
+- 08 is done (review page, layout A). Next: **09 PDF evidence panel** (ready-for-agent, blockers done).
+  - Read 08's Comments first: the inspector's `data-slot="pdf-evidence"` placeholder, and the fact that
+    `evidenceDocumentId` is not set on imported rows yet.
 - Still waiting on the user: 02 (measure on a real SOC), and 16 (needs IT's answer).
 
 ## Open items outside tickets
