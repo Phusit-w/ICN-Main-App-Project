@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
   // traced in) so the Docker image doesn't need to `npm install` at runtime.
   output: "standalone",
 
+  // MuPDF (SOC evidence page renders) is ESM with top-level await and loads
+  // its .wasm next to itself, so it is required from node_modules as is.
+  serverExternalPackages: ["mupdf"],
+
   // Serve images as-is, no on-the-fly optimization. The standalone server
   // has no `sharp`, so next/image's optimizer 500s on every logo request and
   // spams service-err.log (the logo renders broken). These are two tiny

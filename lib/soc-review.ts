@@ -93,3 +93,45 @@ export function parseReferencePages(reference: string): number[] {
   }
   return pages;
 }
+
+// "page 4", "pages 4, 5", "p.4", "pp. 4-5" or "หน้า ๔": a page marker only
+// counts when a number follows, so a file named "Landing page brochure" isn't cut.
+const PAGE_MARKER = /(?:\bpages?|\bpp?\.|หน้า(?:ที่)?)\s*[0-9๐-๙]/i;
+const normalizeDocumentName = (name: string) => toArabicDigits(name).toLowerCase().replace(/\.pdf$/i, "").replace(/[\s_\-–.,]+/g, " ").trim();
+
+export type EvidenceDocument = { id: string; name: string };
+export type EvidenceCitation = { cited: string; document: EvidenceDocument | null; pages: number[] };
+
+// The evidence PDF one cited name refers to, e.g. "Datasheet Demo" →
+// "Datasheet_Demo.pdf", compared without case, extension or separators. An
+// exact match wins; otherwise the file name may add to the cited name (e.g.
+// "… v2"), never the other way round. null when none or several fit, so the
+// page never shows a guessed document.
+function matchEvidenceDocument(cited: string, documents: readonly EvidenceDocument[]): EvidenceDocument | null {
+  const wanted = normalizeDocumentName(cited);
+  if (!wanted) return null;
+  const candidates = documents.map((document) => ({ document, name: normalizeDocumentName(document.name) }));
+  const exact = candidates.filter((c) => c.name === wanted);
+  const found = exact.length ? exact : candidates.filter((c) => ` ${c.name} `.includes(` ${wanted} `));
+  return found.length === 1 ? found[0].document : null;
+}
+
+// What a row's reference cites, one entry per document: "Datasheet Demo,
+// pages 4, 5; Brochure p.2" → Datasheet Demo [4, 5] and Brochure [2], each
+// with the job's evidence PDF it names. Parts are split at ";" or a line
+// break; a part with pages but no name continues the previous document.
+export function citedEvidence(reference: string, documents: readonly EvidenceDocument[]): EvidenceCitation[] {
+  const citations: EvidenceCitation[] = [];
+  for (const part of reference.split(/[;\n]/)) {
+    const pages = parseReferencePages(part);
+    const cited = part.split(PAGE_MARKER)[0].replace(/[\s,:–-]+$/, "").trim();
+    const previous = citations.at(-1);
+    if (!cited && previous) {
+      previous.pages.push(...pages.filter((p) => !previous.pages.includes(p)));
+      continue;
+    }
+    if (!cited && !pages.length) continue;
+    citations.push({ cited, document: matchEvidenceDocument(cited, documents), pages });
+  }
+  return citations;
+}

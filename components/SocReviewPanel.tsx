@@ -4,7 +4,7 @@
 // ticket 07 prototype): a table of every row, problems first, and an
 // inspector on the right for the selected row with its Final Decision. Each
 // row is confirmed on its own; there is no bulk confirm.
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
@@ -76,8 +76,7 @@ function RowInspector({ jobId, row, majorItemLabel }: { jobId: string; row: SocR
       <span className="rounded-full bg-chip px-3 py-1">ระบบแนะนำ: <span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></span>
     </div>
     <div className="rounded-input bg-ground p-3 text-sm"><div className="text-xs font-semibold text-label">สรุปจาก Claude · confidence {row.confidence || "—"}</div><p className="mt-1 leading-relaxed">{row.detail}</p>{row.keyIssue && row.keyIssue !== row.detail ? <p className="mt-1 text-xs text-muted">ประเด็นหลัก: {row.keyIssue}</p> : null}</div>
-    {/* Ticket 09 puts the rendered cited page, with its highlights, here. */}
-    <div data-slot="pdf-evidence" className="rounded-input border border-dashed border-line p-3 text-xs text-muted">เอกสารอ้างอิง: {row.reference || "ไม่ได้ระบุ"}{row.referencePages.length ? ` · หน้า ${row.referencePages.join(", ")}` : ""}</div>
+    <PdfEvidence jobId={jobId} row={row} />
     <details className="rounded-input border border-line p-3"><summary className="cursor-pointer text-sm font-medium">รายละเอียดทุกแกน ({row.axes.length})</summary>
       <table className="mt-2 w-full border-collapse text-sm"><tbody>{row.axes.map((axis) => <tr key={axis.key} className="border-t border-line align-top">
         <td className="w-40 py-1.5 pr-2 text-label">{axis.label}</td>
@@ -86,6 +85,64 @@ function RowInspector({ jobId, row, majorItemLabel }: { jobId: string; row: SocR
       </tr>)}</tbody></table>
     </details>
     <DecisionForm jobId={jobId} row={row} />
+  </div>;
+}
+
+// The cited pages of the evidence PDFs the reference names, rendered on the
+// server with each PDF's own highlights (ticket 09), with buttons to page
+// through a multi-page or multi-document citation. A page that can't be shown
+// gets the server's Thai reason instead of a broken image.
+function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
+  const pages = row.citations.flatMap((citation) => (citation.document ? citation.pages.map((page) => ({ document: citation.document!, page })) : []));
+  const unmatched = row.citations.filter((citation) => !citation.document);
+  const unpaged = row.citations.filter((citation) => citation.document && !citation.pages.length);
+  const severalDocuments = new Set(pages.map((p) => p.document.id)).size > 1;
+  const [shownIndex, setShownIndex] = useState(0);
+  const [failures, setFailures] = useState<Record<string, string>>({});
+  const explained = useRef(new Set<string>());
+  const shown = pages[shownIndex];
+  const src = shown ? `/api/soc/jobs/${jobId}/evidence/${shown.document.id}/pages/${shown.page}` : null;
+  const highlight = row.axes.find((axis) => axis.key === "highlight_check");
+
+  // Asks the server once per page why it failed; the image's error event
+  // carries no status.
+  async function explainFailure(url: string, failedUrl = url) {
+    if (explained.current.has(url)) return;
+    explained.current.add(url);
+    let reason = "แสดงหน้านี้ไม่ได้ กรุณาลองใหม่";
+    try {
+      const body = await (await fetch(failedUrl)).json();
+      if (typeof body?.error === "string") reason = body.error;
+    } catch { /* keep the generic reason */ }
+    setFailures((current) => ({ ...current, [url]: reason }));
+  }
+
+  const note = (text: string) => <p key={text} className="rounded-input bg-ground p-3 text-xs text-muted">{text}</p>;
+  const documents = [...new Map(pages.map((p) => [p.document.id, p.document])).values()];
+  return <div data-slot="pdf-evidence" className="flex flex-col gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0 text-xs"><span className="font-semibold text-label">เอกสารอ้างอิง</span> <span className="whitespace-pre-wrap text-muted">{row.reference || "ไม่ได้ระบุ"}</span></div>
+      <div className="flex flex-wrap gap-3">{documents.map((d) => <a key={d.id} href={`/api/soc/documents/${d.id}`} target="_blank" rel="noreferrer" className="text-xs text-label underline hover:text-ink">เปิด {d.name}</a>)}</div>
+    </div>
+    {pages.length > 1 ? <div className="flex flex-wrap gap-1.5" role="group" aria-label="หน้าที่อ้าง">
+      {pages.map((p, i) => <button key={`${p.document.id}:${p.page}`} type="button" onClick={() => setShownIndex(i)} aria-pressed={i === shownIndex} className={`ui-btn rounded-full px-3 py-1 text-xs transition-colors ${i === shownIndex ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{severalDocuments ? `${p.document.name} ` : ""}หน้า {p.page}</button>)}
+    </div> : null}
+    {!row.citations.length ? note("แถวนี้ไม่ได้อ้างเอกสาร") : null}
+    {unmatched.map((c) => note(`ไม่พบไฟล์ PDF ที่ตรงกับ "${c.cited || row.reference}" ในงานนี้ ตรวจชื่อไฟล์หลักฐานหรืออัปโหลดเพิ่ม`))}
+    {unpaged.map((c) => note(`การอ้างอิง ${c.document!.name} ไม่ได้ระบุเลขหน้า`))}
+    {!shown || !src ? null
+      : failures[src] ? <p role="alert" className="rounded-input border border-danger-border bg-surface p-3 text-xs text-danger">{failures[src]}</p>
+      : <div className="relative min-h-40 overflow-hidden rounded-input border border-line bg-white">
+        {/* Under the image, so it shows only until the page has loaded. */}
+        <p className="absolute inset-x-0 top-0 p-3 text-xs text-muted">กำลังโหลดหน้า {shown.page}…</p>
+        {/* A server-rendered PNG behind an access check; next/image adds nothing here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img key={src} src={src} alt={`${shown.document.name} หน้า ${shown.page}`} className="relative block h-auto w-full bg-white" onError={(event) => explainFailure(src, event.currentTarget.src)}
+          // An image that failed before hydration never fires onError.
+          ref={(img) => { if (img?.complete && img.naturalWidth === 0) explainFailure(src); }} />
+      </div>}
+    {/* The skill reports no highlight positions, only what it found highlighted. */}
+    {highlight?.detail && highlight.detail !== "—" ? <p className="text-xs leading-relaxed text-muted"><span className="font-semibold text-label">Highlight ({socAxisValueLabel(highlight.value ?? "not_applicable")}):</span> {highlight.detail}</p> : null}
   </div>;
 }
 

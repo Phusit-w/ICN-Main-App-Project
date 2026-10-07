@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { filterReviewRows, majorItemConfirmed, overallRowStatus, parseReferencePages, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
+import { filterReviewRows, citedEvidence, majorItemConfirmed, overallRowStatus, parseReferencePages, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
 
 type FixtureRow = SocAxisValues & { row: number; item: string; row_type: string };
 const RUN = JSON.parse(readFileSync(new URL("../test/fixtures/soc/results_sonnet.json", import.meta.url), "utf8")) as { results: FixtureRow[] };
@@ -77,4 +77,19 @@ test("a major item is confirmed when every row that needs a decision has one", (
   assert.equal(majorItemConfirmed([{ rowType: "section_heading_row", decided: false }, { rowType: "content_row", decided: true }]), true);
   assert.equal(majorItemConfirmed([{ rowType: "content_row", decided: true }, { rowType: "content_row", decided: false }]), false);
   assert.equal(majorItemConfirmed([{ rowType: "section_heading_row", decided: false }]), false);
+});
+
+test("a reference is matched to the evidence PDFs it names, with their pages", () => {
+  const docs = [{ id: "d1", name: "Datasheet_Demo.pdf" }, { id: "d2", name: "CASRI Product Brochure v2.PDF" }, { id: "d3", name: "Landing page brochure.pdf" }];
+  const match = (reference: string, documents = docs) => citedEvidence(reference, documents).map((c) => [c.document?.id ?? null, c.pages]);
+  assert.deepEqual(match("Datasheet Demo, pages 4, 5"), [["d1", [4, 5]]]);
+  assert.deepEqual(match("datasheet-demo หน้า ๒"), [["d1", [2]]]);
+  assert.deepEqual(match("CASRI Product Brochure หน้า ๑๓, ๑๔"), [["d2", [13, 14]]], "the file name may add a version");
+  assert.deepEqual(match("Landing page brochure, page 3"), [["d3", [3]]], "'page' in a file name isn't a page marker");
+  assert.deepEqual(match("Datasheet Demo Annex, page 1"), [[null, [1]]], "a longer cited name never falls back to a shorter file");
+  assert.deepEqual(match("Installation Guide, page 3"), [[null, [3]]]);
+  assert.deepEqual(match(""), []);
+  assert.deepEqual(match("Datasheet, page 2", [{ id: "a", name: "Datasheet A.pdf" }, { id: "b", name: "Datasheet B.pdf" }]), [[null, [2]]], "several fit");
+  assert.deepEqual(match("Datasheet Demo p.4; CASRI Product Brochure p.2"), [["d1", [4]], ["d2", [2]]], "two documents");
+  assert.deepEqual(match("Datasheet Demo, page 4\npage 6"), [["d1", [4, 6]]], "a part without a name continues the previous document");
 });

@@ -29,7 +29,7 @@
 | 06 | Re-check a major item | 05 | done |
 | 07 | Prototype the review page | – | done (layout A; branch prototype/soc-review-page) |
 | 08 | New review page | 05, 07 | done |
-| 09 | PDF evidence panel | 08 | ready-for-agent |
+| 09 | PDF evidence panel | 08 | done |
 | 10 | Download combined SOC_Check | 05 | done |
 | 11 | Skill hosting | 01 | done |
 | 12 | Runner link + token + heartbeat | 04 | done |
@@ -46,9 +46,9 @@ Phase 1 = 01–10 (useful on its own, with manual upload). Phase 2 = 11–16.
 
 ## Next session (as of 2026-10-07)
 
-- 08 is done (review page, layout A). Next: **09 PDF evidence panel** (ready-for-agent, blockers done).
-  - Read 08's Comments first: the inspector's `data-slot="pdf-evidence"` placeholder, and the fact that
-    `evidenceDocumentId` is not set on imported rows yet.
+- 09 is done (PDF evidence panel, rendered with MuPDF). Every agent-ready ticket in phase 1 and 2 is now done.
+- **The user must decide:** `mupdf` is AGPL-3.0 (see 09's Comments). Confirm it is acceptable before production, or
+  switch to pdf.js.
 - Still waiting on the user: 02 (measure on a real SOC), and 16 (needs IT's answer).
 
 ## Open items outside tickets
