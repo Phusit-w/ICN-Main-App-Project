@@ -6,7 +6,7 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 **Blocked by:** 14 (and IT's answer on AppLocker/WDAC and unsigned installers)
 
-**Status:** ready-for-human (code done and smoke-tested 2026-10-07; the manual company-PC test below is the user's)
+**Status:** needs-info (blocked by Smart App Control 2026-10-07; no code signing, SAC stays on; see last comment)
 
 - [x] IT's answer is recorded in Comments before the build starts
 - [ ] On a company PC without admin rights: download, install, sign-in and the first check all work with no other steps
@@ -131,3 +131,44 @@ API yet). So the note above ("no CA or server URL needed") was wrong. Now:
 
 **Manual test step 1 is now:** on the server, add the two `.env` lines (and the PEM), then `git pull` +
 `.\deploy\windows\update.ps1`; check step 6b says "deployed …SOCRunnerSetup.exe".
+
+### 2026-10-07: blocked by Smart App Control on the first real install
+
+**What happened (user, on this company PC, installer downloaded from prod `/soc`):** double-click → "Smart App Control
+blocked an app that may be unsafe" (no "Run anyway"). `Unblock-File` + running from PowerShell → "An Application
+Control policy has blocked this file".
+
+**Evidence (Code Integrity log, this PC):** events 3033/3077 at 16:31, policy `VerifiedAndReputableDesktop`
+(`{0283ac0f-fff1-49ae-ada1-8a933130cad6}`, Smart App Control), file `Downloads\SOCRunnerSetup.exe`, status
+`0xc0e90002`, validated signing level 1 (unsigned). SAC state on this PC: `VerifiedAndReputablePolicyState=1` (on,
+enforcing). `Unblock-File` only removes the Mark of the Web; the kernel origin claim (`$KERNEL.SMARTLOCKER.ORIGINCLAIM`)
+stays on the file.
+
+**Why the earlier agent smoke test passed:** the installer downloaded from the dev server at 14:55 carried the same
+origin claim and was also unsigned, but SAC allowed it (cached verdict `$KERNEL.PURGE.ESBCACHE`). SAC asks Microsoft's
+cloud reputation service for unknown unsigned files; every download is unique (the appended token changes the hash),
+so it never has reputation, and the verdict is not predictable. **The agent's "installs fine on a company PC" result
+above is therefore not valid evidence.** The runner's own unsigned binaries (lxml/PyMuPDF `.pyd` from PyPI wheels) did
+load under SAC during that run.
+
+**Decisions (user, relayed from IT, 2026-10-07):**
+- (a) A company code-signing certificate: **no**.
+- (b) Turn Smart App Control off on reviewer PCs (or move to App Control for Business with an allow rule): **no**.
+
+So an unsigned, per-user `.exe` cannot be the delivery. Open: how to install the SOC Runner using only components
+SAC accepts on their own merits (signed or reputable), without working around SAC.
+
+**2026-10-07: prototype, install without our own .exe (user approved the prototype).** Throwaway script in the session
+scratchpad, run with Windows PowerShell 5.1 (FullLanguage) on this SAC-on PC, against the dev server as uitest13:
+NuGet Python 3.12.10 (sha256-checked, `python.exe`/`pythonw.exe` signed by the PSF) expanded with `Expand-Archive`,
+`pip install -r installer/requirements.txt` from PyPI, runner `.py` files + config placed, then the existing
+`install.py` (autostart, sign-in check, start). Result: done in 27 s, `SOCRunner.exe` (a copy of the signed
+`pythonw.exe`) running and heartbeating, packages load. **No Code Integrity block for any of it.** Every new binary
+carries the origin claim *and* SAC's cached verdict (`ESBCACHE`), i.e. SAC evaluated and allowed them on their own
+merits (PSF signature; reputation of the unsigned lxml/PyMuPDF `.pyd` from PyPI), nothing was exempted or bypassed.
+Also checked: a bootstrap can reach prod's self-signed HTTPS from PowerShell 5.1 by pinning the certificate
+thumbprint (`9D31AAED…9698`); a wrong pin is refused in a fresh process. Not run: a real check through Claude in
+this prototype (the packages and runner are the same as in the earlier successful check). Cleaned up afterwards.
+
+Proposed rework (not started): `/soc` "copy install command" with a one-time code instead of the `.exe`; the server
+serves a bootstrap script, the runner files and the config; the C# stub, payload build and update.ps1 step 6b go away.
