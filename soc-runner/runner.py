@@ -20,12 +20,13 @@ import shutil
 import sys
 import threading
 import time
+import uuid
 import zipfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
-from claude_cli import ClaudeCli, ClaudeFailed, ClaudeTask
+from claude_cli import ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
 RUNNER_VERSION = "0.1.0"
@@ -35,6 +36,18 @@ DEFAULT_SKILL_NAME = "tor-word-compliance-check"
 HEARTBEAT_SECONDS = 30
 IDLE_POLL_SECONDS = 15
 REFUSED_RETRY_SECONDS = 60  # token refused, no soc access, or no skill on the server
+MISSING_DOCUMENTS_FILE = "missing_documents.json"  # written by the skill's headless step 0
+RUN_STATE_FILE = "soc-runner-run.json"  # the Claude session of a request, kept for a resume
+RESUME_MARGIN_SECONDS = 2 * 60  # after the quota window resets
+DEFAULT_PAUSE_SECONDS = 30 * 60  # when the CLI didn't say when the quota comes back
+MAX_PAUSE_SECONDS = 7 * 24 * 3600 - 3600  # the server refuses a resume time beyond 7 days
+LOGIN_CHECK_SECONDS = 5 * 60  # `claude auth status` is cached this long
+LOGIN_RECHECK_SECONDS = 5 * 60  # after a run found the login expired; doubles each time, up to 30 min
+# Short enough that the web stops saying "logged out" soon after the reviewer logs in again.
+MAX_LOGIN_RECHECK_SECONDS = 30 * 60
+MAX_MISSING = 50  # the server's limits for needs_documents
+MAX_MISSING_NAME = 300
+DOCUMENT_EXTENSION = re.compile(r"\.(pdf|docx?|xlsx?|pptx?)$", re.I)
 
 
 class RunFailed(Exception):
@@ -63,25 +76,59 @@ def load_config(path: Path) -> Config:
 # ---------------------------------------------------------------- one request
 
 
-def carry_out(request: dict, server, claude, work_root: Path, log=print) -> str:
+def carry_out(request: dict, server, claude, work_root: Path, log=print, on_pause=None, clock=time.time) -> str:
     """Carries out one claimed Check Request.
 
     Returns "submitted", "rejected" (the import refused the results and the
-    server closed the request), "failed" (reported as failed) or "dropped"
-    (the request is no longer this runner's, e.g. cancelled or stale).
+    server closed the request), "failed" (reported as failed), "dropped"
+    (the request is no longer this runner's, e.g. cancelled or stale),
+    "needs_documents" (the SOC cites documents the job doesn't have; no row
+    was checked), "paused" (the Claude quota is used up; `on_pause` gets the
+    resume time) or "needs_login" (Claude Code must be signed in again).
+
+    The work folder is named after the request and keeps the Claude session
+    id, so a paused or logged-out run, or one cut short by a restart, resumes
+    that session with the rows it already did when the request comes back.
     """
     request_id = request["id"]
     item = request["majorItem"]
-    work = Path(work_root) / f"{datetime.now():%Y%m%d-%H%M%S}-{_safe_name(request_id)}"
+    work = Path(work_root) / _safe_name(request_id)
     try:
         server.report(request_id, {"state": "running", "progress": "กำลังดาวน์โหลดไฟล์"})
         skill_name, skill_version = _install_skill(request, server, work)
         documents = _download_documents(request, server, work / "inputs")
         out_dir = work / "out"
+        saved = _read_run_state(work)
+        resume = bool(saved.get("sessionId")) and saved.get("skillVersion") == skill_version
+        if not resume:
+            # A new skill version since the pause: its earlier output no longer fits.
+            shutil.rmtree(out_dir, ignore_errors=True)
+            saved = _new_run_state(work, skill_version)
         out_dir.mkdir(parents=True, exist_ok=True)
-        server.report(request_id, {"state": "running", "progress": f"Claude กำลังตรวจข้อ {item['label']}"})
-        log(f"[{request_id}] ตรวจข้อ {item['label']} ด้วย skill {skill_version}")
-        run = claude.run(ClaudeTask(prompt=build_prompt(request, skill_name, documents), cwd=work, out_dir=out_dir))
+        (out_dir / MISSING_DOCUMENTS_FILE).unlink(missing_ok=True)
+        server.report(request_id, {"state": "running", "progress": f"Claude กำลังตรวจข้อ {item['label']}{' ต่อ' if resume else ''}"})
+        log(f"[{request_id}] {'ตรวจต่อ' if resume else 'ตรวจ'}ข้อ {item['label']} ด้วย skill {skill_version}")
+        prompt = build_resume_prompt(request) if resume else build_prompt(request, skill_name, documents)
+        try:
+            run = claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=saved["sessionId"], resume=resume))
+        except ClaudeSessionMissing:
+            if not resume:
+                raise
+            # The session was never saved (it stopped at once) or is gone: a new
+            # one, which still finds the rows already written in out/.
+            log(f"[{request_id}] ไม่พบ session เดิมของ Claude เริ่มใหม่โดยใช้ผลระหว่างทางใน out/")
+            saved = _new_run_state(work, skill_version)
+            prompt = build_prompt(request, skill_name, documents) + PARTIAL_OUTPUT_NOTE
+            run = claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=saved["sessionId"]))
+        acknowledged = request.get("acknowledgedMissing") or []
+        missing = _missing_documents(out_dir, acknowledged)
+        if missing:
+            log(f"[{request_id}] ขาดเอกสาร: {', '.join(missing)}")
+            server.report(request_id, {"state": "needs_documents", "missingDocuments": missing})
+            shutil.rmtree(work, ignore_errors=True)
+            return "needs_documents"
+        if (out_dir / MISSING_DOCUMENTS_FILE).is_file() and not (out_dir / "results.json").is_file():
+            raise RunFailed(f"Claude หยุดเพราะขาดเอกสารที่ผู้ตรวจรับทราบแล้ว ({', '.join(acknowledged)}) แทนที่จะตรวจต่อ ลองกดตรวจใหม่")
         results, soc_check = _outputs(out_dir, run.summary)
         server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตรวจ"})
         submitted = server.submit(request_id, results, soc_check, run.model, skill_version)
@@ -94,6 +141,17 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print) -> str:
         return "rejected"
     except (Unauthorized, Forbidden):
         raise  # the link itself is refused; nothing can be reported
+    except ClaudeQuotaExhausted as error:
+        resume_at = _resume_time(error.resets_at, clock())
+        log(f"[{request_id}] โควตา Claude หมด หยุดถึง {resume_at.astimezone():%H:%M} แล้วจะตรวจต่อเอง")
+        outcome = _report(server, request_id, {"state": "paused_quota", "resumeAt": resume_at.isoformat().replace("+00:00", "Z"),
+                                               "progress": "ผลที่ตรวจแล้วเก็บไว้ จะตรวจต่อเมื่อโควตากลับมา"}, "paused", log)
+        if outcome == "paused" and on_pause:
+            on_pause(resume_at)
+        return outcome
+    except ClaudeLoggedOut as error:
+        log(f"[{request_id}] Claude ต้องเข้าสู่ระบบใหม่ ({error}) เปิด claude แล้วพิมพ์ /login")
+        return _report(server, request_id, {"state": "needs_login"}, "needs_login", log)
     except (RunFailed, ClaudeFailed) as error:
         return _report_failed(server, request_id, str(error), log)
     except ServerError as error:
@@ -104,6 +162,26 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print) -> str:
     log(f"[{request_id}] ส่งผลแล้ว {submitted.get('rowCount', '?')} แถว")
     shutil.rmtree(work, ignore_errors=True)
     return "submitted"
+
+
+PARTIAL_OUTPUT_NOTE = ("- `out/` อาจมีผลระหว่างทางจากรอบก่อนที่หยุดไป (เช่น highlights.json) ให้ใช้ต่อได้"
+                       " ไม่ต้องทำซ้ำส่วนที่ถูกต้องแล้ว\n")
+
+
+def build_resume_prompt(request: dict) -> str:
+    """Continues the Claude session a quota pause or an expired login cut short."""
+    item = request["majorItem"]
+    acknowledged = json.dumps(request.get("acknowledgedMissing") or [], ensure_ascii=False)
+    lines = [
+        HEADLESS_MARKER,
+        "",
+        f"การตรวจข้อใหญ่ {item['label']} ถูกหยุดไว้ (โควตา Claude หมดหรือต้องเข้าสู่ระบบใหม่) ตอนนี้ใช้งานได้แล้ว"
+        " ให้ตรวจต่อจากที่ค้างไว้ในการสนทนานี้ ใช้ skill ไฟล์ และผลระหว่างทางใน `out/` ชุดเดิม ห้ามตรวจแถวที่ตรวจเสร็จแล้วซ้ำ ห้ามถามผู้ใช้",
+        "- เมื่อเสร็จให้เขียน `out/results.json` และ `out/SOC_Check.docx` ให้ครบทุกแถวของข้อใหญ่นี้ (รวมแถวที่ตรวจไว้ก่อนหยุด)",
+        f"- acknowledged_missing: {acknowledged}",
+        "- ห้ามแก้ไขไฟล์ใน `inputs/`",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]]) -> str:
@@ -132,14 +210,72 @@ def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]
 
 def _report_failed(server, request_id: str, reason: str, log) -> str:
     log(f"[{request_id}] ตรวจไม่สำเร็จ: {reason}")
+    return _report(server, request_id, {"state": "failed", "reason": reason[:500]}, "failed", log)
+
+
+def _report(server, request_id: str, payload: dict, outcome: str, log) -> str:
     try:
-        server.report(request_id, {"state": "failed", "reason": reason[:500]})
+        server.report(request_id, payload)
     except NotClaimed:
         return "dropped"
     except ServerError as error:
         # The claim goes stale and returns to `requested` on its own.
-        log(f"[{request_id}] รายงานผลล้มเหลวไม่ได้: {error}")
-    return "failed"
+        log(f"[{request_id}] รายงานสถานะ {payload['state']} ไม่ได้: {error}")
+    return outcome
+
+
+def _resume_time(resets_at: datetime | None, now: float) -> datetime:
+    """When to try again after the quota ran out: shortly after the reset, within the server's limit."""
+    current = datetime.fromtimestamp(now, timezone.utc)
+    if resets_at is None or resets_at <= current:
+        return current + timedelta(seconds=DEFAULT_PAUSE_SECONDS)
+    return min(resets_at + timedelta(seconds=RESUME_MARGIN_SECONDS), current + timedelta(seconds=MAX_PAUSE_SECONDS))
+
+
+def _missing_documents(out_dir: Path, acknowledged: list[str]) -> list[str]:
+    """The cited documents the skill reported missing, less those the reviewer acknowledged."""
+    path = out_dir / MISSING_DOCUMENTS_FILE
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except ValueError:
+        raise RunFailed(f"Claude เขียน {MISSING_DOCUMENTS_FILE} ไม่ถูกรูปแบบ") from None
+    entries = data.get("missing_documents") if isinstance(data, dict) else data
+    names: list[str] = []
+    for entry in entries if isinstance(entries, list) else []:
+        name = entry.get("name") if isinstance(entry, dict) else entry
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip()[:MAX_MISSING_NAME])
+    if not names:
+        raise RunFailed(f"Claude แจ้งว่าขาดเอกสาร ({MISSING_DOCUMENTS_FILE}) แต่ไม่ได้ระบุชื่อเอกสาร")
+    known = {_document_key(a) for a in acknowledged}
+    return [n for n in dict.fromkeys(names) if _document_key(n) not in known][:MAX_MISSING]
+
+
+def _document_key(name: str) -> str:
+    """Claude may name the same document "Datasheet A" in one run and "datasheet a.pdf" in the next."""
+    return DOCUMENT_EXTENSION.sub("", name.strip()).strip().casefold()
+
+
+def _new_run_state(work: Path, skill_version: str) -> dict:
+    """A new Claude session for this request, saved so a resume after a pause can continue it."""
+    saved = {"sessionId": str(uuid.uuid4()), "skillVersion": skill_version}
+    _write_run_state(work, saved)
+    return saved
+
+
+def _read_run_state(work: Path) -> dict:
+    try:
+        data = json.loads((work / RUN_STATE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_run_state(work: Path, state: dict) -> None:
+    work.mkdir(parents=True, exist_ok=True)
+    (work / RUN_STATE_FILE).write_text(json.dumps(state), encoding="utf-8")
 
 
 def _install_skill(request: dict, server, work: Path) -> tuple[str, str]:
@@ -245,22 +381,64 @@ def _header(headers: dict, name: str) -> str:
 
 
 class SocRunner:
-    def __init__(self, server, claude, work_root: Path, log=print):
+    def __init__(self, server, claude, work_root: Path, log=print, clock=time.time):
         self.server = server
         self.claude = claude
         self.work_root = Path(work_root)
         self.log = log
+        self.clock = clock
+        # The Claude quota is the user's: while it is used up no request can run.
+        self.paused_until = 0.0
+        # After a run found the login expired, `claude auth status` (which only
+        # reads the stored login) is not trusted until then.
+        self.logged_out_until = 0.0
+        self.login_backoff = LOGIN_RECHECK_SECONDS
+        self._login: tuple[float, str] | None = None
+        self._lock = threading.Lock()  # the heartbeat thread reads the login too
+
+    def claude_login(self) -> str:
+        with self._lock:
+            now = self.clock()
+            if now < self.logged_out_until:
+                return "logged_out"
+            if self._login is not None and now - self._login[0] < LOGIN_CHECK_SECONDS:
+                return self._login[1]
+        # Outside the lock: `claude auth status` may take a while, and the other thread must not wait on it.
+        state = self.claude.login_state()
+        with self._lock:
+            self._login = (now, state)
+            return "logged_out" if self.clock() < self.logged_out_until else state
 
     def heartbeat(self) -> None:
-        # The Claude login state is detected in ticket 15; until then "unknown".
-        self.server.heartbeat(RUNNER_VERSION, "unknown")
+        self.server.heartbeat(RUNNER_VERSION, self.claude_login())
 
     def poll_once(self) -> str | None:
+        if self.clock() < self.paused_until or self.claude_login() == "logged_out":
+            return None
         request = self.server.claim()
         if not request:
             return None
         self.log(f"รับคำขอ {request['id']}: {request['job'].get('title', '')} ข้อ {request['majorItem']['label']}")
-        return carry_out(request, self.server, self.claude, self.work_root, self.log)
+        outcome = carry_out(request, self.server, self.claude, self.work_root, self.log, on_pause=self._pause, clock=self.clock)
+        with self._lock:
+            if outcome == "needs_login":
+                self.logged_out_until = self.clock() + self.login_backoff
+                self.login_backoff = min(self.login_backoff * 2, MAX_LOGIN_RECHECK_SECONDS)
+                self._login = None
+            elif outcome in ("submitted", "rejected", "needs_documents"):
+                self.login_backoff = LOGIN_RECHECK_SECONDS  # Claude ran, so the login works
+        if outcome == "needs_login":
+            self._beat_once()  # tell the web now, not at the next beat
+        return outcome
+
+    def _pause(self, resume_at: datetime) -> None:
+        self.paused_until = resume_at.timestamp()
+
+    def _beat_once(self) -> None:
+        try:
+            self.heartbeat()
+        except Exception as error:  # the next beat tries again
+            self.log(f"ส่ง heartbeat ไม่ได้: {error}")
 
     def run_forever(self) -> None:
         stop = threading.Event()
@@ -294,10 +472,7 @@ class SocRunner:
     def _beat(self, stop: threading.Event) -> None:
         # Separate thread: a long Claude run keeps the claim alive (stale after 2 min).
         while not stop.is_set():
-            try:
-                self.heartbeat()
-            except Exception as error:  # keep beating through network blips
-                self.log(f"ส่ง heartbeat ไม่ได้: {error}")
+            self._beat_once()  # keeps beating through network blips
             stop.wait(HEARTBEAT_SECONDS)
 
 

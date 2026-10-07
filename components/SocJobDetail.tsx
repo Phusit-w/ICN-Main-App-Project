@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
-import { cancelSocCheckRequest, requestAllSocChecks, requestSocCheck } from "@/actions/socCheckRequests";
+import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
 import type { ConfirmedRow } from "@/lib/soc-import";
 import { CHECK_LABELS, isOpenCheckRequestState, isRequestableItemState, majorItemProgress, majorItemStateText, SOC_AXIS_VALUE_LABELS, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
@@ -80,28 +80,31 @@ function MajorItemRow({ jobId, item, viewerId, viewerIsAdmin, open, onToggle, on
   const canImport = item.state === "not_checked" || item.state === "checked";
   const recheck = item.state === "checked";
   const state = majorItemStateText(item, viewerId);
-  const problem = item.state === "failed" || item.state === "needs_documents" || item.state === "needs_login";
+  const problem = item.state === "failed" || item.state === "needs_documents" || item.state === "needs_login" || (item.state === "checked" && item.missingDocuments.length > 0);
   const request = item.request;
   const canCancel = item.state === "requested" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
-    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
+    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} onDone={onDone} /></td></tr> : null}
   </>;
 }
 
-// ตรวจ / ตรวจซ้ำ: a Check Request for the viewer's own SOC Runner. A re-check
-// over rows with a Final Decision asks first, then names them in the request.
-function RequestCheckButton({ jobId, item }: { jobId: string; item: MajorItem }) {
+// ตรวจ / ตรวจซ้ำ / ลองใหม่: a Check Request for the viewer's own SOC Runner.
+// A re-check over rows with a Final Decision asks first, then names them in
+// the request. With `continueWithoutMissing` it is [ตรวจต่อโดยไม่มีไฟล์นี้].
+function RequestCheckButton({ jobId, item, continueWithoutMissing = false }: { jobId: string; item: MajorItem; continueWithoutMissing?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const ask = (replaceConfirmed?: number[]) => continueWithoutMissing ? continueSocCheckWithoutMissing(jobId, item.id, replaceConfirmed) : requestSocCheck(jobId, item.id, replaceConfirmed);
   function request() {
+    if (continueWithoutMissing && !window.confirm(`ตรวจข้อ ${item.label} ต่อโดยไม่มีไฟล์ ${item.missingDocuments.join(", ")}? แถวที่อ้างไฟล์นี้จะเป็น "ยืนยันไม่ได้"`)) return;
     startTransition(async () => {
       try {
-        let result = await requestSocCheck(jobId, item.id);
+        let result = await ask();
         if (!result.ok && result.confirmedRows?.length) {
           const rows = result.confirmedRows;
           if (!window.confirm(`ข้อ ${item.label} มี ${rows.length} แถวที่ยืนยันผลแล้ว (${rows.map((r) => `ข้อ ${r.item}`).join(", ")}) ผลตรวจใหม่จะแทนที่แถวเหล่านี้ ต้องการขอตรวจซ้ำหรือไม่?`)) return;
-          result = await requestSocCheck(jobId, item.id, rows.map((r) => r.rowNumber));
+          result = await ask(rows.map((r) => r.rowNumber));
         }
         if (!result.ok) window.alert(result.error);
         router.refresh();
@@ -110,7 +113,9 @@ function RequestCheckButton({ jobId, item }: { jobId: string; item: MajorItem })
       }
     });
   }
-  return <Button size="sm" disabled={pending} onClick={request} title="ตรวจด้วย SOC Runner บนเครื่องของคุณ">{pending ? "กำลังขอตรวจ…" : item.state === "checked" ? "ตรวจซ้ำ" : "ตรวจ"}</Button>;
+  const label = continueWithoutMissing ? "ตรวจต่อโดยไม่มีไฟล์นี้" : item.state === "checked" ? "ตรวจซ้ำ" : item.state === "failed" ? "ลองใหม่" : item.state === "needs_documents" ? "ตรวจใหม่" : "ตรวจ";
+  const title = continueWithoutMissing ? "ตรวจต่อ แถวที่อ้างไฟล์ที่ขาดจะเป็น ยืนยันไม่ได้" : item.state === "needs_documents" ? "หลังอัปโหลดไฟล์ที่ขาดแล้ว ตรวจด้วย SOC Runner บนเครื่องของคุณ" : "ตรวจด้วย SOC Runner บนเครื่องของคุณ";
+  return <Button size="sm" variant={continueWithoutMissing ? "outline" : undefined} disabled={pending} onClick={request} title={title}>{pending ? "กำลังขอตรวจ…" : label}</Button>;
 }
 
 function RequestAllButton({ jobId, count }: { jobId: string; count: number }) {
@@ -197,6 +202,7 @@ function ImportedRowsPanel({ items, rows }: { items: MajorItem[]; rows: Imported
   const label = (value: string | null) => (value ? SOC_AXIS_VALUE_LABELS[value] || value : "—");
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
     <h2 className="p-5 font-display font-semibold">ผลตรวจที่นำเข้า</h2>
+    {items.filter((item) => item.state === "checked" && item.missingDocuments.length).map((item) => <div key={item.id} role="alert" className="mx-5 mb-3 rounded-input border border-danger-border p-3 text-xs text-danger"><span className="font-medium">ข้อ {item.label} ตรวจโดยไม่มีไฟล์ {item.missingDocuments.join(", ")}</span> แถวที่อ้างไฟล์เหล่านี้จึงยืนยันไม่ได้ อัปโหลดไฟล์แล้วกดตรวจซ้ำได้</div>)}
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-4 py-3">ข้อ</th><th className="px-4 py-3">หน้าอ้างอิง</th><th className="px-4 py-3">ผลอ้างอิง</th><th className="px-4 py-3">Highlight</th><th className="px-4 py-3">หลักฐาน</th><th className="px-4 py-3">ผล TOR</th><th className="px-4 py-3">Comply/Better เดิม</th><th className="px-4 py-3">ประเด็นหลัก</th></tr></thead>
       <tbody>{items.flatMap((item) => rows.filter((r) => r.majorItemId === item.id)).map((row) => <tr key={row.id} className="border-t border-line align-top"><td className="whitespace-nowrap px-4 py-3 font-medium">{row.item}</td><td className="px-4 py-3 text-xs text-muted"><span className="line-clamp-2">{row.reference || "—"}</span></td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.referenceCheck)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.highlightCheck)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.evidenceSupport)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.torDecision)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{label(row.declaredStatusCheck)}</td><td className="min-w-[280px] px-4 py-3 text-xs text-muted"><span className="line-clamp-3">{row.keyIssue}</span></td></tr>)}</tbody>
     </table></div>
@@ -221,7 +227,7 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
       }
     });
   }
-  return <section className="rounded-card bg-surface p-5 shadow-card">
+  return <section id="soc-documents" className="scroll-mt-6 rounded-card bg-surface p-5 shadow-card">
     <h2 className="font-display font-semibold">เอกสารในงาน</h2>
     <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "EVIDENCE" ? "_blank" : undefined} rel="noreferrer" className="text-ink">{doc.name}</a></li>)}</ul>
     <form key={inputs.length} action={submit} className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">

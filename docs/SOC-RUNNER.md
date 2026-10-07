@@ -76,13 +76,18 @@
 | `running` | กำลังตรวจ (+ ข้อความ progress) | runner รับไปแล้ว |
 | `paused_quota` | หยุดชั่วคราว จะตรวจต่อประมาณ HH:MM | runner รับใหม่ได้เมื่อถึง `resumeAt` |
 | `needs_login` | รอเข้าสู่ระบบ Claude | runner รับใหม่ได้เมื่อ heartbeat บอก `logged_in` |
-| `needs_documents` | ขาดเอกสาร (+ ชื่อไฟล์) | ปิดคำขอ ผู้ใช้เพิ่ม PDF แล้วกดตรวจใหม่ (ปุ่ม [ตรวจต่อโดยไม่มีไฟล์นี้] เป็นของ ticket 15) |
-| `failed` | ตรวจไม่สำเร็จ (+ เหตุผล) | ปิดคำขอ กดตรวจใหม่ได้ |
+| `needs_documents` | ขาดเอกสาร (+ ชื่อไฟล์) | ปิดคำขอ ปุ่ม [อัปโหลดเพิ่ม] (ไปที่ "เอกสารในงาน" แล้วกด **ตรวจใหม่**) หรือ [ตรวจต่อโดยไม่มีไฟล์นี้] |
+| `failed` | ตรวจไม่สำเร็จ (+ เหตุผล) | ปิดคำขอ ปุ่ม **ลองใหม่** |
 | `done` | ตรวจแล้ว | ส่งผลผ่านการนำเข้าแล้ว |
 | `cancelled` | สถานะก่อนขอ | ผู้ใช้ยกเลิก |
 
 คำขอที่ `running` แต่ไม่มีสัญญาณจาก runner (claim, report, ดาวน์โหลด หรือ heartbeat) นานกว่า 2 นาที (`SOC_CHECK_REQUEST_STALE_MS`)
 จะกลับเป็น `requested` (ตรวจตอนมีการ claim และตอนเปิดหน้างาน) แล้ว runner ของผู้ใช้คนเดิมรับไปใหม่ได้
+
+**[ตรวจต่อโดยไม่มีไฟล์นี้]** (ticket 15) สร้างคำขอใหม่ของผู้กด โดย `acknowledgedMissing` = ชื่อที่ runner รายงานว่าขาด
+(server อ่านจากข้อใหญ่เอง ไม่รับจาก browser) รวมกับชื่อที่คำขอก่อนหน้ารับทราบไว้แล้ว skill จะตรวจแถวที่อ้างเอกสารนั้นเป็น
+`unverifiable` และเมื่อส่งผลสำเร็จ ข้อใหญ่เก็บชื่อไว้ใน `missingDocuments` หน้างานจึงแสดง "ตรวจโดยไม่มีไฟล์: ..." และแถบเตือน
+เหนือผลตรวจของข้อนั้น การกด **ตรวจใหม่** ธรรมดา (หลังอัปโหลดไฟล์ที่ขาด) ไม่รับทราบชื่อใด
 
 ### `POST /api/soc-runner/claim`
 
@@ -144,9 +149,13 @@ npm run soc:runner:test                          # unittest ด้วย server 
   → submit พร้อม `model` (โมเดลที่เขียนมากที่สุดใน `modelUsage`) และ `skillVersion` (header `X-Soc-Skill-Version`)
 - prompt มี `SOC_RUNNER_HEADLESS=1`, ข้อใหญ่, โฟลเดอร์ output และ `acknowledged_missing` ตามสัญญาใน `docs/SOC-SKILL-HOSTING.md`
   และชี้ไปที่ skill ในโฟลเดอร์งานตรงๆ (กันชนกับ skill ชื่อเดียวกันที่ผู้ตรวจติดตั้งไว้เอง)
-- `claude -p --output-format json --model sonnet --permission-mode acceptEdits --allowedTools Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite --disallowedTools WebFetch,WebSearch`
+- `claude -p --output-format stream-json --verbose --model sonnet --permission-mode acceptEdits --allowedTools Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite --disallowedTools WebFetch,WebSearch`
+  พร้อม `--session-id <uuid>` (รอบแรก) หรือ `--resume <uuid>` (ตรวจต่อ)
   (บน Windows Claude Code รันคำสั่ง shell ผ่าน tool `PowerShell` ไม่ใช่ `Bash` ถ้าไม่อนุญาต ทุกคำสั่ง `python` จะติด "requires approval" แล้วหยุด)
   ใต้ login Claude ของผู้ใช้เครื่องนั้น สคริปต์ของ skill ต้องการ Python ที่มี python-docx / PyMuPDF บนเครื่อง (ตัวติดตั้งต้องจัดให้, ticket 16)
+- โฟลเดอร์งานตั้งชื่อตาม id ของคำขอ และเก็บ session ของ Claude ไว้ใน `soc-runner-run.json` คำขอที่กลับมา
+  (หลังหยุดรอโควตา, login ใหม่ หรือ runner restart) จึง `--resume` session เดิมพร้อมผลระหว่างทางใน `out/` แถวที่ตรวจแล้วไม่หาย
+  ถ้า skill ที่ตรึงตอน claim ใหม่เป็นคนละเวอร์ชันกับรอบก่อน จะล้าง `out/` แล้วเริ่ม session ใหม่
 - ผลลัพธ์: ส่งสำเร็จ → ลบโฟลเดอร์งาน / ล้มเหลว (ดาวน์โหลดไม่ครบ, Claude error, ไม่มี results.json หรือ SOC_Check)
   , server ตอบ error ระหว่างตรวจ หรือ runner ผิดพลาดเอง → รายงาน `failed` พร้อมเหตุผลภาษาไทย และเก็บโฟลเดอร์ไว้ดู
   / `409 NOT_CLAIMED` (ยกเลิกหรือหมดเวลา) → ลบโฟลเดอร์แล้วข้ามไปเงียบๆ
@@ -156,8 +165,41 @@ npm run soc:runner:test                          # unittest ด้วย server 
   (prompt injection) ปิด WebFetch/WebSearch แล้ว แต่ยังไม่ได้จำกัดคำสั่ง Bash
 - ตัวแปร: `SOC_RUNNER_WORK_DIR` (ค่าเริ่มต้น `%LOCALAPPDATA%\SOCRunner\work`), `SOC_RUNNER_MODEL` (`sonnet`),
   `SOC_RUNNER_TIMEOUT_MINUTES` (180), `SOC_RUNNER_CA_FILE` (root CA ของ Caddy `tls internal`)
-- ยังไม่ทำ (ticket 15): `needs_documents`, `paused_quota`, `needs_login` และการตรวจสถานะ login ของ Claude
-  (heartbeat ส่ง `claudeLogin: "unknown"`)
+
+### สถานะพิเศษ (ticket 15)
+
+| เหตุการณ์ | runner ทำอะไร | หน้าเว็บ |
+|---|---|---|
+| skill เขียน `out/missing_documents.json` (ขั้นที่ 0 แบบ headless) | รายงาน `needs_documents` พร้อมชื่อ (ไม่นับชื่อใน `acknowledged_missing`) ไม่ submit และลบโฟลเดอร์งาน | ขาดเอกสาร + [อัปโหลดเพิ่ม] [ตรวจต่อโดยไม่มีไฟล์นี้] [ตรวจใหม่] |
+| โควตา Claude หมด | รายงาน `paused_quota` โดย `resumeAt` = เวลา reset + 2 นาที (ไม่รู้เวลา → อีก 30 นาที) เก็บโฟลเดอร์งาน และ**ไม่ claim คำขอใดเลย**จนถึงเวลานั้น (โควตาเป็นของผู้ใช้) แล้ว claim คำขอเดิมกลับมา `--resume` ต่อเอง | หยุดชั่วคราว จะตรวจต่อประมาณ HH:MM |
+| login ของ Claude หมดอายุ / ไม่ได้ login | รายงาน `needs_login` เก็บโฟลเดอร์งาน heartbeat ส่ง `logged_out` ทันที และไม่ claim อย่างน้อย 5 นาที (เพิ่มเป็นเท่าตัวทุกครั้งที่ยังหมดอายุ สูงสุด 30 นาที เพื่อให้หน้าเว็บเลิกแสดงว่ายังไม่ได้ login ไม่นานหลังผู้ใช้ /login ใหม่) จากนั้นเชื่อ `claude auth status` | รอเข้าสู่ระบบ Claude: เปิดโปรแกรม claude แล้วพิมพ์ /login |
+| ล้มเหลวแบบอื่น | รายงาน `failed` พร้อมเหตุผลภาษาไทย | ตรวจไม่สำเร็จ + เหตุผล + [ลองใหม่] |
+
+heartbeat ส่ง `claudeLogin` จาก `claude auth status --json` (`loggedIn` true/false, อ่านผลซ้ำทุก 5 นาที, ไม่ใช้โควตา)
+คำสั่งนี้อ่านแค่ login ที่เก็บในเครื่อง login ที่หมดอายุแต่ยังอยู่ในเครื่องจึงยังเป็น `true` runner จึงรู้ว่าหมดอายุจากผลของการรันจริงเท่านั้น
+
+#### Claude CLI แจ้งโควตาหมดและ login หมดอายุอย่างไร (ตรวจกับ Claude Code 2.1.291, 2026-10-06)
+
+- **ไม่ได้ login** (ทดลองจริงด้วย `CLAUDE_CONFIG_DIR` ว่าง): exit code 1, บรรทัด `assistant` มี `"error": "authentication_failed"`,
+  `"is_api_error_message": true` และบรรทัด `result` มี `"is_error": true`, `"terminal_reason": "api_error"`,
+  `"result": "Not logged in · Please run /login"` ส่วน `claude auth status --json` ได้ `"loggedIn": false` exit 1
+- **login หมดอายุ / ถูกเพิกถอน**: ข้อความใน CLI คือ "Login expired · Please run /login", "OAuth token revoked · Please run /login"
+  หรือ "Please run /login · API Error: 401 ..." ใช้ `error` เดียวกัน (`authentication_failed`) ทดลองจริงไม่ได้เพราะต้องรอ token หมดอายุ
+- **โควตา**: ทุกการรันส่งบรรทัด `{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1791283800,"rateLimitType":"five_hour",...}}`
+  (ทดลองจริง; `resetsAt` เป็นวินาที Unix) เมื่อโควตาหมด `status` เป็น `"rejected"` และ API ตอบ 429 ซึ่ง CLI จัดเป็น `error` แบบ `rate_limit`
+  ข้อความเช่น "You've hit your session limit · resets 6:30pm" / "Claude AI usage limit reached" ส่วนนี้อ่านจากตัว CLI
+  ยังไม่ได้ทดลองให้โควตาหมดจริง
+- **`--resume` กับ session ที่ไม่มี** (ทดลองจริง): exit 1, stderr "No conversation found with session ID: …"
+- runner (`claude_cli.interpret`) จึงตัดสินตามลำดับ:
+  - "No conversation found" → `ClaudeSessionMissing` ถ้าเป็นการตรวจต่อ runner เริ่ม session ใหม่ แต่เก็บ `out/` ไว้
+    และบอก Claude ให้ใช้ผลระหว่างทางที่มีอยู่ (ถ้าเป็นการตรวจครั้งแรก → `failed`)
+  - `authentication_failed` / `oauth_org_not_allowed` (บัญชีไม่อยู่ในองค์กรที่อนุญาต ต้อง /login ใหม่ด้วยบัญชีอื่น) / status 401 /
+    ข้อความ `/login` → `needs_login`
+  - `rate_limit` / status 429 / `rate_limit_event` ที่ `rejected` / ข้อความ usage limit → `paused_quota` (เวลา reset จาก
+    `resetsAt` ของ event ที่ `rejected`)
+  - `billing_error` ("credit balance too low") → `failed` เพราะไม่หายเองเมื่อถึงเวลา จึงไม่ควรรอแล้วลองใหม่อัตโนมัติ
+  - อย่างอื่น → `failed`
+  ข้อความ `/login` / usage limit จะเชื่อก็ต่อเมื่อการรันจบด้วย API error เท่านั้น ไม่ใช่แค่ Claude เขียนคำเหล่านี้ในข้อความสุดท้าย
 
 ## Admin
 

@@ -62,7 +62,7 @@ export default function SocRunnerPanel({ runner: latest }: { runner: SocRunnerVi
         {revokedAt ? <div className="text-xs text-muted">ผู้ดูแลยกเลิกเมื่อ {formatTime(revokedAt)} · ดาวน์โหลดไฟล์เชื่อมใหม่เพื่อใช้ SOC Runner อีกครั้ง</div> : null}
         <div className="text-xs text-muted">ดาวน์โหลดไฟล์เชื่อม ({SOC_RUNNER_CONFIG_FILE}) แล้ววางไว้ข้างโปรแกรม SOC Runner เครื่องนั้นจะรับเฉพาะงานตรวจของคุณ</div>
       </>}
-      {runner?.claudeLogin === "logged_out" ? <p role="alert" className="text-xs text-danger">SOC Runner ต้องการให้คุณเข้าสู่ระบบ Claude ใหม่บนเครื่องนั้น</p> : null}
+      {runner?.claudeLogin === "logged_out" ? <p role="alert" className="text-xs text-danger">SOC Runner ต้องการให้คุณเข้าสู่ระบบ Claude ใหม่บนเครื่องนั้น: เปิดโปรแกรม claude แล้วพิมพ์ /login คำขอที่รออยู่จะตรวจต่อเอง</p> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </div>
     <div className="flex flex-col items-end gap-1">

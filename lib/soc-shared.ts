@@ -79,11 +79,14 @@ export function majorItemStateText(
     case "paused_quota":
       return { label: SOC_MAJOR_ITEM_STATE_LABELS.paused_quota, detail: request?.resumeAt ? `จะตรวจต่อประมาณ ${socClockTime(request.resumeAt)}` : "รอโควตา Claude กลับมา" };
     case "needs_login":
-      return { label: SOC_MAJOR_ITEM_STATE_LABELS.needs_login, detail: `SOC Runner บน${machine}ต้องเข้าสู่ระบบ Claude ใหม่` };
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.needs_login, detail: `SOC Runner บน${machine}ต้องเข้าสู่ระบบ Claude ใหม่: เปิดโปรแกรม claude แล้วพิมพ์ /login แล้วจะตรวจต่อเอง` };
     case "needs_documents":
       return { label: SOC_MAJOR_ITEM_STATE_LABELS.needs_documents, detail: item.missingDocuments?.length ? `ไม่มีไฟล์: ${item.missingDocuments.join(", ")}` : null };
     case "failed":
       return { label: SOC_MAJOR_ITEM_STATE_LABELS.failed, detail: item.failureReason ?? null };
+    case "checked":
+      // Checked after [ตรวจต่อโดยไม่มีไฟล์นี้]: rows citing these are unverifiable.
+      return { label: SOC_MAJOR_ITEM_STATE_LABELS.checked, detail: item.missingDocuments?.length ? `ตรวจโดยไม่มีไฟล์: ${item.missingDocuments.join(", ")}` : null };
     default:
       return { label: SOC_MAJOR_ITEM_STATE_LABELS[item.state] || item.state, detail: null };
   }

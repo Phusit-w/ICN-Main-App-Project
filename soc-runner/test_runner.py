@@ -16,7 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from claude_cli import ClaudeFailed, ClaudeRun, pick_model
+from datetime import datetime, timedelta, timezone
+
+from claude_cli import ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
 from runner import RUNNER_VERSION, SocRunner, carry_out, load_config
 from server_client import NotClaimed, ServerError, SubmitRejected
 
@@ -96,17 +98,34 @@ class FakeClaude:
         self.error = error
         self.model = model
         self.summary = ""
+        self.login = "logged_in"
+        self.login_checks = 0
+        # Per run, in order: an exception to raise, or a dict of files to write first and then the exception.
+        self.script: list = []
+        self.seen_out: list[list[str]] = []
+
+    def login_state(self) -> str:
+        self.login_checks += 1
+        return self.login
 
     def run(self, task):
         self.tasks.append(task)
         skill = task.cwd / ".claude" / "skills" / "tor-word-compliance-check" / "SKILL.md"
         self.seen_skill = skill.read_text(encoding="utf-8") if skill.exists() else None
         self.seen_inputs = sorted(p.name for p in (task.cwd / "inputs").iterdir())
+        self.seen_out.append(sorted(p.name for p in task.out_dir.iterdir()))
+        if self.script:
+            step = self.script.pop(0)
+            if step is not None:
+                partial, error = step if isinstance(step, tuple) else ({}, step)
+                for name, data in partial.items():
+                    (task.out_dir / name).write_bytes(data)
+                raise error
         if self.error:
             raise self.error
         for name, data in self.writes.items():
             (task.out_dir / name).write_bytes(data)
-        return ClaudeRun(model=self.model, summary=self.summary)
+        return ClaudeRun(model=self.model, summary=self.summary, session_id=task.session_id)
 
 
 def quiet(*_):
@@ -314,10 +333,219 @@ class SocRunnerTest(unittest.TestCase):
         self.assertEqual(runner.poll_once(), "submitted")
         self.assertEqual(len(server.submits), 1)
 
-    def test_heartbeat_sends_the_runner_version(self):
-        server = FakeServer(None, {})
-        SocRunner(server, FakeClaude(), self.work_root, log=lambda *_: None).heartbeat()
-        self.assertEqual(server.heartbeats, [{"runnerVersion": RUNNER_VERSION, "claudeLogin": "unknown"}])
+    def test_heartbeat_sends_the_runner_version_and_claude_login(self):
+        server, claude = FakeServer(None, {}), FakeClaude()
+        claude.login = "logged_out"
+        SocRunner(server, claude, self.work_root, log=lambda *_: None).heartbeat()
+        self.assertEqual(server.heartbeats, [{"runnerVersion": RUNNER_VERSION, "claudeLogin": "logged_out"}])
+
+
+T0 = datetime(2026, 10, 6, 10, 0, tzinfo=timezone.utc).timestamp()
+MISSING = {"status": "needs_documents", "major_item": "๑",
+           "missing_documents": [{"name": "Section 3.2 Datasheet ของ Core Switch", "cited_in_rows": [3, 5]},
+                                 {"name": "Catalog กล้อง", "cited_in_rows": [7]}],
+           "available_documents": ["Datasheet A.pdf"]}
+
+
+class Clock:
+    def __init__(self, now: float = T0):
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+class SpecialStatesTest(unittest.TestCase):
+    """needs_documents, paused_quota, needs_login and failed (ticket 15)."""
+
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-test-"))
+        self.skill = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD})
+        self.request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4")
+        self.server = FakeServer(self.request, files)
+        self.clock = Clock()
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def carry_out(self, claude, **kwargs):
+        return carry_out(self.request, self.server, claude, self.work_root, quiet, clock=self.clock, **kwargs)
+
+    def states(self):
+        return [p["state"] for _, p in self.server.reports]
+
+    def test_missing_cited_documents_report_needs_documents_without_results(self):
+        claude = FakeClaude(writes={"missing_documents.json": json.dumps(MISSING, ensure_ascii=False).encode("utf-8")})
+        self.assertEqual(self.carry_out(claude), "needs_documents")
+        self.assertEqual(self.server.reports[-1][1], {"state": "needs_documents",
+                                                      "missingDocuments": ["Section 3.2 Datasheet ของ Core Switch", "Catalog กล้อง"]})
+        self.assertEqual(self.server.submits, [])
+        self.assertNotIn("failed", self.states())
+        self.assertEqual(list(self.work_root.iterdir()), [], "the request is closed; nothing to resume")
+
+    def test_documents_the_reviewer_acknowledged_do_not_stop_the_check(self):
+        request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4", ["Catalog กล้อง"])
+        server = FakeServer(request, files)
+        only_acknowledged = {**MISSING, "missing_documents": [{"name": "Catalog กล้อง", "cited_in_rows": [7]}]}
+        claude = FakeClaude(writes={"missing_documents.json": json.dumps(only_acknowledged, ensure_ascii=False).encode("utf-8"),
+                                    "results.json": json.dumps(RESULTS).encode("utf-8"), "SOC_Check.docx": b"docx"})
+        self.assertEqual(carry_out(request, server, claude, self.work_root, quiet, clock=self.clock), "submitted")
+        self.assertEqual(len(server.submits), 1)
+
+    def test_an_acknowledged_document_still_matches_when_claude_names_it_with_its_file_type(self):
+        request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4", ["Catalog กล้อง"])
+        server = FakeServer(request, files)
+        renamed = {**MISSING, "missing_documents": [{"name": " catalog กล้อง.PDF "}]}
+        claude = FakeClaude(writes={"missing_documents.json": json.dumps(renamed, ensure_ascii=False).encode("utf-8"),
+                                    "results.json": json.dumps(RESULTS).encode("utf-8"), "SOC_Check.docx": b"docx"})
+        self.assertEqual(carry_out(request, server, claude, self.work_root, quiet, clock=self.clock), "submitted")
+
+    def test_a_used_up_quota_pauses_until_the_reset_and_keeps_the_work(self):
+        resets_at = datetime.fromtimestamp(T0 + 3600, timezone.utc)
+        claude = FakeClaude()
+        claude.script = [({"highlights.json": b"rows 1-3"}, ClaudeQuotaExhausted(resets_at, "s"))]
+        paused = []
+        self.assertEqual(self.carry_out(claude, on_pause=paused.append), "paused")
+
+        report = self.server.reports[-1][1]
+        self.assertEqual(report["state"], "paused_quota")
+        resume_at = datetime.fromisoformat(report["resumeAt"].replace("Z", "+00:00"))
+        self.assertGreaterEqual(resume_at, resets_at)
+        self.assertLess(resume_at, resets_at + timedelta(minutes=10))
+        self.assertEqual(paused, [resume_at])
+        self.assertNotIn("failed", self.states())
+        self.assertEqual(self.server.submits, [])
+        work = list(self.work_root.iterdir())
+        self.assertEqual(len(work), 1)
+        self.assertTrue((work[0] / "out" / "highlights.json").exists(), "rows already done are kept")
+
+    def test_a_quota_pause_without_a_reset_time_waits_half_an_hour(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s")]
+        self.assertEqual(self.carry_out(claude), "paused")
+        resume_at = datetime.fromisoformat(self.server.reports[-1][1]["resumeAt"].replace("Z", "+00:00"))
+        self.assertEqual(resume_at, datetime.fromtimestamp(T0 + 30 * 60, timezone.utc))
+
+    def test_an_expired_login_reports_needs_login(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeLoggedOut("Login expired · Please run /login")]
+        self.assertEqual(self.carry_out(claude), "needs_login")
+        self.assertEqual(self.server.reports[-1][1], {"state": "needs_login"})
+        self.assertNotIn("failed", self.states())
+
+    def test_any_other_failure_reports_a_thai_reason(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeFailed("Claude หยุดทำงานก่อนตรวจเสร็จ (exit 1): Prompt is too long")]
+        self.assertEqual(self.carry_out(claude), "failed")
+        self.assertEqual(self.server.reports[-1][1]["state"], "failed")
+        self.assertIn("Claude หยุดทำงาน", self.server.reports[-1][1]["reason"])
+
+    def test_a_lost_session_after_a_pause_starts_a_new_one_with_the_rows_already_written(self):
+        claude = FakeClaude()
+        claude.script = [({"highlights.json": b"rows 1-3"}, ClaudeQuotaExhausted(None, "s")),
+                         ClaudeSessionMissing("ไม่พบการตรวจรอบก่อน")]
+        self.carry_out(claude)
+        self.assertEqual(self.carry_out(claude), "submitted")
+        first, resumed, fresh = claude.tasks
+        self.assertTrue(resumed.resume)
+        self.assertFalse(fresh.resume)
+        self.assertNotEqual(fresh.session_id, first.session_id)
+        self.assertIn("highlights.json", claude.seen_out[2])
+        self.assertIn("ผลระหว่างทาง", fresh.prompt)
+
+    def test_stopping_only_for_acknowledged_documents_explains_itself(self):
+        request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4", ["Catalog กล้อง"])
+        server = FakeServer(request, files)
+        only_acknowledged = {**MISSING, "missing_documents": [{"name": "Catalog กล้อง"}]}
+        claude = FakeClaude(writes={"missing_documents.json": json.dumps(only_acknowledged, ensure_ascii=False).encode("utf-8")})
+        self.assertEqual(carry_out(request, server, claude, self.work_root, quiet, clock=self.clock), "failed")
+        self.assertIn("รับทราบแล้ว", server.reports[-1][1]["reason"])
+
+    def test_a_new_skill_version_after_a_pause_starts_over(self):
+        claude = FakeClaude()
+        claude.script = [({"highlights.json": b"old"}, ClaudeQuotaExhausted(None, "s"))]
+        self.carry_out(claude)
+        self.server.files[self.request["skill"]["url"]].headers = {"X-Soc-Skill-Version": "v8"}
+        self.assertEqual(self.carry_out(claude), "submitted")
+        self.assertFalse(claude.tasks[1].resume)
+        self.assertNotEqual(claude.tasks[1].session_id, claude.tasks[0].session_id)
+        self.assertEqual(claude.seen_out[1], [])
+
+
+class PausingServer(FakeServer):
+    """Hands a paused request back once its resume time has passed, like the server's claim."""
+
+    def __init__(self, request, files, clock):
+        super().__init__(request, files)
+        self.clock = clock
+        self.claims = 0
+        self.paused: tuple[dict, float] | None = None
+        self.original = request
+
+    def claim(self):
+        self.claims += 1
+        if self.paused and self.clock() >= self.paused[1]:
+            request, self.paused = self.paused[0], None
+            return request
+        return super().claim()
+
+    def report(self, request_id, payload):
+        super().report(request_id, payload)
+        if payload["state"] == "paused_quota":
+            resume = datetime.fromisoformat(payload["resumeAt"].replace("Z", "+00:00")).timestamp()
+            self.paused = (self.original, resume)
+
+
+class AutomaticResumeTest(unittest.TestCase):
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-test-"))
+        request, files = make_request(skill_zip({"SKILL.md": SKILL_MD}), b"soc", b"pdf")
+        self.clock = Clock()
+        self.server = PausingServer(request, files, self.clock)
+        self.claude = FakeClaude()
+        self.runner = SocRunner(self.server, self.claude, self.work_root, log=quiet, clock=self.clock)
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def test_a_quota_pause_resumes_the_same_session_after_the_reset(self):
+        resets_at = datetime.fromtimestamp(T0 + 3600, timezone.utc)
+        self.claude.script = [({"highlights.json": b"rows 1-3"}, ClaudeQuotaExhausted(resets_at, "s"))]
+        self.assertEqual(self.runner.poll_once(), "paused")
+
+        # While paused the runner claims nothing: the quota is the user's, for every request.
+        self.clock.now = T0 + 30 * 60
+        claims = self.server.claims
+        self.assertIsNone(self.runner.poll_once())
+        self.assertEqual(self.server.claims, claims)
+
+        self.clock.now = T0 + 3600 + 15 * 60
+        self.assertEqual(self.runner.poll_once(), "submitted")
+        first, second = self.claude.tasks
+        self.assertFalse(first.resume)
+        self.assertTrue(second.resume)
+        self.assertEqual(second.session_id, first.session_id)
+        self.assertIn("highlights.json", self.claude.seen_out[1], "the resumed run sees the rows already done")
+        self.assertIn("ต่อจากที่ค้างไว้", second.prompt)
+        self.assertEqual(len(self.server.submits), 1)
+        self.assertEqual(list(self.work_root.iterdir()), [])
+
+    def test_an_expired_login_holds_claims_and_tells_the_server_until_rechecked(self):
+        self.claude.script = [ClaudeLoggedOut("Login expired · Please run /login")]
+        self.assertEqual(self.runner.poll_once(), "needs_login")
+        # `claude auth status` still says logged in (an expired token is still on disk), so trust it only later.
+        self.runner.heartbeat()
+        self.assertEqual(self.server.heartbeats[-1]["claudeLogin"], "logged_out")
+        self.assertIsNone(self.runner.poll_once())
+
+        self.clock.now = T0 + 6 * 60
+        self.runner.heartbeat()
+        self.assertEqual(self.server.heartbeats[-1]["claudeLogin"], "logged_in")
+
+    def test_a_logged_out_claude_takes_no_requests(self):
+        self.claude.login = "logged_out"
+        self.assertIsNone(self.runner.poll_once())
+        self.assertEqual(self.server.claims, 0)
 
 
 class ConfigTest(unittest.TestCase):

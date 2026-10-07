@@ -39,18 +39,33 @@ export type CheckRequestResult =
 // open on it. A re-check over rows with a Final Decision returns them as
 // `confirmedRows` until the call is repeated with them in `replaceConfirmed`;
 // the runner's import later replaces exactly those.
-export async function requestMajorItemCheck(actor: Actor, job: Job, majorItemId: string, replaceConfirmed: number[] = []): Promise<CheckRequestResult> {
+//
+// `continueWithoutMissing` is [ตรวจต่อโดยไม่มีไฟล์นี้] on an item whose check
+// stopped for missing documents: the request then acknowledges the names the
+// runner reported (read here, not from the browser) plus those the stopped
+// request had acknowledged. The skill checks those rows as unverifiable, and
+// the import keeps the names on the item for the banner.
+export async function requestMajorItemCheck(
+  actor: Actor, job: Job, majorItemId: string, replaceConfirmed: number[] = [], { continueWithoutMissing = false } = {},
+): Promise<CheckRequestResult> {
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const item = await prisma.socMajorItem.findFirst({ where: { id: majorItemId, jobId: job.id } });
   if (!item) throw new Error("NOT_FOUND");
   if (!isRequestableItemState(item.state)) return { ok: false, error: `ข้อ ${item.label} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
+  let acknowledgedMissing: string[] = [];
+  if (continueWithoutMissing) {
+    const reported = item.state === "needs_documents" && Array.isArray(item.missingDocuments) ? item.missingDocuments.filter((n): n is string => typeof n === "string") : [];
+    if (!reported.length) return { ok: false, error: `ข้อ ${item.label} ไม่ได้รอเอกสารอยู่ กรุณาโหลดหน้าใหม่` };
+    const stopped = await prisma.socCheckRequest.findFirst({ where: { majorItemId: item.id, state: "needs_documents" }, orderBy: { finishedAt: "desc" } });
+    acknowledgedMissing = [...new Set([...(stopped?.acknowledgedMissing ?? []), ...reported])];
+  }
   const confirmed = await prisma.socCheckResult.findMany({
     where: { majorItemId: item.id, reviewedAt: { not: null } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true },
   });
   if (confirmed.some((r) => !replaceConfirmed.includes(r.rowNumber))) {
     return { ok: false, confirmedRows: confirmed, error: `ข้อ ${item.label} มี ${confirmed.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้` };
   }
-  const created = await createRequests(actor, job, [{ ...item, replaceConfirmed: confirmed.map((r) => r.rowNumber) }]);
+  const created = await createRequests(actor, job, [{ ...item, replaceConfirmed: confirmed.map((r) => r.rowNumber), acknowledgedMissing }]);
   return created ? { ok: true, requested: created } : { ok: false, error: `ข้อ ${item.label} เพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่` };
 }
 
@@ -59,23 +74,23 @@ export async function requestAllUncheckedChecks(actor: Actor, job: Job): Promise
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const items = await prisma.socMajorItem.findMany({ where: { jobId: job.id, state: "not_checked" }, orderBy: { position: "asc" } });
   if (!items.length) return { ok: false, error: "ไม่มีข้อใหญ่ที่ยังไม่ได้ตรวจ" };
-  const created = await createRequests(actor, job, items.map((item) => ({ ...item, replaceConfirmed: [] })));
+  const created = await createRequests(actor, job, items.map((item) => ({ ...item, replaceConfirmed: [], acknowledgedMissing: [] })));
   return { ok: true, requested: created };
 }
 
 // One request per item, in position order so that claims (oldest first)
 // follow the SOC. An item whose state changed since it was read is skipped.
-async function createRequests(actor: Actor, job: Job, items: { id: string; label: string; state: string; replaceConfirmed: number[] }[]) {
+async function createRequests(actor: Actor, job: Job, items: { id: string; label: string; state: string; replaceConfirmed: number[]; acknowledgedMissing: string[] }[]) {
   const labels: string[] = [];
   await prisma.$transaction(async (tx) => {
     for (const item of items) {
       const { count } = await tx.socMajorItem.updateMany({ where: { id: item.id, state: item.state }, data: { state: "requested" } });
       if (!count) continue;
       const request = await tx.socCheckRequest.create({
-        data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, priorState: item.state, replaceConfirmed: item.replaceConfirmed },
+        data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, priorState: item.state, replaceConfirmed: item.replaceConfirmed, acknowledgedMissing: item.acknowledgedMissing },
       });
       await tx.socAuditEvent.create({
-        data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUESTED", detail: { checkRequestId: request.id, majorItemId: item.id, majorItem: item.label, priorState: item.state, replaceConfirmed: item.replaceConfirmed } },
+        data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUESTED", detail: { checkRequestId: request.id, majorItemId: item.id, majorItem: item.label, priorState: item.state, replaceConfirmed: item.replaceConfirmed, ...(item.acknowledgedMissing.length ? { acknowledgedMissing: item.acknowledgedMissing } : {}) } },
       });
       labels.push(item.label);
     }

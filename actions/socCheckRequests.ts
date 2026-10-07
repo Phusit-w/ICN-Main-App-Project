@@ -14,6 +14,15 @@ export async function requestSocCheck(jobId: string, majorItemId: string, replac
   return result;
 }
 
+// [ตรวจต่อโดยไม่มีไฟล์นี้]: the same request again, acknowledging the
+// documents its runner reported missing.
+export async function continueSocCheckWithoutMissing(jobId: string, majorItemId: string, replaceConfirmed: number[] = []) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  const result = await requestMajorItemCheck(actor, job, majorItemId, replaceConfirmed.filter(Number.isInteger), { continueWithoutMissing: true });
+  revalidatePath(`/soc/${jobId}`);
+  return result;
+}
+
 export async function requestAllSocChecks(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
   const result = await requestAllUncheckedChecks(actor, job);

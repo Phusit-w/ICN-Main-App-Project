@@ -25,7 +25,7 @@ let signedIn: Actor | null = null;
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const { requestSocCheck, requestAllSocChecks, cancelSocCheckRequest } = await import("@/actions/socCheckRequests");
+const { requestSocCheck, requestAllSocChecks, cancelSocCheckRequest, continueSocCheckWithoutMissing } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 const { uploadSocSkillPackage, setCurrentSocSkillPackage } = await import("@/lib/soc-skill-package");
@@ -363,6 +363,43 @@ test("each state report moves the major item to the right state", { skip }, asyn
   assert.deepEqual(audited.map((e) => (e.detail as { state: string }).state).sort(), ["failed", "needs_documents", "needs_login", "paused_quota"]);
 });
 
+test("[ตรวจต่อโดยไม่มีไฟล์นี้] re-issues the request acknowledging the missing documents, and the checked item keeps the banner", { skip }, async () => {
+  const { alice, jobId, item1, items } = await setup();
+  const token = await linkRunner(alice);
+  signedIn = alice;
+  assert.equal((await continueSocCheckWithoutMissing(jobId, item1.id)).ok, false, "only an item that stopped for missing documents");
+
+  await requestSocCheck(jobId, item1.id);
+  let request = (await claim(token)).body.request!;
+  await report(token, request.id, { state: "needs_documents", missingDocuments: ["Datasheet Core Switch"] });
+  assert.ok((await continueSocCheckWithoutMissing(jobId, item1.id)).ok);
+  const reissued = await prisma.socCheckRequest.findFirstOrThrow({ where: { majorItemId: item1.id, state: "requested" } });
+  assert.deepEqual([reissued.requestedById, reissued.acknowledgedMissing], [alice.id, ["Datasheet Core Switch"]]);
+  const audit = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "CHECK_REQUESTED", detail: { path: ["checkRequestId"], equals: reissued.id } } });
+  assert.deepEqual((audit.detail as { acknowledgedMissing: string[] }).acknowledgedMissing, ["Datasheet Core Switch"]);
+
+  // The skill finds one more; acknowledging it keeps the first one too.
+  request = (await claim(token)).body.request!;
+  assert.deepEqual(request.acknowledgedMissing, ["Datasheet Core Switch"]);
+  await report(token, request.id, { state: "needs_documents", missingDocuments: ["Catalog กล้อง"] });
+  assert.ok((await continueSocCheckWithoutMissing(jobId, item1.id)).ok);
+  request = (await claim(token)).body.request!;
+  assert.deepEqual(request.acknowledgedMissing, ["Datasheet Core Switch", "Catalog กล้อง"]);
+
+  assert.equal((await submit(token, request.id, runFor("1"))).status, 201);
+  const item = await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item1.id } });
+  assert.deepEqual([item.state, item.missingDocuments], ["checked", ["Datasheet Core Switch", "Catalog กล้อง"]]);
+  assert.deepEqual(majorItemStateText({ state: item.state, missingDocuments: item.missingDocuments as string[] }, alice.id),
+    { label: "ตรวจแล้ว", detail: "ตรวจโดยไม่มีไฟล์: Datasheet Core Switch, Catalog กล้อง" });
+
+  // An ordinary ตรวจ after uploading the file acknowledges nothing.
+  await requestSocCheck(jobId, items[1].id);
+  request = (await claim(token)).body.request!;
+  await report(token, request.id, { state: "needs_documents", missingDocuments: ["Catalog B"] });
+  assert.ok((await requestSocCheck(jobId, items[1].id)).ok);
+  assert.deepEqual((await claim(token)).body.request?.acknowledgedMissing, []);
+});
+
 test("a malformed report is refused and records nothing", { skip }, async () => {
   const { alice, jobId, item1 } = await setup();
   const token = await linkRunner(alice);
@@ -477,10 +514,12 @@ test("every major item state shows in Thai, with รอเครื่องข�
   assert.deepEqual(text("requested", view()), { label: "รอคิวตรวจ", detail: "บนเครื่องของคุณ" });
   assert.deepEqual(text("running", view({ state: "running", progressNote: "ตรวจแล้ว 3/7 แถว" })), { label: "กำลังตรวจ", detail: "ตรวจแล้ว 3/7 แถว" });
   assert.deepEqual(text("paused_quota", view({ state: "paused_quota", resumeAt: "2026-10-06T07:30:00.000Z" })), { label: "หยุดชั่วคราว", detail: "จะตรวจต่อประมาณ 14:30" });
-  assert.deepEqual(text("needs_login", view({ state: "needs_login" })), { label: "รอเข้าสู่ระบบ Claude", detail: "SOC Runner บนเครื่องของคุณต้องเข้าสู่ระบบ Claude ใหม่" });
+  assert.deepEqual(text("needs_login", view({ state: "needs_login" })), { label: "รอเข้าสู่ระบบ Claude", detail: "SOC Runner บนเครื่องของคุณต้องเข้าสู่ระบบ Claude ใหม่: เปิดโปรแกรม claude แล้วพิมพ์ /login แล้วจะตรวจต่อเอง" });
   assert.deepEqual(text("needs_documents", null, { missingDocuments: ["A.pdf", "B.pdf"] }), { label: "ขาดเอกสาร", detail: "ไม่มีไฟล์: A.pdf, B.pdf" });
   assert.deepEqual(text("failed", null, { failureReason: "Claude CLI ล้มเหลว" }), { label: "ตรวจไม่สำเร็จ", detail: "Claude CLI ล้มเหลว" });
   assert.deepEqual(text("checked", null), { label: "ตรวจแล้ว", detail: null });
+  assert.deepEqual(text("checked", null, { missingDocuments: ["A.pdf"] }), { label: "ตรวจแล้ว", detail: "ตรวจโดยไม่มีไฟล์: A.pdf" });
+  assert.deepEqual(text("paused_quota", view({ state: "paused_quota", resumeAt: null })), { label: "หยุดชั่วคราว", detail: "รอโควตา Claude กลับมา" });
 });
 
 test("the job page sees the requester's runner state on the open request", { skip }, async () => {
