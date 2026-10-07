@@ -88,11 +88,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ClipboardCheckIcon,
     match: (p) => p.startsWith("/soc"),
     access: "soc",
-    // Paused 2026-09-07: free-tier API + on-hand hardware can't clear the
-    // accuracy bar for a real check (see handoff SOC-SESSION-LOG-2026-09-04.md).
-    // Re-enable once a paid API key or GPU box is decided. UI-only — the
-    // /soc route, worker, and DB are untouched.
-    disabled: true,
+    // Paused 2026-09-07 (no affordable engine); back 2026-10-07 now that each
+    // reviewer's SOC Runner runs the check on their own Claude (ADR 0008).
+    hiddenUnlessActive: true,
   },
   {
     href: "/admin",
