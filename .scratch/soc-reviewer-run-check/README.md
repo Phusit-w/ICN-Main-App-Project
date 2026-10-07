@@ -35,7 +35,7 @@
 | 12 | Runner link + token + heartbeat | 04 | done |
 | 13 | Check Requests + runner API (seam 2) | 05, 11, 12 | done |
 | 14 | SOC Runner core (seam 3) | 13 | done |
-| 15 | Runner special states | 14 | in-progress (committed; only a real continue-without-file run with Claude remains) |
+| 15 | Runner special states | 14 | in-progress (3cfd470; only a real continue-without-file run with Claude remains; see Comments 2026-10-07) |
 | 16 | Installer (no admin) | 14 + IT answer | ready-for-human |
 
 Phase 1 = 01–10 (useful on its own, with manual upload). Phase 2 = 11–16.
@@ -43,6 +43,15 @@ Phase 1 = 01–10 (useful on its own, with manual upload). Phase 2 = 11–16.
 ## Running tests
 
 `npm test`, set up per `docs/SOC-TESTING.md` (start the `test-db` server first).
+
+## Next session (as of 2026-10-07)
+
+- No `ready-for-agent` ticket has all its blockers done: 08/09 wait on 07.
+- Pick one with the user:
+  - (a) close 15, by doing the real run or agreeing the server test is enough;
+  - (b) 07 Prototype the review page (ready-for-human);
+  - (c) 02 Measure accuracy + quota on a real SOC;
+  - (d) 16, which needs IT's answer first.
 
 ## Open items outside tickets
 

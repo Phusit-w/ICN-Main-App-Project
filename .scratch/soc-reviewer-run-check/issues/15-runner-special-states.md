@@ -62,7 +62,7 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
      5→120 min until the user logs in again; it uses no quota. `paused_until` is kept in memory only, so after a restart the
      runner may claim other requests and pause them.
 
-### 2026-10-07: validated, reviewed again, committed
+### 2026-10-07: validated, reviewed again, committed (3cfd470)
 
 - Left-for-next-session items 1–3 done:
   - `npm test` 126/126, lint and typecheck pass, runner tests 57/57.
@@ -81,3 +81,11 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
   - The `continueSocCheckWithoutMissing` action stays separate from `requestSocCheck`: one form action per button.
 - Still open (needs the user): a real continue-without-file run with Claude, which uses the reviewer's quota. The server
   test covers re-issuing with the acknowledgement and the banner, and the banner was checked in the browser 2026-10-06.
+- **Next session for this ticket:** ask the user whether to do the real run.
+  - If yes: on a job with a major item in `needs_documents`, press [ตรวจต่อโดยไม่มีไฟล์นี้] with the SOC Runner running.
+    Check that Claude checks the rows without that file, the submit succeeds, and the item shows the banner
+    "ตรวจโดยไม่มีไฟล์". Then tick the box and set Status: done.
+  - If the user says the server test is enough: tick the box with a note and set Status: done.
+- How to start the environment: pilot-db (`npx.cmd prisma dev --name pilot-db` as a long background task), the dev server on
+  :3000, and test-db for `npm test`. test-db took about 10 minutes to start on 2026-10-07 (it loads a 670 MB
+  durable-streams file), so check that port 51228 is LISTENING before running the tests.
