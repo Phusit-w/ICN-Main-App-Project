@@ -134,6 +134,21 @@ test("the whole job: a summary sheet, then one sheet per checked major item with
   assert.equal(await prisma.auditLog.count({ where: { entityId: jobId, action: "SOC_RESULTS_DOWNLOADED", actorId: signedIn.id } }), 1);
 });
 
+test("a partial_visible highlight shows its Thai label and leaves ผลอ้างอิง a green ตรง", { skip }, async () => {
+  const { owner, jobId, byKey } = await setup();
+  const run = runFor("1", "PV");
+  const zoom = run.results.find((row) => row.item === "๑.๒.๓")!;
+  zoom.highlight_check = "partial_visible";
+  await importRun(owner, jobId, byKey("1").id, run);
+  signedIn = owner;
+  const sheet = (await workbook(await download(jobId, byKey("1").id))).worksheets[0];
+  const n = bodyText(sheet).findIndex((r) => r[1] === "๑.๒.๓");
+  const row = sheet.getRow(n + 2);
+  assert.equal(row.getCell(7).value, "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)");
+  assert.equal(row.getCell(5).value, "ตรง");
+  assert.equal((row.getCell(5).fill as ExcelJS.FillPattern).fgColor?.argb, "FFC6EFCE");
+});
+
 test("one major item: a single sheet, no summary", { skip }, async () => {
   const { owner, jobId, byKey } = await setup();
   await importRun(owner, jobId, byKey("1").id, runFor("1", "ONE"));

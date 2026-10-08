@@ -14,7 +14,9 @@ export type SocAxisValues = Partial<Record<SocAxisKey, string | null>>;
 export const SOC_REVIEW_AXES: readonly { key: SocAxisKey; label: string; ok: readonly string[] }[] = [
   { key: "reference_check", label: "เลขหน้าที่อ้างอิง", ok: ["match", "not_applicable"] },
   { key: "item_label_check", label: "เลขข้อกำกับในเอกสาร", ok: ["match", "not_applicable"] },
-  { key: "highlight_check", label: "การเน้นสี (Highlight)", ok: ["complete", "not_applicable"] },
+  // partial_visible (evidence plainly visible on the cited page, some words
+  // not highlighted) passes: the skill keeps such a row ✅.
+  { key: "highlight_check", label: "การเน้นสี (Highlight)", ok: ["complete", "partial_visible", "not_applicable"] },
   { key: "heading_title_check", label: "ชื่อหัวข้อ", ok: ["match", "not_applicable"] },
   { key: "product_identity", label: "ยี่ห้อ / รุ่น", ok: ["match", "not_applicable"] },
   { key: "content_relevance", label: "เนื้อหาตรงเรื่อง", ok: ["related", "not_applicable"] },

@@ -126,7 +126,7 @@ export function evidenceSelectionProblem(files: readonly { name: string; size: n
 
 export const SOC_AXIS_VALUE_LABELS: Record<string, string> = {
   match: "ตรง", mismatch: "ไม่ตรง", not_found: "ไม่พบ", unverifiable: "ยืนยันไม่ได้", not_applicable: "ไม่เกี่ยวข้อง",
-  complete: "ครบ", partial: "บางส่วน", related: "ตรงเรื่อง", unrelated: "ไม่ตรงเรื่อง",
+  complete: "ครบ", partial: "บางส่วน", partial_visible: "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)", related: "ตรงเรื่อง", unrelated: "ไม่ตรงเรื่อง",
   fully_supported: "รองรับครบ", partially_supported: "รองรับบางส่วน", not_supported: "ไม่รองรับ", wording_conflict: "ถ้อยคำขัดกัน",
   compliant: "ผ่าน", better: "ดีกว่า", non_compliant: "ไม่ผ่าน", mixed: "ผสม",
   not_selected: "ไม่ได้เลือก", ambiguous: "กำกวม", both: "เลือกทั้งสอง",

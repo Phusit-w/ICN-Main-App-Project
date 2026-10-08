@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { filterReviewRows, citedEvidence, majorItemConfirmed, overallRowStatus, parseReferencePages, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
+import { filterReviewRows, citedEvidence, majorItemConfirmed, overallRowStatus, parseReferencePages, socAxisValueLabel, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
 
 type FixtureRow = SocAxisValues & { row: number; item: string; row_type: string };
 const RUN = JSON.parse(readFileSync(new URL("../test/fixtures/soc/results_sonnet.json", import.meta.url), "utf8")) as { results: FixtureRow[] };
@@ -45,6 +45,12 @@ test("each ❌ condition fails a row on its own", () => {
   assert.equal(overallRowStatus("content_row", { ...ok, product_identity: "mismatch" }).status, "fail");
   assert.equal(overallRowStatus("content_row", { ...ok, evidence_support: "partially_supported" }).status, "review");
   assert.equal(overallRowStatus("content_row", { ...ok, tor_decision: "better" }).status, "ok");
+});
+
+test("a partial_visible highlight passes, with its Thai label", () => {
+  const row: SocAxisValues = { reference_check: "match", highlight_check: "partial_visible", evidence_support: "fully_supported", tor_decision: "compliant" };
+  assert.deepEqual(overallRowStatus("content_row", row), { status: "ok", reasons: [] });
+  assert.equal(socAxisValueLabel("partial_visible"), "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)");
 });
 
 test("a missing or blank axis counts as not applicable", () => {

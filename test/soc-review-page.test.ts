@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
 import { buildDocx } from "@/test/docx-fixture";
 import { majorItemKey } from "@/lib/soc-major-items";
+import { socAxisValueLabel } from "@/lib/soc-review";
 
 const skip = setupTestDatabase();
 
@@ -158,6 +159,19 @@ test("a row decided on the review page makes a re-check answer 409", { skip }, a
   );
   assert.equal(response.status, 409);
   assert.deepEqual(((await response.json()) as { confirmedRows: unknown }).confirmedRows, [{ rowNumber: row.rowNumber, item: "๑.๑.๑" }]);
+});
+
+test("a run with highlight_check partial_visible imports, and the row passes with the Thai label", { skip }, async () => {
+  const { owner, jobId, item } = await importedJob();
+  const run = runFor("1");
+  const zoom = run.results.find((r) => r.item === "๑.๒.๓")!;
+  zoom.highlight_check = "partial_visible";
+  assert.ok((await importRun(owner, jobId, item("1").id, run)).ok);
+
+  const row = (await socReviewView(jobId)).rows.find((r) => r.item === "๑.๒.๓")!;
+  assert.deepEqual([row.status, row.reasons], ["ok", []]);
+  const highlight = row.axes.find((a) => a.key === "highlight_check")!;
+  assert.deepEqual([highlight.value, highlight.ok, socAxisValueLabel(highlight.value)], ["partial_visible", true, "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)"]);
 });
 
 test("the review view lists rows with their status, problems first, and shows a major item confirmed once every row is decided", { skip }, async () => {
