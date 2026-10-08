@@ -31,6 +31,10 @@ _Avoid_: Compliance result, audit verdict
 
 ## Reviewer-run checks (ADR 0008)
 
+**Major item (ข้อใหญ่)**:
+The unit of an Imported SOC Check that one Local Check Run covers and one Check Request asks for: a top-level item number of the SOC (๑, ๒ …) with every row under it, unnumbered rows included. On import, a major item of more than 60 rows is split into its second-level sub-sections (๕ → ๕.๑ … ๕.๑๕), and each sub-section is a major item of its own (label "๕.๕"), grouped under ๕ on the job page. The split goes one level only, and ๕'s own heading row belongs to ๕.๑. A major item over 60 rows with fewer than two sub-sections stays whole, with the warning "ข้อนี้ใหญ่ อาจใช้โควตามาก". Jobs imported before the split keep their major items as they were.
+_Avoid_: section, chapter (a SOC's บท is the whole document)
+
 **Local Check Run**:
 One run of the shared SOC skill by a reviewer on their own machine. It uses that reviewer's own Claude subscription and covers one major item (ข้อใหญ่) of a SOC. It produces a results file, a SOC_Check document, and a record of the skill version and model it used.
 _Avoid_: server check, worker run

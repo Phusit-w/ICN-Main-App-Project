@@ -12,7 +12,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSocFile } from "@/lib/soc";
-import { majorItemKey, socRowTexts } from "@/lib/soc-major-items";
+import { isItemInMajorItem, majorItemKey, socRowTexts } from "@/lib/soc-major-items";
 import { parseReferencePages } from "@/lib/soc-review";
 import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 
@@ -66,7 +66,9 @@ function isBlank(value: unknown) {
 
 // Checks a results.json against the full-mode rules and the major item it is
 // imported into. Returns every problem found, in Thai, or the rows.
-export function validateLocalCheckRun(data: unknown, majorItem: { key: string; label: string }): { rows: ValidRow[] } | { errors: string[] } {
+// `takesGroupHeading`: the item is the first sub-section of a split major
+// item, so that item's own heading row ("๕") may be among its rows.
+export function validateLocalCheckRun(data: unknown, majorItem: { key: string; label: string }, { takesGroupHeading = false } = {}): { rows: ValidRow[] } | { errors: string[] } {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return { errors: ["ไฟล์ results.json ต้องเป็น JSON object ที่มี mode, options และ results"] };
   }
@@ -116,9 +118,8 @@ export function validateLocalCheckRun(data: unknown, majorItem: { key: string; l
       }
     }
     if (!isBlank(row.item)) {
-      const key = majorItemKey(String(row.item));
-      if (!key) errors.push(`${where}: item ไม่ใช่เลขข้อ`);
-      else if (key !== majorItem.key) errors.push(`${where} ไม่ได้อยู่ในข้อใหญ่ ${majorItem.label}`);
+      if (!majorItemKey(String(row.item))) errors.push(`${where}: item ไม่ใช่เลขข้อ`);
+      else if (!isItemInMajorItem(String(row.item), majorItem, { takesGroupHeading })) errors.push(`${where} ไม่ได้อยู่ในข้อใหญ่ ${majorItem.label}`);
     }
   });
 
@@ -175,7 +176,8 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   if (!magicIsDocx(input.socCheck.bytes) || input.socCheck.bytes.byteLength > MAX_SOC_FILE_BYTES) {
     errors.push("ไฟล์ SOC_Check ต้องเป็น Word (.docx) ที่ถูกต้อง ขนาดไม่เกิน 25 MB");
   }
-  const validated = validateLocalCheckRun(input.results, item);
+  const groupFirst = item.groupLabel ? await prisma.socMajorItem.findFirst({ where: { jobId: job.id, groupLabel: item.groupLabel }, orderBy: { position: "asc" }, select: { id: true } }) : null;
+  const validated = validateLocalCheckRun(input.results, item, { takesGroupHeading: groupFirst?.id === item.id });
   if ("errors" in validated) errors.push(...validated.errors);
   if (errors.length || !("rows" in validated)) return { ok: false, errors };
 

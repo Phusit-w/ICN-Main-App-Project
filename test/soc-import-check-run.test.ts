@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
-import { buildDocx } from "@/test/docx-fixture";
+import { buildDocx, buildSocDocx } from "@/test/docx-fixture";
 import { majorItemKey } from "@/lib/soc-major-items";
 
 const skip = setupTestDatabase();
@@ -237,6 +237,39 @@ test("rows from another major item are rejected, naming them", { skip }, async (
     assert.ok(errors.some((e) => e.includes(`ข้อ ${other}`) && e.includes("ไม่ได้อยู่ในข้อใหญ่ ๑")), `${other} in ${JSON.stringify(errors)}`);
   }
   await assertNothingWritten(jobId, item.id);
+});
+
+// ข้อ ๕ has 1 + 41 + 41 rows, so it is split into ๕.๑ and ๕.๒ on import.
+const bullets = (count: number) => Array.from({ length: count }, (_, i) => [`${i + 1})`, `ข้อย่อย ${i + 1}`, "", ""]);
+const SPLIT_SOC = buildSocDocx([
+  ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"],
+  ["๕.", "ระบบ RFID", "", ""],
+  ["๕.๑", "เครื่องอ่าน", "", ""], ...bullets(40),
+  ["๕.๒", "เครื่องพิมพ์", "", ""], ...bullets(40),
+]);
+
+// One valid full-mode result per [row, item], built from the real run's first row.
+function splitRun(rows: [number, string][]): RunFile {
+  const run = structuredClone(SONNET_RUN);
+  run.results = rows.map(([row, item]) => ({ ...structuredClone(SONNET_RUN.results[0]), row, item }));
+  return run;
+}
+
+test("a sub-section of a split major item takes its own rows, and the first one the split item's heading row", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImportedSocJob(owner, { title: "MOF RFID", soc: { name: "SOC.docx", bytes: SPLIT_SOC }, evidence: [{ name: "a.pdf", bytes: PDF }] });
+  const [first, second] = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+  assert.deepEqual([first.label, second.label], ["๕.๑", "๕.๒"]);
+
+  const wrong = await importRun(owner, jobId, first.id, splitRun([[2, "๕"], [3, "๕.๑"], [45, "๕.๒"]]));
+  assert.ok(!wrong.ok && wrong.errors.length === 1 && wrong.errors[0].includes("ข้อ ๕.๒") && wrong.errors[0].includes("ไม่ได้อยู่ในข้อใหญ่ ๕.๑"), JSON.stringify(wrong));
+  const heading = await importRun(owner, jobId, second.id, splitRun([[2, "๕"], [45, "๕.๒"]]));
+  assert.ok(!heading.ok && heading.errors.length === 1 && heading.errors[0].includes("ไม่ได้อยู่ในข้อใหญ่ ๕.๒"), JSON.stringify(heading));
+
+  const result = await importRun(owner, jobId, first.id, splitRun([[2, "๕"], [3, "๕.๑"]]));
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.rowCount, 2);
+  assert.equal((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: first.id } })).state, "checked");
 });
 
 test("every problem in a file is reported at once", { skip }, async () => {

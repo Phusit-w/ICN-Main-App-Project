@@ -188,3 +188,15 @@ export type SocRunnerView = {
   claudeLogin: SocClaudeLogin | null; linkedAt: string;
   revokedAt: string | null; revokeReason: SocRunnerRevokeReason | null;
 };
+
+// A major item with more SOC rows than this is split on import into its
+// second-level sub-sections, one major item record each: one Local Check Run
+// of a whole large item (MOF_RFID ๕, about 240 rows) uses about half a Claude
+// Pro window. One with no sub-sections stays whole, with a warning.
+export const SPLIT_MAJOR_ITEM_ROWS = 60;
+
+// A major item over the split threshold that stayed whole (no sub-sections
+// to split into): the job page warns it may use a lot of quota. Null rowCount
+// = imported before splitting, no warning.
+export const isLargeUnsplitMajorItem = (item: { groupLabel: string | null; rowCount: number | null }) =>
+  !item.groupLabel && (item.rowCount ?? 0) > SPLIT_MAJOR_ITEM_ROWS;

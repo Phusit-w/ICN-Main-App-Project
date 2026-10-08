@@ -89,6 +89,35 @@ test("creating an Imported SOC Check stores the files and one not_checked major 
   assert.deepEqual(log.metadata, { kind: "IMPORTED", evidenceCount: 1, majorItemCount: 3 });
 });
 
+// ข้อ ๒ has 1 + 31 + 31 = 63 rows: over 60, so it is split.
+const bullets = (title: string, count: number) => Array.from({ length: count }, (_, i) => [`${i + 1})`, `${title} ${i + 1}`, "", ""]);
+const LARGE_SOC = buildSocDocx([
+  ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"],
+  ["๑.", "ระบบเฝ้าระวัง", "", ""],
+  ["๑.๑", "กล้อง", "CASRI", "หน้า 3"],
+  ["๒.", "ระบบ RFID", "", ""],
+  ["๒.๑", "เครื่องอ่าน", "", ""], ...bullets("เครื่องอ่าน", 30),
+  ["๒.๒", "เครื่องพิมพ์", "", ""], ...bullets("เครื่องพิมพ์", 30),
+  ["๓.", "การฝึกอบรม", "", ""], ...bullets("อบรม", 70), // over 60 with no sub-section: kept whole
+]);
+
+test("a major item over 60 rows becomes one major item per sub-section, grouped under it", { skip }, async () => {
+  signedIn = await user("owner");
+  const response = await createJob(upload({ title: "MOF RFID", soc: LARGE_SOC, evidence: [{ name: "a.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const jobId = ((await response.json()) as { id: string }).id;
+  const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+  assert.deepEqual(
+    items.map((m) => [m.position, m.key, m.label, m.title, m.rowCount, m.groupLabel, m.groupTitle, m.state]),
+    [
+      [1, "1", "๑", "ระบบเฝ้าระวัง", 2, null, null, "not_checked"],
+      [2, "2.1", "๒.๑", "เครื่องอ่าน", 32, "๒", "ระบบ RFID", "not_checked"],
+      [3, "2.2", "๒.๒", "เครื่องพิมพ์", 31, "๒", "ระบบ RFID", "not_checked"],
+      [4, "3", "๓", "การฝึกอบรม", 71, null, null, "not_checked"],
+    ],
+  );
+});
+
 test("a SOC with no item numbers is rejected and nothing is kept", { skip }, async () => {
   signedIn = await user("owner");
   const storedBefore = await readdir(storageRoot);

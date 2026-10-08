@@ -214,10 +214,16 @@ model SocMajorItem {
   id               String            @id @default(cuid())
   jobId            String
   job              SocJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  key              String // item number in Arabic digits, e.g. "1"
-  label            String // as written in the SOC, e.g. "๑"
+  key              String // item number in Arabic digits, e.g. "1", or "5.5" for a sub-section of a split item
+  label            String // as written in the SOC, e.g. "๑" or "๕.๕"
   title            String?
   position         Int
+  // SOC table rows it covers; null on jobs imported before splitting.
+  rowCount         Int?
+  // A sub-section of a major item split on import (SPLIT_MAJOR_ITEM_ROWS): that
+  // item's label and heading text, e.g. "๕". The job page groups by it.
+  groupLabel       String?
+  groupTitle       String?
   // not_checked | requested | running | paused_quota | needs_login |
   // needs_documents | checked | failed. While a Check Request is open it
   // mirrors that request's state.
