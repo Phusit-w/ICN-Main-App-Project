@@ -4,6 +4,7 @@
 // decided by reviewedAt with a settled decision (not รอแก้ไข), the same test
 // a re-check uses. Server-only.
 import { prisma } from "@/lib/prisma";
+import { jobSocRowTexts } from "@/lib/soc-import";
 import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
 // Each axis with the field the skill uses to explain it.
@@ -47,15 +48,19 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
   const reviewerIds = [...new Set(stored.map((r) => r.reviewedById).filter((id): id is string => id !== null))];
   const evidenceDocuments = (await prisma.socDocument.findMany({ where: { jobId, type: "EVIDENCE" }, orderBy: { createdAt: "asc" }, select: { id: true, originalName: true } })).map((d) => ({ id: d.id, name: d.originalName }));
   const reviewers = new Map((await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, displayName: true } })).map((u) => [u.id, u.displayName]));
+  // Rows imported before the SOC lookup knew relative numbering ("๗.๑)" for ๕.๘.๗.๑) have no
+  // TOR text stored; read it from the SOC now rather than show "ไม่พบข้อความในไฟล์ SOC".
+  const socText = stored.some((r) => !r.socText) ? await jobSocRowTexts(jobId) : null;
 
   const rows: SocReviewRow[] = [];
   for (const r of stored) {
     const axes = axisValues(r);
     const { status, reasons } = overallRowStatus(r.rowType, axes);
     if (status === "heading") continue;
+    const text = r.socText ? { tor: r.socText, proposal: r.proposalText } : socText?.(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
     rows.push({
       id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, status, reasons, evidenceMissing: evidenceMissing(axes),
-      torText: r.socText, proposalText: r.proposalText, reference: r.referenceText,
+      torText: text.tor, proposalText: text.proposal, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),
       declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,

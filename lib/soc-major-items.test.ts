@@ -182,3 +182,24 @@ test("a row's TOR and bidder text come from its row number, or from its item num
   assert.equal(text(9, "๒.๑"), null);
   assert.equal(text(2, "๓.๑"), null);
 });
+
+test("an absolute item number finds its row when the SOC numbers rows relative to the major item", () => {
+  // MOF_RFID ๕.๘ (2026-10-08): the skill must send "๕.๘.๗.๑" for a row the table numbers "๗.๑)",
+  // and the review page showed "ไม่พบข้อความในไฟล์ SOC" for every such row.
+  const soc = buildSocDocx([
+    HEADER,
+    ["๕.๘", "TOR ๕.๘", "ข้อเสนอ ๕.๘", ""],
+    ["๗)", "TOR ๗", "ข้อเสนอ ๗", "หน้า 31"],
+    ["๗.๑)", "TOR ๗.๑", "ข้อเสนอ ๗.๑", "หน้า 31"],
+    ["-", "TOR ข้อย่อยไม่มีเลข", "ข้อเสนอ ข้อย่อยไม่มีเลข", "หน้า 26"],
+    ["(1)", "TOR (1)", "ข้อเสนอ (1)", "หน้า 26"],
+  ]);
+  const text = socRowTexts(soc);
+  assert.deepEqual(text(3, "๕.๘.๗"), { tor: "TOR ๗", proposal: "ข้อเสนอ ๗" });
+  assert.deepEqual(text(4, "๕.๘.๗.๑"), { tor: "TOR ๗.๑", proposal: "ข้อเสนอ ๗.๑" });
+  assert.deepEqual(text(5, "๕.๘.๗.๑"), { tor: "TOR ข้อย่อยไม่มีเลข", proposal: "ข้อเสนอ ข้อย่อยไม่มีเลข" });
+  assert.deepEqual(text(6, "๕.๘.๗.๑.๑"), { tor: "TOR (1)", proposal: "ข้อเสนอ (1)" });
+  // The row number is still checked: a relative number that isn't the item's tail doesn't match.
+  assert.equal(text(4, "๕.๘.๗.๒"), null);
+  assert.equal(text(3, "๕.๘.๘"), null);
+});

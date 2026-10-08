@@ -83,6 +83,16 @@ test("an import fills the TOR text, the bidder's text and the cited pages from t
   assert.deepEqual(heading.referencePages, []);
 });
 
+test("the review view reads the TOR text from the SOC for a row imported without it", { skip }, async () => {
+  // Rows of MOF_RFID ๕.๘ imported on 2026-10-08 have no text: the lookup didn't know "๗.๑)" was ๕.๘.๗.๑.
+  const { owner, jobId, item } = await importedJob();
+  assert.ok((await importRun(owner, jobId, item("1").id, runFor("1"))).ok);
+  await prisma.socCheckResult.updateMany({ where: { jobId, item: "๑.๒.๓" }, data: { socText: "", proposalText: null } });
+  const zoom = (await socReviewView(jobId)).rows.find((r) => r.item === "๑.๒.๓")!;
+  assert.match(zoom.torText, /^การย่อขยาย \(Zoom\) แบบดิจิตอล/);
+  assert.match(zoom.proposalText ?? "", /^Supports zoom function: 16x digital/);
+});
+
 test("an import still succeeds, with empty text, when the SOC has no matching row", { skip }, async () => {
   const { owner, jobId, item } = await importedJob();
   const run = runFor("1");

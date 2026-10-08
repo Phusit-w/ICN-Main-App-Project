@@ -114,10 +114,26 @@ const sameItem = (a: string, b: string) => {
 // (the skill's inspect_word_table.py); it is trusted only when that row has
 // the same item number, otherwise the one row with that item, if the number
 // is unique in the SOC. Returns a lookup that gives null otherwise.
+// A row the SOC numbers relative to its major item ("๗.๑)", "(1)") is matched by
+// row number when the absolute item ends with that number ("๕.๘.๗.๑"); a row with
+// no number ("-", blank) by row number alone, when only one table has that row.
+const RELATIVE_NUMBER = /^\(?(\d+(?:\.\d+)*)[.)]?$/;
+const segments = (item: string) => toArabic(item.replace(/\s+/g, "")).replace(/\.$/, "").split(".");
+
+function rowMatches(cell: string, item: string, onlyTable: boolean): boolean {
+  if (sameItem(cell, item)) return true;
+  const relative = RELATIVE_NUMBER.exec(toArabic(cell.replace(/\s+/g, "")));
+  if (!relative) return onlyTable && !/\d/.test(toArabic(cell));
+  const own = relative[1].split(".").map(Number);
+  const full = segments(item).map(Number);
+  return full.length > own.length && own.every((part, index) => part === full[full.length - own.length + index]);
+}
+
 export function socRowTexts(docx: Uint8Array): (row: number, item: string) => { tor: string; proposal: string | null } | null {
   const tables = readSocTables(docx);
   return (row, item) => {
-    const byRow = tables.map((rows) => rows[row - 1]).find((cells) => cells && sameItem(cells[0] || "", item));
+    const onlyTable = tables.filter((rows) => rows[row - 1]).length === 1;
+    const byRow = tables.map((rows) => rows[row - 1]).find((cells) => cells && rowMatches(cells[0] || "", item, onlyTable));
     const byItem = tables.flat().filter((cells) => sameItem(cells[0] || "", item));
     const cells = byRow ?? (byItem.length === 1 ? byItem[0] : undefined);
     return cells ? { tor: cells[1] ?? "", proposal: cells[2] ?? null } : null;

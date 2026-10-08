@@ -303,8 +303,9 @@ async function replacePreviousRows(
 }
 
 // The TOR and bidder text of each row, from the job's SOC. An unreadable SOC
-// leaves them empty rather than rejecting a valid run.
-async function jobSocRowTexts(jobId: string): Promise<ReturnType<typeof socRowTexts>> {
+// leaves them empty rather than rejecting a valid run. The review page also
+// reads it for rows imported with no text.
+export async function jobSocRowTexts(jobId: string): Promise<ReturnType<typeof socRowTexts>> {
   try {
     const soc = await prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
     if (soc) return socRowTexts(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey))));
