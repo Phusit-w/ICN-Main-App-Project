@@ -36,6 +36,12 @@ const axisValues = (r: StoredRow): SocAxisValues => ({
   evidence_support: r.evidenceSupport, tor_decision: r.torDecision, declared_status_check: r.declaredStatusCheck,
 });
 
+// The evidence file the skill checked the row against (results.json `reference_file`).
+const referenceFile = (raw: unknown): string | null => {
+  const value = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>).reference_file : null;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
 export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow[]; confirmedItemIds: string[] }> {
   const stored = await prisma.socCheckResult.findMany({ where: { jobId, majorItemId: { not: null } }, orderBy: { rowNumber: "asc" } });
   const reviewerIds = [...new Set(stored.map((r) => r.reviewedById).filter((id): id is string => id !== null))];
@@ -51,7 +57,7 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
       id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, status, reasons, evidenceMissing: evidenceMissing(axes),
       torText: r.socText, proposalText: r.proposalText, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
-      citations: citedEvidence(r.referenceText, evidenceDocuments),
+      citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),
       declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,
       axes: SOC_REVIEW_AXES.map((axis) => ({ key: axis.key, label: axis.label, value: axes[axis.key] || null, ok: isAxisOk(axes, axis), detail: AXIS_DETAIL[axis.key]?.(r) ?? null })),
       detail: r.aiDetail, keyIssue: r.keyIssue, confidence: r.aiConfidence,

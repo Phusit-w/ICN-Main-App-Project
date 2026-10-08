@@ -123,7 +123,15 @@ const PAGE_MARKER = /(?:\bpages?|\bpp?\.|หน้า(?:ที่)?)\s*[0-9๐-�
 const normalizeDocumentName = (name: string) => toArabicDigits(name).toLowerCase().replace(/\.pdf$/i, "").replace(/[\s_\-–.,]+/g, " ").trim();
 
 export type EvidenceDocument = { id: string; name: string };
-export type EvidenceCitation = { cited: string; document: EvidenceDocument | null; pages: number[] };
+// `via`: how a citation that names a folder rather than a file found its PDF —
+// the file the skill checked (results.json `reference_file`) inside that
+// folder, or the folder's only PDF. Absent when the cited name is the file's.
+// `folderFiles`: the PDFs of the cited folder when none could be picked, for
+// the reviewer to choose from.
+export type EvidenceCitation = {
+  cited: string; document: EvidenceDocument | null; pages: number[];
+  via?: "reference_file" | "only_file"; folder?: string; folderFiles?: EvidenceDocument[];
+};
 
 // What the bidder ticked in the SOC's Comply/Better column, or null when the
 // SOC has no such column. The skill reports that as not_selected with a
@@ -150,12 +158,48 @@ function matchEvidenceDocument(cited: string, documents: readonly EvidenceDocume
   return found.length === 1 ? found[0].document : null;
 }
 
+const MAX_FOLDER_FILES = 20;
+const SECTION_NUMBER = /^\d+(?:\.\d+)*$/;
+const baseName = (name: string) => name.split(/[\\/]/).pop() ?? "";
+
+// The PDFs under the folder a citation names by its section number: "เอกสารส่วนที่ 2
+// 2.5 เครื่องอ่าน… หน้า 3" cites the uploaded folder "2.5 เครื่องอ่าน…/…". The most
+// specific number wins ("2.5" over the "2" of "ส่วนที่ 2"); the folder's name
+// otherwise may differ from the SOC's wording.
+function citedFolder(cited: string, documents: readonly EvidenceDocument[]): { folder: string; files: EvidenceDocument[] } | null {
+  const tokens = toArabicDigits(cited).split(/\s+/).map((token) => token.replace(/^[(\[]+|[.,:)\]]+$/g, "")).filter((token) => SECTION_NUMBER.test(token));
+  // Only the most specific numbers: the "2" of "เอกสารส่วนที่ 2 2.9" must not pick a sub-folder "2.อุปกรณ์…".
+  const deepest = Math.max(0, ...tokens.map((token) => token.split(".").length));
+  const numbers = new Set(tokens.filter((token) => token.split(".").length === deepest));
+  if (!numbers.size) return null;
+  let best = 0;
+  let folder = "";
+  const found: EvidenceDocument[] = [];
+  for (const document of documents) {
+    if (!/\.pdf$/i.test(document.name)) continue;
+    let depth = 0;
+    let named = "";
+    for (const segment of document.name.split("/").slice(0, -1)) {
+      const number = toArabicDigits(segment).match(/^(\d+(?:\.\d+)*)(?![\d.]*\d)/)?.[1];
+      if (number && numbers.has(number) && number.split(".").length > depth) [depth, named] = [number.split(".").length, segment];
+    }
+    if (!depth || depth < best) continue;
+    if (depth > best) [best, folder, found.length] = [depth, named, 0];
+    found.push(document);
+  }
+  return found.length ? { folder, files: found } : null;
+}
+
 // What a row's reference cites, one entry per document: "Datasheet Demo,
 // pages 4, 5; Brochure p.2" → Datasheet Demo [4, 5] and Brochure [2], each
 // with the job's evidence PDF it names. Parts are split at ";" or a line
 // break; a part with pages but no name continues the previous document.
-export function citedEvidence(reference: string, documents: readonly EvidenceDocument[]): EvidenceCitation[] {
+// A part that names a folder instead of a file takes the file the skill
+// checked in that folder (`referenceFile`), else the folder's only PDF, else
+// lists the folder's PDFs; never a file outside the cited folder.
+export function citedEvidence(reference: string, documents: readonly EvidenceDocument[], referenceFile?: string | null): EvidenceCitation[] {
   const citations: EvidenceCitation[] = [];
+  const checked = referenceFile ? normalizeDocumentName(baseName(referenceFile)) : "";
   for (const part of reference.split(/[;\n]/)) {
     const pages = parseReferencePages(part);
     const cited = part.split(PAGE_MARKER)[0].replace(/[\s,:–-]+$/, "").trim();
@@ -165,7 +209,16 @@ export function citedEvidence(reference: string, documents: readonly EvidenceDoc
       continue;
     }
     if (!cited && !pages.length) continue;
-    citations.push({ cited, document: matchEvidenceDocument(cited, documents), pages });
+    const document = matchEvidenceDocument(cited, documents);
+    const inFolder = document ? null : citedFolder(cited, documents);
+    if (!inFolder) {
+      citations.push({ cited, document, pages });
+      continue;
+    }
+    const used = checked ? inFolder.files.filter((d) => normalizeDocumentName(baseName(d.name)) === checked) : [];
+    if (used.length === 1) citations.push({ cited, document: used[0], pages, via: "reference_file", folder: inFolder.folder });
+    else if (inFolder.files.length === 1) citations.push({ cited, document: inFolder.files[0], pages, via: "only_file", folder: inFolder.folder });
+    else citations.push({ cited, document: null, pages, folder: inFolder.folder, folderFiles: inFolder.files.slice(0, MAX_FOLDER_FILES) });
   }
   return citations;
 }

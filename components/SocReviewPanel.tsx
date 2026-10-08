@@ -11,7 +11,7 @@ import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import { requestSocRowRechecks } from "@/actions/socCheckRequests";
-import { filterReviewRows, isSettledDecision, PENDING_FIX, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
+import { filterReviewRows, isSettledDecision, PENDING_FIX, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type EvidenceCitation, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
 
 type ReviewItem = { id: string; label: string; state: string; missingDocuments: string[]; confirmed: boolean };
 type StatusFilter = SocReviewFilter["status"];
@@ -188,14 +188,20 @@ function RowInspector({ jobId, row, majorItemLabel }: { jobId: string; row: SocR
   </div>;
 }
 
+// An uploaded evidence PDF keeps its folders ("2.5 …/1.…/tc22.pdf"); notes name the file.
+const fileName = (name: string) => name.split("/").pop() ?? name;
+
 // The cited pages of the evidence PDFs the reference names, rendered on the
 // server with each PDF's own highlights (ticket 09), with buttons to page
 // through a multi-page or multi-document citation. A page that can't be shown
 // gets the server's Thai reason instead of a broken image.
 function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
-  const pages = row.citations.flatMap((citation) => (citation.document ? citation.pages.map((page) => ({ document: citation.document!, page })) : []));
-  const unmatched = row.citations.filter((citation) => !citation.document);
-  const unpaged = row.citations.filter((citation) => citation.document && !citation.pages.length);
+  // A citation of a folder with several PDFs and no file the skill checked: the reviewer picks one.
+  const [picked, setPicked] = useState<Record<number, EvidenceCitation["document"]>>({});
+  const citations = row.citations.map((citation, i) => (citation.document || !picked[i] ? citation : { ...citation, document: picked[i] }));
+  const pages = citations.flatMap((citation) => (citation.document ? citation.pages.map((page) => ({ document: citation.document!, page })) : []));
+  const unmatched = citations.filter((citation) => !citation.document && !citation.folderFiles?.length);
+  const unpaged = citations.filter((citation) => citation.document && !citation.pages.length);
   const severalDocuments = new Set(pages.map((p) => p.document.id)).size > 1;
   const [shownIndex, setShownIndex] = useState(0);
   const [failures, setFailures] = useState<Record<string, string>>({});
@@ -228,6 +234,16 @@ function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
       {pages.map((p, i) => <button key={`${p.document.id}:${p.page}`} type="button" onClick={() => setShownIndex(i)} aria-pressed={i === shownIndex} className={`ui-btn rounded-full px-3 py-1 text-xs transition-colors ${i === shownIndex ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{severalDocuments ? `${p.document.name} ` : ""}หน้า {p.page}</button>)}
     </div> : null}
     {!row.citations.length ? note("แถวนี้ไม่ได้อ้างเอกสาร") : null}
+    {citations.map((c) => c.document && c.via ? note(c.via === "reference_file"
+      ? `อ้างโฟลเดอร์ "${c.folder}" → ไฟล์ที่ Claude ใช้ตรวจ: ${fileName(c.document.name)}`
+      : `อ้างโฟลเดอร์ "${c.folder}" → ไฟล์เดียวในโฟลเดอร์: ${fileName(c.document.name)}`) : null)}
+    {row.citations.map((c, i) => c.folderFiles?.length ? <div key={`pick-${i}`} className="flex flex-col gap-1.5 rounded-input bg-ground p-3 text-xs text-muted">
+      <span>อ้างโฟลเดอร์ &quot;{c.folder}&quot; ซึ่งมี {c.folderFiles.length} ไฟล์ และไม่รู้ว่า Claude ใช้ไฟล์ไหน เลือกไฟล์ที่จะดู{c.pages.length ? ` หน้า ${c.pages.join(", ")}` : ""}:</span>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={`ไฟล์ในโฟลเดอร์ ${c.folder}`}>
+        {c.folderFiles.map((d) => <button key={d.id} type="button" aria-pressed={picked[i]?.id === d.id} onClick={() => { setPicked((current) => ({ ...current, [i]: d })); setShownIndex(0); }}
+          className={`ui-btn rounded-full px-3 py-1 text-xs transition-colors ${picked[i]?.id === d.id ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{fileName(d.name)}</button>)}
+      </div>
+    </div> : null)}
     {unmatched.map((c) => note(`ไม่พบไฟล์ PDF ที่ตรงกับ "${c.cited || row.reference}" ในงานนี้ ตรวจชื่อไฟล์หลักฐานหรืออัปโหลดเพิ่ม`))}
     {unpaged.map((c) => note(`การอ้างอิง ${c.document!.name} ไม่ได้ระบุเลขหน้า`))}
     {!shown || !src ? null

@@ -105,6 +105,27 @@ test("an evidence PDF uploaded with its folder still matches by its file name", 
   assert.deepEqual(citedEvidence("tc22 spec sheet หน้า 3", documents).map((c) => [c.document?.id ?? null, c.pages]), [["tc22", [3]]]);
 });
 
+test("a reference that names a folder shows the file the skill checked in it, else its only file, else lets the reviewer pick", () => {
+  // MOF_RFID: the SOC cites "เอกสารส่วนที่ 2 2.5 … หน้า 3"; folder 2.5 holds TC22 and RFD40.
+  const documents = [
+    { id: "tc22", name: "บทที่ 2/2.5 เครื่องอ่านสัญญาณ RFID แบบพกพา/1.เครื่องอ่านแบบคอมพิวเตอร์พกพา/tc22-tc27-spec-sheet-en-us.pdf" },
+    { id: "rfd40", name: "บทที่ 2/2.5 เครื่องอ่านสัญญาณ RFID แบบพกพา/2.อุปกรณ์เสริมสำหรับอ่าน RFID/rfd40-premium-series-spec-sheet-en-us (1).pdf" },
+    { id: "ams", name: "บทที่ 2/2.8 ซอฟต์แวร์การจัดการ/AMS WinApp_R4_for Asset RFID+SQL.pdf" },
+    { id: "zebra", name: "บทที่ 3/ZPL2600054 Zebra Business Letter.pdf" },
+  ];
+  const cite25 = "เอกสารส่วนที่ 2 2.5 เครื่องอ่านสัญญาณ RFID แบบพกพา (Mobile Computer with RFID Reader) หน้า 3";
+  const brief = (reference: string, file?: string | null) => citedEvidence(reference, documents, file).map((c) => [c.document?.id ?? null, c.pages, c.via ?? null, c.folderFiles?.map((d) => d.id) ?? null]);
+
+  assert.deepEqual(brief(cite25, "tc22-tc27-spec-sheet-en-us.pdf"), [["tc22", [3], "reference_file", null]]);
+  assert.equal(citedEvidence(cite25, documents, "tc22-tc27-spec-sheet-en-us.pdf")[0].folder, "2.5 เครื่องอ่านสัญญาณ RFID แบบพกพา");
+  assert.deepEqual(brief(cite25, "inputs/2.5 x/2.อุปกรณ์เสริม/rfd40-premium-series-spec-sheet-en-us (1).pdf"), [["rfd40", [3], "reference_file", null]], "a path in reference_file still matches by its file name");
+  assert.deepEqual(brief(cite25), [[null, [3], null, ["tc22", "rfd40"]]], "two files and no checked file: the reviewer picks");
+  assert.deepEqual(brief(cite25, "ZPL2600054 Zebra Business Letter.pdf"), [[null, [3], null, ["tc22", "rfd40"]]], "never a file outside the cited folder");
+  assert.deepEqual(brief("เอกสารส่วนที่ 2 ๒.๘ ซอฟต์แวร์การจัดการ หน้า ๓๑"), [["ams", [31], "only_file", null]], "Thai digits; the folder's only PDF");
+  assert.deepEqual(brief("เอกสารส่วนที่ 2 2.9 อื่นๆ หน้า 1"), [[null, [1], null, null]], "no folder with that number");
+  assert.deepEqual(brief("tc22-tc27-spec-sheet-en-us หน้า 2", "rfd40-premium-series-spec-sheet-en-us (1).pdf"), [["tc22", [2], null, null]], "a cited file name wins over reference_file");
+});
+
 test("a SOC with no Comply/Better tick box shows no ticked value: not_selected whose check doesn't apply", () => {
   assert.equal(declaredSelection("not_selected", "not_applicable"), null);
   assert.equal(declaredSelection(null, null), null);
