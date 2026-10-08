@@ -236,6 +236,18 @@ were untouched.
   the Thai "used or expired" message; a wrong pin is refused ("Could not establish trust relationship"). `npm test`
   156/156, lint + tsc clean. Test and `docs/SOC-RUNNER.md` updated.
 
+**2026-10-08 08:43: first successful install from prod (a55afd7 deployed).** The user pasted a new prod command in
+Windows PowerShell 5.1 on this PC (icn21\phusit.w, not admin, SAC on, Claude Code already installed and signed in):
+it stopped no old runner, downloaded Python 3.12.10, installed the packages, and started the runner at 08:44:30,
+about a minute after the config was written. Then:
+- `SOCRunner.exe` (from `app\python`) is running, and the HKCU Run value `SOCRunner` is set.
+- `runner.log` says it is connected to `https://psaidemo.icn21.local` as phusit.w.
+- prod `/soc` shows ออนไลน์, 0.2.0, เข้าสู่ระบบ Claude แล้ว.
+- No Code Integrity block events were found in the 15 minutes around it.
+
+Steps 2–5 below passed on this PC except the check itself (prod has no SOC job for this user yet). Still open: a
+real check on prod, reboot, used-code refusal + repair, a PC without Claude Code.
+
 **Manual test steps (install command; fill in the results here):**
 
 1. Deploy (see below). On the server `.env`: `SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"` and
