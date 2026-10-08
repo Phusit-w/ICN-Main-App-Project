@@ -302,7 +302,7 @@ SOC_RUNNER_CA_CERT_FILE="C:\Apps\psaidemo-cert.pem"
 - ถ้า `SOC_STORAGE_ROOT` ไม่ได้ตั้งไว้ ไฟล์ SOC อยู่ใต้ `.next\standalone\data\soc` ซึ่ง `next build` สร้างใหม่ทุกครั้ง
   ควรตั้ง `SOC_STORAGE_ROOT` ไปที่โฟลเดอร์นอก repo (เช่น `C:\expense-billing-data\soc`) ตาม `.env.production.example`
 - ไฟล์ `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe` และค่า `SOC_RUNNER_INSTALLER_PATH` จากรุ่น `.exe` เดิมไม่ถูกใช้แล้ว ลบได้
-  (`SOC_PYTHON` ยังใช้กับปุ่ม "ดาวน์โหลด SOC_Check")
+  (`SOC_PYTHON` ก็ไม่ถูกใช้แล้วเช่นกัน ตั้งแต่ปุ่ม "ดาวน์โหลด SOC_Check" แบบ Word ถูกแทนด้วย Excel 2026-10-08)
 
 ## Admin
 

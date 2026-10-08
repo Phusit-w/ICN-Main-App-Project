@@ -108,6 +108,22 @@ export const SOC_RUN_SOURCE_LABELS: Record<string, string> = { manual: "นำ�
 
 // Thai labels for the values of an imported row's axes, as the skill's
 // SOC_Check document writes them (append_results_to_docx.py).
+// Upload limits, checked by the server (lib/soc.ts) and, before sending, by
+// the upload forms.
+export const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_EVIDENCE_FILE_BYTES = 120 * 1024 * 1024;
+export const MAX_EVIDENCE_TOTAL_BYTES = 250 * 1024 * 1024;
+export const MAX_EVIDENCE_FILES = 10;
+
+// Why the chosen PDFs can't be sent, or null. The server checks the same.
+export function evidenceSelectionProblem(files: readonly { name: string; size: number }[]): string | null {
+  if (files.length < 1 || files.length > MAX_EVIDENCE_FILES) return `กรุณาแนบ PDF 1–${MAX_EVIDENCE_FILES} ไฟล์`;
+  const tooBig = files.find((f) => f.size > MAX_EVIDENCE_FILE_BYTES);
+  if (tooBig) return `ไฟล์ ${tooBig.name} ต้องมีขนาดไม่เกิน ${MAX_EVIDENCE_FILE_BYTES / 1024 / 1024} MB`;
+  if (files.reduce((sum, f) => sum + f.size, 0) > MAX_EVIDENCE_TOTAL_BYTES) return `ไฟล์ Datasheet / Catalog รวมกันต้องมีขนาดไม่เกิน ${MAX_EVIDENCE_TOTAL_BYTES / 1024 / 1024} MB`;
+  return null;
+}
+
 export const SOC_AXIS_VALUE_LABELS: Record<string, string> = {
   match: "ตรง", mismatch: "ไม่ตรง", not_found: "ไม่พบ", unverifiable: "ยืนยันไม่ได้", not_applicable: "ไม่เกี่ยวข้อง",
   complete: "ครบ", partial: "บางส่วน", related: "ตรงเรื่อง", unrelated: "ไม่ตรงเรื่อง",

@@ -3,18 +3,28 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import SocFilePicker, { readUploadResponse } from "@/components/SocFilePicker";
+import { evidenceSelectionProblem, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
 
 export default function SocUploadForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [soc, setSoc] = useState<File[]>([]);
+  const [evidence, setEvidence] = useState<File[]>([]);
 
   function submit(formData: FormData) {
     setError("");
+    if (!soc.length) return setError("กรุณาเลือกไฟล์ SOC (DOCX)");
+    if (soc[0].size > MAX_SOC_FILE_BYTES) return setError(`ไฟล์ ${soc[0].name} ต้องมีขนาดไม่เกิน ${MAX_SOC_FILE_BYTES / 1024 / 1024} MB`);
+    const problem = evidenceSelectionProblem(evidence);
+    if (problem) return setError(problem);
+    formData.set("soc", soc[0]);
+    for (const file of evidence) formData.append("evidence", file);
     startTransition(async () => {
       try {
         const response = await fetch("/api/soc/jobs", { method: "POST", body: formData });
-        const body = (await response.json()) as { id?: string; error?: string };
+        const body = await readUploadResponse<{ id?: string; error?: string }>(response);
         if (!response.ok || !body.id) throw new Error(body.error || "ไม่สามารถสร้างงานตรวจได้");
         router.push(`/soc/${body.id}`);
         router.refresh();
@@ -33,10 +43,10 @@ export default function SocUploadForm() {
         </label>
       </UploadSection>
       <UploadSection number="2" title="เอกสาร SOC" description="รองรับ DOCX ขนาดไม่เกิน 25 MB">
-        <FileInput name="soc" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+        <SocFilePicker files={soc} onChange={setSoc} disabled={pending} label="เลือกไฟล์ SOC (DOCX)" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
       </UploadSection>
-      <UploadSection number="3" title="Datasheet / Catalog" description="แนบ PDF ได้ 1–10 ไฟล์ ไฟล์ละไม่เกิน 120 MB และรวมไม่เกิน 250 MB">
-        <FileInput name="evidence" accept=".pdf,application/pdf" multiple />
+      <UploadSection number="3" title="Datasheet / Catalog" description="แนบ PDF ได้ 1–10 ไฟล์ ไฟล์ละไม่เกิน 120 MB และรวมไม่เกิน 250 MB เลือกทีละไฟล์หรือหลายไฟล์พร้อมกันก็ได้">
+        <SocFilePicker files={evidence} onChange={setEvidence} disabled={pending} multiple label="เลือกไฟล์ PDF" accept=".pdf,application/pdf" />
       </UploadSection>
       {error ? <p role="alert" className="rounded-input border border-danger-border bg-surface px-4 py-3 text-sm text-danger">{error}</p> : null}
       <div className="flex justify-end gap-3">
@@ -49,8 +59,4 @@ export default function SocUploadForm() {
 
 function UploadSection({ number, title, description, children }: { number: string; title: string; description: string; children: React.ReactNode }) {
   return <section className="rounded-card bg-surface p-6 shadow-card"><div className="mb-5 flex items-center gap-3"><span className="grid size-8 place-items-center rounded-full bg-ink text-sm font-bold text-ground">{number}</span><div><h2 className="font-display text-base font-semibold">{title}</h2><p className="text-xs text-muted">{description}</p></div></div>{children}</section>;
-}
-
-function FileInput({ name, accept, multiple = false }: { name: string; accept: string; multiple?: boolean }) {
-  return <input name={name} type="file" required multiple={multiple} accept={accept} className="block w-full rounded-input border border-dashed border-line bg-ground p-4 text-sm file:mr-4 file:rounded-input file:border-0 file:bg-ink file:px-4 file:py-2 file:text-ground" />;
 }

@@ -7,9 +7,10 @@ import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/acti
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
 import SocReviewPanel from "@/components/SocReviewPanel";
+import SocFilePicker, { readUploadResponse } from "@/components/SocFilePicker";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import type { ConfirmedRow } from "@/lib/soc-import";
-import { CHECK_LABELS, isOpenCheckRequestState, isRequestableItemState, majorItemProgress, majorItemStateText, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
+import { CHECK_LABELS, evidenceSelectionProblem, isOpenCheckRequestState, isRequestableItemState, majorItemProgress, majorItemStateText, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
 
 type DocumentItem = { id: string; type: string; name: string };
 type ResultItem = {
@@ -18,7 +19,7 @@ type ResultItem = {
   aiReferenceCheck: string; aiHeadingTitleCheck: string; aiDetail: string; aiConfidence: string;
   finalReferenceCheck: string; finalHeadingTitleCheck: string; finalDetail: string; reviewed: boolean;
 };
-type MajorItem = { id: string; label: string; title: string | null; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; socCheckDocumentId: string | null; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
+type MajorItem = { id: string; label: string; title: string | null; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
 type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null };
 
 const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING"]);
@@ -63,7 +64,7 @@ function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIs
   const [importing, setImporting] = useState<string | null>(null);
   const unchecked = items.filter((m) => m.state === "not_checked").length;
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/soc-check`} title="SOC ต้นฉบับพร้อมผลตรวจล่าสุดของทุกข้อใหญ่ ข้อที่ยังไม่ตรวจจะระบุไว้ในเอกสาร" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลด SOC_Check</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
+    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{items.map((item) => <MajorItemRow key={item.id} jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} />)}</tbody></table></div>
   </section>;
 }
@@ -84,7 +85,7 @@ function MajorItemRow({ jobId, item, viewerId, viewerIsAdmin, open, onToggle, on
   const request = item.request;
   const canCancel = item.state === "requested" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
-    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.socCheckDocumentId ? <> · <a href={`/api/soc/documents/${item.socCheckDocumentId}`}>SOC_Check</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
+    <tr className="border-t border-line"><td className="px-5 py-3 font-medium tabular-nums">ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span></td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจข้อ ${item.label} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} onDone={onDone} /></td></tr> : null}
   </>;
 }
@@ -201,14 +202,19 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [files, setFiles] = useState<File[]>([]);
   const inputs = documents.filter((d) => d.type === "SOC" || d.type === "EVIDENCE");
   function submit(formData: FormData) {
     setError("");
+    const problem = evidenceSelectionProblem(files);
+    if (problem) return setError(problem);
+    for (const file of files) formData.append("evidence", file);
     startTransition(async () => {
       try {
         const response = await fetch(`/api/soc/jobs/${jobId}/evidence`, { method: "POST", body: formData });
-        const body = (await response.json()) as { error?: string };
+        const body = await readUploadResponse<{ error?: string }>(response);
         if (!response.ok) throw new Error(body.error || "เพิ่มเอกสารไม่สำเร็จ");
+        setFiles([]);
         router.refresh();
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "เพิ่มเอกสารไม่สำเร็จ");
@@ -218,10 +224,10 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
   return <section id="soc-documents" className="scroll-mt-6 rounded-card bg-surface p-5 shadow-card">
     <h2 className="font-display font-semibold">เอกสารในงาน</h2>
     <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "EVIDENCE" ? "_blank" : undefined} rel="noreferrer" className="text-ink">{doc.name}</a></li>)}</ul>
-    <form key={inputs.length} action={submit} className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-      <input name="evidence" type="file" required multiple accept=".pdf,application/pdf" className="min-w-0 flex-1 rounded-input border border-dashed border-line bg-ground p-3 text-sm file:mr-4 file:rounded-input file:border-0 file:bg-ink file:px-4 file:py-2 file:text-ground" />
-      <Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังอัปโหลด…" : "เพิ่ม PDF หลักฐาน"}</Button>
-      {error ? <p role="alert" className="w-full text-xs text-danger">{error}</p> : null}
+    <form action={submit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+      <SocFilePicker files={files} onChange={setFiles} disabled={pending} multiple label="เลือกไฟล์ PDF ที่จะเพิ่ม" accept=".pdf,application/pdf" />
+      {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังอัปโหลด…" : `เพิ่ม PDF หลักฐาน (${files.length} ไฟล์)`}</Button></div> : null}
+      {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </form>
   </section>;
 }

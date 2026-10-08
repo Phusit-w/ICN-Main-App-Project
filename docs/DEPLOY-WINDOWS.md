@@ -29,7 +29,7 @@
 **Service ที่ต้องติดตั้ง (2 ตัว — ไม่มีอย่างอื่นแล้ว):**
 - [Node.js **24.x (LTS)**](https://nodejs.org/) — เวอร์ชันอื่นอาจใช้ไม่ได้: Next.js 16 ต้องการ >= 20.9.0, Prisma 7 ต้องการเฉพาะช่วง 20.19+/22.12+/24.0+ เท่านั้น (21.x, 23.x ใช้ไม่ได้)
 - [PostgreSQL **16.x** for Windows](https://www.postgresql.org/download/windows/) — ตัวติดตั้งของ EDB จะลงเป็น Windows Service ให้อัตโนมัติ (ขั้นตอนนี้ต้อง admin เสมอไม่ว่าจะเลือกวิธี A หรือ B ในการรันตัวแอปเอง — ปกติ IT เป็นคนติดตั้ง PostgreSQL ให้ครั้งเดียว)
-- สำหรับปุ่ม "ดาวน์โหลด SOC_Check" ในหน้างานตรวจ SOC: ติดตั้ง [Python 3.12](https://www.python.org/downloads/windows/) (แบบ per-user ไม่ต้อง admin ได้) แล้ว `pip install python-docx==1.2.0` ถ้าคำสั่ง `python` ไม่อยู่ใน PATH ของ user ที่รันแอป ให้ตั้ง `SOC_PYTHON` เป็น path เต็มของ `python.exe` (server ใช้รัน `soc-export/combine_soc_check.py` ซึ่งเรียกสคริปต์ของ skill เท่านั้น ไม่เรียก AI)
+- ปุ่ม "ดาวน์โหลดผลตรวจ (Excel)" ในหน้างานตรวจ SOC สร้างไฟล์ใน Node (`exceljs`) ไม่ต้องใช้ Python บน server (ตั้งแต่ 2026-10-08 ซึ่งเอาปุ่ม "ดาวน์โหลด SOC_Check" แบบ Word ออก Python และค่า `SOC_PYTHON` ที่เคยติดตั้งไว้ให้ปุ่มนั้นไม่ถูกใช้แล้ว)
 - สำหรับปุ่ม "สร้างคำสั่งติดตั้ง SOC Runner" ในหน้า `/soc`: ไม่ต้อง build อะไรบน server แต่ครั้งแรกต้องเพิ่ม `SOC_RUNNER_SERVER_URL` และ `SOC_RUNNER_CA_CERT_FILE` (cert self-signed ของ IIS export เป็น PEM) ใน `.env` ดูคำสั่งใน "ติดตั้ง" ของ `docs/SOC-RUNNER.md`
 - ถ้าต้องอ่าน PDF สแกน: ติดตั้ง Tesseract OCR พร้อม language data `tha` และ `eng` แล้วตั้ง `SOC_OCR_PROVIDER=tesseract`; หากยังไม่พร้อมให้คง `disabled` เพื่อ fail closed
 

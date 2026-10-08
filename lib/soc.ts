@@ -4,7 +4,7 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { readSocMajorItems } from "@/lib/soc-major-items";
-import { majorItemProgress } from "@/lib/soc-shared";
+import { majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_EVIDENCE_FILES, MAX_EVIDENCE_TOTAL_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
 export * from "@/lib/soc-shared";
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
@@ -13,10 +13,6 @@ type Upload = { name: string; bytes: Uint8Array };
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-export const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_EVIDENCE_FILE_BYTES = 120 * 1024 * 1024;
-const MAX_EVIDENCE_TOTAL_BYTES = 250 * 1024 * 1024;
-const MAX_EVIDENCE_FILES = 10;
 
 export function socStorageRoot(): string {
   return path.resolve(process.env.SOC_STORAGE_ROOT || path.join(process.cwd(), "data", "soc"));
