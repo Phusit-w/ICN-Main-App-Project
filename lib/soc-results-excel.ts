@@ -26,7 +26,8 @@ const CONFIDENCE_LABELS: Record<string, string> = { high: "สูง", medium: "
 const RED = "FFC7CE";
 
 // The ผลอ้างอิง cell with the skill's sub-status: a matching page whose
-// evidence isn't complete is not shown as a plain green "ตรง".
+// evidence isn't complete is not shown as a plain green "ตรง". Same texts and
+// colours as the skill's append_results_to_docx.py reference_status().
 const REFERENCE_STATUSES = [
   { text: "ตรง", fill: "C6EFCE" },
   { text: "ตรง – ควรตรวจซ้ำ", fill: "FFEB9C" },
@@ -37,7 +38,7 @@ const REFERENCE_STATUSES = [
   { text: "ไม่ตรง", fill: RED },
   { text: "ไม่พบ", fill: RED },
   { text: "ยืนยันไม่ได้", fill: "FFEB9C" },
-  { text: "ไม่เกี่ยวข้อง", fill: "E2EFDA" },
+  { text: "ไม่เกี่ยวข้อง", fill: "D9EAD3" },
 ] as const;
 type ReferenceStatus = (typeof REFERENCE_STATUSES)[number];
 const status = (text: ReferenceStatus["text"]) => REFERENCE_STATUSES.find((s) => s.text === text)!;

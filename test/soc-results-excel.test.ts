@@ -149,6 +149,35 @@ test("a partial_visible highlight shows its Thai label and leaves ผลอ้�
   assert.equal((row.getCell(5).fill as ExcelJS.FillPattern).fgColor?.argb, "FFC6EFCE");
 });
 
+test("ผลอ้างอิง uses the skill's sub-status texts and colours (append_results_to_docx.py)", { skip }, async () => {
+  const { owner, jobId, byKey } = await setup();
+  const runs = ["1", "2", "3"].map((key) => ({ key, run: runFor(key, "SUB") }));
+  const rows = runs.flatMap(({ run }) => run.results.filter((row) => !headingRow(row)));
+  const cases: [Row, string, string][] = [
+    [{ reference_check: "match", evidence_support: "fully_supported", confidence: "high" }, "ตรง", "C6EFCE"],
+    [{ reference_check: "match", evidence_support: "fully_supported", confidence: "medium" }, "ตรง – ควรตรวจซ้ำ", "FFEB9C"],
+    [{ reference_check: "match", evidence_support: "partially_supported" }, "ตรง – DS ไม่ครบ ควรตรวจซ้ำ", "FFEB9C"],
+    [{ reference_check: "match", evidence_support: "not_supported" }, "ตรง – ไม่ระบุใน DS", "F4B183"],
+    [{ reference_check: "match", evidence_support: "wording_conflict" }, "ตรง – ถ้อยคำขัดกับ DS", "F4B183"],
+    [{ reference_check: "match", evidence_support: "unverifiable" }, "ตรง – ยืนยันไม่ได้ (ดูภาพ)", "F4B183"],
+    [{ reference_check: "mismatch" }, "ไม่ตรง", "FFC7CE"],
+    [{ reference_check: "unverifiable" }, "ยืนยันไม่ได้", "FFEB9C"],
+    [{ reference_check: "not_applicable" }, "ไม่เกี่ยวข้อง", "D9EAD3"],
+  ];
+  assert.ok(rows.length >= cases.length);
+  cases.forEach(([fields], i) => Object.assign(rows[i], fields));
+  for (const { key, run } of runs) await importRun(owner, jobId, byKey(key).id, run);
+  signedIn = owner;
+  // Every item sheet row by its SOC row number.
+  const byRowNumber = new Map((await workbook(await download(jobId))).worksheets.slice(1)
+    .flatMap((sheet) => bodyText(sheet).map((r, n) => [Number(r[0]), sheet.getRow(n + 2)] as const)));
+  cases.forEach(([, text, colour], i) => {
+    const row = byRowNumber.get(Number(rows[i].row))!;
+    assert.equal(row.getCell(5).value, text, `row ${rows[i].row}`);
+    assert.equal((row.getCell(5).fill as ExcelJS.FillPattern).fgColor?.argb, `FF${colour}`, `row ${rows[i].row}`);
+  });
+});
+
 test("one major item: a single sheet, no summary", { skip }, async () => {
   const { owner, jobId, byKey } = await setup();
   await importRun(owner, jobId, byKey("1").id, runFor("1", "ONE"));
