@@ -78,7 +78,9 @@ class HttpServerClient:
     def report(self, request_id: str, payload: dict) -> None:
         self._json("POST", f"/api/soc-runner/requests/{request_id}/report", payload)
 
-    def submit(self, request_id: str, results: Path, soc_check: Path, model: str, skill_version: str) -> dict:
+    def submit(self, request_id: str, results: Path, soc_check: Path, model: str, skill_version: str,
+               packet_fallback: str = "") -> dict:
+        """`packet_fallback`: why the item ran on the old flow instead of the evidence packet ("" = it didn't)."""
         boundary = f"----soc-runner-{uuid.uuid4().hex}"
         parts: list[bytes] = []
 
@@ -95,6 +97,8 @@ class HttpServerClient:
         file_part("socCheck", soc_check, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         field_part("model", model)
         field_part("skillVersion", skill_version)
+        if packet_fallback:
+            field_part("packetFallback", packet_fallback)
         parts.append(f"--{boundary}--\r\n".encode())
         try:
             _, _, body = self._send("POST", f"/api/soc-runner/requests/{request_id}/submit", b"".join(parts),

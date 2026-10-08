@@ -138,8 +138,11 @@
 
 ### `POST /api/soc-runner/requests/:id/submit`
 
-multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion` (เว้นได้ ใช้เวอร์ชันที่ตรึงไว้)
+multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion` (เว้นได้ ใช้เวอร์ชันที่ตรึงไว้),
+`packetFallback` (runner ตั้งแต่ 0.3.0 ส่งมาเฉพาะเมื่อข้อนี้ไม่ได้ใช้ evidence packet: เหตุผลภาษาไทย ≤ 300 ตัวอักษร)
 ผ่านการนำเข้าเดียวกับการอัปโหลดด้วยมือ (`importLocalCheckRun`, source `runner`) ตอบ `201 { runId, rowCount }`
+event `RUN_IMPORTED` ของ run เก็บ `evidenceFlow` (`packet` เมื่อ `options` ใน results.json มี `evidence_packet` ไม่งั้น `standard`
+ใช้กับการอัปโหลดด้วยมือด้วย) และ `packetFallback` ถ้ามี
 หรือ `422 { errors }` / `409 { errors, confirmedRows }` ซึ่งปิดคำขอเป็น `failed` พร้อมเหตุผล (ส่งไฟล์เดิมซ้ำก็ไม่ผ่าน)
 
 ทุก endpoint: คำขอของผู้ใช้อื่นตอบ `404` เสมอ (ไม่บอกว่ามีอยู่) ส่วน `401`/`403` เหมือน heartbeat
@@ -156,8 +159,16 @@ npm run soc:runner:test                          # unittest ด้วย server 
 - **ไม่เปิด port**: ส่ง heartbeat ทุก 30 วินาที (thread แยก จึงต่ออายุคำขอระหว่าง Claude ตรวจนานๆ) และ claim ทุก 15 วินาทีเมื่อว่าง
 - ต่อหนึ่งคำขอ (`carry_out` ใน `runner.py`): รายงาน `running` → ดาวน์โหลด skill ที่ตรึงไว้ แตก zip ไปที่
   `<งาน>/.claude/skills/<name>/` (ตรวจ checksum และปฏิเสธ path ที่มี `..`) → ดาวน์โหลด SOC/หลักฐานไป `<งาน>/inputs/` ตามโฟลเดอร์ที่อัปโหลดมา (เช่น `inputs/บทที่ 2/2.5 …/tc22.pdf` เพราะ SOC อ้างชื่อโฟลเดอร์; ตัด `..` ทิ้ง และตัดโฟลเดอร์ชั้นนอกออกถ้า path ยาวเกิน 250 ตัวอักษรของ Windows)
-  (ตรวจ checksum) → รัน `claude -p` ในโฟลเดอร์งาน ให้เขียน `out/results.json` และ `out/SOC_Check.docx`
-  → submit พร้อม `model` (โมเดลที่เขียนมากที่สุดใน `modelUsage`) และ `skillVersion` (header `X-Soc-Skill-Version`)
+  (ตรวจ checksum) → สร้าง evidence packet (ด้านล่าง) → รัน `claude -p` ในโฟลเดอร์งาน ให้เขียน `out/results.json` และ `out/SOC_Check.docx`
+  → submit พร้อม `model` (โมเดลที่เขียนมากที่สุดใน `modelUsage`), `skillVersion` (header `X-Soc-Skill-Version`) และ `packetFallback` ถ้ามี
+- **evidence packet (ticket 10, runner 0.3.0; ตัดสินใช้ที่ gate soc-evidence-packet 09)**: ก่อนเรียก Claude runner รัน
+  `scripts/build_evidence_packet.py <inputs/SOC.docx> <ข้อใหญ่> inputs out/packet` ของ skill ที่ตรึงไว้ ด้วย `python.exe`
+  ข้าง Python ของ runner (pythonw ไม่มี stdout; คำสั่งติดตั้งให้ PyMuPDF/python-docx แล้ว) จำกัด 20 นาที รายงาน progress "กำลังเตรียม evidence packet"
+  สำเร็จ (exit 0 และมี `out/packet/job.json`) → prompt เปิด option `evidence_packet` และบอกว่า packet สร้างไว้แล้วที่ `out/packet`
+  (skill ไม่สร้างซ้ำ) / ไม่สำเร็จ → ลบ packet ครึ่งๆ ทิ้ง ตรวจข้อนั้นด้วย flow เดิม ลง log และส่งเหตุผลเป็น `packetFallback`
+  เหตุที่ข้าม packet: `SOC_RUNNER_PACKET=0`, skill รุ่นเก่าไม่มีตัวสร้าง, งานมี SOC มากกว่า/น้อยกว่า 1 ไฟล์, SOC ไม่ใช่ `.docx`,
+  ตัวสร้างล้ม/ไม่เขียน job.json/นานเกิน การตัดสินใจเก็บใน `soc-runner-run.json` รอบที่ `--resume` จึงไม่สร้างใหม่และส่งเหตุผลเดิม
+  ถ้า session หายแล้วเริ่มใหม่ ใช้ packet ที่สร้างไว้แล้ว
 - prompt มี `SOC_RUNNER_HEADLESS=1`, ข้อใหญ่, โฟลเดอร์ output และ `acknowledged_missing` ตามสัญญาใน `docs/SOC-SKILL-HOSTING.md`
   และชี้ไปที่ skill ในโฟลเดอร์งานตรงๆ (กันชนกับ skill ชื่อเดียวกันที่ผู้ตรวจติดตั้งไว้เอง)
 - `claude -p --output-format stream-json --verbose --model sonnet --permission-mode acceptEdits --allowedTools Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite --disallowedTools WebFetch,WebSearch`
@@ -176,6 +187,7 @@ npm run soc:runner:test                          # unittest ด้วย server 
 - ความเสี่ยงที่รู้อยู่: skill ต้องใช้ Bash รันสคริปต์ Python ของตัวเอง จึงเปิด Bash ไว้ทั้งหมด PDF ของผู้ขายเป็นข้อมูลที่ไม่น่าเชื่อถือ
   (prompt injection) ปิด WebFetch/WebSearch แล้ว แต่ยังไม่ได้จำกัดคำสั่ง Bash
 - ตัวแปร: `SOC_RUNNER_WORK_DIR` (ค่าเริ่มต้น `%LOCALAPPDATA%\SOCRunner\work`), `SOC_RUNNER_MODEL` (`sonnet`),
+  `SOC_RUNNER_PACKET` (`0` = ไม่ใช้ evidence packet เช่น ตอนวัดโควตาของ flow เดิม),
   `SOC_RUNNER_TIMEOUT_MINUTES` (180), `SOC_RUNNER_CA_FILE` (root CA ของ Caddy `tls internal` ถ้าไม่ตั้งใช้ `caCert` ในไฟล์เชื่อม
   ทั้งสองแบบเชื่อเพิ่มจาก root ของ Windows)
 - `runner.py <config> [--log ไฟล์]`: `--log` เขียนทุกข้อความ (มีเวลา) ลงไฟล์ เกิน 5 MB (ตอนเริ่มและระหว่างทำงาน) เก็บของเก่าไว้หนึ่งชุด (`.1`)

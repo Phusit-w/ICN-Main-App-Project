@@ -444,14 +444,14 @@ export async function reportCheckRequest(link: RunnerLink, requestId: string, re
 export async function submitCheckRequest(
   link: RunnerLink,
   requestId: string,
-  input: { results: unknown; socCheck: { name: string; bytes: Uint8Array }; skillVersion: string; model: string },
+  input: { results: unknown; socCheck: { name: string; bytes: Uint8Array }; skillVersion: string; model: string; packetFallback?: string },
 ): Promise<LocalCheckRunImport> {
   const request = await claimedRequest(link, requestId);
   await touch(request.id);
   const pinned = request.skillPackageId ? await prisma.socSkillPackage.findUnique({ where: { id: request.skillPackageId }, select: { version: true } }) : null;
   const imported = await importLocalCheckRun({ id: link.userId }, {
     jobId: request.jobId, majorItemId: request.majorItemId, results: input.results, socCheck: input.socCheck,
-    run: { skillVersion: input.skillVersion || pinned?.version || "", model: input.model, source: "runner" },
+    run: { skillVersion: input.skillVersion || pinned?.version || "", model: input.model, source: "runner", packetFallback: input.packetFallback },
     replaceConfirmed: request.replaceConfirmed,
     checkRequest: { id: request.id, requestedById: request.requestedById, acknowledgedMissing: request.acknowledgedMissing, rowNumbers: request.rowNumbers },
   });

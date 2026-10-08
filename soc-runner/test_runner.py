@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -19,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from datetime import datetime, timedelta, timezone
 
 from claude_cli import ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
-from runner import RUNNER_VERSION, SocRunner, carry_out, load_config, open_log, parse_args, single_instance
+from runner import RUNNER_VERSION, SocRunner, build_evidence_packet, carry_out, load_config, open_log, parse_args, single_instance
 from server_client import NotClaimed, ServerError, SubmitRejected
 
 SKILL_MD = "---\nname: tor-word-compliance-check\ndescription: test\n---\n# skill\n"
@@ -70,7 +71,8 @@ class FakeServer:
             raise self.report_error
         self.reports.append((request_id, payload))
 
-    def submit(self, request_id: str, results: Path, soc_check: Path, model: str, skill_version: str) -> dict:
+    def submit(self, request_id: str, results: Path, soc_check: Path, model: str, skill_version: str,
+               packet_fallback: str = "") -> dict:
         if self.submit_error:
             raise self.submit_error
         self.submits.append({
@@ -80,6 +82,7 @@ class FakeServer:
             "socCheck": soc_check.read_bytes(),
             "model": model,
             "skillVersion": skill_version,
+            "packetFallback": packet_fallback,
         })
         return {"runId": "run-1", "rowCount": 1}
 
@@ -521,6 +524,128 @@ class SpecialStatesTest(unittest.TestCase):
         self.assertFalse(claude.tasks[1].resume)
         self.assertNotEqual(claude.tasks[1].session_id, claude.tasks[0].session_id)
         self.assertEqual(claude.seen_out[1], [])
+
+
+class PacketFlowTest(unittest.TestCase):
+    """Ticket 10: the runner builds the evidence packet before Claude runs, or falls back to the old flow."""
+
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-test-"))
+        self.skill = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD})
+        self.request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4")
+        self.server = FakeServer(self.request, files)
+        self.builds = []
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def builder(self, reason=""):
+        def build(work, skill_dir, documents, label):
+            self.builds.append((skill_dir, documents, label))
+            if not reason:
+                (work / "out" / "packet").mkdir(parents=True)
+                (work / "out" / "packet" / "job.json").write_text("{}", encoding="utf-8")
+            return reason
+        return build
+
+    def test_the_packet_is_built_first_and_the_prompt_turns_the_packet_flow_on(self):
+        claude = FakeClaude()
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=self.builder()), "submitted")
+        (skill_dir, documents, label), = self.builds
+        self.assertEqual(skill_dir.parts[-3:], (".claude", "skills", "tor-word-compliance-check"))
+        self.assertIn(("SOC", "SOC ภาคผนวก.docx"), documents)
+        self.assertEqual(label, "๑")
+        self.assertIn("packet", claude.seen_out[0], "Claude finds the packet already in out/")
+        prompt = claude.tasks[0].prompt
+        self.assertIn("evidence_packet", prompt)
+        self.assertIn("สร้างไว้แล้วที่ `out/packet`", prompt)
+        self.assertEqual(self.server.submits[0]["packetFallback"], "")
+        self.assertIn("กำลังเตรียม evidence packet ข้อ ๑", [p.get("progress") for _, p in self.server.reports])
+
+    def test_when_the_packet_cant_be_built_the_old_flow_runs_and_the_submit_says_why(self):
+        claude = FakeClaude()
+        logged = []
+        outcome = carry_out(self.request, self.server, claude, self.work_root, logged.append,
+                            build_packet=self.builder("สร้าง evidence packet ไม่สำเร็จ (exit 1): ValueError"))
+        self.assertEqual(outcome, "submitted")
+        prompt = claude.tasks[0].prompt
+        self.assertNotIn("evidence_packet", prompt)
+        self.assertNotIn("out/packet", prompt)
+        self.assertIn("tor_decision", prompt)
+        self.assertEqual(self.server.submits[0]["packetFallback"], "สร้าง evidence packet ไม่สำเร็จ (exit 1): ValueError")
+        self.assertTrue(any("ใช้ flow เดิม" in line for line in logged))
+
+    def test_a_resumed_run_keeps_its_flow_and_does_not_build_again(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s")]
+        build = self.builder("skill รุ่นนี้ไม่มีตัวสร้าง evidence packet")
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=build), "paused")
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=build), "submitted")
+        self.assertEqual(len(self.builds), 1)
+        self.assertTrue(claude.tasks[1].resume)
+        self.assertEqual(self.server.submits[0]["packetFallback"], "skill รุ่นนี้ไม่มีตัวสร้าง evidence packet")
+
+    def test_a_lost_session_reuses_the_packet_already_built(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s"), ClaudeSessionMissing("ไม่พบการตรวจรอบก่อน")]
+        build = self.builder()
+        carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=build)
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=build), "submitted")
+        self.assertEqual(len(self.builds), 1)
+        self.assertIn("evidence_packet", claude.tasks[2].prompt)
+
+
+class BuildEvidencePacketTest(unittest.TestCase):
+    """The real builder call, with a stand-in for the skill's build_evidence_packet.py."""
+
+    SOC = [("SOC", "SOC ภาคผนวก.docx"), ("EVIDENCE", "2.5/Datasheet A.pdf")]
+
+    def setUp(self):
+        self.work = Path(tempfile.mkdtemp(prefix="soc-runner-packet-"))
+        self.skill_dir = self.work / ".claude" / "skills" / "tor-word-compliance-check"
+        (self.work / "out").mkdir(parents=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.work, ignore_errors=True)
+
+    def stand_in(self, *lines: str):
+        script = self.skill_dir / "scripts" / "build_evidence_packet.py"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("\n".join(["import json, pathlib, sys", *lines]) + "\n", encoding="utf-8")
+
+    def build(self, documents=SOC, env=None, **kwargs):
+        base = {k: v for k, v in os.environ.items() if k != "SOC_RUNNER_PACKET"}  # Windows Python needs SYSTEMROOT
+        return build_evidence_packet(self.work, self.skill_dir, documents, "๕.๕", env={**base, **(env or {})}, **kwargs)
+
+    def test_a_built_packet_returns_no_reason(self):
+        self.stand_in("out = pathlib.Path(sys.argv[4]); out.mkdir(parents=True)",
+                      "(out / 'job.json').write_text(json.dumps(sys.argv[1:4], ensure_ascii=False), encoding='utf-8')")
+        self.assertEqual(self.build(), "")
+        args = json.loads((self.work / "out" / "packet" / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual([Path(args[0]).as_posix(), args[1], args[2]], ["inputs/SOC ภาคผนวก.docx", "๕.๕", "inputs"])
+
+    def test_a_failing_builder_gives_its_last_error_line_and_leaves_no_half_packet(self):
+        self.stand_in("out = pathlib.Path(sys.argv[4]); (out / 'rows').mkdir(parents=True)",
+                      "sys.exit('ไม่พบข้อใหญ่ ๕.๕ ใน SOC')")
+        reason = self.build()
+        self.assertIn("สร้าง evidence packet ไม่สำเร็จ (exit 1)", reason)
+        self.assertIn("ไม่พบข้อใหญ่ ๕.๕ ใน SOC", reason)
+        self.assertFalse((self.work / "out" / "packet").exists())
+
+    def test_a_builder_that_writes_no_job_json_falls_back(self):
+        self.stand_in("pass")
+        self.assertIn("ไม่สำเร็จ (exit 0)", self.build())
+
+    def test_a_builder_that_runs_too_long_is_stopped(self):
+        self.stand_in("import time; time.sleep(30)")
+        self.assertIn("นานเกิน", self.build(timeout=1))
+
+    def test_reasons_to_skip_the_builder(self):
+        self.assertIn("ไม่มีตัวสร้าง", self.build())
+        self.stand_in("raise SystemExit('should not run')")
+        self.assertIn("SOC_RUNNER_PACKET=0", self.build(env={"SOC_RUNNER_PACKET": "0"}))
+        self.assertIn(".docx", self.build([("SOC", "SOC.doc")]))
+        self.assertIn("2 ไฟล์", self.build(self.SOC + [("SOC", "SOC2.docx")]))
 
 
 class PausingServer(FakeServer):

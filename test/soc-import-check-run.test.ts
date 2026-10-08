@@ -61,7 +61,7 @@ async function setup() {
   return { owner, jobId, item, total: items.length };
 }
 
-const MANUAL = { skillVersion: "sha256:66938c26cb0ed5ae", model: "claude-cli:sonnet", source: "manual" as const };
+const MANUAL: { skillVersion: string; model: string; source: "manual" | "runner"; packetFallback?: string } = { skillVersion: "sha256:66938c26cb0ed5ae", model: "claude-cli:sonnet", source: "manual" };
 
 function importRun(actor: Actor, jobId: string, majorItemId: string, results: unknown, overrides: { socCheck?: Uint8Array; run?: Partial<typeof MANUAL> } = {}) {
   return importLocalCheckRun(actor, {
@@ -167,9 +167,24 @@ test("a real full-mode run for one major item imports through the upload route, 
 
   const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "RUN_IMPORTED" } });
   assert.equal(event.actorId, signedIn.id);
-  assert.deepEqual(event.detail, { runId: body.runId, majorItemId: item.id, majorItem: "๑", rowCount: 7, source: "manual", skillVersion: run.skill_version, model: run.model, documentId: document.id });
+  assert.deepEqual(event.detail, { runId: body.runId, majorItemId: item.id, majorItem: "๑", rowCount: 7, source: "manual", skillVersion: run.skill_version, model: run.model, documentId: document.id, evidenceFlow: "standard" });
   const log = await prisma.auditLog.findFirstOrThrow({ where: { entityId: jobId, action: "SOC_RUN_IMPORTED" } });
   assert.equal(log.actorId, signedIn.id);
+});
+
+test("the run's event records whether the skill used the evidence packet, and why the runner fell back", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  const packetRun = { ...runFor("1"), options: [...runFor("1").options, "evidence_packet"] };
+  const imported = await importRun(owner, jobId, item.id, packetRun);
+  assert.ok(imported.ok, JSON.stringify(imported));
+  const packetEvent = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "RUN_IMPORTED" } });
+  assert.equal((packetEvent.detail as Record<string, unknown>).evidenceFlow, "packet");
+  assert.equal((packetEvent.detail as Record<string, unknown>).packetFallback, undefined);
+
+  const fallback = await importRun(owner, jobId, item.id, runFor("1"), { run: { packetFallback: " skill รุ่นนี้ไม่มีตัวสร้าง evidence packet " } });
+  assert.ok(fallback.ok, JSON.stringify(fallback));
+  const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "RUN_IMPORTED", detail: { path: ["runId"], equals: fallback.runId } } });
+  assert.deepEqual([(event.detail as Record<string, unknown>).evidenceFlow, (event.detail as Record<string, unknown>).packetFallback], ["standard", "skill รุ่นนี้ไม่มีตัวสร้าง evidence packet"]);
 });
 
 test("skill version and model typed in the upload form override the ones in the file", { skip }, async () => {

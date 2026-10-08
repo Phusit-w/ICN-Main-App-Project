@@ -93,6 +93,9 @@ class HttpServerClientTest(unittest.TestCase):
         self.assertTrue(SEEN[-1]["type"].startswith("multipart/form-data; boundary="))
         for part in (b'name="results"', b'{"mode":"full_audit"}', b'name="socCheck"', b"PK-docx", b"claude-sonnet-5-5", b"v7", b'.docx"'):
             self.assertIn(part, body)
+        self.assertNotIn(b'name="packetFallback"', body, "sent only when the item ran without the packet")
+        self.client.submit("r1", results, soc_check, "m", "v7", packet_fallback="ปิด evidence packet ไว้")
+        self.assertIn('name="packetFallback"\r\n\r\nปิด evidence packet ไว้'.encode("utf-8"), SEEN[-1]["body"])
 
         ROUTES["/api/soc-runner/requests/r1/submit"] = (422, {"errors": ["row 3: ขาด tor_decision"]}, {})
         with self.assertRaises(SubmitRejected) as rejected:

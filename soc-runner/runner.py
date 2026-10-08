@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -29,10 +30,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
-from claude_cli import ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
+from claude_cli import NO_WINDOW, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.2.3"
+RUNNER_VERSION = "0.3.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -40,6 +41,10 @@ HEARTBEAT_SECONDS = 30
 IDLE_POLL_SECONDS = 15
 REFUSED_RETRY_SECONDS = 60  # token refused, no soc access, or no skill on the server
 MISSING_DOCUMENTS_FILE = "missing_documents.json"  # written by the skill's headless step 0
+PACKET_DIR = "packet"  # under out/: the evidence packet the runner builds before Claude runs (ticket 10)
+PACKET_BUILDER = "scripts/build_evidence_packet.py"  # in the skill package
+PACKET_TIMEOUT_SECONDS = 20 * 60
+PACKET_SWITCH = "SOC_RUNNER_PACKET"  # "0" turns the packet off, e.g. to measure the old flow's quota
 RUN_STATE_FILE = "soc-runner-run.json"  # the Claude session of a request, kept for a resume
 RESUME_MARGIN_SECONDS = 2 * 60  # after the quota window resets
 DEFAULT_PAUSE_SECONDS = 30 * 60  # when the CLI didn't say when the quota comes back
@@ -81,7 +86,8 @@ def load_config(path: Path) -> Config:
 # ---------------------------------------------------------------- one request
 
 
-def carry_out(request: dict, server, claude, work_root: Path, log=print, on_pause=None, clock=time.time) -> str:
+def carry_out(request: dict, server, claude, work_root: Path, log=print, on_pause=None, clock=time.time,
+              build_packet=None) -> str:
     """Carries out one claimed Check Request.
 
     Returns "submitted", "rejected" (the import refused the results and the
@@ -94,7 +100,13 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
     The work folder is named after the request and keeps the Claude session
     id, so a paused or logged-out run, or one cut short by a restart, resumes
     that session with the rows it already did when the request comes back.
+
+    Before Claude runs, the skill's packet builder prepares the evidence packet
+    in out/packet and the prompt turns the skill's packet flow on. When the
+    packet can't be built, the item runs on the old flow and the reason goes
+    with the submit (`build_packet(work, skill_dir, soc, label)` returns it).
     """
+    build_packet = build_packet or build_evidence_packet
     request_id = request["id"]
     item = request["majorItem"]
     work = Path(work_root) / _safe_name(request_id)
@@ -111,9 +123,23 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
             saved = _new_run_state(work, skill_version)
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / MISSING_DOCUMENTS_FILE).unlink(missing_ok=True)
+        skill_dir = work / ".claude" / "skills" / skill_name
+
+        def prepare_packet() -> None:
+            # A resumed session already knows which flow it is on; the choice is kept with the session.
+            if "packetFallback" in saved:
+                return
+            server.report(request_id, {"state": "running", "progress": f"กำลังเตรียม evidence packet ข้อ {item['label']}"})
+            saved["packetFallback"] = build_packet(work, skill_dir, documents, item["label"]) or ""
+            _write_run_state(work, saved)
+            if saved["packetFallback"]:
+                log(f"[{request_id}] ไม่ใช้ evidence packet ใช้ flow เดิม: {saved['packetFallback']}")
+
+        if not resume:
+            prepare_packet()
         server.report(request_id, {"state": "running", "progress": f"Claude กำลังตรวจข้อ {item['label']}{' ต่อ' if resume else ''}"})
         log(f"[{request_id}] {'ตรวจต่อ' if resume else 'ตรวจ'}ข้อ {item['label']} ด้วย skill {skill_version}")
-        prompt = build_resume_prompt(request) if resume else build_prompt(request, skill_name, documents)
+        prompt = build_resume_prompt(request) if resume else build_prompt(request, skill_name, documents, packet=not saved["packetFallback"])
         try:
             run = claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=saved["sessionId"], resume=resume))
         except ClaudeSessionMissing:
@@ -122,8 +148,9 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
             # The session was never saved (it stopped at once) or is gone: a new
             # one, which still finds the rows already written in out/.
             log(f"[{request_id}] ไม่พบ session เดิมของ Claude เริ่มใหม่โดยใช้ผลระหว่างทางใน out/")
-            saved = _new_run_state(work, skill_version)
-            prompt = build_prompt(request, skill_name, documents) + PARTIAL_OUTPUT_NOTE
+            saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
+            prepare_packet()
+            prompt = build_prompt(request, skill_name, documents, packet=not saved["packetFallback"]) + PARTIAL_OUTPUT_NOTE
             run = claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=saved["sessionId"]))
         acknowledged = request.get("acknowledgedMissing") or []
         missing = _missing_documents(out_dir, acknowledged)
@@ -136,7 +163,8 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
             raise RunFailed(f"Claude หยุดเพราะขาดเอกสารที่ผู้ตรวจรับทราบแล้ว ({', '.join(acknowledged)}) แทนที่จะตรวจต่อ ลองกดตรวจใหม่")
         results, soc_check = _outputs(out_dir, run.summary)
         server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตรวจ"})
-        submitted = server.submit(request_id, results, soc_check, run.model, skill_version)
+        submitted = server.submit(request_id, results, soc_check, run.model, skill_version,
+                                  packet_fallback=saved.get("packetFallback") or "")
     except NotClaimed:
         log(f"[{request_id}] คำขอนี้ไม่ได้อยู่กับเครื่องนี้แล้ว (ยกเลิกหรือหมดเวลา) ข้ามไป")
         shutil.rmtree(work, ignore_errors=True)
@@ -208,7 +236,8 @@ def rows_scope(rows: list[dict]) -> str:
             " results.json ให้มีเฉพาะแถวเหล่านี้ (เลข row ตามตาราง SOC เดิม)")
 
 
-def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]]) -> str:
+def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]], packet: bool = False) -> str:
+    """`packet`: the runner built the evidence packet in out/packet, so the skill's packet flow is on."""
     item = request["majorItem"]
     rows = request.get("rows") or []
     soc = [name for kind, name in documents if kind == "SOC"]
@@ -219,19 +248,59 @@ def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]
         "",
         f"ใช้ skill `{skill_name}` ที่อยู่ใน `.claude/skills/{skill_name}/SKILL.md` ของโฟลเดอร์นี้เท่านั้น"
         " (ห้ามใช้ skill ชื่อเดียวกันจากที่อื่น) อ่าน HEADLESS.md ข้าง SKILL.md ก่อนเริ่ม",
-        "ตรวจ SOC ในโหมด full_audit พร้อม option evidence_support และ tor_decision ห้ามถามผู้ใช้",
+        "ตรวจ SOC ในโหมด full_audit พร้อม option evidence_support"
+        + (", tor_decision และ evidence_packet" if packet else " และ tor_decision") + " ห้ามถามผู้ใช้",
         "",
         f"- ไฟล์ SOC: {', '.join(f'`inputs/{n}`' for n in soc) or '(ไม่มี)'}",
         f"- ไฟล์หลักฐาน: {', '.join(f'`inputs/{n}`' for n in evidence) or '(ไม่มี)'}",
         f"- ตรวจเฉพาะข้อใหญ่ {item['label']} \"{item.get('title') or ''}\" {item_scope(item)}"
         + ("" if rows else " ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้"),
         *([rows_scope(rows)] if rows else []),
+        *([f"- packet: สร้างไว้แล้วที่ `out/{PACKET_DIR}` จากโฟลเดอร์งาน `inputs` ใช้ packet นี้ ไม่ต้องสร้างใหม่"] if packet else []),
         "- โฟลเดอร์ output: `out/` ให้เขียนผลเป็น `out/results.json` และเอกสาร `out/SOC_Check.docx`"
         " ไฟล์ระหว่างทาง (เช่น highlights.json) ก็เก็บใน `out/`",
         f"- acknowledged_missing: {acknowledged}",
         "- ห้ามแก้ไขไฟล์ใน `inputs/`",
     ]
     return "\n".join(lines) + "\n"
+
+
+def build_evidence_packet(work: Path, skill_dir: Path, documents: list[tuple[str, str]], label: str,
+                          env: dict | None = None, timeout: float = PACKET_TIMEOUT_SECONDS) -> str:
+    """Runs the skill's packet builder into out/packet. Returns "" when the packet is ready,
+    else the Thai reason the item runs on the old flow instead (the skill falls back the same way)."""
+    env = dict(os.environ if env is None else env)
+    if env.get(PACKET_SWITCH, "").strip() == "0":
+        return f"ปิด evidence packet ไว้ ({PACKET_SWITCH}=0)"
+    builder = skill_dir / PACKET_BUILDER
+    if not builder.is_file():
+        return "skill รุ่นนี้ไม่มีตัวสร้าง evidence packet"
+    socs = [name for kind, name in documents if kind == "SOC"]
+    if len(socs) != 1:
+        return f"งานนี้มีไฟล์ SOC {len(socs)} ไฟล์ packet ใช้ได้กับ SOC ไฟล์เดียว"
+    if not socs[0].lower().endswith(".docx"):
+        return "packet ใช้ได้กับ SOC แบบ Word .docx เท่านั้น"
+    packet = work / "out" / PACKET_DIR
+    shutil.rmtree(packet, ignore_errors=True)
+    # pythonw (the installed runner) has no stdout, so the builder runs on the python.exe beside it.
+    console = Path(sys.executable).with_name("python.exe")
+    python = str(console) if os.name == "nt" and console.is_file() else sys.executable
+    argv = [python, str(builder), str(Path("inputs") / socs[0]), label, "inputs", str(Path("out") / PACKET_DIR)]
+    try:
+        done = subprocess.run(argv, cwd=work, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=timeout, env={**env, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+                              creationflags=NO_WINDOW)
+    except subprocess.TimeoutExpired:
+        reason = f"สร้าง evidence packet นานเกิน {int(timeout // 60)} นาที"
+    except OSError as error:
+        reason = f"เรียกตัวสร้าง evidence packet ไม่ได้ ({error})"
+    else:
+        if done.returncode == 0 and (packet / "job.json").is_file():
+            return ""
+        lines = [line for line in (done.stderr or done.stdout or "").strip().splitlines() if line.strip()]
+        reason = f"สร้าง evidence packet ไม่สำเร็จ (exit {done.returncode}): {lines[-1].strip() if lines else ''}".strip()
+    shutil.rmtree(packet, ignore_errors=True)  # half a packet must not reach Claude
+    return reason[:300]
 
 
 def _report_failed(server, request_id: str, reason: str, log) -> str:
@@ -284,9 +353,12 @@ def _document_key(name: str) -> str:
     return DOCUMENT_EXTENSION.sub("", name.strip()).strip().casefold()
 
 
-def _new_run_state(work: Path, skill_version: str) -> dict:
-    """A new Claude session for this request, saved so a resume after a pause can continue it."""
+def _new_run_state(work: Path, skill_version: str, packet_fallback: str | None = None) -> dict:
+    """A new Claude session for this request, saved so a resume after a pause can continue it.
+    `packetFallback` ("" = packet flow, else why not) is set once the packet step has run."""
     saved = {"sessionId": str(uuid.uuid4()), "skillVersion": skill_version}
+    if packet_fallback is not None:
+        saved["packetFallback"] = packet_fallback
     _write_run_state(work, saved)
     return saved
 

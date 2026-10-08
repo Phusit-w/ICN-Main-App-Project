@@ -110,12 +110,13 @@ function report(token: string, requestId: string, body: unknown) {
   return reportRoute(new Request(`${at(requestId)}/report`, { method: "POST", headers: { ...auth(token), "content-type": "application/json" }, body: JSON.stringify(body) }), params({ id: requestId }));
 }
 
-function submit(token: string, requestId: string, results: unknown, fields: { skillVersion?: string; model?: string } = {}) {
+function submit(token: string, requestId: string, results: unknown, fields: { skillVersion?: string; model?: string; packetFallback?: string } = {}) {
   const form = new FormData();
   form.set("results", new File([JSON.stringify(results)], "results.json", { type: "application/json" }));
   form.set("socCheck", new File([SOC_CHECK], "SOC_Check-ข้อ1.docx"));
   form.set("model", fields.model ?? "claude-cli:sonnet");
   if (fields.skillVersion) form.set("skillVersion", fields.skillVersion);
+  if (fields.packetFallback) form.set("packetFallback", fields.packetFallback);
   return submitRoute(new Request(`${at(requestId)}/submit`, { method: "POST", headers: auth(token), body: form }), params({ id: requestId }));
 }
 
@@ -169,6 +170,20 @@ test("ตรวจทั้งชุด queues every unchecked major item, and c
   }
   assert.deepEqual(order, items.filter((m) => m.id !== item1.id).map((m) => m.id));
   assert.equal((await claim(token)).body.request, null);
+});
+
+test("a runner that fell back from the evidence packet says why, and the run's event keeps it", { skip }, async () => {
+  const { alice, jobId, item1 } = await setup();
+  const token = await linkRunner(alice);
+  signedIn = alice;
+  assert.deepEqual(await requestSocCheck(jobId, item1.id), { ok: true, requested: 1 });
+  const claimed = (await claim(token)).body.request!;
+  const response = await submit(token, claimed.id, runFor("1"), { packetFallback: "packet ใช้ได้กับ SOC แบบ Word .docx เท่านั้น" });
+  assert.equal(response.status, 201);
+  const { runId } = (await response.json()) as { runId: string };
+  const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "RUN_IMPORTED", detail: { path: ["runId"], equals: runId } } });
+  const detail = event.detail as Record<string, unknown>;
+  assert.deepEqual([detail.source, detail.evidenceFlow, detail.packetFallback], ["runner", "standard", "packet ใช้ได้กับ SOC แบบ Word .docx เท่านั้น"]);
 });
 
 test("ไม่ต้องตรวจ: a skipped item is left out of ตรวจทั้งชุด and progress, can't be requested, and switches back", { skip }, async () => {

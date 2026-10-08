@@ -9,7 +9,8 @@ const MAX_RESULTS_BYTES = 10 * 1024 * 1024;
 
 // The runner submits a finished Local Check Run for a request it is running
 // (docs/SOC-RUNNER.md): multipart `results` (results.json), `socCheck`
-// (.docx), `skillVersion` (else the pinned package's version) and `model`.
+// (.docx), `skillVersion` (else the pinned package's version), `model` and,
+// when the item ran without the evidence packet, `packetFallback` (why).
 // It goes through the same import as a manual upload: 201 { runId,
 // rowCount }, or 422/409 { errors } and the request is closed as failed.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -42,6 +43,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       socCheck: { name: socCheck.name, bytes: new Uint8Array(await socCheck.arrayBuffer()) },
       skillVersion: String(form.get("skillVersion") || "").trim(),
       model: String(form.get("model") || "").trim(),
+      packetFallback: String(form.get("packetFallback") || "").trim(),
     });
     if (!imported.ok) {
       return NextResponse.json(

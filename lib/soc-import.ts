@@ -23,7 +23,9 @@ export type LocalCheckRunInput = {
   majorItemId: string;
   results: unknown; // the parsed results.json
   socCheck: { name: string; bytes: Uint8Array }; // the run's SOC_Check .docx
-  run: { skillVersion: string; model: string; source: LocalCheckRunSource };
+  // packetFallback (runner only): why the item ran on the old flow instead of the
+  // evidence packet; recorded with the run in its RUN_IMPORTED event.
+  run: { skillVersion: string; model: string; source: LocalCheckRunSource; packetFallback?: string };
   // Re-check only: the row numbers with a Final Decision that the reviewer
   // was warned about and agreed to replace ("แทนที่แถวที่ยืนยันแล้ว"). A row
   // decided after the warning isn't in the list, so it warns again.
@@ -168,6 +170,13 @@ class ConfirmationRequired extends Error {
   }
 }
 
+// Which flow the skill ran on, from results.json `options` (the skill adds
+// "evidence_packet" only when it used the packet).
+export function evidenceFlow(results: unknown): "packet" | "standard" {
+  const options = typeof results === "object" && results !== null ? (results as Record<string, unknown>).options : null;
+  return Array.isArray(options) && options.includes("evidence_packet") ? "packet" : "standard";
+}
+
 // Validates and stores one Local Check Run for one major item. The caller
 // has already authorised the actor for the job. Throws NOT_FOUND when the
 // job or major item doesn't exist; returns the problems when the run is
@@ -213,7 +222,8 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   const documentId = randomUUID();
   const stored = await storeSocFile(job.id, input.socCheck.name, ".docx", input.socCheck.bytes);
   const source = input.run.source;
-  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: runRows.length, source, skillVersion, model, documentId, ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}), ...(onlyRows ? { rowNumbers: runRows.map((r) => r.row) } : {}) };
+  const packetFallback = input.run.packetFallback?.trim().slice(0, 300);
+  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: runRows.length, source, skillVersion, model, documentId, evidenceFlow: evidenceFlow(input.results), ...(packetFallback ? { packetFallback } : {}), ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}), ...(onlyRows ? { rowNumbers: runRows.map((r) => r.row) } : {}) };
   let replacedRowCount = 0;
   try {
     const now = new Date();
