@@ -213,6 +213,19 @@ class CarryOutTest(unittest.TestCase):
         carry_out(request, server, claude, self.work_root, quiet)
         self.assertIn('acknowledged_missing: ["Section 3.2 Datasheet"]', claude.tasks[0].prompt)
 
+    def test_the_item_scope_ends_at_a_dot_so_5_1_does_not_take_in_5_10(self):
+        # A split major item ๕.๑ sits beside ๕.๑๐–๕.๑๕; "starts with ๕.๑" would take them in and the
+        # server's validator would reject the whole run.
+        request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4")
+        request["majorItem"].update({"key": "5.1", "label": "๕.๑", "title": "เครื่องคอมพิวเตอร์แม่ข่าย"})
+        claude = FakeClaude()
+        carry_out(request, FakeServer(request, files), claude, self.work_root, quiet)
+        prompt = claude.tasks[0].prompt
+        self.assertNotIn("ขึ้นต้นด้วย ๕.๑ ", prompt)
+        self.assertIn("`๕.๑.`", prompt)
+        self.assertIn("`5.1.`", prompt)
+        self.assertIn("๕.๑๐", prompt)  # the counter-example, named as outside the item
+
     def test_the_downloaded_skill_version_is_recorded_over_the_claim(self):
         self.server.files[self.request["skill"]["url"]].headers = {"X-Soc-Skill-Version": "v8-pinned"}
         carry_out(self.request, self.server, FakeClaude(), self.work_root, quiet)

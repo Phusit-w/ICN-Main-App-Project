@@ -32,7 +32,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.2.0"
+RUNNER_VERSION = "0.2.1"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -189,6 +189,17 @@ def build_resume_prompt(request: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def item_scope(item: dict) -> str:
+    """Which item numbers belong to the major item, as the server's validator reads it: the number
+    itself or one that continues after a dot. "Starts with ๕.๑" would also take in ๕.๑๐–๕.๑๕,
+    the sub-sections beside a split ๕.๑, and the validator would reject the whole run."""
+    label, key = item["label"], item["key"]
+    zero, one = ("๐", "๑") if label[-1:] in "๐๑๒๓๔๕๖๗๘๙" else ("0", "1")
+    numbers = [label] if label == key else [label, key]
+    return (f"(เลขข้อเท่ากับ {' หรือ '.join(numbers)} หรือขึ้นต้นด้วย {' หรือ '.join(f'`{n}.`' for n in numbers)} เท่านั้น"
+            f" เช่น {label}.{one} อยู่ในข้อนี้ แต่ {label}{zero} ไม่ใช่)")
+
+
 def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]]) -> str:
     item = request["majorItem"]
     soc = [name for kind, name in documents if kind == "SOC"]
@@ -203,8 +214,8 @@ def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]
         "",
         f"- ไฟล์ SOC: {', '.join(f'`inputs/{n}`' for n in soc) or '(ไม่มี)'}",
         f"- ไฟล์หลักฐาน: {', '.join(f'`inputs/{n}`' for n in evidence) or '(ไม่มี)'}",
-        f"- ตรวจเฉพาะข้อใหญ่ {item['label']} (เลขข้อขึ้นต้นด้วย {item['label']} หรือ {item['key']}) "
-        f"\"{item.get('title') or ''}\" ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้",
+        f"- ตรวจเฉพาะข้อใหญ่ {item['label']} \"{item.get('title') or ''}\" {item_scope(item)}"
+        " ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้",
         "- โฟลเดอร์ output: `out/` ให้เขียนผลเป็น `out/results.json` และเอกสาร `out/SOC_Check.docx`"
         " ไฟล์ระหว่างทาง (เช่น highlights.json) ก็เก็บใน `out/`",
         f"- acknowledged_missing: {acknowledged}",
