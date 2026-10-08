@@ -248,6 +248,19 @@ about a minute after the config was written. Then:
 Steps 2–5 below passed on this PC except the check itself (prod has no SOC job for this user yet). Still open: a
 real check on prod, reboot, used-code refusal + repair, a PC without Claude Code.
 
+**2026-10-08 09:02: first real check on prod passed.** The first SOC upload on prod failed with `Unexpected token 'T',
+"The page w"... is not valid JSON`. Cause: IIS's default `maxAllowedContentLength` (~28.6 MB) answered with an HTML
+error page. The user set it to 300 MB in `C:\inetpub\wwwroot\web.config` (matching `proxyClientMaxBodySize`), and the
+upload then worked. Recorded in `docs/DEPLOY-WINDOWS.md` (c0a2fdb).
+
+Job "4. DOAXXX_Apron_ท่าอากาศยานสุราษฎร์ธานี (Re-bidding)" (4 major items) → ตรวจ on ๑. The runner on this PC:
+- claimed it at 08:54:59 and ran the skill (sha256:a85b6064…) at 08:55:12;
+- **submitted 80 rows at 09:02:46** (about 8 minutes);
+- left no work folder behind.
+
+`/soc` now shows ตรวจแล้ว 1/4 ข้อใหญ่ with 80 rows. Still open: reboot, used-code refusal + repair, a PC without Claude
+Code. The rows were not reviewed for accuracy here; that is the reviewer's job on the review page.
+
 **Manual test steps (install command; fill in the results here):**
 
 1. Deploy (see below). On the server `.env`: `SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"` and
