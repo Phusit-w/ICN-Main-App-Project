@@ -130,6 +130,28 @@ export async function addSocEvidence(actor: SocActor, job: { id: string; title: 
   }
 }
 
+// Removes one evidence PDF from an Imported SOC Check the actor may open,
+// e.g. a wrong file or an old version. The SOC itself can't be removed: its
+// major items come from it. Refused while a SOC Runner is checking the job,
+// since the runner may still be downloading the job's documents.
+export async function removeSocEvidence(actor: SocActor, documentId: string) {
+  const document = await prisma.socDocument.findUnique({ where: { id: documentId } });
+  if (!document) throw new Error("NOT_FOUND");
+  const { job } = await authorizeSocJob(document.jobId);
+  if (job.kind !== "IMPORTED" || document.type !== "EVIDENCE") throw new Error("ลบได้เฉพาะไฟล์ PDF หลักฐานของงานตรวจแบบนำเข้าผล");
+  if (await prisma.socCheckRequest.count({ where: { jobId: job.id, state: "running" } })) {
+    throw new Error("SOC Runner กำลังตรวจงานนี้อยู่ ลบไฟล์ได้หลังตรวจเสร็จ");
+  }
+  const detail = { documentId: document.id, name: document.originalName };
+  await prisma.$transaction([
+    prisma.socDocument.delete({ where: { id: document.id } }),
+    prisma.socJob.update({ where: { id: job.id }, data: { updatedAt: new Date() } }),
+    prisma.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "EVIDENCE_REMOVED", detail } }),
+  ]);
+  await rm(resolveStorageKey(document.storageKey), { force: true }).catch(() => undefined);
+  await writeAudit({ actorId: actor.id, action: "SOC_EVIDENCE_REMOVED", entityType: "SOC_JOB", entityId: job.id, summary: `ลบเอกสารหลักฐาน ${document.originalName} จากงาน ${job.title}`, metadata: detail });
+}
+
 export function magicIsDocx(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }

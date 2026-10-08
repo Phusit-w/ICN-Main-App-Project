@@ -20,6 +20,7 @@ mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
 const { POST: createJob } = await import("@/app/api/soc/jobs/route");
 const { POST: addEvidence } = await import("@/app/api/soc/jobs/[id]/evidence/route");
+const { DELETE: deleteDocument } = await import("@/app/api/soc/documents/[id]/route");
 const { authorizeSocJob, listSocJobs } = await import("@/lib/soc");
 const { trashSocJob } = await import("@/actions/soc");
 const { purgeSocJob } = await import("@/actions/admin");
@@ -228,6 +229,53 @@ test("evidence that isn't a PDF is rejected and nothing is added", { skip }, asy
   const response = await postEvidence(jobId, [{ name: "notes.pdf", bytes: new TextEncoder().encode("hello") }]);
   assert.equal(response.status, 400);
   assert.equal(await prisma.socDocument.count({ where: { jobId, type: "EVIDENCE" } }), 1);
+});
+
+function removeDocument(documentId: string) {
+  return deleteDocument(new Request(`http://localhost/api/soc/documents/${documentId}`, { method: "DELETE" }), { params: Promise.resolve({ id: documentId }) });
+}
+
+test("another soc user can remove an evidence PDF after upload: its row and file go, and it is audited", { skip }, async () => {
+  const owner = await user("owner");
+  const colleague = await user("colleague");
+  const jobId = await createImported(owner);
+  const evidence = await prisma.socDocument.findFirstOrThrow({ where: { jobId, type: "EVIDENCE" } });
+  const file = path.join(storageRoot, ...evidence.storageKey.split("/"));
+
+  signedIn = colleague;
+  const response = await removeDocument(evidence.id);
+  assert.equal(response.status, 204);
+  assert.equal(await prisma.socDocument.count({ where: { id: evidence.id } }), 0);
+  assert.equal(existsSync(file), false);
+  const event = await prisma.socAuditEvent.findFirstOrThrow({ where: { jobId, action: "EVIDENCE_REMOVED" } });
+  assert.equal(event.actorId, colleague.id);
+  assert.deepEqual(event.detail, { documentId: evidence.id, name: "CASRI.pdf" });
+  assert.equal(await prisma.auditLog.count({ where: { entityId: jobId, action: "SOC_EVIDENCE_REMOVED", actorId: colleague.id } }), 1);
+});
+
+test("the SOC itself can't be removed, nor evidence by a user without soc access", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+  const soc = await prisma.socDocument.findFirstOrThrow({ where: { jobId, type: "SOC" } });
+  const evidence = await prisma.socDocument.findFirstOrThrow({ where: { jobId, type: "EVIDENCE" } });
+
+  assert.equal((await removeDocument(soc.id)).status, 400);
+  signedIn = await user("expense-only", ["expense"]);
+  assert.equal((await removeDocument(evidence.id)).status, 403);
+  assert.equal(await prisma.socDocument.count({ where: { jobId } }), 2);
+});
+
+test("evidence can't be removed while a SOC Runner is checking the job", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+  const evidence = await prisma.socDocument.findFirstOrThrow({ where: { jobId, type: "EVIDENCE" } });
+  const item = await prisma.socMajorItem.findFirstOrThrow({ where: { jobId } });
+  await prisma.socCheckRequest.create({ data: { jobId, majorItemId: item.id, requestedById: owner.id, state: "running", priorState: "not_checked" } });
+
+  const response = await removeDocument(evidence.id);
+  assert.equal(response.status, 400);
+  assert.match(((await response.json()) as { error: string }).error, /กำลังตรวจ/);
+  assert.equal(await prisma.socDocument.count({ where: { id: evidence.id } }), 1);
 });
 
 test("an admin without explicit soc access can still open any job", { skip }, async () => {

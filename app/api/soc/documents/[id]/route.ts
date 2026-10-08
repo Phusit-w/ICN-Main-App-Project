@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
-import { authorizeSocJob, resolveStorageKey } from "@/lib/soc";
+import { authorizeSocJob, removeSocEvidence, requireSocActor, resolveStorageKey, socErrorStatus } from "@/lib/soc";
 
 export const runtime = "nodejs";
 
@@ -29,5 +29,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   } catch (error) {
     const status = error instanceof Error && error.message === "UNAUTHORIZED" ? 401 : 404;
     return new NextResponse(status === 401 ? "Unauthorized" : "Not found", { status });
+  }
+}
+
+// Removes an evidence PDF. Anyone who may open the job may remove one, as
+// anyone may add one (app/api/soc/jobs/[id]/evidence).
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    await removeSocEvidence(await requireSocActor(), id);
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ลบเอกสารไม่สำเร็จ";
+    const status = socErrorStatus(message);
+    return NextResponse.json({ error: status === 404 ? "ไม่พบเอกสาร" : message }, { status });
   }
 }

@@ -269,9 +269,18 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
       }
     });
   }
+  function remove(doc: DocumentItem) {
+    if (!window.confirm(`ลบไฟล์ ${doc.name} ออกจากงานนี้? ไฟล์จะถูกลบจาก server ถ้าต้องการอีกต้องอัปโหลดใหม่`)) return;
+    setError("");
+    startTransition(async () => {
+      const response = await fetch(`/api/soc/documents/${doc.id}`, { method: "DELETE" });
+      if (!response.ok) setError(((await response.json().catch(() => null)) as { error?: string } | null)?.error || "ลบเอกสารไม่สำเร็จ");
+      router.refresh();
+    });
+  }
   return <section id="soc-documents" className="scroll-mt-6 rounded-card bg-surface p-5 shadow-card">
     <h2 className="font-display font-semibold">เอกสารในงาน</h2>
-    <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "EVIDENCE" ? "_blank" : undefined} rel="noreferrer" className="text-ink">{doc.name}</a></li>)}</ul>
+    <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "EVIDENCE" ? "_blank" : undefined} rel="noreferrer" className="min-w-0 break-all text-ink">{doc.name}</a>{doc.type === "EVIDENCE" ? <button type="button" onClick={() => remove(doc)} disabled={pending} className="ml-auto shrink-0 text-xs text-danger hover:underline disabled:opacity-50">ลบ</button> : null}</li>)}</ul>
     <form action={submit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
       <SocFilePicker files={files} onChange={setFiles} disabled={pending} multiple folders label="เลือกไฟล์ PDF ที่จะเพิ่ม" accept=".pdf,application/pdf" />
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : `เพิ่ม PDF หลักฐาน (${files.length} ไฟล์)`}</Button></div> : null}
