@@ -29,8 +29,9 @@ export const HEADLESS_INSTRUCTION = `# โหมด headless (SOC Runner)
 ## evidence packet
 
 เมื่อ prompt เปิด \`evidence_packet\` ให้ทำตาม \`references/evidence-packet.md\` ทุกขั้นเหมือนตอนมีผู้ใช้ โหมด headless ไม่ได้ยกเว้นข้อใด
-โดยเฉพาะ P2/P3: เปิด \`rows/*.json\` และ \`page_file\` ของทุกหน้าทีละไฟล์ด้วย tool Read ห้ามเขียนสคริปต์ python/shell
-รวมหรือ dump หลายไฟล์ของ packet ลงไฟล์เดียวแล้วอ่านแทน
+โดยเฉพาะ P2/P3: เปิด \`job.md\` และไฟล์หน้า (\`pages/*.md\`) ของทุกหน้าด้วย tool Read ห้ามเขียนสคริปต์ python/shell
+รวมหรือ dump หลายไฟล์ของ packet ลงไฟล์เดียวแล้วอ่านแทน และไม่รัน script ของ flow เดิมซ้ำกับสิ่งที่ packet มีแล้ว
+(ทุกตัวอักษรที่อ่านหรือพิมพ์ออกมาถูกส่งซ้ำทุก turn ที่เหลือ จึงกินโควตาของผู้ตรวจ)
 
 ## ขั้นที่ 0: เอกสารที่ถูกอ้างไม่ครบ
 

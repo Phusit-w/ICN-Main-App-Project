@@ -65,7 +65,7 @@ test("the served package adds the headless step-0 instruction and keeps every ot
   assert.ok(headless, "HEADLESS.md is in the package next to SKILL.md");
   assert.match(headless, /missing_documents\.json/);
   // The packet flow's page-by-page reading holds under the runner too (soc-evidence-packet 10).
-  assert.match(headless, /evidence_packet[\s\S]*page_file/);
+  assert.match(headless, /evidence_packet[\s\S]*job\.md[\s\S]*pages\/\*\.md/);
   assert.match(headless, /SOC_RUNNER_HEADLESS/);
 
   const skill = entryText(served.bytes, "tor-word-compliance-check/SKILL.md")!;
