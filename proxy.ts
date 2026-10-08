@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { requireIngestKey } from "@/lib/project-card";
-import { socRunnerBearerToken } from "@/lib/soc-runner-token";
+import { isSocRunnerInstallCode, socRunnerBearerToken } from "@/lib/soc-runner-token";
 
 // Per-user login (see actions/auth.ts, lib/auth.ts, lib/session.ts,
 // app/login/page.tsx): every request needs a valid signed session cookie or
@@ -34,6 +34,9 @@ const PROJECT_CARD_INGEST_PATH = "/api/project-card/ingest";
 // that forgot its own check); each route then checks the token is known and
 // not revoked (lib/soc-runner.ts authenticateSocRunner).
 const SOC_RUNNER_API_PREFIX = "/api/soc-runner/";
+// Except the install script (ticket 16): Windows PowerShell fetches it with
+// the one-time code from the user's install command, which the route checks.
+const SOC_RUNNER_INSTALL_PREFIX = "/api/soc-runner/install/";
 
 // Per-IP rate limit — a plain sliding-ish window counter kept in memory.
 // Checked BEFORE the session check below so it also throttles someone
@@ -108,6 +111,11 @@ export function proxy(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
+  }
+
+  if (request.nextUrl.pathname.startsWith(SOC_RUNNER_INSTALL_PREFIX)) {
+    if (isSocRunnerInstallCode(request.nextUrl.pathname.slice(SOC_RUNNER_INSTALL_PREFIX.length))) return NextResponse.next();
+    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
 
   if (request.nextUrl.pathname.startsWith(SOC_RUNNER_API_PREFIX)) {

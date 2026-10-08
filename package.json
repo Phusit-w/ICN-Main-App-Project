@@ -14,7 +14,6 @@
     "soc:test": "python -m unittest soc-worker/test_worker.py -v",
     "soc:runner": "python soc-runner/runner.py",
     "soc:runner:test": "python -m unittest discover -s soc-runner -p \"test_*.py\" -v",
-    "soc:runner:build": "python soc-runner/installer/build.py",
     "postinstall": "prisma generate"
   },
   "dependencies": {

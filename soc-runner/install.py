@@ -1,8 +1,9 @@
-"""SOC Runner installer, the part after unpacking (ADR 0008, ticket 16).
+"""SOC Runner install, the Python part (ADR 0008, ticket 16).
 
-SOCRunnerSetup.exe (installer/SocRunnerSetup.cs) stops a running runner,
-unpacks the bundled Python and the runner into %LOCALAPPDATA%\\SOCRunner\\app,
-writes the runner config it carries to soc-runner.json and then runs:
+The install command /soc gives a reviewer runs bootstrap.ps1, which stops a
+running runner, puts Python (from NuGet) with the skill's packages and the
+runner into %LOCALAPPDATA%\\SOCRunner\\app, writes the runner config it
+carries to soc-runner.json and then runs:
 
     app\\python\\python.exe app\\runner\\install.py <root>
 
@@ -17,7 +18,7 @@ which, all inside the user profile and without admin rights:
 4. opens the Claude sign-in once, if this PC isn't signed in;
 5. starts the runner.
 
-Running the installer again repeats all of it: that is the repair.
+Pasting the install command again repeats all of it: that is the repair.
 """
 from __future__ import annotations
 
@@ -51,7 +52,7 @@ def install(root: Path, windows, log=print, home: Path | None = None) -> None:
     try:
         config = load_config(config_path)
     except (OSError, ValueError) as error:
-        raise InstallFailed(f"ตัวติดตั้งนี้ไม่มีไฟล์เชื่อมที่ใช้ได้ ({error}) ให้ดาวน์โหลดตัวติดตั้งจากหน้า /soc ใหม่") from None
+        raise InstallFailed(f"ไม่มีไฟล์เชื่อมที่ใช้ได้ ({error}) ให้สร้างคำสั่งติดตั้งใหม่จากหน้า /soc") from None
     log(f"ติดตั้ง SOC Runner ให้ {config.username or '?'} เชื่อมกับ {config.server_url}")
 
     claude = _ensure_claude(root, windows, log, home or Path.home())
@@ -60,7 +61,7 @@ def install(root: Path, windows, log=print, home: Path | None = None) -> None:
     if windows.add_to_user_path(str(Path(claude).parent)):
         log(f"เพิ่ม {Path(claude).parent} ใน PATH ของผู้ใช้แล้ว (พิมพ์ claude ได้ในหน้าต่างที่เปิดใหม่)")
 
-    # SOCRunner.exe is the bundled pythonw.exe under the runner's own name (build.py), so
+    # SOCRunner.exe is the runner's pythonw.exe under its own name (bootstrap.ps1), so
     # Task Manager shows "SOCRunner" rather than an unexplained Python.
     runner = [str(root / "app" / "python" / "SOCRunner.exe"), str(root / "app" / "runner" / "runner.py"),
               str(config_path), "--log", str(root / "runner.log")]

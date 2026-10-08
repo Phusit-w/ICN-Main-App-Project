@@ -1,6 +1,6 @@
 """HTTP client for the SOC Runner API (docs/SOC-RUNNER.md).
 
-Standard library only: the installer (ticket 16) ships no extra packages for it.
+Standard library only: nothing extra to install for it (ticket 16).
 The runner only calls out to the server; it never listens on a port.
 """
 from __future__ import annotations

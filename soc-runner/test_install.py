@@ -1,4 +1,4 @@
-"""The installer's steps after the stub unpacked the runner (ticket 16), with a fake Windows.
+"""install.py, the install steps after bootstrap.ps1 put Python and the runner in place (ticket 16), with a fake Windows.
 
 Run: python -m unittest discover -s soc-runner -p "test_*.py"
 """
@@ -165,7 +165,7 @@ class InstallTest(unittest.TestCase):
             self.install()
         self.assertIn("ดาวน์โหลด Claude Code", str(caught.exception))
 
-    def test_an_installer_without_a_valid_config_stops_before_touching_anything(self):
+    def test_an_install_without_a_valid_config_stops_before_touching_anything(self):
         (self.root / "soc-runner.json").write_text("{}", encoding="utf-8")
         with self.assertRaises(InstallFailed):
             self.install()

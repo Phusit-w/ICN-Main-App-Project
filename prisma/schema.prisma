@@ -142,6 +142,7 @@ model User {
   socSkillPackagesUploaded   SocSkillPackage[]
   socRunnerLinks             SocRunnerLink[]   @relation("SocRunnerLinkUser")
   socRunnerLinksRevoked      SocRunnerLink[]   @relation("SocRunnerLinkRevokedBy")
+  socRunnerInstallCodes      SocRunnerInstallCode[]
   socCheckRequests           SocCheckRequest[]
   expenseRecords             ExpenseRecord[]   @relation("ExpenseOwner")
   auditEvents                AuditLog[]        @relation("AuditActor")
@@ -386,6 +387,21 @@ model SocRunnerLink {
   checkRequests SocCheckRequest[]
 
   @@index([userId, revokedAt])
+  @@index([createdAt])
+}
+
+// A one-time code in the install command /soc gives the user (ticket 16).
+// The server keeps only its sha256. Fetching the install script with it
+// (once, before expiresAt) creates the user's SOC Runner link.
+model SocRunnerInstallCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
   @@index([createdAt])
 }
 

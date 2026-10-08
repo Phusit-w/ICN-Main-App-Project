@@ -11,7 +11,7 @@
 เวลาที่เห็นล่าสุด เวอร์ชันของ runner และสถานะการเข้าสู่ระบบ Claude
 
 ปุ่ม **ดาวน์โหลดไฟล์เชื่อม SOC Runner** (`POST /api/soc/runner-link`, ต้องมีสิทธิ์ `soc`) สร้างไฟล์ `soc-runner.json`
-ที่ผูกกับบัญชีผู้ใช้ที่ล็อกอินอยู่ ไม่ต้องใส่รหัสจับคู่ ใช้กับ SOC Runner ที่รันจาก source ผู้ตรวจทั่วไปใช้**ตัวติดตั้ง**แทน (หัวข้อ "ตัวติดตั้ง" ด้านล่าง)
+ที่ผูกกับบัญชีผู้ใช้ที่ล็อกอินอยู่ ไม่ต้องใส่รหัสจับคู่ ใช้กับ SOC Runner ที่รันจาก source ผู้ตรวจทั่วไปใช้**คำสั่งติดตั้ง**แทน (หัวข้อ "ติดตั้ง" ด้านล่าง)
 ซึ่งมีไฟล์เชื่อมเดียวกันนี้แนบอยู่ ถ้าตั้ง `SOC_RUNNER_CA_CERT_FILE` ไว้ ไฟล์เชื่อมจะมี `caCert` (PEM ของ root CA ของ server) เพิ่มด้วย
 
 ```json
@@ -136,7 +136,7 @@ multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion`
 
 ## ตัว SOC Runner (ticket 14, `soc-runner/`)
 
-โปรแกรม Python (standard library ล้วน) ผู้ตรวจติดตั้งด้วยตัวติดตั้ง (ticket 16) นักพัฒนารันจาก source ได้
+โปรแกรม Python (standard library ล้วน) ผู้ตรวจติดตั้งด้วยคำสั่งติดตั้งจากหน้า `/soc` (ticket 16) นักพัฒนารันจาก source ได้
 
 ```
 npm run soc:runner -- path\to\soc-runner.json   # ไม่ระบุ = soc-runner/soc-runner.json (อยู่ใน .gitignore)
@@ -154,7 +154,7 @@ npm run soc:runner:test                          # unittest ด้วย server 
   พร้อม `--session-id <uuid>` (รอบแรก) หรือ `--resume <uuid>` (ตรวจต่อ)
   (บน Windows Claude Code รันคำสั่ง shell ผ่าน tool `PowerShell` ไม่ใช่ `Bash` ถ้าไม่อนุญาต ทุกคำสั่ง `python` จะติด "requires approval" แล้วหยุด)
   ใต้ login Claude ของผู้ใช้เครื่องนั้น สคริปต์ของ skill ต้องการ Python ที่มี python-docx / PyMuPDF: runner ใส่โฟลเดอร์ของ Python ที่ตัวเองรันอยู่
-  ไว้หน้าสุดของ PATH ของ `claude` (ตัวติดตั้งให้ Python ที่มี package เหล่านี้) และรัน `claude` แบบไม่เปิดหน้าต่าง console
+  ไว้หน้าสุดของ PATH ของ `claude` (คำสั่งติดตั้งให้ Python ที่มี package เหล่านี้) และรัน `claude` แบบไม่เปิดหน้าต่าง console
 - โฟลเดอร์งานตั้งชื่อตาม id ของคำขอ และเก็บ session ของ Claude ไว้ใน `soc-runner-run.json` คำขอที่กลับมา
   (หลังหยุดรอโควตา, login ใหม่ หรือ runner restart) จึง `--resume` session เดิมพร้อมผลระหว่างทางใน `out/` แถวที่ตรวจแล้วไม่หาย
   ถ้า skill ที่ตรึงตอน claim ใหม่เป็นคนละเวอร์ชันกับรอบก่อน จะล้าง `out/` แล้วเริ่ม session ใหม่
@@ -207,28 +207,47 @@ heartbeat ส่ง `claudeLogin` จาก `claude auth status --json` (`logged
   - อย่างอื่น → `failed`
   ข้อความ `/login` / usage limit จะเชื่อก็ต่อเมื่อการรันจบด้วย API error เท่านั้น ไม่ใช่แค่ Claude เขียนคำเหล่านี้ในข้อความสุดท้าย
 
-## ตัวติดตั้ง (ticket 16, `soc-runner/installer/`)
+## ติดตั้ง (ticket 16: คำสั่ง PowerShell, ไม่มีไฟล์ .exe)
 
-ผู้ตรวจกด **ดาวน์โหลดตัวติดตั้ง SOC Runner** ในหน้า `/soc` (`POST /api/soc/runner-installer`, ต้องมีสิทธิ์ `soc`)
-ได้ `SOCRunnerSetup.exe` ที่มีไฟล์เชื่อมของผู้ใช้คนนั้น (โทเคนใหม่) แนบท้ายไฟล์ จึงไม่ต้องจับคู่เครื่อง
-การดาวน์โหลดสร้างลิงก์ใหม่และยกเลิกลิงก์เดิม (`replaced`) เหมือนดาวน์โหลดไฟล์เชื่อม ถ้า server ยังไม่มีตัวติดตั้ง ตอบ `503`
-และ**ไม่**แตะลิงก์เดิม หน้า `/soc` อธิบายคำเตือนของเบราว์เซอร์และ SmartScreen เป็นภาษาไทย (ตัวติดตั้งไม่ได้ลงลายเซ็น, ADR 0008)
+**ทำไมไม่มีตัวติดตั้ง `.exe`:** เครื่องของบริษัทเปิด Smart App Control (SAC) ซึ่งบล็อกโปรแกรมที่ไม่ได้ลงลายเซ็นและไม่มีใครเคยรัน
+(ทุกไฟล์ที่ดาวน์โหลดไม่ซ้ำกัน จึงไม่มี reputation) และไม่มีปุ่ม "Run anyway" IT ตอบว่าไม่มี code-signing certificate และไม่ปิด SAC
+(ticket 16, 2026-10-07) จึงติดตั้งด้วยโปรแกรมที่ SAC ยอมรับอยู่แล้วเท่านั้น: Windows PowerShell, Python จาก NuGet
+(ลงลายเซ็นโดย Python Software Foundation), package จาก PyPI และ Claude Code ไม่มีอะไรหลบ SAC (ทดสอบบนเครื่องที่ SAC เปิดอยู่:
+SAC ตรวจทุกไฟล์แล้วอนุญาต ไม่มี event บล็อกใน Code Integrity log)
 
-รูปแบบไฟล์ที่ดาวน์โหลด (`lib/soc-runner-installer.ts`):
-`<SOCRunnerSetup.exe> <JSON ไฟล์เชื่อม UTF-8> <ความยาว JSON uint32 LE> "SOCRCFG1"`
+ผู้ตรวจกด **สร้างคำสั่งติดตั้ง SOC Runner** ในหน้า `/soc` (`POST /api/soc/runner-install-command`, ต้องมีสิทธิ์ `soc`)
+ได้คำสั่งบรรทัดเดียวพร้อมปุ่มคัดลอกและวิธีใช้ภาษาไทย แล้ววางใน **Windows PowerShell** (ไม่ใช่ PowerShell 7 ซึ่งไม่ใช้
+`ServicePointManager` คำสั่งจะบอกเอง) ตัวอย่าง (บน server ที่ใช้ certificate ของตัวเอง):
 
-### ติดตั้งแล้วเกิดอะไรขึ้น (ไม่ใช้สิทธิ์ admin ทุกขั้น ทุกอย่างอยู่ใน `%LOCALAPPDATA%\SOCRunner`)
+```
+if($PSVersionTable.PSEdition -eq 'Core'){throw '…'};[Net.ServicePointManager]::SecurityProtocol='Tls12';$p='<SHA-1 thumbprint>';[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$h,$e)$e -eq 'None' -or $c.GetCertHashString() -eq $p};iex (irm 'https://<server>/api/soc-runner/install/soci_…')
+```
 
-1. ตัว `.exe` (C# `SocRunnerSetup.cs`, manifest `asInvoker`) อ่านไฟล์เชื่อมท้ายไฟล์ตัวเอง ไม่มี = บอกให้ดาวน์โหลดจาก `/soc`
-2. ปิด SOC Runner ตัวเดิม (python/pythonw/SOCRunner ที่รันจาก `app\` พร้อม process ลูก เช่น `claude` ที่กำลังตรวจ)
-3. แตก payload เป็นโฟลเดอร์ `app\` ใหม่ทั้งหมด (`app\python\` = Python 3.12 จาก NuGet + python-docx/PyMuPDF/openpyxl,
-   `app\runner\` = โค้ด runner) แล้วเขียน `soc-runner.json` **ติดตั้งซ้ำ = ซ่อม** เพราะ `app\` ถูกแทนทั้งชุด
-   ส่วน `work\` (งานที่หยุดรอโควตา) และ `runner.log` ไม่ถูกลบ
+- **รหัสติดตั้ง** (`soci_…`, `SocRunnerInstallCode`, server เก็บแค่ sha256) ใช้ได้**ครั้งเดียว ภายใน 30 นาที** สร้างคำสั่งใหม่ =
+  รหัสเดิมที่ยังไม่ใช้หมดสิทธิ์ การสร้างคำสั่ง**ยังไม่**แตะลิงก์เดิม ลิงก์ใหม่ถูกสร้าง (และลิงก์เดิมถูกยกเลิก `replaced`) ตอนวางคำสั่ง
+- **Pin certificate:** ถ้า `SOC_RUNNER_SERVER_URL` เป็น https และตั้ง `SOC_RUNNER_CA_CERT_FILE` คำสั่งจะเชื่อ certificate ที่มี
+  thumbprint นี้ (หรือ certificate ที่ Windows เชื่ออยู่แล้ว เพื่อให้ดาวน์โหลดจาก NuGet/PyPI ได้) ไฟล์นี้ต้องเป็น certificate
+  ของ server เอง (self-signed ของ IIS) ไม่ใช่ root CA ที่ออก certificate ให้ server
+- `GET /api/soc-runner/install/:code` (ไม่ต้องมี session; `proxy.ts` ปล่อยเฉพาะรหัสที่รูปแบบถูก) ตอบสคริปต์ PowerShell
+  (`text/plain; charset=utf-8`): ตาราง `$SocRunnerFiles` (ไฟล์เชื่อมของผู้ใช้พร้อมโทเคนใหม่ และไฟล์ runner เป็น base64)
+  ตามด้วย `soc-runner/bootstrap.ps1` ห่อด้วย `& { }` เพื่อไม่ให้โทเคนค้างในหน้าต่าง PowerShell ของผู้ใช้
+  รหัสที่ใช้แล้ว หมดอายุ ไม่รู้จัก หรือผู้ใช้ไม่มีสิทธิ์ `soc`/ถูกปิดบัญชี ได้ `200` กับสคริปต์ที่แค่บอกเหตุผลเป็นภาษาไทย
+  (ถ้าตอบ 4xx PowerShell จะแสดงแต่ error ของตัวเอง)
+- ไฟล์ runner ที่ server แจก (`runner.py`, `claude_cli.py`, `server_client.py`, `install.py`, `requirements.txt`, `bootstrap.ps1`)
+  อ่านจาก `soc-runner/` ตอนรัน `next build` ใส่ไว้ใน `.next\standalone` ให้ (`outputFileTracingIncludes` ใน `next.config.ts`)
+  แก้โค้ด runner แล้ว deploy ตามปกติ ผู้ตรวจได้เวอร์ชันใหม่เมื่อวางคำสั่งใหม่ (ยังไม่มีการอัปเดตเอง)
+
+### วางคำสั่งแล้วเกิดอะไรขึ้น (ไม่ใช้สิทธิ์ admin ทุกขั้น ทุกอย่างอยู่ใน `%LOCALAPPDATA%\SOCRunner`)
+
+1. `bootstrap.ps1` ปิด SOC Runner ตัวเดิม (python/pythonw/SOCRunner ที่รันจาก `app\` พร้อม process ลูก เช่น `claude` ที่กำลังตรวจ)
+   แล้วลบ `app\` ทั้งโฟลเดอร์ **วางคำสั่งซ้ำ = ซ่อม** ส่วน `work\` (งานที่หยุดรอโควตา) และ `runner.log` ไม่ถูกลบ
+2. ดาวน์โหลด NuGet `python` 3.12.10 (ตรวจ sha256 ที่ตรึงไว้) แตกเป็น `app\python\` และ copy `pythonw.exe` เป็น `SOCRunner.exe`
+3. เขียนไฟล์ runner ลง `app\runner\` และ `soc-runner.json` แล้ว `pip install --only-binary=:all: -r requirements.txt`
+   (python-docx, PyMuPDF, openpyxl จาก PyPI) **เครื่องผู้ตรวจต้องเข้า `api.nuget.org` และ `pypi.org` ได้**
 4. รัน `app\python\python.exe app\runner\install.py <root>` (`soc-runner/install.py`):
    - ตรวจไฟล์เชื่อม
    - ถ้ายังไม่มี Claude Code ที่ใช้ได้ (PATH หรือ `%USERPROFILE%\.local\bin\claude.exe`, ทดสอบด้วย `--version`)
      ดาวน์โหลด native build จาก `downloads.claude.ai` ตรวจ sha256 กับ manifest แล้ว `claude.exe install stable`
-     (ขั้นตอนเดียวกับ `claude.ai/install.ps1` แต่ไม่รันไฟล์ `.ps1` จึงไม่ติด Execution Policy)
    - **ไม่ติดตั้ง Git**: Claude Code 2.1.292 รัน `claude -p` ได้โดยไม่มี Git และ bash ใน PATH และเรียก `python` ผ่าน shell tool ได้ (ทดสอบ 2026-10-07) บน Windows ใช้ tool PowerShell
    - เพิ่มโฟลเดอร์ของ `claude.exe` ใน PATH ของผู้ใช้ (HKCU\Environment) ถ้ายังไม่มี เพื่อให้พิมพ์ `claude` แล้ว `/login` ได้
      ตอน login หมดอายุ (ปัญหาเดิมใน `Problem/install-claude-code-no-admin.md`)
@@ -236,67 +255,47 @@ heartbeat ส่ง `claudeLogin` จาก `claude auth status --json` (`logged
      `"…\app\python\SOCRunner.exe" "…\app\runner\runner.py" "…\soc-runner.json" "--log" "…\runner.log"`
    - ถ้า `claude auth status` บอกว่ายังไม่ได้ login เปิดหน้าต่าง `claude auth login --claudeai` (เปิดเบราว์เซอร์ให้) รอสูงสุด 15 นาที
      ถ้า login อยู่แล้ว (เช่น ติดตั้งซ้ำ) ข้ามขั้นนี้
-   - เริ่ม runner ด้วย `SOCRunner.exe` (สำเนาของ `pythonw.exe` ชื่อนี้ให้เห็นใน Task Manager ไม่มีหน้าต่าง) ถ้ามีอีกตัวทำงานอยู่ ตัวใหม่จะจบเองเพราะ `runner.lock`
-5. แสดงกล่อง "ติดตั้ง SOC Runner เสร็จแล้ว" (บอกให้ลบ `SOCRunnerSetup.exe` ที่ดาวน์โหลดไว้ เพราะมีโทเคนของผู้ใช้
-   ใครเอาไปติดตั้งก็รับงานในนามผู้ใช้นั้นได้) หรือเหตุผลที่ไม่สำเร็จ (รายละเอียดอยู่ในหน้าต่าง console)
+   - เริ่ม runner ด้วย `SOCRunner.exe` (ไม่มีหน้าต่าง) ถ้ามีอีกตัวทำงานอยู่ ตัวใหม่จะจบเองเพราะ `runner.lock`
+5. ขึ้น "ติดตั้ง SOC Runner เสร็จแล้ว" หรือเหตุผลที่ไม่สำเร็จเป็นสีแดง พร้อมบอกให้สร้างคำสั่งใหม่แล้ววางอีกครั้ง
 
-ข้อควรรู้: ลิงก์เดิมถูกยกเลิกตอน**ดาวน์โหลด** ไม่ใช่ตอนติดตั้ง ถ้าดาวน์โหลดแล้วไม่ติดตั้ง หรือติดตั้งไม่สำเร็จ เครื่องเดิมจะรับงานไม่ได้
-จนกว่าจะติดตั้งไฟล์ใหม่ให้สำเร็จ (ตามการตัดสินใจ "หนึ่งลิงก์ต่อผู้ใช้" ใน ADR 0008) ลิงก์ "ดาวน์โหลดเฉพาะไฟล์เชื่อม" ในหน้า `/soc`
+ข้อควรรู้: ลิงก์เดิมถูกยกเลิกตอน**วางคำสั่ง** ถ้าติดตั้งไม่สำเร็จหลังจากนั้น เครื่องเดิมจะรับงานไม่ได้จนกว่าจะติดตั้งใหม่ให้สำเร็จ
+(ตามการตัดสินใจ "หนึ่งลิงก์ต่อผู้ใช้" ใน ADR 0008) ลิงก์ "ดาวน์โหลดเฉพาะไฟล์เชื่อม" ในหน้า `/soc`
 แสดงเฉพาะ ADMIN (นักพัฒนาที่รันจาก source) เพื่อไม่ให้ผู้ตรวจกดแล้วเครื่องที่ติดตั้งไว้หลุดโดยไม่ตั้งใจ
 
 ดูปัญหาบนเครื่องผู้ตรวจ: `%LOCALAPPDATA%\SOCRunner\runner.log`
 ถอนการติดตั้ง (ยังไม่มีปุ่ม): ลบค่า `SOCRunner` ใน `HKCU\…\Run`, ปิด `SOCRunner.exe` ใน Task Manager แล้วลบ `%LOCALAPPDATA%\SOCRunner`
 (Claude Code และ login ของผู้ใช้ไม่ถูกลบ) แล้วให้ admin ยกเลิกลิงก์ที่ `/admin/soc-runners`
 
-### Build และนำขึ้น server
-
-```
-npm run soc:runner:build      # = python soc-runner/installer/build.py → soc-runner/dist/SOCRunnerSetup.exe (~39 MB)
-```
-
-ต้อง build บน Windows (ใช้ `csc.exe` ของ .NET Framework 4.x ที่มากับ Windows) ต้องมีอินเทอร์เน็ตครั้งแรก
-(NuGet `python` 3.12.10 ตรึง sha256 ไว้, PyPI ตาม `installer/requirements.txt`) ผลลัพธ์อยู่ใน `.gitignore`
-แก้โค้ด runner แล้วต้อง build และนำขึ้นใหม่ ผู้ตรวจได้เวอร์ชันใหม่เมื่อติดตั้งซ้ำ (ยังไม่มีการอัปเดตเอง)
-
-server หาไฟล์ที่ `SOC_RUNNER_INSTALLER_PATH` หรือค่าเริ่มต้น `<SOC_STORAGE_ROOT>/runner/SOCRunnerSetup.exe`
+### ตั้งค่า server
 
 **Server จริง (`psaidemo.icn21.local`): native บน Windows + IIS reverse proxy** (`docs/DEPLOY-WINDOWS.md`; ไม่มี Docker
-เพราะ IT ปิด virtualization ไว้ทุกเครื่อง) deploy ด้วย `git pull` แล้ว `.\deploy\windows\update.ps1`
+เพราะ IT ปิด virtualization ไว้ทุกเครื่อง) deploy ด้วย `git pull` แล้ว `.\deploy\windows\update.ps1` ไม่ต้อง build อะไรเพิ่ม
+และ server ไม่ต้องใช้ Python สำหรับการติดตั้ง SOC Runner
 
-- **ตัวติดตั้งขึ้น server เอง:** `update.ps1` ขั้น 6b รัน `build.py --deploy-to <path>` ซึ่ง build ใหม่เฉพาะเมื่อไฟล์ใน
-  `soc-runner/` ที่เข้าไปอยู่ในตัวติดตั้งเปลี่ยน (เทียบกับ `<path>.sources-sha256`) ครั้งแรกใช้เวลาประมาณ 1 นาที
-  ต้องมี Python 3.12 (`python` ใน PATH หรือ `SOC_PYTHON` ใน `.env`) และอินเทอร์เน็ต ถ้า build ไม่ผ่าน `update.ps1` แค่เตือน
-  แอปยัง deploy ต่อได้ และหน้า `/soc` ใช้ตัวติดตั้งเดิม (หรือบอกว่ายังไม่มี)
-  path มาจาก `.env`: `SOC_RUNNER_INSTALLER_PATH` หรือ `SOC_STORAGE_ROOT` (path แบบ relative นับจาก `.next\standalone`)
-- **ตั้งค่าใน `.env` ของ server ครั้งเดียว** (`.env` ไม่อยู่ใน git; `next build` copy เข้า `.next\standalone` ให้ จึงมีผลหลังรัน `update.ps1`):
+ตั้งค่าใน `.env` ของ server ครั้งเดียว (`.env` ไม่อยู่ใน git; `next build` copy เข้า `.next\standalone` ให้ จึงมีผลหลังรัน `update.ps1`):
 
+```
+SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"
+SOC_RUNNER_CA_CERT_FILE="C:\Apps\psaidemo-cert.pem"
+```
+
+- `SOC_RUNNER_SERVER_URL`: แอปอยู่หลัง IIS จึงเห็น address ภายในของตัวเอง ไม่ใช่ address ที่ผู้ตรวจใช้ และพอร์ต 3000
+  เข้าได้แค่จากวง LAN เดียวกับ server (IT เปิด firewall แค่ 80/443/3389) runner จึงต้องเรียกผ่าน `https://psaidemo.icn21.local`
+- `SOC_RUNNER_CA_CERT_FILE`: certificate ของ IIS เป็น self-signed (`New-SelfSignedCertificate`, หมดอายุ 2027-08-19)
+  Windows และ Python ของผู้ตรวจไม่เชื่อ (ทดสอบ 2026-10-07: `CERTIFICATE_VERIFY_FAILED`) คำสั่งติดตั้ง pin thumbprint ของมัน
+  และไฟล์เชื่อมทุกไฟล์มีมันเป็น `caCert` ให้ runner เชื่อ export เป็น PEM บน server (PowerShell แบบ admin) ครั้งเดียว:
+
+  ```powershell
+  $c = Get-ChildItem Cert:\LocalMachine\My | Where-Object Subject -eq "CN=psaidemo.icn21.local" | Sort-Object NotAfter -Descending | Select-Object -First 1
+  "-----BEGIN CERTIFICATE-----`n" + [Convert]::ToBase64String($c.RawData, "InsertLineBreaks") + "`n-----END CERTIFICATE-----" | Set-Content C:\Apps\psaidemo-cert.pem -Encoding ascii
   ```
-  SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"
-  SOC_RUNNER_CA_CERT_FILE="C:\Apps\psaidemo-cert.pem"
-  ```
 
-  - `SOC_RUNNER_SERVER_URL`: แอปอยู่หลัง IIS จึงเห็น address ภายในของตัวเอง ไม่ใช่ address ที่ผู้ตรวจใช้ และพอร์ต 3000
-    เข้าได้แค่จากวง LAN เดียวกับ server (IT เปิด firewall แค่ 80/443/3389) runner จึงต้องเรียกผ่าน `https://psaidemo.icn21.local`
-  - `SOC_RUNNER_CA_CERT_FILE`: certificate ของ IIS เป็น self-signed (`New-SelfSignedCertificate`, หมดอายุ 2027-08-19)
-    Windows และ Python ของผู้ตรวจไม่เชื่อ (ทดสอบ 2026-10-07: `CERTIFICATE_VERIFY_FAILED`; ใส่ cert นี้เป็น `caCert` แล้วเชื่อมต่อได้)
-    export เป็น PEM บน server (PowerShell แบบ admin) ครั้งเดียว:
-
-    ```powershell
-    $c = Get-ChildItem Cert:\LocalMachine\My | Where-Object Subject -eq "CN=psaidemo.icn21.local" | Sort-Object NotAfter -Descending | Select-Object -First 1
-    "-----BEGIN CERTIFICATE-----`n" + [Convert]::ToBase64String($c.RawData, "InsertLineBreaks") + "`n-----END CERTIFICATE-----" | Set-Content C:\Apps\psaidemo-cert.pem -Encoding ascii
-    ```
-
-    เมื่อเปลี่ยน certificate ของ IIS: export ใหม่ทับไฟล์เดิม รัน `update.ps1` แล้วผู้ตรวจทุกคนต้องดาวน์โหลดตัวติดตั้งใหม่
-    (ไฟล์เชื่อมเก็บ cert ตัวเดิมไว้)
-  - ถ้า `SOC_STORAGE_ROOT` ไม่ได้ตั้งไว้ ไฟล์ SOC อยู่ใต้ `.next\standalone\data\soc` ซึ่ง `next build` สร้างใหม่ทุกครั้ง
-    ควรตั้ง `SOC_STORAGE_ROOT` ไปที่โฟลเดอร์นอก repo (เช่น `C:\expense-billing-data\soc`) ตาม `.env.production.example`
-
-**ถ้าใช้ docker-compose (`DEPLOY.md`, ใช้ไม่ได้บนเครื่องของบริษัทตอนนี้)** วางไฟล์ใน volume `soc_data`
-(`docker compose exec app mkdir -p /data/soc/runner` แล้ว `docker compose cp soc-runner/dist/SOCRunnerSetup.exe app:/data/soc/runner/`)
-ตั้ง `SOC_RUNNER_SERVER_URL` เป็น URL ของ Caddy และ `SOC_RUNNER_CA_CERT_FILE` เป็น root CA ของ Caddy `tls internal`
-(`.../caddy/pki/authorities/local/root.crt` จาก volume `caddy_data`)
-
-ไฟล์เชื่อมทุกไฟล์มี `caCert` เมื่อตั้ง `SOC_RUNNER_CA_CERT_FILE` ถ้าค่านี้ชี้ไปที่ไฟล์ที่ไม่ใช่ PEM การดาวน์โหลดจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
+  เมื่อเปลี่ยน certificate ของ IIS: export ใหม่ทับไฟล์เดิม รัน `update.ps1` แล้วผู้ตรวจทุกคนต้องวางคำสั่งติดตั้งใหม่
+  (ไฟล์เชื่อมเก็บ cert ตัวเดิมไว้) ถ้าค่านี้ชี้ไปที่ไฟล์ที่ไม่ใช่ PEM การสร้างคำสั่งและการดาวน์โหลดไฟล์เชื่อมจะล้มเหลว (500) โดยไม่แตะลิงก์เดิม
+- ถ้า `SOC_STORAGE_ROOT` ไม่ได้ตั้งไว้ ไฟล์ SOC อยู่ใต้ `.next\standalone\data\soc` ซึ่ง `next build` สร้างใหม่ทุกครั้ง
+  ควรตั้ง `SOC_STORAGE_ROOT` ไปที่โฟลเดอร์นอก repo (เช่น `C:\expense-billing-data\soc`) ตาม `.env.production.example`
+- ไฟล์ `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe` และค่า `SOC_RUNNER_INSTALLER_PATH` จากรุ่น `.exe` เดิมไม่ถูกใช้แล้ว ลบได้
+  (`SOC_PYTHON` ยังใช้กับปุ่ม "ดาวน์โหลด SOC_Check")
 
 ## Admin
 

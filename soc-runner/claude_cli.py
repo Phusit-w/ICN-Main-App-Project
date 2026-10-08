@@ -159,7 +159,7 @@ def run_arguments(executable: str, model: str, task: ClaudeTask) -> list[str]:
 def find_claude(which=shutil.which, home: Path | None = None) -> str:
     """`claude` on PATH, else the native install in the user profile.
 
-    The installer (ticket 16) installs Claude Code to ~/.local/bin, and a
+    The install command (ticket 16) installs Claude Code to ~/.local/bin, and a
     runner started at login may not see the PATH that install added yet.
     """
     found = which("claude")
@@ -173,7 +173,7 @@ def child_env(base: dict, python_dir: Path) -> dict:
     """The environment `claude -p` runs in.
 
     The skill's scripts run `python` and need python-docx and PyMuPDF; the
-    installer bundles them with the Python the runner itself runs on, so that
+    install command puts them in the Python the runner itself runs on, so that
     Python comes first on PATH.
     """
     env = {**base, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}

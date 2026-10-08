@@ -87,12 +87,6 @@ next-env.d.ts
 # SOC Runner config holds a runner token
 soc-runner.json
 
-# SOC Runner installer build (soc-runner/installer/build.py): cached Python
-# package, staging folder and the built SOCRunnerSetup.exe
-/soc-runner/dist/
-/soc-runner/installer/.cache/
-/soc-runner/installer/.build/
-
 # SOC Runner run from source: its lock and log next to soc-runner.json
 /soc-runner/runner.lock
 /soc-runner/runner.log*

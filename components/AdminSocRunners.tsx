@@ -25,7 +25,7 @@ export default function AdminSocRunners({ links }: { links: AdminSocRunnerLink[]
       router.refresh();
     });
   }
-  if (!links.length) return <p className="text-sm text-muted">ยังไม่มีผู้ใช้ดาวน์โหลดไฟล์เชื่อม SOC Runner</p>;
+  if (!links.length) return <p className="text-sm text-muted">ยังไม่มีผู้ใช้เชื่อม SOC Runner</p>;
   return <div className="overflow-x-auto rounded-card border border-line bg-surface">
     {error ? <p role="alert" className="p-4 text-xs text-danger">{error}</p> : null}
     <table className="w-full text-left text-sm"><thead className="bg-chip text-xs text-label"><tr><th className="px-5 py-3">ผู้ใช้</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">เห็นล่าสุด</th><th className="px-5 py-3">เชื่อมเมื่อ</th><th className="px-5 py-3" aria-label="การทำงาน" /></tr></thead>

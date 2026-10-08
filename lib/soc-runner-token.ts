@@ -15,3 +15,15 @@ export function socRunnerBearerToken(request: Pick<Request, "headers">): string 
   const match = /^Bearer\s+(\S+)\s*$/i.exec(request.headers.get("authorization") || "");
   return match && TOKEN.test(match[1]) ? match[1] : null;
 }
+
+// The one-time code in the install command /soc gives a user (ticket 16).
+// Checked by proxy.ts too, so the install script route needs no session.
+const INSTALL_CODE = /^soci_[A-Za-z0-9_-]{32}$/;
+
+export function newSocRunnerInstallCode(): string {
+  return `soci_${randomBytes(24).toString("base64url")}`;
+}
+
+export function isSocRunnerInstallCode(code: string): boolean {
+  return INSTALL_CODE.test(code);
+}

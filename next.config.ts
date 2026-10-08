@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
   // its .wasm next to itself, so it is required from node_modules as is.
   serverExternalPackages: ["mupdf"],
 
+  // The SOC Runner install script (lib/soc-runner-install.ts) hands out the
+  // runner's own files, read from soc-runner/ at run time.
+  outputFileTracingIncludes: {
+    "/api/soc-runner/install/*": ["./soc-runner/{runner,claude_cli,server_client,install}.py", "./soc-runner/requirements.txt", "./soc-runner/bootstrap.ps1"],
+  },
+
   // Serve images as-is, no on-the-fly optimization. The standalone server
   // has no `sharp`, so next/image's optimizer 500s on every logo request and
   // spams service-err.log (the logo renders broken). These are two tiny

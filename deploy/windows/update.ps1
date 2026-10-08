@@ -24,7 +24,6 @@
     4  npx prisma generate      (always — cheap, avoids a stale client)
     5  npm run build
     6  stage-standalone.ps1
-    6b SOC Runner installer     (rebuilt only if soc-runner\ changed; a failure only warns)
     7  nssm start + HTTP health check
 
   If step 3 reports that it applied migrations, the database schema
@@ -207,41 +206,6 @@ try {
     # 6. stage standalone -----------------------------------------------
     Write-Host "==> [6/7] stage-standalone.ps1 ..."
     & (Join-Path $PSScriptRoot "stage-standalone.ps1")
-
-    # 6b. SOC Runner installer (ticket 16) -----------------------------
-    # /soc serves SOCRunnerSetup.exe from SOC_RUNNER_INSTALLER_PATH, else
-    # <SOC_STORAGE_ROOT>\runner\. It isn't in git (~39 MB), so it's built
-    # here, only when its sources changed (build.py --deploy-to). Needs
-    # Python 3.12 and internet the first time. A failure only warns: the
-    # app still deploys, and /soc keeps the previous installer (or says
-    # there is none yet).
-    Write-Host "==> [6b/7] SOC Runner installer ..."
-    try {
-        $dotenv = @{}
-        $envFile = Join-Path $root ".env"
-        if (Test-Path $envFile) {
-            foreach ($line in Get-Content $envFile) {
-                if ($line -match '^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$') { $dotenv[$Matches[1]] = $Matches[2].Trim().Trim('"') }
-            }
-        }
-        $standaloneDir = Join-Path $root ".next\standalone"  # the service's working directory
-        $installer = $dotenv["SOC_RUNNER_INSTALLER_PATH"]
-        if (-not $installer) {
-            $storage = $dotenv["SOC_STORAGE_ROOT"]
-            if (-not $storage) { $storage = "data\soc" }
-            if (-not [System.IO.Path]::IsPathRooted($storage)) { $storage = Join-Path $standaloneDir $storage }
-            $installer = Join-Path $storage "runner\SOCRunnerSetup.exe"
-        } elseif (-not [System.IO.Path]::IsPathRooted($installer)) {
-            $installer = Join-Path $standaloneDir $installer
-        }
-        $python = $dotenv["SOC_PYTHON"]
-        if (-not $python) { $python = (Get-Command python -ErrorAction SilentlyContinue).Source }
-        if (-not $python) { throw "python not found (install Python 3.12 or set SOC_PYTHON in .env)" }
-        & $python (Join-Path $root "soc-runner\installer\build.py") --deploy-to $installer
-        if ($LASTEXITCODE -ne 0) { throw "build.py exited $LASTEXITCODE" }
-    } catch {
-        Write-Host "!!! SOC Runner installer not updated: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
 
     # 7. start --------------------------------------------------------
     Write-Host "==> [7/7] Starting service..."

@@ -6,13 +6,13 @@ Spec: `../spec.md`. Vocabulary: `docs/SOC-DOMAIN-GLOSSARY.md`. ADR: 0008.
 
 **Blocked by:** 14 (and IT's answer on AppLocker/WDAC and unsigned installers)
 
-**Status:** needs-info (blocked by Smart App Control 2026-10-07; no code signing, SAC stays on; see last comment)
+**Status:** ready-for-human (2026-10-08: reworked to a copy-paste PowerShell install command, no `.exe`; the user's manual test on a company PC is next, see last comment)
 
 - [x] IT's answer is recorded in Comments before the build starts
 - [ ] On a company PC without admin rights: download, install, sign-in and the first check all work with no other steps
 - [ ] The runner starts again after a reboot
 - [x] Re-installing repairs a broken install
-- [x] The SmartScreen explanation is on the download page
+- [x] The SmartScreen explanation is on the download page (superseded 2026-10-08: no download any more; `/soc` explains the install command in Thai instead)
 - [ ] The manual test steps and results are written in Comments
 
 ## Comments
@@ -79,7 +79,7 @@ dev server (:3000, pilot-db), user `uitest13`:
 - Defender/AV reaction to the unsigned installer;
 - prod: copy the built installer to `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe` on the server (see below).
 
-**Manual test steps (fill in the results here):**
+**Manual test steps for the `.exe` (superseded 2026-10-08, see the install-command steps at the end):**
 
 1. On the dev PC: `npm run soc:runner:build`; copy `soc-runner\dist\SOCRunnerSetup.exe` to the server's
    `<SOC_STORAGE_ROOT>\runner\SOCRunnerSetup.exe`.
@@ -170,5 +170,62 @@ Also checked: a bootstrap can reach prod's self-signed HTTPS from PowerShell 5.1
 thumbprint (`9D31AAED…9698`); a wrong pin is refused in a fresh process. Not run: a real check through Claude in
 this prototype (the packages and runner are the same as in the earlier successful check). Cleaned up afterwards.
 
-Proposed rework (not started): `/soc` "copy install command" with a one-time code instead of the `.exe`; the server
+Proposed rework (done 2026-10-08, see below): `/soc` "copy install command" with a one-time code instead of the `.exe`; the server
 serves a bootstrap script, the runner files and the config; the C# stub, payload build and update.ps1 step 6b go away.
+
+### 2026-10-08: install command built and checked (details: `docs/SOC-RUNNER.md`, "ติดตั้ง")
+
+**What changed:**
+
+- `/soc` → **สร้างคำสั่งติดตั้ง SOC Runner** (`POST /api/soc/runner-install-command`) creates a one-time install code
+  (`SocRunnerInstallCode`, only its sha256 is stored, 30 min, a newer code of the same user replaces an unused one) and
+  shows one line for Windows PowerShell 5.1. It refuses PowerShell 7 with a message, sets TLS 1.2, and pins the
+  server's certificate (SHA-1 thumbprint of `SOC_RUNNER_CA_CERT_FILE`) when the server URL is https.
+- `GET /api/soc-runner/install/<code>` (let through by `proxy.ts` only for a well-formed code) redeems the code once,
+  creates the user's link (the old one is revoked, ADR 0008), and returns a script: the config + runner files as
+  base64, then `soc-runner/bootstrap.ps1` (NuGet Python 3.12.10, sha256-checked → `pip install -r requirements.txt` →
+  `install.py`). `next.config.ts` traces those files into the standalone build.
+- Removed: the C# stub, `app.manifest`, `build.py`, `test_build.py`, `soc:runner:build`, `/api/soc/runner-installer`,
+  `lib/soc-runner-installer.ts`, update.ps1 step 6b. `requirements.txt` moved to `soc-runner/`. Migration
+  `20261008120000_soc_runner_install_codes` only adds a table.
+
+**Validation (agent, this PC):**
+
+- `npm test`: 156 pass, 0 fail (test-db). `npm run soc:runner:test`: 74 OK. `npm run check` (lint + tsc): clean.
+- `npm run build`: passes; `.next/standalone/soc-runner/` holds `bootstrap.ps1`, `requirements.txt` and the runner `.py`.
+- `/soc` in Chrome on the dev server (signed in as `User`, revoked-link state): the button gives the one-line command
+  with the 4 Thai steps and the expiry; no console errors.
+- Live run (previous session, 2026-10-07 late, from its notes): the real command on this SAC-on PC against the dev
+  server: installed in 23 s, check ๑ submitted 7 rows, repair worked, 0 Code Integrity blocks, then cleaned up.
+  Not re-run today. Not covered: the cert pin against prod's real HTTPS (dev is http), a PC without Claude Code,
+  reboot.
+
+**`/code-review` (standards + spec), 2026-10-08.** No blocking finding. Known and accepted, or left for later:
+
+- The install GET has side effects: it burns the code and replaces the user's link before the install runs. If the
+  install then fails (no NuGet/PyPI access), the old runner already stopped working; the user makes a new command.
+  A link scanner fetching the URL would also burn it (30 min, single use). Documented in `docs/SOC-RUNNER.md`.
+- The code is spent before the active/access check, so an inactive user burns it. Intended.
+- The pin callback applies to the whole PowerShell process (also NuGet/PyPI); it only adds trust for a certificate
+  with exactly the pinned hash. The pin is the leaf certificate: when IIS's certificate changes, re-export
+  `SOC_RUNNER_CA_CERT_FILE`. Without that setting on an https server no pin is sent and `irm` fails on TLS.
+- Without `SOC_RUNNER_SERVER_URL` the command uses the request's origin (Host header). Prod sets it.
+- pip packages are version-pinned but not hash-pinned. `bootstrap.ps1` has no automated test.
+- Smells noted, not fixed: `hashCode` duplicates `hashToken` (both sha256 hex); the runner file list is in
+  `lib/soc-runner-install.ts` and again in `next.config.ts`; headers repeated in the two new routes.
+- Dev leftovers, not in git: `data/soc/runner/SOCRunnerSetup.exe`, `soc-runner/__pycache__/test_build*.pyc`.
+
+**Manual test steps (install command; fill in the results here):**
+
+1. Deploy (see below). On the server `.env`: `SOC_RUNNER_SERVER_URL="https://psaidemo.icn21.local"` and
+   `SOC_RUNNER_CA_CERT_FILE` (already set 2026-10-07). `update.ps1` applies the new migration.
+2. On a company PC without admin (SAC on), preferably without Claude Code: sign in to `/soc`, click
+   **สร้างคำสั่งติดตั้ง SOC Runner**, **คัดลอก**.
+3. Open **Windows PowerShell** (not 7, not as administrator), paste, Enter. Note any Code Integrity / SAC block,
+   AV warning or UAC prompt (none must appear).
+4. Python + packages download, Claude Code installs, the sign-in window opens → sign in with your own Claude account →
+   "ติดตั้ง SOC Runner เสร็จแล้ว".
+5. `/soc` shows ออนไลน์ and ล็อกอิน Claude แล้ว. Click ตรวจ on one major item → ตรวจแล้ว, the rows show.
+6. Reboot, sign in to Windows, wait a minute: ออนไลน์ again.
+7. Paste the same command again → refused (used). Make a new one, delete
+   `%LOCALAPPDATA%\SOCRunner\app\runner\runner.py`, paste it: online again.

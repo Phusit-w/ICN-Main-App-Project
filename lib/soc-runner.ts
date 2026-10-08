@@ -6,12 +6,12 @@
 // link: downloading again replaces it (ADR 0008). An admin can list and
 // revoke links. See docs/SOC-RUNNER.md.
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { requireAccess, requireRole, writeAudit } from "@/lib/authorization";
 import { hasAccess } from "@/lib/access";
 import { newSocRunnerToken, socRunnerBearerToken } from "@/lib/soc-runner-token";
-import { socRunnerCaCert } from "@/lib/soc-runner-installer";
 import { SOC_CLAUDE_LOGINS, socRunnerState, type SocClaudeLogin, type SocRunnerRevokeReason, type SocRunnerView } from "@/lib/soc-shared";
 
 export const SOC_RUNNER_CONFIG_FORMAT = "soc-runner-config/1";
@@ -30,10 +30,24 @@ export function socRunnerServerUrl(request: Request): string {
   return (configured || new URL(request.url).origin).replace(/\/+$/, "");
 }
 
+// The certificate the runner should trust for this server, from
+// SOC_RUNNER_CA_CERT_FILE (the IIS site's self-signed certificate), or
+// undefined when unset. A setting that isn't a PEM certificate throws, so a
+// user is never handed a command or config that can't reach the server.
+export async function socRunnerCaCert(): Promise<string | undefined> {
+  const file = process.env.SOC_RUNNER_CA_CERT_FILE?.trim();
+  if (!file) return undefined;
+  const pem = await readFile(file, "utf8");
+  if (!/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(pem)) {
+    throw new Error(`SOC_RUNNER_CA_CERT_FILE (${file}) is not a PEM certificate`);
+  }
+  return pem;
+}
+
 // Creates a new link for the signed-in user and revokes their previous one
 // ("replaced"), so an old config, e.g. on a lost PC, stops working. Returns
 // the config file's content; this is the only place the token exists.
-export async function createSocRunnerLink(actor: SocActor, serverUrl: string) {
+export async function createSocRunnerLink(actor: Pick<SocActor, "id" | "username" | "displayName">, serverUrl: string) {
   // Read first: a bad CA setting must not revoke the user's working link.
   const caCert = await socRunnerCaCert();
   const token = newSocRunnerToken();
@@ -46,7 +60,7 @@ export async function createSocRunnerLink(actor: SocActor, serverUrl: string) {
     const link = await tx.socRunnerLink.create({ data: { userId: actor.id, tokenHash: hashToken(token) } });
     await writeAudit({
       actorId: actor.id, targetUserId: actor.id, action: "SOC_RUNNER_LINKED", entityType: "SOC_RUNNER", entityId: link.id,
-      summary: `ดาวน์โหลดไฟล์เชื่อม SOC Runner${replacedLinkIds.length ? " (แทนลิงก์เดิม)" : ""}`,
+      summary: `เชื่อม SOC Runner${replacedLinkIds.length ? " (แทนลิงก์เดิม)" : ""}`,
       metadata: { replacedLinkIds },
     }, tx);
     return link;

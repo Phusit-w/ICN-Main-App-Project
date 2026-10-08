@@ -4,7 +4,7 @@ Run from source:
 
     python soc-runner/runner.py path/to/soc-runner.json [--log runner.log]
 
-The installer (ticket 16, installer/) runs it on its bundled pythonw.exe at
+The install command (ticket 16, bootstrap.ps1 + install.py) runs it on its own pythonw.exe at
 login with `--log`, one copy at a time.
 
 It sends a heartbeat every 30 s, polls the server for the oldest Check Request
@@ -504,7 +504,7 @@ def parse_args(argv: list[str]) -> tuple[Path, Path | None]:
 def single_instance(lock_path: Path):
     """An open, locked file while this is the only runner, else None.
 
-    Autostart at login and the installer may both start one; two runners on
+    Autostart at login and the install command may both start one; two runners on
     one token would claim requests against each other. Closing the file (or
     the process ending) releases the lock.
     """
