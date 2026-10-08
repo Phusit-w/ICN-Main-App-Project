@@ -4,7 +4,8 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { readSocMajorItems } from "@/lib/soc-major-items";
-import { majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_EVIDENCE_FILES, MAX_EVIDENCE_TOTAL_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
+import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
+import { evidencePath, UPLOAD_BATCH_BYTES, UPLOAD_BATCH_FILES } from "@/lib/soc-upload";
 export * from "@/lib/soc-shared";
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
@@ -150,15 +151,32 @@ export async function validateUpload(file: File, kind: "SOC" | "EVIDENCE") {
   return bytes;
 }
 
-export function validateEvidenceCount(count: number) {
-  if (count < 1 || count > MAX_EVIDENCE_FILES) throw new Error("กรุณาแนบ PDF 1–10 ไฟล์");
+// One request's evidence: within a batch (lib/soc-upload.ts) and, with what
+// the job already has, within the job's limits.
+export function validateEvidenceBatch(files: File[], existing = { count: 0, bytes: 0 }) {
+  if (files.length > UPLOAD_BATCH_FILES || files.reduce((sum, file) => sum + file.size, 0) > UPLOAD_BATCH_BYTES) {
+    throw new Error(`ส่งได้ครั้งละไม่เกิน ${UPLOAD_BATCH_FILES} ไฟล์ และ ${UPLOAD_BATCH_BYTES / 1024 / 1024} MB`);
+  }
+  const problem = evidenceSelectionProblem(files, existing);
+  if (problem) throw new Error(problem);
 }
 
-export function validateEvidenceTotalSize(files: File[]) {
-  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-  if (totalBytes > MAX_EVIDENCE_TOTAL_BYTES) {
-    throw new Error("ไฟล์ Datasheet / Catalog รวมกันต้องมีขนาดไม่เกิน 250 MB");
-  }
+// The evidence a job already has, for validateEvidenceBatch.
+export async function jobEvidenceTotals(jobId: string) {
+  const { _count, _sum } = await prisma.socDocument.aggregate({ where: { jobId, type: "EVIDENCE" }, _count: true, _sum: { sizeBytes: true } });
+  return { count: _count, bytes: _sum.sizeBytes ?? 0 };
+}
+
+// The evidence files of an upload, each with its name in the job: the folder
+// path the upload forms send beside it as `evidencePath`, or the file's own
+// name. Paired before empty files are dropped, so the paths stay in line.
+export function evidenceUploads(form: FormData): { file: File; name: string }[] {
+  const paths = form.getAll("evidencePath");
+  return form.getAll("evidence").flatMap((value, i) => {
+    if (!(value instanceof File) || value.size === 0) return [];
+    const picked = paths[i];
+    return [{ file: value, name: evidencePath(typeof picked === "string" && picked ? picked : value.name) }];
+  });
 }
 
 export async function storeSocFile(jobId: string, originalName: string, extension: string, bytes: Uint8Array) {
@@ -170,7 +188,7 @@ export async function storeSocFile(jobId: string, originalName: string, extensio
     storageKey,
     checksum: createHash("sha256").update(bytes).digest("hex"),
     sizeBytes: bytes.byteLength,
-    originalName: path.basename(originalName).slice(0, 240),
+    originalName: evidencePath(originalName),
   };
 }
 

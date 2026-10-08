@@ -32,7 +32,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.2.1"
+RUNNER_VERSION = "0.2.2"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -334,10 +334,11 @@ def _download_documents(request: dict, server, inputs: Path) -> list[tuple[str, 
     saved: list[tuple[str, str]] = []
     used: set[str] = set()
     for document in request.get("documents") or []:
-        name = _unique(_safe_name(document["name"]), used)
+        name = _unique(_safe_path(document["name"], MAX_WINDOWS_PATH - len(str(inputs)) - 1), used)
         download = server.download(document["url"])
         if hashlib.sha256(download.content).hexdigest() != document.get("checksum"):
             raise RunFailed(f"ดาวน์โหลดไฟล์ {name} ไม่สมบูรณ์ (checksum ไม่ตรง)")
+        (inputs / name).parent.mkdir(parents=True, exist_ok=True)
         (inputs / name).write_bytes(download.content)
         saved.append((document.get("type", "EVIDENCE"), name))
     if not any(kind == "SOC" for kind, _ in saved):
@@ -374,6 +375,19 @@ def _safe_name(name: str) -> str:
     if re.fullmatch(r"(CON|PRN|AUX|NUL|COM\d|LPT\d)(\..*)?", base, re.I):
         base = "_" + base  # Windows reserved device names
     return base or "file"
+
+
+MAX_WINDOWS_PATH = 250  # under Windows' 260, which Python can't pass without LongPathsEnabled
+
+
+def _safe_path(name: str, room: int = MAX_WINDOWS_PATH) -> str:
+    """A document's place under inputs/: the folders it was uploaded with ("2.5 …/1.…/tc22.pdf"),
+    because a SOC cites folders, each part made safe, and never "." or ".." to climb out.
+    Longer than `room`, it drops the outermost folders first: the nearest ones name the item."""
+    parts = [_safe_name(part) for part in re.split(r"[\\/]", str(name)) if part.strip(" .")]
+    while len(parts) > 1 and len("/".join(parts)) > room:
+        parts.pop(0)
+    return "/".join(parts) or "file"
 
 
 def _unique(name: str, used: set[str]) -> str:

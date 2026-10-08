@@ -11,7 +11,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const link = await authenticateSocRunner(request);
     const { id, documentId } = await context.params;
     const { document, bytes } = await runnerRequestDocument(link, id, documentId);
-    const safeName = document.originalName.replace(/[\r\n"]/g, "_");
+    // The runner takes the folder path from the claim; the header names the file only.
+    const safeName = (document.originalName.split("/").pop() || "file").replace(/[\r\n"]/g, "_");
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         "Content-Type": document.mimeType,

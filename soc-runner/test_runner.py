@@ -91,6 +91,7 @@ class FakeClaude:
         self.tasks = []
         self.seen_skill = None
         self.seen_inputs = None
+        self.seen_input_files = None
         self.writes = writes if writes is not None else {
             "results.json": json.dumps(RESULTS).encode("utf-8"),
             "SOC_Check-2026-10-06-demo.docx": b"docx-bytes",
@@ -113,6 +114,8 @@ class FakeClaude:
         skill = task.cwd / ".claude" / "skills" / "tor-word-compliance-check" / "SKILL.md"
         self.seen_skill = skill.read_text(encoding="utf-8") if skill.exists() else None
         self.seen_inputs = sorted(p.name for p in (task.cwd / "inputs").iterdir())
+        inputs = task.cwd / "inputs"
+        self.seen_input_files = sorted(p.relative_to(inputs).as_posix() for p in inputs.rglob("*") if p.is_file())
         self.seen_out.append(sorted(p.name for p in task.out_dir.iterdir()))
         if self.script:
             step = self.script.pop(0)
@@ -317,6 +320,23 @@ class CarryOutTest(unittest.TestCase):
         self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet), "failed")
         self.assertEqual(claude.tasks, [])
         self.assertEqual(self.server.reports[-1][1]["state"], "failed")
+
+    def test_evidence_keeps_its_folders_but_never_leaves_inputs(self):
+        # A SOC cites folders ("2.5 เครื่องอ่าน … หน้า 3"), so a PDF uploaded from a folder lands in it.
+        self.request["documents"][1]["name"] = "บทที่ 2/2.5 เครื่องอ่าน/1.เครื่อง/tc22.pdf"
+        extra = dict(self.request["documents"][1], id="d3", name="../../x/C:/NUL.pdf", url="/api/soc-runner/requests/req-1/documents/d3")
+        self.request["documents"].append(extra)
+        self.server.files[extra["url"]] = self.server.files[self.request["documents"][1]["url"]]
+        claude = FakeClaude()
+        carry_out(self.request, self.server, claude, self.work_root, quiet)
+        self.assertEqual(claude.seen_input_files, ["SOC ภาคผนวก.docx", "x/C_/_NUL.pdf", "บทที่ 2/2.5 เครื่องอ่าน/1.เครื่อง/tc22.pdf"])
+        self.assertIn("`inputs/บทที่ 2/2.5 เครื่องอ่าน/1.เครื่อง/tc22.pdf`", claude.tasks[0].prompt)
+
+    def test_a_folder_path_too_long_for_windows_drops_its_outer_folders(self):
+        self.request["documents"][1]["name"] = "ก" * 200 + "/2.5 เครื่องอ่าน/tc22.pdf"
+        claude = FakeClaude()
+        carry_out(self.request, self.server, claude, self.work_root, quiet)
+        self.assertIn("2.5 เครื่องอ่าน/tc22.pdf", claude.seen_input_files)
 
     def test_windows_reserved_names_are_renamed(self):
         self.request["documents"][1]["name"] = "NUL.pdf"

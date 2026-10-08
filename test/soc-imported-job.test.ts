@@ -59,9 +59,12 @@ async function createImported(owner: Actor) {
   return ((await response.json()) as { id: string }).id;
 }
 
-function postEvidence(jobId: string, files: { name: string; bytes: Uint8Array<ArrayBuffer> }[]) {
+function postEvidence(jobId: string, files: { name: string; bytes: Uint8Array<ArrayBuffer>; path?: string }[]) {
   const form = new FormData();
-  for (const file of files) form.append("evidence", new File([file.bytes], file.name));
+  for (const file of files) {
+    form.append("evidence", new File([file.bytes], file.name));
+    form.append("evidencePath", file.path ?? "");
+  }
   return addEvidence(new Request(`http://localhost/api/soc/jobs/${jobId}/evidence`, { method: "POST", body: form }), { params: Promise.resolve({ id: jobId }) });
 }
 
@@ -171,6 +174,21 @@ test("another soc user can add an evidence PDF to an imported job, and it is aud
   assert.deepEqual(event.detail, { documentIds: [evidence[1].id], names: ["Section 3.2 Datasheet.pdf"] });
   const log = await prisma.auditLog.findFirstOrThrow({ where: { entityId: jobId, action: "SOC_EVIDENCE_ADDED" } });
   assert.equal(log.actorId, colleague.id);
+});
+
+test("evidence picked as a folder keeps its sub-folders in the name, and can't climb out of the job", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+  const response = await postEvidence(jobId, [
+    { name: "tc22.pdf", bytes: PDF, path: "บทที่ 2/2.5 เครื่องอ่าน_ok (P)/1.เครื่องอ่าน/tc22.pdf" },
+    { name: "rfd40.pdf", bytes: PDF, path: "../../2.อุปกรณ์เสริม/rfd40.pdf" },
+    { name: "plain.pdf", bytes: PDF },
+  ]);
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const evidence = await prisma.socDocument.findMany({ where: { jobId, type: "EVIDENCE" }, orderBy: { createdAt: "asc" } });
+  assert.deepEqual(evidence.map((d) => d.originalName).sort(), [
+    "2.อุปกรณ์เสริม/rfd40.pdf", "CASRI.pdf", "plain.pdf", "บทที่ 2/2.5 เครื่องอ่าน_ok (P)/1.เครื่องอ่าน/tc22.pdf",
+  ].sort());
 });
 
 test("a user without soc access can neither open an imported job nor add evidence", { skip }, async () => {

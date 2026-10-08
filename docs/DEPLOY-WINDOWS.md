@@ -342,7 +342,7 @@ git log --oneline -1   # เช็คว่าได้ commit ล่าสุ�
 - **IIS รับ request ได้แค่ราว 28.6 MB โดย default** (`maxAllowedContentLength` = 30,000,000 bytes) ถ้าไม่ตั้งค่านี้ การอัปโหลดงานตรวจ SOC
   ที่ไฟล์รวมใหญ่กว่านั้นจะได้หน้า error HTML ของ IIS แทน JSON และหน้าเว็บขึ้นว่า `Unexpected token 'T', "The page w"... is not valid JSON`
   (เจอบน prod 2026-10-08) ให้เพิ่มส่วนนี้ใน `<system.webServer>` ของ `C:\inetpub\wwwroot\web.config` (300 MB เท่ากับ
-  `proxyClientMaxBodySize` ใน `next.config.ts` และครอบ DOCX 25 MB + PDF รวม 250 MB) IIS ใช้ค่าใหม่ทันที ไม่ต้อง restart:
+  `proxyClientMaxBodySize` ใน `next.config.ts`; หน้าเว็บส่ง PDF ทีละชุดไม่เกิน 200 MB + DOCX 25 MB ต่อ request จึงอัปได้ถึง 1 GB ต่องานโดยไม่ต้องขยายค่านี้) IIS ใช้ค่าใหม่ทันที ไม่ต้อง restart:
   ```xml
   <security>
       <requestFiltering>

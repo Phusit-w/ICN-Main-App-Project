@@ -114,15 +114,20 @@ export const SOC_RUN_SOURCE_LABELS: Record<string, string> = { manual: "นำ�
 // the upload forms.
 export const MAX_SOC_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_EVIDENCE_FILE_BYTES = 120 * 1024 * 1024;
-export const MAX_EVIDENCE_TOTAL_BYTES = 250 * 1024 * 1024;
-export const MAX_EVIDENCE_FILES = 10;
+// Per job, the PDFs already in it included. A job folder (บทที่ 2 with one
+// sub-folder per item) often has 15+ PDFs; the browser sends them in batches
+// (lib/soc-upload.ts) so no request goes over IIS's limit.
+export const MAX_EVIDENCE_TOTAL_BYTES = 1024 * 1024 * 1024;
+export const MAX_EVIDENCE_FILES = 200;
 
-// Why the chosen PDFs can't be sent, or null. The server checks the same.
-export function evidenceSelectionProblem(files: readonly { name: string; size: number }[]): string | null {
-  if (files.length < 1 || files.length > MAX_EVIDENCE_FILES) return `กรุณาแนบ PDF 1–${MAX_EVIDENCE_FILES} ไฟล์`;
+// Why the chosen PDFs can't be added to a job that already has `existing`, or
+// null. The server checks the same.
+export function evidenceSelectionProblem(files: readonly { name: string; size: number }[], existing = { count: 0, bytes: 0 }): string | null {
+  if (files.length < 1) return "กรุณาแนบ PDF อย่างน้อย 1 ไฟล์";
+  if (existing.count + files.length > MAX_EVIDENCE_FILES) return `งานหนึ่งมี PDF ได้ไม่เกิน ${MAX_EVIDENCE_FILES} ไฟล์${existing.count ? ` (มีอยู่แล้ว ${existing.count} ไฟล์)` : ""}`;
   const tooBig = files.find((f) => f.size > MAX_EVIDENCE_FILE_BYTES);
   if (tooBig) return `ไฟล์ ${tooBig.name} ต้องมีขนาดไม่เกิน ${MAX_EVIDENCE_FILE_BYTES / 1024 / 1024} MB`;
-  if (files.reduce((sum, f) => sum + f.size, 0) > MAX_EVIDENCE_TOTAL_BYTES) return `ไฟล์ Datasheet / Catalog รวมกันต้องมีขนาดไม่เกิน ${MAX_EVIDENCE_TOTAL_BYTES / 1024 / 1024} MB`;
+  if (existing.bytes + files.reduce((sum, f) => sum + f.size, 0) > MAX_EVIDENCE_TOTAL_BYTES) return "ไฟล์ Datasheet / Catalog ของงานรวมกันต้องไม่เกิน 1 GB";
   return null;
 }
 
