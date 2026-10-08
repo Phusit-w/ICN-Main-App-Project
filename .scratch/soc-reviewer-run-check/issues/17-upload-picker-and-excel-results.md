@@ -15,12 +15,12 @@
 - The whole-job file starts with a summary sheet.
 - The Word "ดาวน์โหลด SOC_Check" (results appended to the SOC) is **removed**. Excel only.
 
-**Status:** ready-for-human (built and tested by the agent; user checks it in the browser, then deploy)
+**Status:** done (deployed to prod and checked by the user 2026-10-08)
 
-- [ ] SOC upload (`/soc/new`) and "เพิ่ม PDF หลักฐาน": add files one or many at a time, list with size, ลบ per file
-- [ ] Job page "ดาวน์โหลดผลตรวจ (Excel)": summary sheet + one sheet per checked major item
-- [ ] Per major item "Excel" link: one sheet, no summary
-- [ ] The Word SOC_Check download is gone
+- [x] SOC upload (`/soc/new`) and "เพิ่ม PDF หลักฐาน": add files one or many at a time, list with size, ลบ per file
+- [x] Job page "ดาวน์โหลดผลตรวจ (Excel)": summary sheet + one sheet per checked major item
+- [x] Per major item "Excel" link: one sheet, no summary
+- [x] The Word SOC_Check download is gone
 
 ## Comments
 
@@ -43,3 +43,13 @@
 - Removed: `/api/soc/jobs/:id/soc-check`, `lib/soc-combined-check.ts`, `soc-export/`, its test, and the per-item
   "SOC_Check" (the run's .docx) link. The web server no longer needs Python (`SOC_PYTHON`); docs updated.
 - Tests: `test/soc-results-excel.test.ts` (5). `npm test` 158/158, lint + tsc clean.
+
+### 2026-10-08: deployed and accepted
+
+Pushed with the Next.js 16.3.0 → 16.3.8 upgrade (f76fc52; critical GHSA-p293-qw3h-jr36, Windows RCE). The user
+deployed with `git pull` + `update.ps1`, then checked on prod:
+- the new upload picker, including removing a file before creating a job;
+- the whole-job Excel (summary sheet + ข้อ ๑) and the per-item Excel of the DOAXXX_Apron job;
+- an expense page.
+
+The user's verdict: "ทุกอย่างผ่าน" (everything passed).
