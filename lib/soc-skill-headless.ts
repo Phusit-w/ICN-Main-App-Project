@@ -23,7 +23,14 @@ export const HEADLESS_INSTRUCTION = `# โหมด headless (SOC Runner)
 ## ห้ามถามคำถาม
 
 ในโหมดนี้ห้ามถามผู้ใช้และห้ามรอคำตอบในทุกขั้นตอน ถ้า SKILL.md บอกให้ถามหรือแจ้งผู้ใช้แล้วรอ ให้ทำตามข้อด้านล่าง
-หรือเลือกค่าที่ prompt กำหนด (โหมด \`full_audit\` + \`evidence_support\` + \`tor_decision\`) แล้วทำต่อ
+หรือเลือกค่าที่ prompt กำหนด (โหมด \`full_audit\` + option ที่ prompt เปิด: \`evidence_support\`, \`tor_decision\`
+และ \`evidence_packet\` เมื่อ prompt บอกว่าสร้าง packet ไว้แล้ว) แล้วทำต่อ
+
+## evidence packet
+
+เมื่อ prompt เปิด \`evidence_packet\` ให้ทำตาม \`references/evidence-packet.md\` ทุกขั้นเหมือนตอนมีผู้ใช้ โหมด headless ไม่ได้ยกเว้นข้อใด
+โดยเฉพาะ P2/P3: เปิด \`rows/*.json\` และ \`page_file\` ของทุกหน้าทีละไฟล์ด้วย tool Read ห้ามเขียนสคริปต์ python/shell
+รวมหรือ dump หลายไฟล์ของ packet ลงไฟล์เดียวแล้วอ่านแทน
 
 ## ขั้นที่ 0: เอกสารที่ถูกอ้างไม่ครบ
 
