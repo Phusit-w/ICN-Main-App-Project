@@ -46,16 +46,29 @@ export async function createSocRunnerInstallCommand(actor: SocActor, serverUrl: 
   return { command: socRunnerInstallCommand(`${serverUrl}/api/soc-runner/install/${code}`, pin), expiresAt: expiresAt.toISOString() };
 }
 
-// One line for Windows PowerShell 5.1. PowerShell 7 ignores
-// ServicePointManager, so it is told to use Windows PowerShell instead of
-// failing on the certificate. With a pin, a certificate Windows already
-// trusts still passes (the script then downloads from NuGet and PyPI).
+// One line for Windows PowerShell 5.1 (the script's NuGet download needs its
+// TLS 1.2 setting; PowerShell 7 is told to use Windows PowerShell instead).
+// With a pin the script is fetched with WebClient, which runs the certificate
+// check on the calling thread. irm/Invoke-WebRequest run it on another
+// thread, where a PowerShell script block fails with "no Runspace available"
+// (seen on prod 2026-10-08), so the check is removed again before the script
+// runs its own Invoke-WebRequest downloads. A certificate Windows already
+// trusts still passes.
 function socRunnerInstallCommand(scriptUrl: string, pin: string | null): string {
-  return [
+  const prelude = [
     "if($PSVersionTable.PSEdition -eq 'Core'){throw 'Open Windows PowerShell (not PowerShell 7) and paste this again'}",
     "[Net.ServicePointManager]::SecurityProtocol='Tls12'",
-    ...(pin ? [`$p='${pin}'`, "[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$h,$e)$e -eq 'None' -or $c.GetCertHashString() -eq $p}"] : []),
-    `iex (irm '${scriptUrl}')`,
+  ];
+  if (!pin) return [...prelude, `iex (irm '${scriptUrl}')`].join(";");
+  return [
+    ...prelude,
+    `$p='${pin}'`,
+    "[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$h,$e)$e -eq 'None' -or $c.GetCertHashString() -eq $p}",
+    "$w=New-Object Net.WebClient",
+    "$w.Encoding=[Text.Encoding]::UTF8",
+    `$x=$w.DownloadString('${scriptUrl}')`,
+    "[Net.ServicePointManager]::ServerCertificateValidationCallback=$null",
+    "iex $x",
   ].join(";");
 }
 

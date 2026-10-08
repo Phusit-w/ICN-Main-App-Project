@@ -220,8 +220,15 @@ SAC ตรวจทุกไฟล์แล้วอนุญาต ไม่ม
 `ServicePointManager` คำสั่งจะบอกเอง) ตัวอย่าง (บน server ที่ใช้ certificate ของตัวเอง):
 
 ```
-if($PSVersionTable.PSEdition -eq 'Core'){throw '…'};[Net.ServicePointManager]::SecurityProtocol='Tls12';$p='<SHA-1 thumbprint>';[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$h,$e)$e -eq 'None' -or $c.GetCertHashString() -eq $p};iex (irm 'https://<server>/api/soc-runner/install/soci_…')
+if($PSVersionTable.PSEdition -eq 'Core'){throw '…'};[Net.ServicePointManager]::SecurityProtocol='Tls12';$p='<SHA-1 thumbprint>';[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$h,$e)$e -eq 'None' -or $c.GetCertHashString() -eq $p};$w=New-Object Net.WebClient;$w.Encoding=[Text.Encoding]::UTF8;$x=$w.DownloadString('https://<server>/api/soc-runner/install/soci_…');[Net.ServicePointManager]::ServerCertificateValidationCallback=$null;iex $x
 ```
+
+ทำไมใช้ `WebClient` ไม่ใช่ `irm` (เจอบน prod 2026-10-08): `irm`/`Invoke-WebRequest` เรียกตัวตรวจ certificate บน thread อื่น
+ซึ่ง script block ของ PowerShell รันไม่ได้ (`There is no Runspace available…` แสดงเป็น "An unexpected error occurred on
+a send") ส่วน `WebClient` เรียกบน thread เดียวกัน แล้วคำสั่งล้างตัวตรวจทิ้งก่อนรันสคริปต์ เพราะ `bootstrap.ps1` ใช้
+`Invoke-WebRequest` โหลดจาก NuGet ต่อ ห้ามเปลี่ยนไปเปิด socket เอง (`TcpClient` + `SslStream` + `iex`): Defender ลบไฟล์ที่มี
+รูปแบบนั้นทันทีเพราะเหมือน download cradle ของมัลแวร์ server ที่ไม่มี pin (http หรือ certificate ที่ Windows เชื่ออยู่แล้ว)
+ยังใช้ `iex (irm '…')` ตามเดิม
 
 - **รหัสติดตั้ง** (`soci_…`, `SocRunnerInstallCode`, server เก็บแค่ sha256) ใช้ได้**ครั้งเดียว ภายใน 30 นาที** สร้างคำสั่งใหม่ =
   รหัสเดิมที่ยังไม่ใช้หมดสิทธิ์ การสร้างคำสั่ง**ยังไม่**แตะลิงก์เดิม ลิงก์ใหม่ถูกสร้าง (และลิงก์เดิมถูกยกเลิก `replaced`) ตอนวางคำสั่ง

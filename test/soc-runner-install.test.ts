@@ -115,9 +115,13 @@ test("over https with the server's own certificate the command pins it", { skip 
     signedIn = await user("bob");
     const { command, code } = await newCommand();
     assert.ok(command.includes(`$p='${CERT_THUMBPRINT}'`), command);
-    // A certificate Windows trusts still passes, so Python and PyPI downloads work.
+    // A certificate Windows trusts still passes.
     assert.ok(command.includes("[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$h,$e)$e -eq 'None' -or $c.GetCertHashString() -eq $p}"), command);
-    assert.ok(command.endsWith(`iex (irm 'https://psaidemo.example/api/soc-runner/install/${code}')`), command);
+    // WebClient, not irm: irm runs the check on a thread without a PowerShell
+    // runspace and fails (prod, 2026-10-08). The check is gone again before the
+    // script's own Invoke-WebRequest downloads run.
+    assert.doesNotMatch(command, /\birm\b/);
+    assert.ok(command.endsWith(`$x=$w.DownloadString('https://psaidemo.example/api/soc-runner/install/${code}');[Net.ServicePointManager]::ServerCertificateValidationCallback=$null;iex $x`), command);
   } finally {
     restore();
   }
