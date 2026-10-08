@@ -1,11 +1,13 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireRole, writeAudit } from "@/lib/authorization";
 import { cleanAppAccess, describeAppAccess } from "@/lib/access";
+import { resolveStorageKey } from "@/lib/soc";
 
 function temporaryPassword() {
   return `Icn-${randomBytes(9).toString("base64url")}7`;
@@ -126,6 +128,19 @@ export async function restoreExpense(id: string) {
   const row = await prisma.expenseRecord.update({ where: { id }, data: { deletedAt: null, deletedById: null, purgeAfter: null, restoredAt: new Date() } });
   await writeAudit({ actorId: actor.id, action: "EXPENSE_RESTORED", entityType: "EXPENSE", entityId: id, summary: `กู้คืนเอกสาร ${row.type}` });
   revalidatePath("/admin/trash"); revalidatePath("/records");
+}
+
+// ลบถาวร from the trash: the job's rows (every SOC table cascades from SocJob)
+// and its storage folder. Only a job already in the trash; the AuditLog
+// entries stay.
+export async function purgeSocJob(id: string) {
+  const actor = await requireRole("ADMIN");
+  const job = await prisma.socJob.findUnique({ where: { id }, include: { _count: { select: { documents: true, results: true } } } });
+  if (!job || !job.deletedAt) throw new Error("ลบถาวรได้เฉพาะงานที่อยู่ในถังขยะ");
+  await prisma.socJob.delete({ where: { id } });
+  await rm(resolveStorageKey(id), { recursive: true, force: true });
+  await writeAudit({ actorId: actor.id, action: "SOC_PURGED", entityType: "SOC_JOB", entityId: id, summary: `ลบงาน SOC ${job.title} ถาวร`, metadata: { title: job.title, ownerId: job.ownerId, documents: job._count.documents, results: job._count.results } });
+  revalidatePath("/admin/trash"); revalidatePath("/soc");
 }
 
 export async function restoreSocJob(id: string) {

@@ -22,6 +22,7 @@ const { POST: createJob } = await import("@/app/api/soc/jobs/route");
 const { POST: addEvidence } = await import("@/app/api/soc/jobs/[id]/evidence/route");
 const { authorizeSocJob, listSocJobs } = await import("@/lib/soc");
 const { trashSocJob } = await import("@/actions/soc");
+const { purgeSocJob } = await import("@/actions/admin");
 
 let storageRoot = "";
 before(async () => {
@@ -249,4 +250,25 @@ test("only the owner or an admin may move an imported job to the trash", { skip 
   signedIn = owner;
   await trashSocJob(jobId);
   assert.ok((await prisma.socJob.findUniqueOrThrow({ where: { id: jobId } })).deletedAt);
+});
+
+test("an admin can trash any job and delete a trashed job for good, with its files", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImported(owner);
+  const admin = await user("admin", [], "ADMIN");
+  signedIn = admin;
+  await assert.rejects(purgeSocJob(jobId), /ถังขยะ/, "only from the trash");
+  await trashSocJob(jobId);
+
+  signedIn = owner;
+  await assert.rejects(purgeSocJob(jobId), /FORBIDDEN/, "admin only");
+  assert.ok(existsSync(path.join(storageRoot, jobId)));
+
+  signedIn = admin;
+  await purgeSocJob(jobId);
+  assert.equal(await prisma.socJob.count({ where: { id: jobId } }), 0);
+  assert.equal(await prisma.socDocument.count({ where: { jobId } }), 0);
+  assert.equal(await prisma.socMajorItem.count({ where: { jobId } }), 0);
+  assert.equal(existsSync(path.join(storageRoot, jobId)), false);
+  assert.equal(await prisma.auditLog.count({ where: { entityId: jobId, action: "SOC_PURGED", actorId: admin.id } }), 1);
 });

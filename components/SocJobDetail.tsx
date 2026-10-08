@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
+import { confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
+import SocTrashJobButton from "@/components/SocTrashJobButton";
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck, setSocMajorItemSkipped } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
 import SocReviewPanel from "@/components/SocReviewPanel";
@@ -45,7 +46,7 @@ export default function SocJobDetail({ job }: { job: Job }) {
   const imported = job.kind === "IMPORTED";
 
   return <div className="flex flex-col gap-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <TrashJobButton jobId={job.id} /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <SocTrashJobButton jobId={job.id} title={job.title} goToList /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
     {imported ? <><MajorItemsPanel jobId={job.id} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
     {job.status === "FAILED" ? <FailurePanel job={job} /> : null}
     {outputs.length ? <section className="rounded-card bg-surface p-5 shadow-card"><h2 className="font-display font-semibold">ไฟล์ผลลัพธ์</h2><div className="mt-3 flex flex-wrap gap-3">{outputs.map((doc) => <a key={doc.id} href={`/api/soc/documents/${doc.id}`} target={doc.type === "PREVIEW" ? "_blank" : undefined} className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">{doc.type === "PREVIEW" ? "เปิดตัวอย่าง PDF" : "ดาวน์โหลด DOCX"}</a>)}</div></section> : null}
@@ -57,16 +58,35 @@ export default function SocJobDetail({ job }: { job: Job }) {
   </div>;
 }
 
-function TrashJobButton({ jobId }: { jobId: string }) { const router = useRouter(); const [pending, start] = useTransition(); return <Button size="sm" variant="danger" disabled={pending} onClick={() => { if (!window.confirm("ย้ายงานนี้ไปถังขยะ 30 วัน?")) return; start(async () => { await trashSocJob(jobId); router.push("/soc"); router.refresh(); }); }}>{pending ? "กำลังลบ…" : "ลบ"}</Button>; }
+const SHOW_SKIPPED_KEY = "soc:show-skipped-major-items";
+const SHOW_SKIPPED_EVENT = "soc:show-skipped-changed";
+function readShowSkipped() {
+  try { return window.localStorage.getItem(SHOW_SKIPPED_KEY) === "1"; } catch { return showSkippedFallback; }
+}
+function writeShowSkipped(show: boolean) {
+  try { window.localStorage.setItem(SHOW_SKIPPED_KEY, show ? "1" : "0"); } catch { /* storage blocked: the toggle still works below */ }
+  showSkippedFallback = show;
+  window.dispatchEvent(new Event(SHOW_SKIPPED_EVENT));
+}
+let showSkippedFallback = false;
+function subscribeShowSkipped(onChange: () => void) {
+  window.addEventListener(SHOW_SKIPPED_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => { window.removeEventListener(SHOW_SKIPPED_EVENT, onChange); window.removeEventListener("storage", onChange); };
+}
 
 function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIsAdmin }: { jobId: string; items: MajorItem[]; currentSkillVersion: string | null; viewerId: string; viewerIsAdmin: boolean }) {
   const { checked, total, percent } = majorItemProgress(items);
   const [importing, setImporting] = useState<string | null>(null);
   const unchecked = items.filter((m) => m.state === "not_checked" && !m.skipped).length;
   const skipped = items.filter((m) => m.skipped).length;
+  // ไม่ต้องตรวจ items are hidden by default; the choice is remembered per browser.
+  const hideSkipped = !useSyncExternalStore(subscribeShowSkipped, readShowSkipped, () => false);
+  const toggleSkipped = () => writeShowSkipped(hideSkipped);
+  const shown = hideSkipped ? items.filter((m) => !m.skipped) : items;
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ</span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
-    <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{items.map((item, i) => <Fragment key={item.id}>{item.groupLabel && item.groupLabel !== items[i - 1]?.groupLabel ? <GroupRow item={item} count={items.filter((m) => m.groupLabel === item.groupLabel).length} /> : null}<MajorItemRow jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} /></Fragment>)}</tbody></table></div>
+    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ <button type="button" onClick={toggleSkipped} className="ui-btn ml-1 text-label underline hover:text-ink">{hideSkipped ? "แสดง" : "ซ่อนทั้งหมด"}</button></span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
+    <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{shown.map((item, i) => <Fragment key={item.id}>{item.groupLabel && item.groupLabel !== shown[i - 1]?.groupLabel ? <GroupRow item={item} count={items.filter((m) => m.groupLabel === item.groupLabel).length} /> : null}<MajorItemRow jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} /></Fragment>)}</tbody></table></div>
   </section>;
 }
 
