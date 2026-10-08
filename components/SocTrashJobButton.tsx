@@ -11,7 +11,7 @@ export default function SocTrashJobButton({ jobId, title, goToList = false }: { 
   const router = useRouter();
   const [pending, start] = useTransition();
   return <Button size="sm" variant="danger" disabled={pending} onClick={() => {
-    if (!window.confirm(`ย้ายงาน "${title}" ไปถังขยะ? กู้คืนได้ภายใน 30 วันที่ผู้ดูแลระบบ > ถังขยะ`)) return;
+    if (!window.confirm(`ย้ายงาน "${title}" ไปถังขยะ? กู้คืนได้ภายใน 30 วันที่ผู้ดูแลระบบ > ถังขยะ หลังจากนั้นจะลบถาวรพร้อมไฟล์`)) return;
     start(async () => {
       await trashSocJob(jobId);
       if (goToList) router.push("/soc");

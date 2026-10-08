@@ -24,6 +24,7 @@ const { DELETE: deleteDocument } = await import("@/app/api/soc/documents/[id]/ro
 const { authorizeSocJob, listSocJobs } = await import("@/lib/soc");
 const { trashSocJob } = await import("@/actions/soc");
 const { purgeSocJob } = await import("@/actions/admin");
+const { purgeExpiredSocJobs } = await import("@/lib/soc-trash");
 
 let storageRoot = "";
 before(async () => {
@@ -319,4 +320,27 @@ test("an admin can trash any job and delete a trashed job for good, with its fil
   assert.equal(await prisma.socMajorItem.count({ where: { jobId } }), 0);
   assert.equal(existsSync(path.join(storageRoot, jobId)), false);
   assert.equal(await prisma.auditLog.count({ where: { entityId: jobId, action: "SOC_PURGED", actorId: admin.id } }), 1);
+});
+
+test("the server deletes a trashed job for good once its 30 days are over, and only then", { skip }, async () => {
+  const owner = await user("owner");
+  signedIn = owner;
+  const due = await createImported(owner);
+  const notYet = await createImported(owner);
+  const kept = await createImported(owner);
+  await trashSocJob(due);
+  await trashSocJob(notYet);
+  const trashed = await prisma.socJob.findUniqueOrThrow({ where: { id: due } });
+  assert.ok(trashed.purgeAfter && trashed.purgeAfter.getTime() - trashed.deletedAt!.getTime() === 30 * 86400000, "30 days after trashing");
+  await prisma.socJob.update({ where: { id: due }, data: { purgeAfter: new Date(Date.now() - 1000) } });
+
+  assert.equal(await purgeExpiredSocJobs(new Date()), 1);
+  assert.equal(await prisma.socJob.count({ where: { id: due } }), 0);
+  assert.equal(existsSync(path.join(storageRoot, due)), false);
+  assert.equal(await prisma.socJob.count({ where: { id: { in: [notYet, kept] } } }), 2, "not yet due, and not in the trash");
+  assert.ok(existsSync(path.join(storageRoot, notYet)));
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: due, action: "SOC_PURGED" } });
+  assert.equal(audit.actorId, null);
+  assert.match(audit.summary, /อัตโนมัติ/);
+  assert.equal(await purgeExpiredSocJobs(new Date()), 0, "nothing left to do");
 });
