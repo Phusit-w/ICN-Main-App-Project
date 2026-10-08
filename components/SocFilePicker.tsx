@@ -1,15 +1,19 @@
 "use client";
 
-// A file picker for SOC uploads: add files one at a time, several at once or
-// (with `folders`) a whole folder, see what is chosen, and remove any before
-// sending. An <input type="file"> can't drop one of its files, so the choice
-// lives in the caller's state and the caller sends it.
-import { useRef } from "react";
-import { uploadBatches } from "@/lib/soc-upload";
+// A file picker for SOC uploads: add files one at a time, several at once,
+// (with `folders`) a whole folder, or drag in several folders and files from
+// File Explorer together; see what is chosen, and remove any before sending.
+// An <input type="file"> can't drop one of its files, so the choice lives in
+// the caller's state and the caller sends it.
+import { useRef, useState, type DragEvent } from "react";
+import { droppedFiles, uploadBatches, type DropEntry } from "@/lib/soc-upload";
+
+// A dragged-in file's path, which (unlike a folder pick's) the File can't carry.
+const droppedPath = new WeakMap<File, string>();
 
 // A file's place in what was picked: "2.5 …/1.…/tc22.pdf" from a folder, its
 // name otherwise. The SOC cites folders, so the folders travel with the file.
-export const pickedPath = (file: File) => file.webkitRelativePath || file.name;
+export const pickedPath = (file: File) => droppedPath.get(file) || file.webkitRelativePath || file.name;
 
 // Path and size only: a file picked twice doesn't always keep its lastModified.
 const sameFile = (a: File, b: File) => pickedPath(a) === pickedPath(b) && a.size === b.size;
@@ -69,23 +73,46 @@ export default function SocFilePicker({ files, onChange, accept, multiple = fals
 }) {
   const input = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
-  function add(list: FileList | null, target: HTMLInputElement | null) {
-    const picked = [...(list ?? [])].filter((file) => !file.webkitRelativePath || accepted(file, accept));
+  const [dragging, setDragging] = useState(false);
+  const [dropNote, setDropNote] = useState("");
+  function add(picked: File[]) {
     if (picked.length) onChange(multiple ? [...files, ...picked.filter((f) => !files.some((g) => sameFile(f, g)))] : picked.slice(0, 1));
+  }
+  function pick(target: HTMLInputElement) {
+    add([...(target.files ?? [])].filter((file) => !file.webkitRelativePath || accepted(file, accept)));
+    setDropNote("");
     // Lets the same file be picked again after it was removed.
-    if (target) target.value = "";
+    target.value = "";
+  }
+  function dragOver(event: DragEvent) {
+    if (disabled || !event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setDragging(true);
+  }
+  async function drop(event: DragEvent) {
+    event.preventDefault();
+    setDragging(false);
+    if (disabled) return;
+    // The entries must be taken before the first await: the drop's data is gone after it.
+    const entries = [...event.dataTransfer.items].map((item) => item.webkitGetAsEntry()).filter(Boolean) as unknown as DropEntry[];
+    const dropped = await droppedFiles(entries, { folders });
+    for (const { file, path } of dropped) droppedPath.set(file, path);
+    const kept = dropped.map(({ file }) => file).filter((file) => accepted(file, accept));
+    const skipped = dropped.length - kept.length;
+    setDropNote(skipped ? `ข้าม ${skipped} ไฟล์ที่ไม่ใช่ ${accept.split(",").filter((t) => t.trim().startsWith(".")).join(", ").toUpperCase()}` : "");
+    add(kept);
   }
   const total = files.reduce((sum, file) => sum + file.size, 0);
-  return <div className="flex flex-col gap-2">
-    <input ref={input} type="file" accept={accept} multiple={multiple} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => add(e.target.files, e.target)} />
-    {folders ? <input ref={folderInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => add(e.target.files, e.target)} {...{ webkitdirectory: "" }} /> : null}
+  return <div className="flex flex-col gap-2" onDragOver={dragOver} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }} onDrop={drop}>
+    <input ref={input} type="file" accept={accept} multiple={multiple} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => pick(e.target)} />
+    {folders ? <input ref={folderInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => pick(e.target)} {...{ webkitdirectory: "" }} /> : null}
     {files.length > 1 ? <p className="text-xs text-muted">{files.length} ไฟล์ · รวม {formatFileSize(total)}</p> : null}
     {files.length ? <ul className="flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-input border border-line bg-ground">{files.map((file, i) => <li key={`${pickedPath(file)}-${file.size}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
       <span className="min-w-0 flex-1 truncate" title={pickedPath(file)}>{pickedPath(file)}</span>
       <span className="shrink-0 text-xs tabular-nums text-muted">{formatFileSize(file.size)}</span>
       <button type="button" disabled={disabled} onClick={() => onChange(files.filter((_, j) => j !== i))} className="ui-btn shrink-0 rounded-input px-2 py-1 text-xs font-medium text-danger hover:bg-hover disabled:opacity-50" aria-label={`ลบ ${file.name}`}>ลบ</button>
     </li>)}</ul> : null}
-    <div className="flex gap-2">
+    <div className={`flex gap-2 rounded-input ${dragging ? "outline-2 outline-dashed outline-offset-4 outline-accent" : ""}`}>
       <button type="button" disabled={disabled} onClick={() => input.current?.click()} className="ui-btn flex-1 rounded-input border border-dashed border-line bg-ground p-4 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
         {files.length ? (multiple ? "+ เพิ่มไฟล์" : "เปลี่ยนไฟล์") : label}
       </button>
@@ -93,5 +120,7 @@ export default function SocFilePicker({ files, onChange, accept, multiple = fals
         + เลือกโฟลเดอร์
       </button> : null}
     </div>
+    {multiple && !disabled ? <p className="text-xs text-muted">{dragging ? "ปล่อยเพื่อเพิ่ม" : folders ? "หรือลากหลายโฟลเดอร์/ไฟล์จาก File Explorer มาวางที่นี่พร้อมกันได้" : "หรือลากไฟล์มาวางที่นี่"}</p> : null}
+    {dropNote ? <p className="text-xs text-muted">{dropNote}</p> : null}
   </div>;
 }
