@@ -339,4 +339,15 @@ git log --oneline -1   # เช็คว่าได้ commit ล่าสุ�
 - มี login รายคนแล้ว (ดูหัวข้อ "การยืนยันตัวตน"/"การเพิ่มผู้ใช้" ด้านบน) แต่ยังไม่มีระดับสิทธิ์ต่างกัน — บัญชีไหนที่ล็อกอินได้ก็กรอก/แก้ไข/ลบข้อมูลได้ทั้งหมดเหมือนกันหมด (แยกได้แค่ "ใครทำ" ผ่าน `createdByName`/`updatedByName` ไม่ใช่ "ใครทำอะไรได้บ้าง") ควรจำกัดการเข้าถึงระดับเครือข่ายเพิ่มด้วย (intranet only, firewall) เป็นชั้นป้องกันที่สอง
 - การเซ็นอนุมัติยังคงเป็นการเซ็นบนกระดาษหลังพิมพ์ออกมา
 - **ยังไม่มี HTTPS ให้อัตโนมัติในวิธี native นี้** (ต่างจาก `DEPLOY.md`/Docker ที่มี Caddy ทำให้) — session cookie ที่เพิ่งตั้งไว้ส่งผ่านเครือข่ายแบบไม่เข้ารหัสถ้าไม่มี HTTPS คั่นกลาง ใครดักแพ็กเก็ตในเครือข่ายได้ก็เห็น cookie แล้วสวมสิทธิ์ล็อกอินแทนได้ — ต้องตั้ง reverse proxy เอง (IIS + URL Rewrite/ARR + certificate, หรือ nginx for Windows) ชี้มาที่พอร์ต 3000 — ไม่รวมอยู่ในสคริปต์นี้เพราะแล้วแต่ setup ขององค์กร
+- **IIS รับ request ได้แค่ราว 28.6 MB โดย default** (`maxAllowedContentLength` = 30,000,000 bytes) ถ้าไม่ตั้งค่านี้ การอัปโหลดงานตรวจ SOC
+  ที่ไฟล์รวมใหญ่กว่านั้นจะได้หน้า error HTML ของ IIS แทน JSON และหน้าเว็บขึ้นว่า `Unexpected token 'T', "The page w"... is not valid JSON`
+  (เจอบน prod 2026-10-08) ให้เพิ่มส่วนนี้ใน `<system.webServer>` ของ `C:\inetpub\wwwroot\web.config` (300 MB เท่ากับ
+  `proxyClientMaxBodySize` ใน `next.config.ts` และครอบ DOCX 25 MB + PDF รวม 250 MB) IIS ใช้ค่าใหม่ทันที ไม่ต้อง restart:
+  ```xml
+  <security>
+      <requestFiltering>
+          <requestLimits maxAllowedContentLength="314572800" />
+      </requestFiltering>
+  </security>
+  ```
 - ทั้งวิธี A และ B ทดสอบแล้วจริงว่า build → stage → รันเซิร์ฟเวอร์ → auto-restart เมื่อ process ถูกฆ่า ทำงานถูกต้อง รวมถึงการย้ายสคริปต์ทั้งหมดเข้า `deploy\windows\` ก็ทดสอบ path resolution จริงแล้ว (`stage-standalone.ps1`, `install-service.ps1` ผ่านจนถึงจุดที่ควรจะผ่าน — ล้มเหลวที่ nssm.exe หายไปตามที่คาดไว้, `stop-run-loop.ps1` เจอ/ลบ pid file ที่ตำแหน่งถูกต้อง) ส่วนการติดตั้ง shortcut ใน Startup folder จริง (วิธี A ขั้นตอน 9A) และการสร้าง Windows Service จริงผ่าน NSSM (วิธี B) ยังไม่ได้ทดสอบบนเครื่อง/เซิร์ฟเวอร์เป้าหมายจริง เพราะสภาพแวดล้อมที่พัฒนาไม่มีสิทธิ์ admin และไม่ควรทิ้ง auto-start ถาวรไว้บนเครื่อง dev
