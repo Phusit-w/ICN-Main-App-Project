@@ -98,10 +98,12 @@ export function majorItemStateText(
   }
 }
 
-// "ตรวจแล้ว checked/total ข้อใหญ่" on the /soc list and the job page.
-export function majorItemProgress(items: readonly { state: string }[]) {
-  const checked = items.filter((item) => item.state === "checked").length;
-  return { checked, total: items.length, percent: items.length ? Math.round((checked / items.length) * 100) : 0 };
+// "ตรวจแล้ว checked/total ข้อใหญ่" on the /soc list and the job page. Items
+// set to ไม่ต้องตรวจ don't count.
+export function majorItemProgress(items: readonly { state: string; skipped?: boolean }[]) {
+  const counted = items.filter((item) => !item.skipped);
+  const checked = counted.filter((item) => item.state === "checked").length;
+  return { checked, total: counted.length, percent: counted.length ? Math.round((checked / counted.length) * 100) : 0 };
 }
 
 export const SOC_RUN_SOURCE_LABELS: Record<string, string> = { manual: "นำเข้าด้วยมือ", runner: "SOC Runner" };

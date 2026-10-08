@@ -111,14 +111,20 @@ test("a major item over 60 rows is split into its sub-sections; its heading row 
     ...section("๕.๓", "เครื่องพิมพ์", 5),
     ...section("๖.", "การฝึกอบรม", 1),
   ]);
-  const group = { groupLabel: "๕", groupTitle: "ระบบ RFID มีรายละเอียดดังนี้" };
+  const group = { groupLabel: "๕", groupTitle: "ระบบ RFID มีรายละเอียดดังนี้", skipped: false };
+  const other = { groupLabel: null, groupTitle: null, skipped: true };
   assert.deepEqual(readSocMajorItems(soc), [
-    { key: "4", label: "๔", title: "ระบบเดิม", rowCount: 3, groupLabel: null, groupTitle: null },
+    { key: "4", label: "๔", title: "ระบบเดิม", rowCount: 3, ...other },
     { key: "5.1", label: "๕.๑", title: "เครื่องแม่ข่าย", rowCount: 22, ...group },
     { key: "5.2", label: "๕.๒", title: "เครื่องอ่าน RFID", rowCount: 73, ...group },
     { key: "5.3", label: "๕.๓", title: "เครื่องพิมพ์", rowCount: 6, ...group },
-    { key: "6", label: "๖", title: "การฝึกอบรม", rowCount: 2, groupLabel: null, groupTitle: null },
+    { key: "6", label: "๖", title: "การฝึกอบรม", rowCount: 2, ...other },
   ]);
+});
+
+test("with no split, no item is guessed as ไม่ต้องตรวจ", () => {
+  const soc = buildSocDocx([HEADER, ...section("๑.", "หลักการ", 3), ...section("๒.", "ระบบ", 0), ...section("๒.๑", "เครื่อง", 10)]);
+  assert.deepEqual(readSocMajorItems(soc).map((m) => [m.key, m.skipped]), [["1", false], ["2", false]]);
 });
 
 test("a major item of exactly 60 rows stays whole", () => {

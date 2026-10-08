@@ -169,6 +169,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   if (!input.checkRequest && openStates.includes(item.state)) {
     errors.push(`ข้อ ${item.label} มีคำขอตรวจด้วย SOC Runner ที่ยังไม่เสร็จ ยกเลิกคำขอก่อนนำเข้าผลด้วยมือ`);
   }
+  if (item.skipped) errors.push(`ข้อ ${item.label} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อนนำเข้าผล`);
   const skillVersion = input.run.skillVersion.trim().slice(0, 200);
   const model = input.run.model.trim().slice(0, 200);
   if (!skillVersion) errors.push("กรุณาระบุเวอร์ชันของ skill ที่ใช้ตรวจ");

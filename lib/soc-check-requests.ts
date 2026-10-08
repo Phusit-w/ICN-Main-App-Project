@@ -51,6 +51,7 @@ export async function requestMajorItemCheck(
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const item = await prisma.socMajorItem.findFirst({ where: { id: majorItemId, jobId: job.id } });
   if (!item) throw new Error("NOT_FOUND");
+  if (item.skipped) return { ok: false, error: `ข้อ ${item.label} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อน` };
   if (!isRequestableItemState(item.state)) return { ok: false, error: `ข้อ ${item.label} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
   let acknowledgedMissing: string[] = [];
   if (continueWithoutMissing) {
@@ -69,10 +70,11 @@ export async function requestMajorItemCheck(
   return created ? { ok: true, requested: created } : { ok: false, error: `ข้อ ${item.label} เพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่` };
 }
 
-// ตรวจทั้งชุด: a request for every major item that hasn't been checked yet.
+// ตรวจทั้งชุด: a request for every major item that hasn't been checked yet,
+// except those set to ไม่ต้องตรวจ.
 export async function requestAllUncheckedChecks(actor: Actor, job: Job): Promise<CheckRequestResult> {
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
-  const items = await prisma.socMajorItem.findMany({ where: { jobId: job.id, state: "not_checked" }, orderBy: { position: "asc" } });
+  const items = await prisma.socMajorItem.findMany({ where: { jobId: job.id, state: "not_checked", skipped: false }, orderBy: { position: "asc" } });
   if (!items.length) return { ok: false, error: "ไม่มีข้อใหญ่ที่ยังไม่ได้ตรวจ" };
   const created = await createRequests(actor, job, items.map((item) => ({ ...item, replaceConfirmed: [], acknowledgedMissing: [] })));
   return { ok: true, requested: created };
@@ -84,7 +86,7 @@ async function createRequests(actor: Actor, job: Job, items: { id: string; label
   const labels: string[] = [];
   await prisma.$transaction(async (tx) => {
     for (const item of items) {
-      const { count } = await tx.socMajorItem.updateMany({ where: { id: item.id, state: item.state }, data: { state: "requested" } });
+      const { count } = await tx.socMajorItem.updateMany({ where: { id: item.id, state: item.state, skipped: false }, data: { state: "requested" } });
       if (!count) continue;
       const request = await tx.socCheckRequest.create({
         data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, priorState: item.state, replaceConfirmed: item.replaceConfirmed, acknowledgedMissing: item.acknowledgedMissing },
@@ -103,6 +105,32 @@ async function createRequests(actor: Actor, job: Job, items: { id: string; label
     }
   });
   return labels.length;
+}
+
+// ไม่ต้องตรวจ on or off for one major item. Setting it aside is allowed only
+// while nothing is open or done on it (not_checked, failed), so no request
+// or result is left behind on a skipped item; switching back is always allowed.
+const SKIPPABLE_ITEM_STATES = ["not_checked", "failed"];
+
+export async function setMajorItemSkipped(actor: Actor, job: Job, majorItemId: string, skipped: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (job.kind !== "IMPORTED") return { ok: false, error: "ตั้งได้เฉพาะงานตรวจแบบนำเข้าผล" };
+  const item = await prisma.socMajorItem.findFirst({ where: { id: majorItemId, jobId: job.id } });
+  if (!item) throw new Error("NOT_FOUND");
+  if (item.skipped === skipped) return { ok: true };
+  const where = skipped ? { id: item.id, skipped: false, state: { in: SKIPPABLE_ITEM_STATES } } : { id: item.id, skipped: true };
+  const changed = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.socMajorItem.updateMany({ where, data: { skipped } });
+    if (!count) return false;
+    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: skipped ? "MAJOR_ITEM_SKIPPED" : "MAJOR_ITEM_UNSKIPPED", detail: { majorItemId: item.id, majorItem: item.label } } });
+    await writeAudit({
+      actorId: actor.id, action: skipped ? "SOC_MAJOR_ITEM_SKIPPED" : "SOC_MAJOR_ITEM_UNSKIPPED", entityType: "SOC_JOB", entityId: job.id,
+      summary: `${skipped ? "ตั้งข้อ" : "เปลี่ยนข้อ"} ${item.label} ${skipped ? "เป็นไม่ต้องตรวจ" : "กลับเป็นต้องตรวจ"} ในงาน ${job.title}`,
+      metadata: { majorItem: item.label },
+    }, tx);
+    return true;
+  });
+  if (changed) return { ok: true };
+  return { ok: false, error: `ข้อ ${item.label} ตรวจแล้วหรือมีคำขอตรวจอยู่ ตั้งเป็นไม่ต้องตรวจไม่ได้` };
 }
 
 // Cancels a request its runner hasn't claimed yet. The requester or ADMIN.

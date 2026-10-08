@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmSocJob, retrySocJob, trashSocJob, updateSocResult } from "@/actions/soc";
-import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck } from "@/actions/socCheckRequests";
+import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck, setSocMajorItemSkipped } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
 import SocReviewPanel from "@/components/SocReviewPanel";
 import SocFilePicker, { readUploadResponse } from "@/components/SocFilePicker";
@@ -19,7 +19,7 @@ type ResultItem = {
   aiReferenceCheck: string; aiHeadingTitleCheck: string; aiDetail: string; aiConfidence: string;
   finalReferenceCheck: string; finalHeadingTitleCheck: string; finalDetail: string; reviewed: boolean;
 };
-type MajorItem = { id: string; label: string; title: string | null; groupLabel: string | null; groupTitle: string | null; large: boolean; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
+type MajorItem = { id: string; label: string; title: string | null; groupLabel: string | null; groupTitle: string | null; large: boolean; skipped: boolean; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
 type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null };
 
 const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING"]);
@@ -62,9 +62,10 @@ function TrashJobButton({ jobId }: { jobId: string }) { const router = useRouter
 function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIsAdmin }: { jobId: string; items: MajorItem[]; currentSkillVersion: string | null; viewerId: string; viewerIsAdmin: boolean }) {
   const { checked, total, percent } = majorItemProgress(items);
   const [importing, setImporting] = useState<string | null>(null);
-  const unchecked = items.filter((m) => m.state === "not_checked").length;
+  const unchecked = items.filter((m) => m.state === "not_checked" && !m.skipped).length;
+  const skipped = items.filter((m) => m.skipped).length;
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
+    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ</span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{items.map((item, i) => <Fragment key={item.id}>{item.groupLabel && item.groupLabel !== items[i - 1]?.groupLabel ? <GroupRow item={item} count={items.filter((m) => m.groupLabel === item.groupLabel).length} /> : null}<MajorItemRow jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} /></Fragment>)}</tbody></table></div>
   </section>;
 }
@@ -83,16 +84,37 @@ function SkillVersionFlag({ status }: { status: SkillVersionStatus | null }) {
 
 function MajorItemRow({ jobId, item, viewerId, viewerIsAdmin, open, onToggle, onDone }: { jobId: string; item: MajorItem; viewerId: string; viewerIsAdmin: boolean; open: boolean; onToggle: () => void; onDone: () => void }) {
   // A checked item can be imported again: a re-check replaces its rows.
-  const canImport = item.state === "not_checked" || item.state === "checked";
+  const canImport = !item.skipped && (item.state === "not_checked" || item.state === "checked");
   const recheck = item.state === "checked";
-  const state = majorItemStateText(item, viewerId);
+  const state = item.skipped ? { label: "ไม่ต้องตรวจ", detail: null } : majorItemStateText(item, viewerId);
+  const canSkip = !item.skipped && (item.state === "not_checked" || item.state === "failed");
   const problem = item.state === "failed" || item.state === "needs_documents" || item.state === "needs_login" || (item.state === "checked" && item.missingDocuments.length > 0);
   const request = item.request;
   const canCancel = item.state === "requested" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
-    <tr className="border-t border-line"><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจข้อ ${item.label} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
+    <tr className={`border-t border-line ${item.skipped ? "text-muted" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจข้อ ${item.label} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} onDone={onDone} /></td></tr> : null}
   </>;
+}
+
+// ไม่ต้องตรวจ / ตรวจข้อนี้: sets the item aside from ตรวจทั้งชุด and the
+// progress count, or brings it back.
+function SkipButton({ jobId, item }: { jobId: string; item: MajorItem }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  function toggle() {
+    startTransition(async () => {
+      try {
+        const result = await setSocMajorItemSkipped(jobId, item.id, !item.skipped);
+        if (!result.ok) window.alert(result.error);
+        router.refresh();
+      } catch {
+        window.alert("บันทึกไม่สำเร็จ กรุณาลองใหม่");
+      }
+    });
+  }
+  const title = item.skipped ? "นับข้อนี้กลับเข้าการตรวจ" : "ไม่ตรวจข้อนี้ เช่น หลักการ คุณสมบัติผู้ยื่น ที่ไม่ต้องเทียบกับ Datasheet";
+  return <Button size="sm" variant="outline" disabled={pending} onClick={toggle} title={title}>{pending ? "กำลังบันทึก…" : item.skipped ? "ตรวจข้อนี้" : "ไม่ต้องตรวจ"}</Button>;
 }
 
 // ตรวจ / ตรวจซ้ำ / ลองใหม่: a Check Request for the viewer's own SOC Runner.

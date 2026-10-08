@@ -15,6 +15,11 @@ export type SocMajorItemSpec = {
   rowCount: number; // SOC table rows the item covers, its heading row and unnumbered rows included
   groupLabel: string | null; // a sub-section of a split major item: that major item's label, e.g. "๕"
   groupTitle: string | null; // and its heading row's text
+  // ไม่ต้องตรวจ, guessed on import: when a large item was split, that item is
+  // the specification part, and the others (หลักการ, คุณสมบัติผู้ยื่น …) are
+  // not checked against datasheets. Without a split there is no guess. The
+  // user can switch any item either way on the job page.
+  skipped: boolean;
 };
 
 const UNREADABLE = "ไม่สามารถอ่านไฟล์ SOC ได้ กรุณาตรวจว่าเป็นไฟล์ Word (.docx) ที่ถูกต้อง";
@@ -90,11 +95,13 @@ export function readSocMajorItems(docx: Uint8Array): SocMajorItemSpec[] {
   }
   // Over SPLIT_MAJOR_ITEM_ROWS: split one level, into the second-level
   // sub-sections (๕ → ๕.๑ … ๕.๑๕). A sub-section isn't split again.
-  return [...majors.values()].flatMap(({ rowsBeforeSubs, subs, ...item }): SocMajorItemSpec[] => {
+  const items = [...majors.values()].flatMap(({ rowsBeforeSubs, subs, ...item }): Omit<SocMajorItemSpec, "skipped">[] => {
     if (item.rowCount <= SPLIT_MAJOR_ITEM_ROWS || subs.size < 2) return [{ ...item, groupLabel: null, groupTitle: null }];
     // The major item's own heading row (and any row before ๕.๑) joins the first sub-section.
     return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title }));
   });
+  const split = items.some((item) => item.groupLabel);
+  return items.map((item) => ({ ...item, skipped: split && !item.groupLabel }));
 }
 
 const sameItem = (a: string, b: string) => {

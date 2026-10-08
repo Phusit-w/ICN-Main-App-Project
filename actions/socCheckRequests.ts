@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { authorizeSocJob } from "@/lib/soc";
-import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck } from "@/lib/soc-check-requests";
+import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck, setMajorItemSkipped } from "@/lib/soc-check-requests";
 
 // Check Requests (ticket 13). Any user who may open the job may ask for a
 // check; it runs only on their own SOC Runner.
@@ -35,5 +35,14 @@ export async function cancelSocCheckRequest(jobId: string, requestId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
   const result = await cancelCheckRequest(actor, job, requestId);
   revalidatePath(`/soc/${jobId}`);
+  return result;
+}
+
+// ไม่ต้องตรวจ / ตรวจข้อนี้: anyone who may request a check may set an item aside.
+export async function setSocMajorItemSkipped(jobId: string, majorItemId: string, skipped: boolean) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  const result = await setMajorItemSkipped(actor, job, majorItemId, skipped === true);
+  revalidatePath(`/soc/${jobId}`);
+  revalidatePath("/soc");
   return result;
 }

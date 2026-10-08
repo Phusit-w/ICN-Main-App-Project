@@ -25,8 +25,8 @@ let signedIn: Actor | null = null;
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const { requestSocCheck, requestAllSocChecks, cancelSocCheckRequest, continueSocCheckWithoutMissing } = await import("@/actions/socCheckRequests");
-const { createImportedSocJob } = await import("@/lib/soc");
+const { requestSocCheck, requestAllSocChecks, cancelSocCheckRequest, continueSocCheckWithoutMissing, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
+const { createImportedSocJob, listSocJobs } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 const { uploadSocSkillPackage, setCurrentSocSkillPackage } = await import("@/lib/soc-skill-package");
 const { majorItemRequestViews } = await import("@/lib/soc-check-requests");
@@ -169,6 +169,32 @@ test("ตรวจทั้งชุด queues every unchecked major item, and c
   }
   assert.deepEqual(order, items.filter((m) => m.id !== item1.id).map((m) => m.id));
   assert.equal((await claim(token)).body.request, null);
+});
+
+test("ไม่ต้องตรวจ: a skipped item is left out of ตรวจทั้งชุด and progress, can't be requested, and switches back", { skip }, async () => {
+  const { alice, jobId, items, item1 } = await setup();
+  signedIn = alice;
+  assert.deepEqual(await setSocMajorItemSkipped(jobId, item1.id, true), { ok: true });
+  const audit = await prisma.socAuditEvent.findFirst({ where: { jobId, action: "MAJOR_ITEM_SKIPPED" } });
+  assert.equal((audit?.detail as { majorItem?: string } | null)?.majorItem, item1.label);
+
+  const refused = await requestSocCheck(jobId, item1.id);
+  assert.equal(refused.ok, false);
+  assert.match(!refused.ok ? refused.error : "", /ไม่ต้องตรวจ/);
+  const manual = await importLocalCheckRun(alice, { jobId, majorItemId: item1.id, results: runFor("1"), socCheck: { name: "SOC_Check.docx", bytes: SOC_CHECK }, run: { skillVersion: "v0", model: "m", source: "manual" } });
+  assert.equal(manual.ok, false);
+  assert.deepEqual(await requestAllSocChecks(jobId), { ok: true, requested: items.length - 1 });
+  assert.equal(await itemState(item1.id), "not_checked");
+  const listed = (await listSocJobs(alice)).find((job) => job.id === jobId);
+  assert.equal(listed?.majorItemProgress?.total, items.length - 1);
+
+  // An item with an open request can't be set aside; it has to finish or be cancelled first.
+  const other = items.find((m) => m.id !== item1.id)!;
+  const busy = await setSocMajorItemSkipped(jobId, other.id, true);
+  assert.equal(busy.ok, false);
+
+  assert.deepEqual(await setSocMajorItemSkipped(jobId, item1.id, false), { ok: true });
+  assert.deepEqual(await requestSocCheck(jobId, item1.id), { ok: true, requested: 1 });
 });
 
 test("claims are oldest first across jobs", { skip }, async () => {

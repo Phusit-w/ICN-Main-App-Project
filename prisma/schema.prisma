@@ -224,6 +224,10 @@ model SocMajorItem {
   // item's label and heading text, e.g. "๕". The job page groups by it.
   groupLabel       String?
   groupTitle       String?
+  // ไม่ต้องตรวจ: left out of ตรวจทั้งชุด and the progress count, and can't be
+  // requested. Guessed on import (the parts beside a split item), switched
+  // by the user on the job page. Separate from `state`.
+  skipped          Boolean           @default(false)
   // not_checked | requested | running | paused_quota | needs_login |
   // needs_documents | checked | failed. While a Check Request is open it
   // mirrors that request's state.

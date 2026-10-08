@@ -52,7 +52,7 @@ export async function listSocJobs(actor: SocActor) {
     where: { deletedAt: null, ...(actor.role === "ADMIN" ? {} : { OR: [{ ownerId: actor.id }, { kind: "IMPORTED" }] }) },
     include: {
       owner: { select: { displayName: true } },
-      majorItems: { select: { state: true } },
+      majorItems: { select: { state: true, skipped: true } },
       _count: { select: { results: true } },
     },
     orderBy: { updatedAt: "desc" },

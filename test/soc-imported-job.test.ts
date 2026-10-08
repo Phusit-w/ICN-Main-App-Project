@@ -101,19 +101,19 @@ const LARGE_SOC = buildSocDocx([
   ["๓.", "การฝึกอบรม", "", ""], ...bullets("อบรม", 70), // over 60 with no sub-section: kept whole
 ]);
 
-test("a major item over 60 rows becomes one major item per sub-section, grouped under it", { skip }, async () => {
+test("a major item over 60 rows becomes one major item per sub-section, grouped under it; the items beside it start as ไม่ต้องตรวจ", { skip }, async () => {
   signedIn = await user("owner");
   const response = await createJob(upload({ title: "MOF RFID", soc: LARGE_SOC, evidence: [{ name: "a.pdf", bytes: PDF }] }));
   assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
   const jobId = ((await response.json()) as { id: string }).id;
   const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
   assert.deepEqual(
-    items.map((m) => [m.position, m.key, m.label, m.title, m.rowCount, m.groupLabel, m.groupTitle, m.state]),
+    items.map((m) => [m.position, m.key, m.label, m.title, m.rowCount, m.groupLabel, m.groupTitle, m.state, m.skipped]),
     [
-      [1, "1", "๑", "ระบบเฝ้าระวัง", 2, null, null, "not_checked"],
-      [2, "2.1", "๒.๑", "เครื่องอ่าน", 32, "๒", "ระบบ RFID", "not_checked"],
-      [3, "2.2", "๒.๒", "เครื่องพิมพ์", 31, "๒", "ระบบ RFID", "not_checked"],
-      [4, "3", "๓", "การฝึกอบรม", 71, null, null, "not_checked"],
+      [1, "1", "๑", "ระบบเฝ้าระวัง", 2, null, null, "not_checked", true],
+      [2, "2.1", "๒.๑", "เครื่องอ่าน", 32, "๒", "ระบบ RFID", "not_checked", false],
+      [3, "2.2", "๒.๒", "เครื่องพิมพ์", 31, "๒", "ระบบ RFID", "not_checked", false],
+      [4, "3", "๓", "การฝึกอบรม", 71, null, null, "not_checked", true],
     ],
   );
 });
