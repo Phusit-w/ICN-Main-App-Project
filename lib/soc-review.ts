@@ -104,6 +104,16 @@ const normalizeDocumentName = (name: string) => toArabicDigits(name).toLowerCase
 export type EvidenceDocument = { id: string; name: string };
 export type EvidenceCitation = { cited: string; document: EvidenceDocument | null; pages: number[] };
 
+// What the bidder ticked in the SOC's Comply/Better column, or null when the
+// SOC has no such column. The skill reports that as not_selected with a
+// declared_status_check of not_applicable (MOF_RFID); an empty tick box in a
+// SOC that has them is not_selected / not_selected and still shows.
+export function declaredSelection(declaredStatus: string | null, declaredStatusCheck: string | null): string | null {
+  if (!declaredStatus || declaredStatus === "not_applicable") return null;
+  if (declaredStatus === "not_selected" && declaredStatusCheck === "not_applicable") return null;
+  return declaredStatus;
+}
+
 // The evidence PDF one cited name refers to, e.g. "Datasheet Demo" →
 // "Datasheet_Demo.pdf", compared without case, extension or separators. An
 // exact match wins; otherwise the file name may add to the cited name (e.g.
@@ -112,7 +122,8 @@ export type EvidenceCitation = { cited: string; document: EvidenceDocument | nul
 function matchEvidenceDocument(cited: string, documents: readonly EvidenceDocument[]): EvidenceDocument | null {
   const wanted = normalizeDocumentName(cited);
   if (!wanted) return null;
-  const candidates = documents.map((document) => ({ document, name: normalizeDocumentName(document.name) }));
+  // A PDF uploaded with its folder is named "2.5 …/1.…/tc22.pdf"; the SOC names the file.
+  const candidates = documents.map((document) => ({ document, name: normalizeDocumentName(document.name.split("/").pop() ?? "") }));
   const exact = candidates.filter((c) => c.name === wanted);
   const found = exact.length ? exact : candidates.filter((c) => ` ${c.name} `.includes(` ${wanted} `));
   return found.length === 1 ? found[0].document : null;

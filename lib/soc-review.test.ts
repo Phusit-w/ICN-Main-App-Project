@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { filterReviewRows, citedEvidence, majorItemConfirmed, overallRowStatus, parseReferencePages, socAxisValueLabel, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
+import { filterReviewRows, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, parseReferencePages, socAxisValueLabel, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
 
 type FixtureRow = SocAxisValues & { row: number; item: string; row_type: string };
 const RUN = JSON.parse(readFileSync(new URL("../test/fixtures/soc/results_sonnet.json", import.meta.url), "utf8")) as { results: FixtureRow[] };
@@ -98,4 +98,16 @@ test("a reference is matched to the evidence PDFs it names, with their pages", (
   assert.deepEqual(match("Datasheet, page 2", [{ id: "a", name: "Datasheet A.pdf" }, { id: "b", name: "Datasheet B.pdf" }]), [[null, [2]]], "several fit");
   assert.deepEqual(match("Datasheet Demo p.4; CASRI Product Brochure p.2"), [["d1", [4]], ["d2", [2]]], "two documents");
   assert.deepEqual(match("Datasheet Demo, page 4\npage 6"), [["d1", [4, 6]]], "a part without a name continues the previous document");
+});
+
+test("an evidence PDF uploaded with its folder still matches by its file name", () => {
+  const documents = [{ id: "tc22", name: "บทที่ 2/2.5 เครื่องอ่าน/1.เครื่อง/tc22 spec sheet.pdf" }, { id: "other", name: "2.6 Reader/omnikey.pdf" }];
+  assert.deepEqual(citedEvidence("tc22 spec sheet หน้า 3", documents).map((c) => [c.document?.id ?? null, c.pages]), [["tc22", [3]]]);
+});
+
+test("a SOC with no Comply/Better tick box shows no ticked value: not_selected whose check doesn't apply", () => {
+  assert.equal(declaredSelection("not_selected", "not_applicable"), null);
+  assert.equal(declaredSelection(null, null), null);
+  assert.equal(declaredSelection("not_selected", "not_selected"), "not_selected"); // a tick box left empty
+  assert.equal(declaredSelection("better", "mismatch"), "better");
 });

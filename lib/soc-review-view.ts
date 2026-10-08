@@ -3,7 +3,7 @@
 // the major items whose rows all have a Final Decision. A row counts as
 // decided by reviewedAt, the same test a re-check uses. Server-only.
 import { prisma } from "@/lib/prisma";
-import { isAxisOk, isSocFinalDecision, citedEvidence, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
+import { isAxisOk, isSocFinalDecision, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
 // Each axis with the field the skill uses to explain it.
 const AXIS_DETAIL: Partial<Record<SocAxisKey, (row: StoredRow) => string | null>> = {
@@ -21,7 +21,7 @@ export type SocReviewRow = {
   torText: string; proposalText: string | null; reference: string; referencePages: number[];
   // Each document the reference cites, with its pages and the evidence PDF it names (null when none fits).
   citations: EvidenceCitation[];
-  declaredSelection: string | null; // declared_status: Comply/Better as ticked in the SOC
+  declaredSelection: string | null; // declared_status: Comply/Better as ticked in the SOC; null when it has no tick box
   systemRecommendation: string | null; // tor_decision
   axes: { key: SocAxisKey; label: string; value: string | null; ok: boolean; detail: string | null }[];
   detail: string; keyIssue: string | null; confidence: string;
@@ -50,7 +50,7 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
       torText: r.socText, proposalText: r.proposalText, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments),
-      declaredSelection: r.declaredStatus, systemRecommendation: r.torDecision,
+      declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,
       axes: SOC_REVIEW_AXES.map((axis) => ({ key: axis.key, label: axis.label, value: axes[axis.key] || null, ok: isAxisOk(axes, axis), detail: AXIS_DETAIL[axis.key]?.(r) ?? null })),
       detail: r.aiDetail, keyIssue: r.keyIssue, confidence: r.aiConfidence,
       finalDecision: r.finalDecision && isSocFinalDecision(r.finalDecision) ? r.finalDecision : null, finalNote: r.finalNote,

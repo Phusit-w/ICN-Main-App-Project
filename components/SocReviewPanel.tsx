@@ -21,6 +21,8 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
   const [filter, setFilter] = useState<SocReviewFilter>({ status: "all", majorItemId: "all" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const visible = useMemo(() => filterReviewRows(rows, filter), [rows, filter]);
+  // A SOC without a Comply/Better tick box shows the recommendation only.
+  const ticked = rows.some((row) => row.declaredSelection);
   const selected = visible.find((r) => r.id === selectedId) ?? visible[0];
   const label = new Map(items.map((m) => [m.id, m.label]));
   const counts = (status: StatusFilter) => filterReviewRows(rows, { ...filter, status }).length;
@@ -45,12 +47,12 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <div className="overflow-hidden rounded-card bg-surface shadow-card"><div className="max-h-[calc(100vh-160px)] overflow-auto">
         <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 bg-chip text-left text-xs text-label"><tr><th className="px-3 py-2">สถานะ</th><th className="px-3 py-2">ข้อ</th><th className="px-3 py-2">ข้อกำหนด TOR</th><th className="whitespace-nowrap px-3 py-2">ติ๊ก → แนะนำ</th><th className="px-3 py-2">Final Decision</th></tr></thead>
+          <thead className="sticky top-0 bg-chip text-left text-xs text-label"><tr><th className="px-3 py-2">สถานะ</th><th className="px-3 py-2">ข้อ</th><th className="px-3 py-2">ข้อกำหนด TOR</th><th className="whitespace-nowrap px-3 py-2">{ticked ? "ติ๊ก → แนะนำ" : "แนะนำ"}</th><th className="px-3 py-2">Final Decision</th></tr></thead>
           <tbody>{visible.map((row) => <tr key={row.id} onClick={() => setSelectedId(row.id)} className={`cursor-pointer border-t border-line align-top transition-colors ${selected?.id === row.id ? "bg-hover" : "hover:bg-hover"}`}>
             <td className="px-3 py-2 text-base" title={SOC_ROW_STATUS_LABELS[row.status]}>{SOC_ROW_STATUS_ICONS[row.status]}</td>
             <td className="whitespace-nowrap px-3 py-2"><button type="button" onClick={() => setSelectedId(row.id)} className="ui-btn font-medium text-ink">{row.item}</button></td>
             <td className="px-3 py-2"><span className="line-clamp-2 text-xs leading-relaxed">{row.torText || <span className="text-muted">{row.keyIssue || row.detail}</span>}</span></td>
-            <td className="whitespace-nowrap px-3 py-2 text-xs">{socAxisValueLabel(row.declaredSelection)} → <span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></td>
+            <td className="whitespace-nowrap px-3 py-2 text-xs">{row.declaredSelection ? <>{socAxisValueLabel(row.declaredSelection)} → </> : null}<span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></td>
             <td className="whitespace-nowrap px-3 py-2 text-xs">{row.finalDecision ? <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-800">✔ {decisionLabel(row.finalDecision)}</span> : <span className="text-muted">—</span>}</td>
           </tr>)}</tbody>
         </table>
@@ -71,8 +73,10 @@ function RowInspector({ jobId, row, majorItemLabel }: { jobId: string; row: SocR
       <div><div className="text-xs font-semibold text-label">ข้อเสนอของผู้ยื่น</div><p className="mt-1 whitespace-pre-wrap leading-relaxed">{row.proposalText || <span className="text-muted">—</span>}</p></div>
     </div>
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="rounded-full bg-chip px-3 py-1">ผู้ยื่นติ๊ก: <span className="font-medium">{socAxisValueLabel(row.declaredSelection)}</span></span>
-      <span className={same ? "text-muted" : "font-bold text-danger"} title={same ? "ตรงกัน" : "ไม่ตรงกัน"}>{same ? "=" : "≠"}</span>
+      {row.declaredSelection ? <>
+        <span className="rounded-full bg-chip px-3 py-1">ผู้ยื่นติ๊ก: <span className="font-medium">{socAxisValueLabel(row.declaredSelection)}</span></span>
+        <span className={same ? "text-muted" : "font-bold text-danger"} title={same ? "ตรงกัน" : "ไม่ตรงกัน"}>{same ? "=" : "≠"}</span>
+      </> : null}
       <span className="rounded-full bg-chip px-3 py-1">ระบบแนะนำ: <span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></span>
     </div>
     <div className="rounded-input bg-ground p-3 text-sm"><div className="text-xs font-semibold text-label">สรุปจาก Claude · confidence {row.confidence || "—"}</div><p className="mt-1 leading-relaxed">{row.detail}</p>{row.keyIssue && row.keyIssue !== row.detail ? <p className="mt-1 text-xs text-muted">ประเด็นหลัก: {row.keyIssue}</p> : null}</div>
