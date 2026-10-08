@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSocFile } from "@/lib/soc";
 import { isItemInMajorItem, majorItemKey, socRowTexts } from "@/lib/soc-major-items";
-import { parseReferencePages } from "@/lib/soc-review";
+import { parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
 import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
@@ -30,7 +30,9 @@ export type LocalCheckRunInput = {
   replaceConfirmed?: number[];
   // Runner submissions only: the Check Request this run carries out. It must
   // be running; it is closed as done in the same transaction.
-  checkRequest?: { id: string; requestedById: string; acknowledgedMissing: string[] };
+  // `rowNumbers`: a re-check of only these rows (picked on the review page);
+  // the run's other rows are ignored and the item's other results kept.
+  checkRequest?: { id: string; requestedById: string; acknowledgedMissing: string[]; rowNumbers?: number[] };
 };
 
 export type ConfirmedRow = { rowNumber: number; item: string };
@@ -136,9 +138,25 @@ function asColumnText(value: unknown): string | null {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+const MAX_MISSING = 50;
+const MAX_MISSING_NAME = 300;
+
+// The documents Claude reports it couldn't find while checking: results.json's
+// optional top-level `missing_documents` (HEADLESS.md), as names or
+// { name, cited_in_rows }. Anything else in the list is ignored.
+export function reportedMissingDocuments(data: unknown): string[] {
+  const list = typeof data === "object" && data !== null ? (data as Record<string, unknown>).missing_documents : undefined;
+  if (!Array.isArray(list)) return [];
+  const names = list.map((entry) => (typeof entry === "string" ? entry : typeof entry === "object" && entry !== null ? (entry as Record<string, unknown>).name : null))
+    .filter((name): name is string => typeof name === "string" && name.trim() !== "")
+    .map((name) => name.trim().slice(0, MAX_MISSING_NAME));
+  return [...new Set(names)].slice(0, MAX_MISSING);
+}
+
 // A row has a Final Decision once a reviewer has decided it: decideSocRow
-// (the review page) sets reviewedAt with every Final Decision.
-const hasFinalDecision = (row: { reviewedAt: Date | null }) => row.reviewedAt !== null;
+// (the review page) sets reviewedAt with every Final Decision. รอแก้ไข waits
+// for a re-check, so it doesn't count.
+const hasFinalDecision = (row: { reviewedAt: Date | null; finalDecision: string | null }) => row.reviewedAt !== null && row.finalDecision !== PENDING_FIX;
 
 const RACED = "RACED";
 
@@ -181,13 +199,21 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   const validated = validateLocalCheckRun(input.results, item, { takesGroupHeading: groupFirst?.id === item.id });
   if ("errors" in validated) errors.push(...validated.errors);
   if (errors.length || !("rows" in validated)) return { ok: false, errors };
+  const onlyRows = input.checkRequest?.rowNumbers?.length ? input.checkRequest.rowNumbers : null;
+  const runRows = onlyRows ? validated.rows.filter((row) => onlyRows.includes(row.row)) : validated.rows;
+  if (!runRows.length) return { ok: false, errors: [`ผลตรวจไม่มีแถวที่ขอตรวจใหม่ (แถว ${onlyRows!.join(", ")})`] };
 
   const rowText = await jobSocRowTexts(job.id);
+  // For the banner: documents the requester chose to check without, and
+  // those Claude reports it couldn't find.
+  // A re-check of picked rows keeps the names already on the item.
+  const kept = onlyRows && Array.isArray(item.missingDocuments) ? item.missingDocuments.filter((n): n is string => typeof n === "string") : [];
+  const missingDocuments = [...new Set([...kept, ...(input.checkRequest?.acknowledgedMissing ?? []), ...reportedMissingDocuments(input.results)])];
   const runId = randomUUID();
   const documentId = randomUUID();
   const stored = await storeSocFile(job.id, input.socCheck.name, ".docx", input.socCheck.bytes);
   const source = input.run.source;
-  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: validated.rows.length, source, skillVersion, model, documentId, ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}) };
+  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: runRows.length, source, skillVersion, model, documentId, ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}), ...(onlyRows ? { rowNumbers: runRows.map((r) => r.row) } : {}) };
   let replacedRowCount = 0;
   try {
     const now = new Date();
@@ -202,8 +228,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
         data: {
           state: "checked", skillVersion, model, runSource: source, lastRunAt: now, ranById: actor.id,
           requestedById: request?.requestedById ?? null,
-          // Documents the requester chose to check without (the missing-documents banner).
-          missingDocuments: request?.acknowledgedMissing.length ? request.acknowledgedMissing : Prisma.DbNull,
+          missingDocuments: missingDocuments.length ? missingDocuments : Prisma.DbNull,
         },
       });
       if (claimed.count !== 1) throw new Error(RACED);
@@ -214,12 +239,12 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
         });
         if (closed.count !== 1) throw new Error(RACED);
       }
-      replacedRowCount = await replacePreviousRows(tx, { jobId: job.id, actorId: actor.id, item, runId, replaceConfirmed: input.replaceConfirmed ?? [] });
+      replacedRowCount = await replacePreviousRows(tx, { jobId: job.id, actorId: actor.id, item, runId, replaceConfirmed: input.replaceConfirmed ?? [], onlyRows: onlyRows ? runRows.map((r) => r.row) : null });
       await tx.socDocument.create({ data: { id: documentId, jobId: job.id, type: "RUN_OUTPUT", mimeType: DOCX_MIME, ...stored } });
       await tx.socCheckRun.create({
-        data: { id: runId, jobId: job.id, majorItemId: item.id, source, skillVersion, model, documentId, rowCount: validated.rows.length, importedById: actor.id },
+        data: { id: runId, jobId: job.id, majorItemId: item.id, source, skillVersion, model, documentId, rowCount: runRows.length, importedById: actor.id },
       });
-      await tx.socCheckResult.createMany({ data: validated.rows.map((row) => resultRow(job.id, item.id, runId, row, rowText(row.row, row.item))) });
+      await tx.socCheckResult.createMany({ data: runRows.map((row) => resultRow(job.id, item.id, runId, row, rowText(row.row, row.item))) });
       await tx.socJob.update({ where: { id: job.id }, data: { updatedAt: now } });
       await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "RUN_IMPORTED", detail } });
     });
@@ -235,26 +260,27 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   await writeAudit({
     actorId: actor.id, action: "SOC_RUN_IMPORTED", entityType: "SOC_JOB", entityId: job.id,
     summary: replacedRowCount
-      ? `ตรวจซ้ำข้อ ${item.label} (${validated.rows.length} แถว แทนที่ ${replacedRowCount} แถวเดิม) ในงาน ${job.title}`
-      : `นำเข้าผลตรวจข้อ ${item.label} (${validated.rows.length} แถว) ในงาน ${job.title}`,
+      ? `ตรวจซ้ำข้อ ${item.label} (${runRows.length} แถว แทนที่ ${replacedRowCount} แถวเดิม) ในงาน ${job.title}`
+      : `นำเข้าผลตรวจข้อ ${item.label} (${runRows.length} แถว) ในงาน ${job.title}`,
     metadata: replacedRowCount ? { ...detail, replacedRowCount } : detail,
   });
-  return { ok: true, runId, rowCount: validated.rows.length };
+  return { ok: true, runId, rowCount: runRows.length };
 }
 
-// Deletes the major item's current rows, after copying them into a
-// RESULTS_REPLACED audit event. Runs inside the import's transaction, after
+// Deletes the major item's current rows (only `onlyRows` for a re-check of
+// picked rows), after copying them into a RESULTS_REPLACED audit event. Runs inside the import's transaction, after
 // the item is claimed. Throws ConfirmationRequired, rolling everything back,
 // when a row has a Final Decision and the reviewer hasn't agreed to replace it.
 async function replacePreviousRows(
   tx: Prisma.TransactionClient,
-  { jobId, actorId, item, runId, replaceConfirmed }: { jobId: string; actorId: string; item: { id: string; label: string }; runId: string; replaceConfirmed: number[] },
+  { jobId, actorId, item, runId, replaceConfirmed, onlyRows }: { jobId: string; actorId: string; item: { id: string; label: string }; runId: string; replaceConfirmed: number[]; onlyRows: number[] | null },
 ): Promise<number> {
-  const previous = await tx.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  const where = { majorItemId: item.id, ...(onlyRows ? { rowNumber: { in: onlyRows } } : {}) };
+  const previous = await tx.socCheckResult.findMany({ where, orderBy: { rowNumber: "asc" } });
   if (!previous.length) return 0;
   const confirmedRows = previous.filter(hasFinalDecision).map((r) => ({ rowNumber: r.rowNumber, item: r.item }));
   if (confirmedRows.some((r) => !replaceConfirmed.includes(r.rowNumber))) throw new ConfirmationRequired(confirmedRows);
-  await tx.socCheckResult.deleteMany({ where: { majorItemId: item.id } });
+  await tx.socCheckResult.deleteMany({ where });
   const replacedRunIds = [...new Set(previous.map((r) => r.runId).filter((id): id is string => id !== null))];
   await tx.socAuditEvent.create({
     data: {

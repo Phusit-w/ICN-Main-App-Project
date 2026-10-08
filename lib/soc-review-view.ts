@@ -1,9 +1,10 @@
 // What the review page of an Imported SOC Check reads (ticket 08): every row
 // that needs a decision with its derived overall status, problems first, and
 // the major items whose rows all have a Final Decision. A row counts as
-// decided by reviewedAt, the same test a re-check uses. Server-only.
+// decided by reviewedAt with a settled decision (not รอแก้ไข), the same test
+// a re-check uses. Server-only.
 import { prisma } from "@/lib/prisma";
-import { isAxisOk, isSocFinalDecision, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
+import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
 // Each axis with the field the skill uses to explain it.
 const AXIS_DETAIL: Partial<Record<SocAxisKey, (row: StoredRow) => string | null>> = {
@@ -18,6 +19,7 @@ type StoredRow = NonNullable<Awaited<ReturnType<typeof prisma.socCheckResult.fin
 export type SocReviewRow = {
   id: string; rowNumber: number; item: string; majorItemId: string | null;
   status: Exclude<SocRowStatus, "heading">; reasons: string[];
+  evidenceMissing: boolean; // Claude couldn't find or read the cited page or document
   torText: string; proposalText: string | null; reference: string; referencePages: number[];
   // Each document the reference cites, with its pages and the evidence PDF it names (null when none fits).
   citations: EvidenceCitation[];
@@ -46,7 +48,7 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
     const { status, reasons } = overallRowStatus(r.rowType, axes);
     if (status === "heading") continue;
     rows.push({
-      id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, status, reasons,
+      id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, status, reasons, evidenceMissing: evidenceMissing(axes),
       torText: r.socText, proposalText: r.proposalText, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments),
@@ -60,7 +62,7 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
   }
 
   const byItem = new Map<string, { rowType: string; decided: boolean }[]>();
-  for (const r of stored) byItem.set(r.majorItemId!, [...(byItem.get(r.majorItemId!) ?? []), { rowType: r.rowType, decided: r.reviewedAt !== null }]);
+  for (const r of stored) byItem.set(r.majorItemId!, [...(byItem.get(r.majorItemId!) ?? []), { rowType: r.rowType, decided: r.reviewedAt !== null && r.finalDecision !== PENDING_FIX }]);
   const confirmedItemIds = [...byItem].filter(([, items]) => majorItemConfirmed(items)).map(([id]) => id);
   return { rows: sortReviewRows(rows), confirmedItemIds };
 }

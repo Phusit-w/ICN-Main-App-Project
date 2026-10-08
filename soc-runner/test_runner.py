@@ -229,6 +229,24 @@ class CarryOutTest(unittest.TestCase):
         self.assertIn("`5.1.`", prompt)
         self.assertIn("๕.๑๐", prompt)  # the counter-example, named as outside the item
 
+    def test_a_recheck_of_picked_rows_names_only_those_rows(self):
+        request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4")
+        request["rows"] = [{"row": 12, "item": "๑.๓"}, {"row": 15, "item": "๑.๕"}]
+        claude = FakeClaude()
+        carry_out(request, FakeServer(request, files), claude, self.work_root, quiet)
+        prompt = claude.tasks[0].prompt
+        self.assertIn("ตรวจใหม่เฉพาะ 2 แถว", prompt)
+        self.assertIn("row 12 (ข้อ ๑.๓)", prompt)
+        self.assertIn("row 15 (ข้อ ๑.๕)", prompt)
+        self.assertIn("results.json ให้มีเฉพาะแถวเหล่านี้", prompt)
+        self.assertNotIn("ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้", prompt)
+
+    def test_a_whole_item_check_names_no_rows(self):
+        claude = FakeClaude()
+        carry_out(self.request, self.server, claude, self.work_root, quiet)
+        self.assertNotIn("ตรวจใหม่เฉพาะ", claude.tasks[0].prompt)
+        self.assertIn("ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้", claude.tasks[0].prompt)
+
     def test_the_downloaded_skill_version_is_recorded_over_the_claim(self):
         self.server.files[self.request["skill"]["url"]].headers = {"X-Soc-Skill-Version": "v8-pinned"}
         carry_out(self.request, self.server, FakeClaude(), self.work_root, quiet)

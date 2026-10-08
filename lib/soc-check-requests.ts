@@ -11,6 +11,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { writeAudit } from "@/lib/authorization";
 import { resolveStorageKey } from "@/lib/soc";
 import { importLocalCheckRun, type ConfirmedRow, type LocalCheckRunImport } from "@/lib/soc-import";
+import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
 import {
   SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, isRequestableItemState, socRunnerState,
@@ -61,7 +62,8 @@ export async function requestMajorItemCheck(
     acknowledgedMissing = [...new Set([...(stopped?.acknowledgedMissing ?? []), ...reported])];
   }
   const confirmed = await prisma.socCheckResult.findMany({
-    where: { majorItemId: item.id, reviewedAt: { not: null } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true },
+    // รอแก้ไข rows wait for this re-check, so they aren't asked about.
+    where: { majorItemId: item.id, reviewedAt: { not: null }, OR: [{ finalDecision: null }, { finalDecision: { not: PENDING_FIX } }] }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true },
   });
   if (confirmed.some((r) => !replaceConfirmed.includes(r.rowNumber))) {
     return { ok: false, confirmedRows: confirmed, error: `ข้อ ${item.label} มี ${confirmed.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้` };
@@ -80,26 +82,56 @@ export async function requestAllUncheckedChecks(actor: Actor, job: Job): Promise
   return { ok: true, requested: created };
 }
 
+// ส่งให้ Claude ตรวจใหม่ on the review page: a re-check of only the picked
+// rows, one request per major item they belong to, in SOC order. Picking a
+// row with a Final Decision is the agreement to replace it (the page asks
+// first). Every item must be requestable, or nothing is requested.
+export async function requestRowRechecks(actor: Actor, job: Job, resultIds: string[]): Promise<CheckRequestResult> {
+  if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
+  const rows = (await prisma.socCheckResult.findMany({
+    where: { jobId: job.id, id: { in: [...new Set(resultIds)] }, majorItemId: { not: null } },
+    orderBy: { rowNumber: "asc" },
+    select: { rowNumber: true, rowType: true, majorItemId: true, reviewedAt: true, finalDecision: true },
+  })).filter((r) => !isHeadingRow(r.rowType));
+  if (!rows.length) return { ok: false, error: "ไม่มีแถวที่เลือก หรือแถวที่เลือกถูกตรวจซ้ำไปแล้ว กรุณาโหลดหน้าใหม่" };
+  const items = await prisma.socMajorItem.findMany({ where: { jobId: job.id, id: { in: [...new Set(rows.map((r) => r.majorItemId!))] } }, orderBy: { position: "asc" } });
+  for (const item of items) {
+    if (item.skipped) return { ok: false, error: `ข้อ ${item.label} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อน` };
+    if (!isRequestableItemState(item.state)) return { ok: false, error: `ข้อ ${item.label} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
+  }
+  const created = await createRequests(actor, job, items.map((item) => {
+    const picked = rows.filter((r) => r.majorItemId === item.id);
+    return {
+      ...item, acknowledgedMissing: [],
+      rowNumbers: picked.map((r) => r.rowNumber),
+      replaceConfirmed: picked.filter((r) => r.reviewedAt !== null && r.finalDecision !== PENDING_FIX).map((r) => r.rowNumber),
+    };
+  }));
+  return created === items.length ? { ok: true, requested: created } : { ok: false, error: "บางข้อเพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่" };
+}
+
 // One request per item, in position order so that claims (oldest first)
 // follow the SOC. An item whose state changed since it was read is skipped.
-async function createRequests(actor: Actor, job: Job, items: { id: string; label: string; state: string; replaceConfirmed: number[]; acknowledgedMissing: string[] }[]) {
+async function createRequests(actor: Actor, job: Job, items: { id: string; label: string; state: string; replaceConfirmed: number[]; acknowledgedMissing: string[]; rowNumbers?: number[] }[]) {
   const labels: string[] = [];
   await prisma.$transaction(async (tx) => {
     for (const item of items) {
       const { count } = await tx.socMajorItem.updateMany({ where: { id: item.id, state: item.state, skipped: false }, data: { state: "requested" } });
       if (!count) continue;
       const request = await tx.socCheckRequest.create({
-        data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, priorState: item.state, replaceConfirmed: item.replaceConfirmed, acknowledgedMissing: item.acknowledgedMissing },
+        data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, priorState: item.state, replaceConfirmed: item.replaceConfirmed, acknowledgedMissing: item.acknowledgedMissing, rowNumbers: item.rowNumbers ?? [] },
       });
       await tx.socAuditEvent.create({
-        data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUESTED", detail: { checkRequestId: request.id, majorItemId: item.id, majorItem: item.label, priorState: item.state, replaceConfirmed: item.replaceConfirmed, ...(item.acknowledgedMissing.length ? { acknowledgedMissing: item.acknowledgedMissing } : {}) } },
+        data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUESTED", detail: { checkRequestId: request.id, majorItemId: item.id, majorItem: item.label, priorState: item.state, replaceConfirmed: item.replaceConfirmed, ...(item.acknowledgedMissing.length ? { acknowledgedMissing: item.acknowledgedMissing } : {}), ...(item.rowNumbers?.length ? { rowNumbers: item.rowNumbers } : {}) } },
       });
       labels.push(item.label);
     }
     if (labels.length) {
       await writeAudit({
         actorId: actor.id, action: "SOC_CHECK_REQUESTED", entityType: "SOC_JOB", entityId: job.id,
-        summary: `ขอตรวจข้อ ${labels.join(", ")} ด้วย SOC Runner ในงาน ${job.title}`,
+        summary: items.some((i) => i.rowNumbers?.length)
+          ? `ขอตรวจใหม่ ${items.reduce((n, i) => n + (i.rowNumbers?.length ?? 0), 0)} แถวในข้อ ${labels.join(", ")} ด้วย SOC Runner ในงาน ${job.title}`
+          : `ขอตรวจข้อ ${labels.join(", ")} ด้วย SOC Runner ในงาน ${job.title}`,
         metadata: { majorItems: labels },
       }, tx);
     }
@@ -201,7 +233,7 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
         request: {
           id: r.id, state: r.state, requestedById: r.requestedById, requestedByName: r.requestedBy.displayName,
           runnerState: link ? socRunnerState(link.lastSeenAt, now) : null,
-          progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null,
+          progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null, rowCount: r.rowNumbers.length,
         },
       });
   }
@@ -212,7 +244,8 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
 
 const requestFiles = (id: string) => `/api/soc-runner/requests/${id}`;
 
-// What the runner gets for a claimed request: the major item to check, the
+// What the runner gets for a claimed request: the major item to check (and
+// `rows`, the rows of a re-check of picked rows; empty = every row), the
 // documents and the pinned Skill Package, each with the URL to fetch it.
 async function runnerView(requestId: string) {
   const request = await prisma.socCheckRequest.findUniqueOrThrow({
@@ -224,12 +257,16 @@ async function runnerView(requestId: string) {
     },
   });
   const skill = request.skillPackage;
+  const picked = request.rowNumbers.length
+    ? await prisma.socCheckResult.findMany({ where: { majorItemId: request.majorItemId, rowNumber: { in: request.rowNumbers } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true } })
+    : [];
   return {
     id: request.id,
     claimedAt: request.claimedAt?.toISOString() ?? null,
     job: { id: request.job.id, title: request.job.title },
     majorItem: request.majorItem,
     acknowledgedMissing: request.acknowledgedMissing,
+    rows: picked.map((r) => ({ row: r.rowNumber, item: r.item })),
     skill: skill ? { version: skill.version, fileName: socSkillDownloadName(skill), sizeBytes: skill.sizeBytes, checksum: skill.checksum, url: `${requestFiles(request.id)}/skill` } : null,
     documents: request.job.documents.map((d) => ({
       id: d.id, type: d.type, name: d.originalName, sizeBytes: d.sizeBytes, checksum: d.checksum, url: `${requestFiles(request.id)}/documents/${d.id}`,
@@ -416,7 +453,7 @@ export async function submitCheckRequest(
     jobId: request.jobId, majorItemId: request.majorItemId, results: input.results, socCheck: input.socCheck,
     run: { skillVersion: input.skillVersion || pinned?.version || "", model: input.model, source: "runner" },
     replaceConfirmed: request.replaceConfirmed,
-    checkRequest: { id: request.id, requestedById: request.requestedById, acknowledgedMissing: request.acknowledgedMissing },
+    checkRequest: { id: request.id, requestedById: request.requestedById, acknowledgedMissing: request.acknowledgedMissing, rowNumbers: request.rowNumbers },
   });
   if (!imported.ok) {
     const reason = `ผลตรวจที่ SOC Runner ส่งกลับมาไม่ผ่านการตรวจสอบ: ${imported.errors.slice(0, 3).join(" / ")}`.slice(0, MAX_REASON);

@@ -25,7 +25,7 @@ let signedIn: Actor | null = null;
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const { requestSocCheck, requestAllSocChecks, cancelSocCheckRequest, continueSocCheckWithoutMissing, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
+const { requestSocCheck, requestAllSocChecks, requestSocRowRechecks, cancelSocCheckRequest, continueSocCheckWithoutMissing, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob, listSocJobs } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 const { uploadSocSkillPackage, setCurrentSocSkillPackage } = await import("@/lib/soc-skill-package");
@@ -93,7 +93,7 @@ const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 const at = (requestId: string) => `http://localhost/api/soc-runner/requests/${requestId}`;
 const params = <T extends Record<string, string>>(value: T) => ({ params: Promise.resolve(value) });
 
-type Claimed = { id: string; job: { id: string }; majorItem: { id: string; key: string; label: string }; acknowledgedMissing: string[]; skill: { version: string; url: string } | null; documents: { id: string; type: string; name: string; url: string }[] };
+type Claimed = { id: string; job: { id: string }; majorItem: { id: string; key: string; label: string }; acknowledgedMissing: string[]; rows: { row: number; item: string }[]; skill: { version: string; url: string } | null; documents: { id: string; type: string; name: string; url: string }[] };
 
 async function claim(token: string) {
   const response = await claimRoute(new Request("http://localhost/api/soc-runner/claim", { method: "POST", headers: auth(token) }));
@@ -253,6 +253,67 @@ test("a re-check over rows with a Final Decision warns, and the agreed rows are 
   const claimed = (await claim(token)).body.request!;
   assert.equal((await submit(token, claimed.id, runFor("1"))).status, 201);
   assert.equal(await prisma.socCheckResult.count({ where: { majorItemId: item1.id, reviewedAt: { not: null } } }), 0);
+});
+
+test("rows picked on the review page are re-checked alone: one request per major item, the runner is told the rows, only they are replaced", { skip }, async () => {
+  const { alice, jobId, items, item1 } = await setup();
+  const item2 = items.find((m) => m.key === "2")!;
+  const token = await linkRunner(alice);
+  signedIn = alice;
+  for (const [item, key] of [[item1, "1"], [item2, "2"]] as const) {
+    assert.ok((await importLocalCheckRun(alice, { jobId, majorItemId: item.id, results: runFor(key), socCheck: { name: "SOC_Check.docx", bytes: SOC_CHECK }, run: { skillVersion: "v0", model: "m", source: "manual" } })).ok);
+  }
+  const content = { NOT: { rowType: { endsWith: "heading_row" } } };
+  const rows1 = await prisma.socCheckResult.findMany({ where: { majorItemId: item1.id, ...content }, orderBy: { rowNumber: "asc" } });
+  const row2 = await prisma.socCheckResult.findFirstOrThrow({ where: { majorItemId: item2.id, ...content }, orderBy: { rowNumber: "asc" } });
+  // A settled row the reviewer picks is replaced: picking it is the agreement.
+  await prisma.socCheckResult.update({ where: { id: rows1[1].id }, data: { finalDecision: "compliant", reviewedAt: new Date(), reviewedById: alice.id } });
+
+  assert.deepEqual(await requestSocRowRechecks(jobId, [rows1[3].id, rows1[1].id, row2.id]), { ok: true, requested: 2 });
+  const requests = await prisma.socCheckRequest.findMany({ orderBy: { createdAt: "asc" } });
+  assert.deepEqual(requests.map((r) => [r.majorItemId, r.rowNumbers, r.replaceConfirmed]), [
+    [item1.id, [rows1[1].rowNumber, rows1[3].rowNumber], [rows1[1].rowNumber]],
+    [item2.id, [row2.rowNumber], []],
+  ]);
+  assert.equal(await itemState(item1.id), "requested");
+  const again = await requestSocRowRechecks(jobId, [rows1[0].id]);
+  assert.ok(!again.ok && /มีคำขอตรวจที่ยังไม่เสร็จ/.test(again.error));
+
+  const claimed = (await claim(token)).body.request!;
+  assert.deepEqual(claimed.rows, [rows1[1], rows1[3]].map((r) => ({ row: r.rowNumber, item: r.item })));
+  // A runner that checks the whole item anyway still touches only the picked rows.
+  const rerun = runFor("1");
+  for (const row of rerun.results) row.detail = "ตรวจซ้ำ";
+  const response = await submit(token, claimed.id, rerun);
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  assert.equal(((await response.json()) as { rowCount: number }).rowCount, 2);
+  const after = await prisma.socCheckResult.findMany({ where: { majorItemId: item1.id }, orderBy: { rowNumber: "asc" } });
+  assert.equal(after.length, (await prisma.socCheckResult.count({ where: { majorItemId: item1.id } })));
+  assert.deepEqual(after.filter((r) => r.aiDetail === "ตรวจซ้ำ").map((r) => r.rowNumber), [rows1[1].rowNumber, rows1[3].rowNumber]);
+  assert.equal(after.find((r) => r.rowNumber === rows1[1].rowNumber)!.reviewedAt, null);
+  assert.equal(after.length, runFor("1").results.length, "the other rows are kept");
+  assert.equal(await itemState(item1.id), "checked");
+
+  // Results without any picked row can't pass.
+  const second = (await claim(token)).body.request!;
+  assert.equal(second.majorItem.id, item2.id);
+  const without = runFor("2");
+  without.results = without.results.filter((r) => r.row !== row2.rowNumber);
+  const rejected = await submit(token, second.id, without);
+  assert.equal(rejected.status, 422);
+  assert.equal((await prisma.socCheckRequest.findUniqueOrThrow({ where: { id: second.id } })).state, "failed");
+});
+
+test("picking nothing, a heading row or a row of another job is refused", { skip }, async () => {
+  const { alice, jobId, item1 } = await setup();
+  signedIn = alice;
+  assert.ok((await importLocalCheckRun(alice, { jobId, majorItemId: item1.id, results: runFor("1"), socCheck: { name: "SOC_Check.docx", bytes: SOC_CHECK }, run: { skillVersion: "v0", model: "m", source: "manual" } })).ok);
+  const heading = await prisma.socCheckResult.findFirstOrThrow({ where: { majorItemId: item1.id, rowType: { endsWith: "heading_row" } } });
+  for (const ids of [[], [heading.id], ["not-a-row"]]) {
+    const refused = await requestSocRowRechecks(jobId, ids);
+    assert.equal(refused.ok, false, JSON.stringify(ids));
+  }
+  assert.equal(await prisma.socCheckRequest.count(), 0);
 });
 
 // ---- Isolation ------------------------------------------------------------------
@@ -527,7 +588,7 @@ test("a claim whose runner stops sending heartbeats returns to requested; heartb
 // ---- What the major item shows ----------------------------------------------------
 
 const view = (overrides: Partial<SocCheckRequestView> = {}): SocCheckRequestView => ({
-  id: "r", state: "requested", requestedById: "me", requestedByName: "สมชาย", runnerState: "online", progressNote: null, resumeAt: null, ...overrides,
+  id: "r", state: "requested", requestedById: "me", requestedByName: "สมชาย", runnerState: "online", progressNote: null, resumeAt: null, rowCount: 0, ...overrides,
 });
 
 test("every major item state shows in Thai, with รอเครื่องของคุณเปิด when the requester's runner is off", () => {

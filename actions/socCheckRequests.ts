@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { authorizeSocJob } from "@/lib/soc";
-import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck, setMajorItemSkipped } from "@/lib/soc-check-requests";
+import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck, requestRowRechecks, setMajorItemSkipped } from "@/lib/soc-check-requests";
 
 // Check Requests (ticket 13). Any user who may open the job may ask for a
 // check; it runs only on their own SOC Runner.
@@ -26,6 +26,14 @@ export async function continueSocCheckWithoutMissing(jobId: string, majorItemId:
 export async function requestAllSocChecks(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
   const result = await requestAllUncheckedChecks(actor, job);
+  revalidatePath(`/soc/${jobId}`);
+  return result;
+}
+
+// ส่งให้ Claude ตรวจใหม่: the rows picked on the review page.
+export async function requestSocRowRechecks(jobId: string, resultIds: string[]) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  const result = await requestRowRechecks(actor, job, Array.isArray(resultIds) ? resultIds.filter((id) => typeof id === "string").slice(0, 5000) : []);
   revalidatePath(`/soc/${jobId}`);
   return result;
 }

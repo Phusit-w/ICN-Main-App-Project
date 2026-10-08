@@ -472,3 +472,23 @@ test("imported rows can't be edited through the legacy review action", { skip },
   await assert.rejects(updateSocResult({ jobId, resultId: row.id, referenceCheck: "match", headingTitleCheck: "match", detail: "ok" }));
   assert.equal((await prisma.socCheckResult.findUniqueOrThrow({ where: { id: row.id } })).reviewedAt, null);
 });
+
+test("a re-check replaces รอแก้ไข rows without asking", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  assert.ok((await importRun(owner, jobId, item.id, runFor("1"))).ok);
+  const rows = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id }, orderBy: { rowNumber: "asc" } });
+  await prisma.socCheckResult.update({ where: { id: rows[1].id }, data: { finalDecision: "pending_fix", finalNote: "รอ datasheet ใหม่", reviewedAt: new Date(), reviewedById: owner.id } });
+  const rechecked = await importRun(owner, jobId, item.id, rerun("1", "ตรวจซ้ำ"));
+  assert.ok(rechecked.ok, JSON.stringify(rechecked));
+  assert.ok((await prisma.socCheckResult.findMany({ where: { majorItemId: item.id } })).every((r) => r.aiDetail === "ตรวจซ้ำ" && r.finalDecision === null));
+});
+
+test("documents Claude reports it couldn't find are kept on the major item for the banner", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  const run = { ...runFor("1"), missing_documents: [{ name: "folder 2.5 Datasheet", cited_in_rows: [3] }, "Certificate ISO", { name: "" }, 7] };
+  assert.ok((await importRun(owner, jobId, item.id, run)).ok);
+  assert.deepEqual((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item.id } })).missingDocuments, ["folder 2.5 Datasheet", "Certificate ISO"]);
+  // A later run that found everything clears them.
+  assert.ok((await importRun(owner, jobId, item.id, { ...runFor("1"), missing_documents: [] })).ok);
+  assert.equal((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item.id } })).missingDocuments, null);
+});

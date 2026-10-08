@@ -32,7 +32,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.2.2"
+RUNNER_VERSION = "0.2.3"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -182,7 +182,8 @@ def build_resume_prompt(request: dict) -> str:
         "",
         f"การตรวจข้อใหญ่ {item['label']} ถูกหยุดไว้ (โควตา Claude หมดหรือต้องเข้าสู่ระบบใหม่) ตอนนี้ใช้งานได้แล้ว"
         " ให้ตรวจต่อจากที่ค้างไว้ในการสนทนานี้ ใช้ skill ไฟล์ และผลระหว่างทางใน `out/` ชุดเดิม ห้ามตรวจแถวที่ตรวจเสร็จแล้วซ้ำ ห้ามถามผู้ใช้",
-        "- เมื่อเสร็จให้เขียน `out/results.json` และ `out/SOC_Check.docx` ให้ครบทุกแถวของข้อใหญ่นี้ (รวมแถวที่ตรวจไว้ก่อนหยุด)",
+        "- เมื่อเสร็จให้เขียน `out/results.json` และ `out/SOC_Check.docx` ให้ครบทุกแถว"
+        + ("ที่ขอตรวจใหม่" if request.get("rows") else "ของข้อใหญ่นี้") + " (รวมแถวที่ตรวจไว้ก่อนหยุด)",
         f"- acknowledged_missing: {acknowledged}",
         "- ห้ามแก้ไขไฟล์ใน `inputs/`",
     ]
@@ -200,8 +201,16 @@ def item_scope(item: dict) -> str:
             f" เช่น {label}.{one} อยู่ในข้อนี้ แต่ {label}{zero} ไม่ใช่)")
 
 
+def rows_scope(rows: list[dict]) -> str:
+    """A re-check of rows the reviewer picked on the review page: only these, by the SOC table's row."""
+    listed = ", ".join(f"row {r['row']} (ข้อ {r['item']})" for r in rows)
+    return (f"- ตรวจใหม่เฉพาะ {len(rows)} แถวที่ผู้ตรวจเลือก: {listed} ไม่ต้องตรวจแถวอื่นของข้อใหญ่นี้"
+            " results.json ให้มีเฉพาะแถวเหล่านี้ (เลข row ตามตาราง SOC เดิม)")
+
+
 def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]]) -> str:
     item = request["majorItem"]
+    rows = request.get("rows") or []
     soc = [name for kind, name in documents if kind == "SOC"]
     evidence = [name for kind, name in documents if kind != "SOC"]
     acknowledged = json.dumps(request.get("acknowledgedMissing") or [], ensure_ascii=False)
@@ -215,7 +224,8 @@ def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]
         f"- ไฟล์ SOC: {', '.join(f'`inputs/{n}`' for n in soc) or '(ไม่มี)'}",
         f"- ไฟล์หลักฐาน: {', '.join(f'`inputs/{n}`' for n in evidence) or '(ไม่มี)'}",
         f"- ตรวจเฉพาะข้อใหญ่ {item['label']} \"{item.get('title') or ''}\" {item_scope(item)}"
-        " ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้",
+        + ("" if rows else " ทุกแถวใน results ต้องอยู่ในข้อใหญ่นี้"),
+        *([rows_scope(rows)] if rows else []),
         "- โฟลเดอร์ output: `out/` ให้เขียนผลเป็น `out/results.json` และเอกสาร `out/SOC_Check.docx`"
         " ไฟล์ระหว่างทาง (เช่น highlights.json) ก็เก็บใน `out/`",
         f"- acknowledged_missing: {acknowledged}",

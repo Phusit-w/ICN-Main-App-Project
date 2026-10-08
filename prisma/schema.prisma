@@ -434,6 +434,9 @@ model SocCheckRequest {
   replaceConfirmed    Int[]            @default([])
   // Missing documents the requester chose to check without (ticket 15).
   acknowledgedMissing String[]         @default([])
+  // A re-check of only these SOC table rows, picked on the review page; empty
+  // = the whole major item. The import replaces just these rows.
+  rowNumbers          Int[]            @default([])
   claimedByLinkId     String?
   claimedByLink       SocRunnerLink?   @relation(fields: [claimedByLinkId], references: [id], onDelete: SetNull)
   claimedAt           DateTime?

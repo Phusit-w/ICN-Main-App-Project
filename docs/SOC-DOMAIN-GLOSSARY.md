@@ -34,6 +34,10 @@ _Avoid_: Compliance result, audit verdict
 **Major item (ข้อใหญ่)**:
 The unit of an Imported SOC Check that one Local Check Run covers and one Check Request asks for: a top-level item number of the SOC (๑, ๒ …) with every row under it, unnumbered rows included. On import, a major item of more than 60 rows is split into its second-level sub-sections (๕ → ๕.๑ … ๕.๑๕), and each sub-section is a major item of its own (label "๕.๕"), grouped under ๕ on the job page. The split goes one level only, and ๕'s own heading row belongs to ๕.๑. A major item over 60 rows with fewer than two sub-sections stays whole, with the warning "ข้อนี้ใหญ่ อาจใช้โควตามาก". Jobs imported before the split keep their major items as they were.
 
+A row's **Final Decision** is ผ่าน (Comply), ดีกว่า (Better), ไม่ผ่าน, or **รอแก้ไข** (pending_fix): waiting for the bidder's fix. รอแก้ไข is saved with its note but doesn't settle the row: the major item isn't confirmed while a row is รอแก้ไข, and a re-check replaces such a row without asking.
+
+A **re-check of picked rows** (ส่งให้ Claude ตรวจใหม่ on the review page) re-checks only the rows the reviewer ticked; the major item's other results stay.
+
 A major item can be set to **ไม่ต้องตรวจ** (skipped): ตรวจทั้งชุด leaves it out, the progress count doesn't count it, and it can't be requested or imported until someone presses "ตรวจข้อนี้". When an item was split on import, every other major item starts as ไม่ต้องตรวจ (the split item is taken to be the specification part; ๑ หลักการ, ๔ คุณสมบัติผู้ยื่น … aren't checked against datasheets). Without a split nothing is guessed. Only an item with nothing open or done on it (not_checked, failed) can be set aside. It is a flag beside the major item state, not a state.
 _Avoid_: section, chapter (a SOC's บท is the whole document)
 

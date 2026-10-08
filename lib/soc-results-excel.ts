@@ -4,12 +4,14 @@
 // item → one sheet; the whole job → a summary sheet, then one sheet per
 // checked major item. The layout follows the SOC skill's Excel spec
 // (tor-word-compliance-check SKILL.md, "ส่งมอบแบบตารางผลแยกจาก SOC"), with
-// the reviewer's Final Decision and note added. Server-only.
+// the reviewer's Final Decision and note added. The review page can also
+// download just the rows a reviewer picked or filtered, in its order, as one
+// sheet. Server-only.
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { socReviewView, type SocReviewRow } from "@/lib/soc-review-view";
-import { SOC_FINAL_DECISION_LABELS, socAxisValueLabel, type SocAxisKey } from "@/lib/soc-review";
+import { isSettledDecision, PENDING_FIX, SOC_FINAL_DECISION_LABELS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, type SocAxisKey } from "@/lib/soc-review";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -79,13 +81,19 @@ function sheetName(label: string, used: Set<string>): string {
   return name;
 }
 
-function addItemSheet(book: ExcelJS.Workbook, name: string, rows: SocReviewRow[]) {
-  const sheet = book.addWorksheet(name, { views: [{ state: "frozen", xSplit: 2, ySplit: 1 }] });
-  sheet.columns = COLUMNS.map((c) => ({ header: c.header, width: c.width }));
+// The sheet of picked rows leads with each row's major item and status.
+const PICKED_COLUMNS: { header: string; width: number }[] = [{ header: "ข้อใหญ่", width: 9 }, { header: "สถานะ", width: 10 }];
+
+function addItemSheet(book: ExcelJS.Workbook, name: string, rows: SocReviewRow[], majorItemLabels?: Map<string, string>) {
+  const lead = majorItemLabels ? PICKED_COLUMNS : [];
+  const sheet = book.addWorksheet(name, { views: [{ state: "frozen", xSplit: lead.length + 2, ySplit: 1 }] });
+  sheet.columns = [...lead, ...COLUMNS].map((c) => ({ header: c.header, width: c.width }));
   styleHeader(sheet.getRow(1));
   for (const row of rows) {
     const reference = referenceStatus(row);
+    const leading = majorItemLabels ? [majorItemLabels.get(row.majorItemId ?? "") ?? "", SOC_ROW_STATUS_LABELS[row.status]] : [];
     const added = sheet.addRow([
+      ...leading,
       row.rowNumber, row.item, row.torText, row.reference, reference.text,
       socAxisValueLabel(axis(row, "item_label_check")), socAxisValueLabel(axis(row, "highlight_check")),
       socAxisValueLabel(axis(row, "evidence_support")), socAxisValueLabel(row.systemRecommendation),
@@ -93,23 +101,23 @@ function addItemSheet(book: ExcelJS.Workbook, name: string, rows: SocReviewRow[]
       row.finalDecision ? SOC_FINAL_DECISION_LABELS[row.finalDecision] : "ยังไม่ตัดสิน", row.finalNote ?? "",
     ]);
     added.eachCell({ includeEmpty: true }, (cell) => { cell.border = BORDER; cell.alignment = { vertical: "top", wrapText: true }; });
-    added.getCell(5).fill = fill(reference.fill);
-    if (reference.fill === RED) added.getCell(4).fill = fill(RED);
+    added.getCell(lead.length + 5).fill = fill(reference.fill);
+    if (reference.fill === RED) added.getCell(lead.length + 4).fill = fill(RED);
   }
-  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: lead.length + COLUMNS.length } };
 }
 
 type ItemRows = { label: string; title: string | null; rows: SocReviewRow[] };
 
 function addSummarySheet(book: ExcelJS.Workbook, jobTitle: string, checked: ItemRows[], unchecked: { label: string; title: string | null }[]) {
   const sheet = book.addWorksheet("สรุป");
-  const headers = ["ข้อใหญ่", "หัวข้อ", "จำนวนแถว", ...REFERENCE_STATUSES.map((s) => s.text), "ตัดสินแล้ว (Final Decision)"];
+  const headers = ["ข้อใหญ่", "หัวข้อ", "จำนวนแถว", ...REFERENCE_STATUSES.map((s) => s.text), "ตัดสินแล้ว (Final Decision)", SOC_FINAL_DECISION_LABELS[PENDING_FIX]];
   sheet.columns = headers.map((header, i) => ({ header, width: i === 1 ? 40 : i < 3 ? 11 : 14 }));
   styleHeader(sheet.getRow(1));
   REFERENCE_STATUSES.forEach((s, i) => { sheet.getRow(1).getCell(4 + i).fill = fill(s.fill); });
   for (const item of checked) {
     const counts = REFERENCE_STATUSES.map((s) => item.rows.filter((r) => referenceStatus(r).text === s.text).length);
-    const row = sheet.addRow([`ข้อ ${item.label}`, item.title ?? "", item.rows.length, ...counts, item.rows.filter((r) => r.finalDecision).length]);
+    const row = sheet.addRow([`ข้อ ${item.label}`, item.title ?? "", item.rows.length, ...counts, item.rows.filter((r) => isSettledDecision(r.finalDecision)).length, item.rows.filter((r) => r.finalDecision === PENDING_FIX).length]);
     row.eachCell({ includeEmpty: true }, (cell) => { cell.border = BORDER; });
   }
   const first = 2;
@@ -132,6 +140,38 @@ function addSummarySheet(book: ExcelJS.Workbook, jobTitle: string, checked: Item
   for (const note of notes) sheet.addRow([note]);
   sheet.views = [{ state: "frozen", ySplit: 1 }];
 }
+
+export const MAX_PICKED_ROWS = 5000;
+
+// The rows the reviewer picked on the review page (by result id, in the
+// page's order) as one sheet, with the download audited. Ids of another job
+// or of rows replaced since are skipped.
+export async function downloadPickedSocResultsExcel(actor: { id: string }, jobId: string, resultIds: string[]): Promise<SocResultsExcel> {
+  const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { majorItems: { select: { id: true, label: true } } } });
+  if (!job || job.deletedAt) throw new Error("NOT_FOUND");
+  if (job.kind !== "IMPORTED") return { ok: false, error: "ดาวน์โหลดผลตรวจ Excel ได้เฉพาะงานตรวจแบบนำเข้าผล" };
+  if (resultIds.length > MAX_PICKED_ROWS) return { ok: false, error: `เลือกได้ไม่เกิน ${MAX_PICKED_ROWS.toLocaleString("en-US")} แถว` };
+  const { rows } = await socReviewView(jobId);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const picked = [...new Set(resultIds)].map((id) => byId.get(id)).filter((r): r is SocReviewRow => r !== undefined);
+  if (!picked.length) return { ok: false, error: "ไม่มีแถวที่เลือก หรือแถวที่เลือกถูกตรวจซ้ำไปแล้ว กรุณาโหลดหน้าใหม่" };
+
+  const book = new ExcelJS.Workbook();
+  book.creator = "ICN Apps";
+  addItemSheet(book, "รายการที่เลือก", picked, new Map(job.majorItems.map((m) => [m.id, m.label])));
+  const bytes = new Uint8Array(await book.xlsx.writeBuffer());
+
+  const detail = { picked: true, rowCount: picked.length, items: picked.map((r) => r.item) };
+  await prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "SOC_RESULTS_DOWNLOADED", detail } });
+  await writeAudit({
+    actorId: actor.id, action: "SOC_RESULTS_DOWNLOADED", entityType: "SOC_JOB", entityId: jobId,
+    summary: `ดาวน์โหลดผลตรวจ Excel ${picked.length} แถวที่เลือกของงาน ${job.title}`, metadata: { picked: true, rowCount: picked.length },
+  });
+  return { ok: true, bytes, fileName: `${fileBase(job.title)}-เลือก ${picked.length} แถว.xlsx` };
+}
+
+const safeName = (text: string) => text.replace(/[\\/:*?"<>|\r\n]+/g, "_").trim().slice(0, 80);
+const fileBase = (title: string) => `SOC_Check-${bangkokDate(new Date())}-${safeName(title) || "SOC"}`;
 
 const bangkokDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
 
@@ -171,7 +211,6 @@ export async function downloadSocResultsExcel(actor: { id: string }, jobId: stri
       : `ดาวน์โหลดผลตรวจ Excel (ตรวจแล้ว ${checked.length}/${job.majorItems.length} ข้อใหญ่) ของงาน ${job.title}`,
     metadata: detail,
   });
-  const safe = (text: string) => text.replace(/[\\/:*?"<>|\r\n]+/g, "_").trim().slice(0, 80);
-  const name = [`SOC_Check-${bangkokDate(new Date())}`, safe(job.title) || "SOC", only ? `ข้อ ${safe(only.label)}` : null].filter(Boolean).join("-");
+  const name = [fileBase(job.title), only ? `ข้อ ${safeName(only.label)}` : null].filter(Boolean).join("-");
   return { ok: true, bytes, fileName: `${name}.xlsx` };
 }

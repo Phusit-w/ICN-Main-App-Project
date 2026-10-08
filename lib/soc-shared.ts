@@ -52,6 +52,8 @@ export type SocCheckRequestView = {
   // The requester's SOC Runner, or null when they have no active link.
   runnerState: SocRunnerState | null;
   progressNote: string | null; resumeAt: string | null;
+  // Rows of a re-check of picked rows; 0 = the whole major item.
+  rowCount: number;
 };
 
 // "๑๓" → "13".

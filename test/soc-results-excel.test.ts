@@ -21,7 +21,7 @@ let signedIn: Actor | null = null;
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const { GET: downloadRoute } = await import("@/app/api/soc/jobs/[id]/results-excel/route");
+const { GET: downloadRoute, POST: pickedRoute } = await import("@/app/api/soc/jobs/[id]/results-excel/route");
 const { createImportedSocJob } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 
@@ -216,4 +216,24 @@ test("before any major item is checked the download is refused with a Thai reaso
   assert.equal(response.status, 409);
   assert.match(((await response.json()) as { error: string }).error, /ยังไม่มีข้อใหญ่ที่ตรวจแล้ว/);
   assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: "SOC_RESULTS_DOWNLOADED" } }), 0);
+});
+
+test("the rows picked on the review page download as one sheet, in the page's order, with major item and status", { skip }, async () => {
+  const { owner, jobId, byKey } = await setup();
+  await importRun(owner, jobId, byKey("1").id, runFor("1", "ONE"));
+  await importRun(owner, jobId, byKey("3").id, runFor("3", "THREE"));
+  const rows = await prisma.socCheckResult.findMany({ where: { jobId, NOT: { rowType: { endsWith: "heading_row" } } }, orderBy: { rowNumber: "asc" } });
+  const picked = [rows.at(-1)!, rows[0]];
+  await prisma.socCheckResult.update({ where: { id: rows[0].id }, data: { finalDecision: "pending_fix", reviewedAt: new Date(), reviewedById: owner.id } });
+  signedIn = owner;
+  const send = (body: unknown) => pickedRoute(new Request(`http://localhost/api/soc/jobs/${jobId}/results-excel`, { method: "POST", body: JSON.stringify(body) }), { params: Promise.resolve({ id: jobId }) });
+  const book = await workbook(await send({ resultIds: [...picked.map((r) => r.id), "not-a-row"] }));
+  assert.deepEqual(book.worksheets.map((s) => s.name), ["รายการที่เลือก"]);
+  const sheet = book.worksheets[0];
+  assert.deepEqual(header(sheet).slice(0, 4), ["ข้อใหญ่", "สถานะ", "แถวใน SOC", "ข้อ"]);
+  const body = bodyText(sheet);
+  assert.deepEqual(body.map((r) => [r[0], Number(r[2])]), [["๓", picked[0].rowNumber], ["๑", picked[1].rowNumber]]);
+  assert.equal(body[1][13], "รอแก้ไข");
+  assert.equal((await send({ resultIds: [] })).status, 400);
+  assert.equal((await send({ resultIds: ["not-a-row"] })).status, 409);
 });

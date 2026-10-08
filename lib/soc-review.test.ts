@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { filterReviewRows, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, parseReferencePages, socAxisValueLabel, sortReviewRows, type SocAxisValues } from "@/lib/soc-review";
+import { filterReviewRows, citedEvidence, declaredSelection, evidenceMissing, isSettledDecision, majorItemConfirmed, overallRowStatus, parseReferencePages, SOC_FINAL_DECISION_LABELS, socAxisValueLabel, sortReviewRows, type SocAxisValues, type SocReviewFilter } from "@/lib/soc-review";
 
 type FixtureRow = SocAxisValues & { row: number; item: string; row_type: string };
 const RUN = JSON.parse(readFileSync(new URL("../test/fixtures/soc/results_sonnet.json", import.meta.url), "utf8")) as { results: FixtureRow[] };
@@ -110,4 +110,38 @@ test("a SOC with no Comply/Better tick box shows no ticked value: not_selected w
   assert.equal(declaredSelection(null, null), null);
   assert.equal(declaredSelection("not_selected", "not_selected"), "not_selected"); // a tick box left empty
   assert.equal(declaredSelection("better", "mismatch"), "better");
+});
+
+test("rows can be listed in SOC order instead of problems first", () => {
+  const rows = [{ rowNumber: 3, status: "ok" as const }, { rowNumber: 1, status: "review" as const }, { rowNumber: 2, status: "fail" as const }];
+  assert.deepEqual(sortReviewRows(rows).map((r) => r.rowNumber), [2, 1, 3]);
+  assert.deepEqual(sortReviewRows(rows, "item").map((r) => r.rowNumber), [1, 2, 3]);
+});
+
+test("rows can be filtered by Final Decision and by evidence not found", () => {
+  const rows = [
+    { id: "a", status: "ok" as const, majorItemId: "m1", finalDecision: "compliant", evidenceMissing: false },
+    { id: "b", status: "review" as const, majorItemId: "m1", finalDecision: "pending_fix", evidenceMissing: true },
+    { id: "c", status: "review" as const, majorItemId: "m1", finalDecision: null, evidenceMissing: true },
+  ];
+  const ids = (filter: Partial<SocReviewFilter>) => filterReviewRows(rows, { status: "all", majorItemId: "all", ...filter }).map((r) => r.id);
+  assert.deepEqual(ids({ decision: "undecided" }), ["c"]);
+  assert.deepEqual(ids({ decision: "pending_fix" }), ["b"]);
+  assert.deepEqual(ids({ evidenceMissing: true }), ["b", "c"]);
+  assert.deepEqual(ids({}), ["a", "b", "c"]);
+});
+
+test("รอแก้ไข is a Final Decision that doesn't settle the row", () => {
+  assert.equal(SOC_FINAL_DECISION_LABELS.pending_fix, "รอแก้ไข");
+  assert.equal(isSettledDecision("pending_fix"), false);
+  assert.equal(isSettledDecision(null), false);
+  assert.equal(isSettledDecision("non_compliant"), true);
+});
+
+test("a row whose cited page or document wasn't found or can't be read is flagged", () => {
+  assert.equal(evidenceMissing({ reference_check: "not_found" }), true);
+  assert.equal(evidenceMissing({ reference_check: "unverifiable" }), true);
+  assert.equal(evidenceMissing({ reference_check: "match", evidence_support: "unverifiable" }), true);
+  assert.equal(evidenceMissing({ reference_check: "mismatch", evidence_support: "not_supported" }), false);
+  assert.equal(evidenceMissing({}), false);
 });

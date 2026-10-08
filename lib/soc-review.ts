@@ -51,23 +51,44 @@ export function overallRowStatus(rowType: string, axes: SocAxisValues): { status
   return { status: fail ? "fail" : reasons.length ? "review" : "ok", reasons };
 }
 
-// ❌, then ⚠️, then ✅, then by row number.
-export function sortReviewRows<T extends { status: SocRowStatus; rowNumber: number }>(rows: readonly T[]): T[] {
-  return [...rows].sort((a, b) => RANK[a.status] - RANK[b.status] || a.rowNumber - b.rowNumber);
+// A row whose evidence Claude couldn't find or read: no cited page or
+// document found (reference_check not_found / unverifiable), or the cited
+// page couldn't be read (evidence_support unverifiable). The review page
+// warns about these rows.
+export function evidenceMissing(axes: SocAxisValues): boolean {
+  return axes.reference_check === "not_found" || axes.reference_check === "unverifiable" || axes.evidence_support === "unverifiable";
+}
+
+// "status": ❌, then ⚠️, then ✅, then by row number. "item": SOC order.
+export type SocReviewSort = "status" | "item";
+export function sortReviewRows<T extends { status: SocRowStatus; rowNumber: number }>(rows: readonly T[], by: SocReviewSort = "status"): T[] {
+  return [...rows].sort((a, b) => (by === "status" ? RANK[a.status] - RANK[b.status] : 0) || a.rowNumber - b.rowNumber);
 }
 
 // Heading rows have nothing to decide, so they're never listed.
-export type SocReviewFilter = { status: Exclude<SocRowStatus, "heading"> | "all"; majorItemId: string | "all" };
-export function filterReviewRows<T extends { status: SocRowStatus; majorItemId: string | null }>(rows: readonly T[], filter: SocReviewFilter): T[] {
-  return rows.filter((row) => row.status !== "heading" && (filter.status === "all" || row.status === filter.status) && (filter.majorItemId === "all" || row.majorItemId === filter.majorItemId));
+export type SocDecisionFilter = "all" | "undecided" | SocFinalDecision;
+export type SocReviewFilter = { status: Exclude<SocRowStatus, "heading"> | "all"; majorItemId: string | "all"; decision?: SocDecisionFilter; evidenceMissing?: boolean };
+type FilterableRow = { status: SocRowStatus; majorItemId: string | null; finalDecision?: string | null; evidenceMissing?: boolean };
+export function filterReviewRows<T extends FilterableRow>(rows: readonly T[], filter: SocReviewFilter): T[] {
+  const decision = filter.decision ?? "all";
+  return rows.filter((row) => row.status !== "heading"
+    && (filter.status === "all" || row.status === filter.status)
+    && (filter.majorItemId === "all" || row.majorItemId === filter.majorItemId)
+    && (decision === "all" || (decision === "undecided" ? !row.finalDecision : row.finalDecision === decision))
+    && (!filter.evidenceMissing || row.evidenceMissing === true));
 }
 
 // The Final Decision a reviewer sets per row, stored apart from the System
-// Recommendation (tor_decision).
-export const SOC_FINAL_DECISIONS = ["compliant", "better", "non_compliant"] as const;
+// Recommendation (tor_decision). รอแก้ไข (pending_fix) records that the row
+// waits for the bidder's fix: it is saved with its note but doesn't settle
+// the row, so the major item isn't confirmed and a re-check replaces it
+// without asking.
+export const SOC_FINAL_DECISIONS = ["compliant", "better", "non_compliant", "pending_fix"] as const;
 export type SocFinalDecision = (typeof SOC_FINAL_DECISIONS)[number];
-export const SOC_FINAL_DECISION_LABELS: Record<SocFinalDecision, string> = { compliant: "ผ่าน (Comply)", better: "ดีกว่า (Better)", non_compliant: "ไม่ผ่าน" };
+export const SOC_FINAL_DECISION_LABELS: Record<SocFinalDecision, string> = { compliant: "ผ่าน (Comply)", better: "ดีกว่า (Better)", non_compliant: "ไม่ผ่าน", pending_fix: "รอแก้ไข" };
 export const isSocFinalDecision = (value: string): value is SocFinalDecision => (SOC_FINAL_DECISIONS as readonly string[]).includes(value);
+export const PENDING_FIX = "pending_fix" satisfies SocFinalDecision;
+export const isSettledDecision = (value: string | null | undefined) => !!value && value !== PENDING_FIX;
 export const SOC_REVIEW_NOTE_MAX = 2000;
 
 // A major item shows `confirmed` once every row that needs a decision (every
