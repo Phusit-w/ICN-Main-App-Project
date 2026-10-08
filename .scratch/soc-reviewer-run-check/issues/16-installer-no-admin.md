@@ -259,7 +259,8 @@ Job "4. DOAXXX_Apron_ท่าอากาศยานสุราษฎร์�
 - left no work folder behind.
 
 `/soc` now shows ตรวจแล้ว 1/4 ข้อใหญ่ with 80 rows. Still open: reboot, used-code refusal + repair, a PC without Claude
-Code. The rows were not reviewed for accuracy here; that is the reviewer's job on the review page.
+Code. The agent did not review the rows. The user reviewed them on the review page: "ลองตรวจแล้วคิดว่าผ่าน ใช้ได้อยู่"
+(the results look right and are usable).
 
 **Manual test steps (install command; fill in the results here):**
 
