@@ -110,15 +110,13 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
       <button type="button" onClick={() => setFilter({ ...filter, evidenceMissing: !filter.evidenceMissing })} className="ui-btn rounded-full border border-danger-border px-3 py-1 font-medium">{filter.evidenceMissing ? "แสดงทุกแถว" : "ดูเฉพาะแถวเหล่านี้"}</button>
     </div> : null}
     <div className="flex flex-wrap items-center gap-2 rounded-card bg-surface p-3 text-sm shadow-card">
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="สถานะ">{STATUS_FILTERS.map((status) => <button key={status} type="button" aria-pressed={filter.status === status} onClick={() => setFilter({ ...filter, status })} className={`ui-btn rounded-full px-3 py-1.5 text-xs transition-colors ${filter.status === status ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{status === "all" ? "ทั้งหมด" : `${SOC_ROW_STATUS_ICONS[status]} ${SOC_ROW_STATUS_LABELS[status]}`} ({counts(status)})</button>)}</div>
-      <span aria-hidden className="mx-1 h-5 w-px bg-line" />
-      <div className="flex items-center gap-1.5" role="group" aria-label="เรียงแถว"><span className="text-xs text-label">เรียง</span>{SORTS.map(([value, text, title]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => setSort(value)} title={title} className={`ui-btn rounded-full px-3 py-1.5 text-xs transition-colors ${sort === value ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{text}</button>)}</div>
-      <span aria-hidden className="mx-1 h-5 w-px bg-line" />
-      <FilterMenu filter={filter} items={checkedItems} onChange={setFilter} />
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="สถานะ">{STATUS_FILTERS.map((status) => <button key={status} type="button" aria-pressed={filter.status === status} onClick={() => setFilter({ ...filter, status })} title={status === "all" ? undefined : SOC_ROW_STATUS_LABELS[status]} aria-label={`${status === "all" ? "ทั้งหมด" : SOC_ROW_STATUS_LABELS[status]} ${counts(status)}`} className={`ui-btn rounded-full px-3 py-1.5 text-xs tabular-nums transition-colors ${filter.status === status ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{status === "all" ? "ทั้งหมด" : SOC_ROW_STATUS_ICONS[status]} {counts(status)}</button>)}</div>
+      <FilterMenu filter={filter} items={checkedItems} onChange={setFilter} sort={sort} onSort={setSort} />
+      {sort !== "status" ? <FilterChip onRemove={() => setSort("status")}>ตามข้อใน SOC</FilterChip> : null}
       {filter.majorItemId !== "all" ? <FilterChip onRemove={() => setFilter({ ...filter, majorItemId: "all" })}>ข้อใหญ่ {label.get(filter.majorItemId) ?? "—"}</FilterChip> : null}
       {(filter.decision ?? "all") !== "all" ? <FilterChip onRemove={() => setFilter({ ...filter, decision: "all" })}>{filter.decision === "undecided" ? "ยังไม่ตัดสิน" : SOC_FINAL_DECISION_LABELS[filter.decision as SocFinalDecision]}</FilterChip> : null}
       {filter.evidenceMissing ? <FilterChip onRemove={() => setFilter({ ...filter, evidenceMissing: false })}>หาเอกสารไม่เจอ</FilterChip> : null}
-      <button type="button" onClick={reset} disabled={!changed} title="กลับไปแสดงทุกแถว เรียงปัญหาก่อน" className="ui-btn rounded-full px-2.5 py-1.5 text-xs text-label hover:bg-hover hover:text-ink disabled:opacity-40">↺ ล้างตัวกรอง</button>
+      {changed ? <button type="button" onClick={reset} title="กลับไปแสดงทุกแถว เรียงปัญหาก่อน" className="ui-btn rounded-full px-2.5 py-1.5 text-xs text-label hover:bg-hover hover:text-ink">↺ ล้าง</button> : null}
       <PickedActions jobId={jobId} picked={pickedRows} visible={filteredRows} onClear={() => setPicked(new Set())} />
     </div>
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
@@ -155,11 +153,11 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
   </section>;
 }
 
-// The less-used filters, behind one button so the toolbar stays short.
-function FilterMenu({ filter, items, onChange }: { filter: SocReviewFilter; items: ReviewItem[]; onChange: (filter: SocReviewFilter) => void }) {
+// The order and the less-used filters, behind one button so the toolbar stays short.
+function FilterMenu({ filter, items, onChange, sort, onSort }: { filter: SocReviewFilter; items: ReviewItem[]; onChange: (filter: SocReviewFilter) => void; sort: SocReviewSort; onSort: (sort: SocReviewSort) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const active = (filter.majorItemId !== "all" ? 1 : 0) + ((filter.decision ?? "all") !== "all" ? 1 : 0) + (filter.evidenceMissing ? 1 : 0);
+  const active = (sort !== "status" ? 1 : 0) + (filter.majorItemId !== "all" ? 1 : 0) + ((filter.decision ?? "all") !== "all" ? 1 : 0) + (filter.evidenceMissing ? 1 : 0);
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => { if (!ref.current?.contains(event.target as Node)) setOpen(false); };
@@ -170,8 +168,11 @@ function FilterMenu({ filter, items, onChange }: { filter: SocReviewFilter; item
   }, [open]);
   const field = "h-8 rounded-input border border-line bg-surface px-2 text-xs text-ink";
   return <div ref={ref} className="relative">
-    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className={`ui-btn inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs ${active ? "border-ink text-ink" : "border-line text-label hover:text-ink"}`}>ตัวกรอง{active ? ` (${active})` : ""} <span aria-hidden>▾</span></button>
-    {open ? <div role="group" aria-label="ตัวกรองเพิ่มเติม" className="absolute left-0 top-full z-20 mt-1.5 flex w-64 flex-col gap-3 rounded-card border border-line bg-surface p-3 shadow-card">
+    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className={`ui-btn inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs ${active ? "border-ink text-ink" : "border-line text-label hover:text-ink"}`}>ตัวกรอง · เรียง{active ? ` (${active})` : ""} <span aria-hidden>▾</span></button>
+    {open ? <div role="group" aria-label="ตัวกรองและการเรียง" className="absolute left-0 top-full z-20 mt-1.5 flex w-64 flex-col gap-3 rounded-card border border-line bg-surface p-3 shadow-card">
+      <fieldset className="flex flex-col gap-1.5 text-xs"><legend className="mb-1 text-label">เรียง</legend>
+        {SORTS.map(([value, text, title]) => <label key={value} title={title} className="flex items-center gap-2 text-ink"><input type="radio" name="soc-review-sort" checked={sort === value} onChange={() => onSort(value)} /> {text}</label>)}
+      </fieldset>
       <label className="flex flex-col gap-1 text-xs text-label">ข้อใหญ่
         <select value={filter.majorItemId} onChange={(e) => onChange({ ...filter, majorItemId: e.target.value })} className={field}>
           <option value="all">ทุกข้อใหญ่</option>
