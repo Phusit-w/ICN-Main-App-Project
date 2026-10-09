@@ -32,25 +32,6 @@ const row = (id: string, item: string, page: number): SocReviewRow => ({
   detail: `สรุป ${item}`, keyIssue: null, confidence: "high", finalDecision: null, finalNote: null, reviewedByName: null, reviewedAt: null,
 });
 
-test("the workspace exposes comparison/evidence panes and readable PDF zoom controls", async () => {
-  const { render, screen, within } = await import("@testing-library/react");
-  const user = (await import("@testing-library/user-event")).default.setup({ document: dom.window.document });
-  const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
-  render(React.createElement(SocReviewPanel, { jobId: "job-1", items, rows }));
-  await user.click(screen.getByRole("button", { name: "๑.๑" }));
-
-  const workspace = screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๑" });
-  assert.ok(within(workspace).getByRole("region", { name: "รายละเอียดเทียบ" }));
-  const evidence = within(workspace).getByRole("region", { name: "เอกสารอ้างอิง" });
-  const image = within(evidence).getByRole("img", { name: "Datasheet.pdf หน้า 4" });
-  await user.click(within(evidence).getByRole("button", { name: "ขยายเอกสาร" }));
-  assert.equal(image.getAttribute("data-zoom"), "125");
-  await user.click(within(evidence).getByRole("button", { name: "พอดีความกว้าง" }));
-  assert.equal(image.getAttribute("data-zoom"), "fit");
-  assert.ok(within(workspace).getByRole("tab", { name: "รายละเอียดเทียบ" }));
-  assert.ok(within(workspace).getByRole("tab", { name: "เอกสารอ้างอิง" }));
-});
-
 const rows = [row("row-1", "๑.๑", 4), row("row-2", "๑.๒", 5)];
 const items = [{ id: "major-1", label: "๑", state: "checked", missingDocuments: [], confirmed: false }];
 
@@ -62,63 +43,96 @@ afterEach(async () => {
 });
 after(() => dom.window.close());
 
-test("clicking a SOC row opens its comparison and cited page in a full-screen review workspace", async () => {
-  const { render, screen, within } = await import("@testing-library/react");
+const setup = async (jobId = "job-1") => {
+  const testing = await import("@testing-library/react");
   const user = (await import("@testing-library/user-event")).default.setup({ document: dom.window.document });
   const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
-  render(React.createElement(SocReviewPanel, { jobId: "job-1", items, rows }));
+  const view = testing.render(React.createElement(SocReviewPanel, { jobId, items, rows }));
+  return { ...testing, user, view };
+};
+
+test("clicking a SOC row shows its comparison and cited page beside the table", async () => {
+  const { screen, within, user } = await setup();
+  assert.ok(screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๑" }), "the first row is shown before any click");
 
   await user.click(screen.getByRole("button", { name: "๑.๒" }));
 
-  const workspace = screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๒" });
-  assert.ok(within(workspace).getByText("ข้อกำหนด ๑.๒"));
-  assert.ok(within(workspace).getByText("ข้อเสนอ ๑.๒"));
-  assert.equal(within(workspace).getByRole("img", { name: "Datasheet.pdf หน้า 5" }).getAttribute("src"), "/api/soc/jobs/job-1/evidence/pdf-1/pages/5");
+  const detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๒" });
+  assert.ok(within(detail).getByText("ข้อกำหนด ๑.๒"));
+  assert.ok(within(detail).getByText("ข้อเสนอ ๑.๒"));
+  assert.equal(within(detail).getByRole("img", { name: "Datasheet.pdf หน้า 5" }).getAttribute("src"), "/api/soc/jobs/job-1/evidence/pdf-1/pages/5");
+  assert.equal(screen.queryByRole("dialog"), null);
+});
+
+test("the row opens full screen with comparison/evidence panes and PDF zoom, and keeps an unsaved decision", async () => {
+  const { screen, within, user } = await setup();
+  await user.click(screen.getByRole("button", { name: "๑.๑" }));
+  await user.click(screen.getByRole("radio", { name: /ไม่ผ่าน/ }));
+  await user.click(screen.getByRole("button", { name: "ขยายเต็มจอ" }));
+
+  const workspace = screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๑" });
   assert.equal(document.body.style.overflow, "hidden");
+  assert.ok(within(workspace).getByRole("region", { name: "รายละเอียดเทียบ" }));
+  assert.equal(within(workspace).getByRole("radio", { name: /ไม่ผ่าน/ }).getAttribute("aria-checked"), "true");
+  const evidence = within(workspace).getByRole("region", { name: "เอกสารอ้างอิง" });
+  const image = within(evidence).getByRole("img", { name: "Datasheet.pdf หน้า 4" });
+  await user.click(within(evidence).getByRole("button", { name: "ขยายเอกสาร" }));
+  assert.equal(image.getAttribute("data-zoom"), "125");
+  await user.click(within(evidence).getByRole("button", { name: "พอดีความกว้าง" }));
+  assert.equal(image.getAttribute("data-zoom"), "fit");
+  assert.ok(within(workspace).getByRole("tab", { name: "เอกสารอ้างอิง" }));
 });
 
 test("unsaved decisions are protected when moving rows and can be saved before continuing", async () => {
-  const { render, screen, within } = await import("@testing-library/react");
-  const user = (await import("@testing-library/user-event")).default.setup({ document: dom.window.document });
-  const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
-  render(React.createElement(SocReviewPanel, { jobId: "job-1", items, rows }));
+  const { screen, within, user } = await setup();
   await user.click(screen.getByRole("button", { name: "๑.๑" }));
   await user.click(screen.getByRole("radio", { name: /ผ่าน \(Comply\)/ }));
-  await user.click(screen.getByRole("button", { name: /ข้อถัดไป/ }));
+  await user.click(screen.getByRole("button", { name: "ข้อถัดไป" }));
 
   const warning = screen.getByRole("alertdialog", { name: "มีข้อมูลที่ยังไม่ได้บันทึก" });
   await user.click(within(warning).getByRole("button", { name: "บันทึกแล้วไปต่อ" }));
 
   assert.deepEqual(savedDecisions, [{ jobId: "job-1", resultId: "row-1", decision: "compliant", note: "" }]);
-  assert.ok(screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๒" }));
+  assert.ok(screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๒" }));
 });
 
-test("closing the workspace restores focus to the row and unlocks page scrolling", async () => {
-  const { fireEvent, render, screen, waitFor } = await import("@testing-library/react");
-  const user = (await import("@testing-library/user-event")).default.setup({ document: dom.window.document });
-  const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
-  render(React.createElement(SocReviewPanel, { jobId: "job-1", items, rows }));
-  const opener = screen.getByRole("button", { name: "๑.๒" });
-  await user.click(opener);
-  fireEvent.click(screen.getByRole("button", { name: "ปิดพื้นที่ตรวจ" }));
+test("leaving full screen returns focus to the expand button and unlocks page scrolling", async () => {
+  const { screen, waitFor, user } = await setup();
+  await user.click(screen.getByRole("button", { name: "ขยายเต็มจอ" }));
+  await user.keyboard("{Escape}");
 
-  assert.equal(screen.queryByRole("dialog", { name: "ตรวจข้อ ๑.๒" }), null);
-  await waitFor(() => assert.ok(document.activeElement === opener, `focus returned to ${document.activeElement?.tagName ?? "nothing"}`));
+  assert.equal(screen.queryByRole("dialog"), null);
+  await waitFor(() => assert.equal(document.activeElement, screen.getByRole("button", { name: "ขยายเต็มจอ" })));
   assert.equal(document.body.style.overflow, "");
 });
 
+test("the extra filters sit behind one button, show as removable chips, and reset clears everything", async () => {
+  const { screen, user } = await setup();
+  const reset = () => screen.getAllByRole("button", { name: "↺ ล้างตัวกรอง" })[0];
+  assert.equal(reset().hasAttribute("disabled"), true);
+
+  await user.click(screen.getByRole("button", { name: /^ตัวกรอง/ }));
+  await user.click(screen.getByRole("checkbox", { name: "เฉพาะแถวที่หาเอกสารไม่เจอ" }));
+  assert.ok(screen.getByRole("button", { name: "เอาตัวกรอง หาเอกสารไม่เจอ ออก" }));
+  assert.ok(screen.getByText("ไม่พบรายการในตัวกรองนี้"));
+
+  await user.click(screen.getByRole("button", { name: "ข้อ" }));
+  await user.click(reset());
+  assert.ok(screen.getByRole("button", { name: "๑.๑" }));
+  assert.equal(screen.queryByRole("button", { name: "เอาตัวกรอง หาเอกสารไม่เจอ ออก" }), null);
+  assert.equal(screen.getByRole("button", { name: "สถานะ" }).getAttribute("aria-pressed"), "true");
+  assert.equal(reset().hasAttribute("disabled"), true);
+});
+
 test("a folded major-item group stays folded after the page is opened again", async () => {
-  const { render, screen } = await import("@testing-library/react");
-  const user = (await import("@testing-library/user-event")).default.setup({ document: dom.window.document });
-  const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
-  const first = render(React.createElement(SocReviewPanel, { jobId: "job-fold", items, rows }));
-  await user.selectOptions(screen.getByRole("combobox", { name: "เรียง" }), "item");
+  const { screen, user, view } = await setup("job-fold");
+  await user.click(screen.getByRole("button", { name: "ข้อ" }));
   await user.click(screen.getByRole("button", { name: /ข้อใหญ่ ๑/ }));
   assert.equal(screen.queryByRole("button", { name: "๑.๑" }), null);
-  first.unmount();
+  view.unmount();
 
-  render(React.createElement(SocReviewPanel, { jobId: "job-fold", items, rows }));
-  await user.selectOptions(screen.getByRole("combobox", { name: "เรียง" }), "item");
-  assert.equal(screen.getByRole("button", { name: /ข้อใหญ่ ๑/ }).getAttribute("aria-expanded"), "false");
-  assert.equal(screen.queryByRole("button", { name: "๑.๑" }), null);
+  const again = await setup("job-fold");
+  await again.user.click(again.screen.getByRole("button", { name: "ข้อ" }));
+  assert.equal(again.screen.getByRole("button", { name: /ข้อใหญ่ ๑/ }).getAttribute("aria-expanded"), "false");
+  assert.equal(again.screen.queryByRole("button", { name: "๑.๑" }), null);
 });
