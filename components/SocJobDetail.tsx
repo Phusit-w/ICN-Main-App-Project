@@ -100,6 +100,8 @@ function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIs
   const [importing, setImporting] = useState<string | null>(null);
   const unchecked = items.filter((m) => m.state === "not_checked" && !m.skipped).length;
   const skipped = items.filter((m) => m.skipped).length;
+  // Shown in the header too, so a folded panel doesn't hide them.
+  const problems = items.filter((m) => !m.skipped && isProblemItem(m)).length;
   // ไม่ต้องตรวจ items are hidden by default; the choice is remembered per browser.
   const [showSkipped, setShowSkipped] = useStoredFlag("soc:show-skipped-major-items", false);
   const hideSkipped = !showSkipped;
@@ -107,7 +109,7 @@ function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIs
   const [open, setOpen] = useStoredFlag("soc:major-items-open", true);
   const shown = hideSkipped ? items.filter((m) => !m.skipped) : items;
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span className="flex flex-wrap items-center"><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-major-items"><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span></CollapseButton>{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ <button type="button" onClick={toggleSkipped} className="ui-btn ml-1 text-label underline hover:text-ink">{hideSkipped ? "แสดง" : "ซ่อนทั้งหมด"}</button></span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
+    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span className="flex flex-wrap items-center"><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-major-items"><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span></CollapseButton>{problems ? <span className="ml-3 rounded-full border border-danger-border px-2 py-0.5 text-xs font-medium text-danger" title="ข้อใหญ่ที่ตรวจไม่สำเร็จ รอไฟล์ รอ login หรือตรวจแล้วแต่ขาดไฟล์">ต้องจัดการ {problems} ข้อ</span> : null}{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ <button type="button" onClick={toggleSkipped} className="ui-btn ml-1 text-label underline hover:text-ink">{hideSkipped ? "แสดง" : "ซ่อนทั้งหมด"}</button></span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
     <div id="soc-major-items" hidden={!open} className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{shown.map((item, i) => <Fragment key={item.id}>{item.groupLabel && item.groupLabel !== shown[i - 1]?.groupLabel ? <GroupRow item={item} count={items.filter((m) => m.groupLabel === item.groupLabel).length} /> : null}<MajorItemRow jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} /></Fragment>)}</tbody></table></div>
   </section>;
 }
@@ -124,13 +126,16 @@ function SkillVersionFlag({ status }: { status: SkillVersionStatus | null }) {
   return null;
 }
 
+// A major item the reviewer has to act on: failed, waiting for files or a login, or checked without some files.
+const isProblemItem = (item: MajorItem) => item.state === "failed" || item.state === "needs_documents" || item.state === "needs_login" || (item.state === "checked" && item.missingDocuments.length > 0);
+
 function MajorItemRow({ jobId, item, viewerId, viewerIsAdmin, open, onToggle, onDone }: { jobId: string; item: MajorItem; viewerId: string; viewerIsAdmin: boolean; open: boolean; onToggle: () => void; onDone: () => void }) {
   // A checked item can be imported again: a re-check replaces its rows.
   const canImport = !item.skipped && (item.state === "not_checked" || item.state === "checked");
   const recheck = item.state === "checked";
   const state = item.skipped ? { label: "ไม่ต้องตรวจ", detail: null } : majorItemStateText(item, viewerId);
   const canSkip = !item.skipped && (item.state === "not_checked" || item.state === "failed");
-  const problem = item.state === "failed" || item.state === "needs_documents" || item.state === "needs_login" || (item.state === "checked" && item.missingDocuments.length > 0);
+  const problem = !item.skipped && isProblemItem(item);
   const request = item.request;
   const canCancel = item.state === "requested" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
