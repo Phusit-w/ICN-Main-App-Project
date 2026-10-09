@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
@@ -58,22 +58,42 @@ export default function SocJobDetail({ job }: { job: Job }) {
   </div>;
 }
 
-const SHOW_SKIPPED_KEY = "soc:show-skipped-major-items";
-const SHOW_SKIPPED_EVENT = "soc:show-skipped-changed";
-function readShowSkipped() {
-  try { return window.localStorage.getItem(SHOW_SKIPPED_KEY) === "1"; } catch { return showSkippedFallback; }
+// Yes/no view choices remembered per browser (falls back to memory when storage is blocked).
+const STORED_FLAG_EVENT = "soc:stored-flag-changed";
+const storedFlagFallback = new Map<string, boolean>();
+function readStoredFlag(key: string, initial: boolean) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? storedFlagFallback.get(key) ?? initial : value === "1";
+  } catch {
+    return storedFlagFallback.get(key) ?? initial;
+  }
 }
-function writeShowSkipped(show: boolean) {
-  try { window.localStorage.setItem(SHOW_SKIPPED_KEY, show ? "1" : "0"); } catch { /* storage blocked: the toggle still works below */ }
-  showSkippedFallback = show;
-  window.dispatchEvent(new Event(SHOW_SKIPPED_EVENT));
+function writeStoredFlag(key: string, value: boolean) {
+  try { window.localStorage.setItem(key, value ? "1" : "0"); } catch { /* storage blocked: the fallback below still works */ }
+  storedFlagFallback.set(key, value);
+  window.dispatchEvent(new Event(STORED_FLAG_EVENT));
 }
-let showSkippedFallback = false;
-function subscribeShowSkipped(onChange: () => void) {
-  window.addEventListener(SHOW_SKIPPED_EVENT, onChange);
+function subscribeStoredFlag(onChange: () => void) {
+  window.addEventListener(STORED_FLAG_EVENT, onChange);
   window.addEventListener("storage", onChange);
-  return () => { window.removeEventListener(SHOW_SKIPPED_EVENT, onChange); window.removeEventListener("storage", onChange); };
+  return () => { window.removeEventListener(STORED_FLAG_EVENT, onChange); window.removeEventListener("storage", onChange); };
 }
+function useStoredFlag(key: string, initial: boolean): [boolean, (value: boolean) => void] {
+  const value = useSyncExternalStore(subscribeStoredFlag, () => readStoredFlag(key, initial), () => initial);
+  return [value, (next: boolean) => writeStoredFlag(key, next)];
+}
+
+// The ▶ header button that folds a panel away (same look as CollapsibleEntryRow).
+function CollapseButton({ open, onToggle, controls, children }: { open: boolean; onToggle: () => void; controls: string; children: ReactNode }) {
+  return <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={controls} title={open ? "ย่อ" : "ขยาย"} className="ui-btn flex min-w-0 items-center gap-2 text-left">
+    <span aria-hidden className={`shrink-0 text-[10px] text-muted transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+    {children}
+  </button>;
+}
+
+// "อัปโหลดเพิ่ม" on a major item opens the documents panel before jumping to it.
+const OPEN_DOCUMENTS_KEY = "soc:documents-open";
 
 function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIsAdmin }: { jobId: string; items: MajorItem[]; currentSkillVersion: string | null; viewerId: string; viewerIsAdmin: boolean }) {
   const { checked, total, percent } = majorItemProgress(items);
@@ -81,12 +101,14 @@ function MajorItemsPanel({ jobId, items, currentSkillVersion, viewerId, viewerIs
   const unchecked = items.filter((m) => m.state === "not_checked" && !m.skipped).length;
   const skipped = items.filter((m) => m.skipped).length;
   // ไม่ต้องตรวจ items are hidden by default; the choice is remembered per browser.
-  const hideSkipped = !useSyncExternalStore(subscribeShowSkipped, readShowSkipped, () => false);
-  const toggleSkipped = () => writeShowSkipped(hideSkipped);
+  const [showSkipped, setShowSkipped] = useStoredFlag("soc:show-skipped-major-items", false);
+  const hideSkipped = !showSkipped;
+  const toggleSkipped = () => setShowSkipped(hideSkipped);
+  const [open, setOpen] = useStoredFlag("soc:major-items-open", true);
   const shown = hideSkipped ? items.filter((m) => !m.skipped) : items;
   return <section className="overflow-hidden rounded-card bg-surface shadow-card">
-    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span>{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ <button type="button" onClick={toggleSkipped} className="ui-btn ml-1 text-label underline hover:text-ink">{hideSkipped ? "แสดง" : "ซ่อนทั้งหมด"}</button></span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
-    <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{shown.map((item, i) => <Fragment key={item.id}>{item.groupLabel && item.groupLabel !== shown[i - 1]?.groupLabel ? <GroupRow item={item} count={items.filter((m) => m.groupLabel === item.groupLabel).length} /> : null}<MajorItemRow jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} /></Fragment>)}</tbody></table></div>
+    <div className="p-5"><div className="flex items-center justify-between gap-4 text-sm"><span className="flex flex-wrap items-center"><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-major-items"><span className="font-medium">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span></CollapseButton>{skipped ? <span className="ml-3 text-xs text-muted" title="ข้อที่ไม่ต้องตรวจไม่นับในความคืบหน้าและในตรวจทั้งชุด กดตรวจข้อนี้ที่แถวนั้นเพื่อเปลี่ยนกลับ">ไม่ต้องตรวจ {skipped} ข้อ <button type="button" onClick={toggleSkipped} className="ui-btn ml-1 text-label underline hover:text-ink">{hideSkipped ? "แสดง" : "ซ่อนทั้งหมด"}</button></span> : null}{currentSkillVersion ? <span className="ml-3 text-xs text-muted">skill ปัจจุบัน: <span className="font-mono">{currentSkillVersion}</span></span> : null}</span><span className="flex flex-wrap items-center gap-2">{unchecked ? <RequestAllButton jobId={jobId} count={unchecked} /> : null}{checked ? <a href={`/api/soc/jobs/${jobId}/results-excel`} title="ไฟล์ Excel เดียว: ชีตสรุป แล้วแยกชีตตามข้อใหญ่ที่ตรวจแล้ว ข้อที่ยังไม่ตรวจระบุไว้ในชีตสรุป" className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลตรวจ (Excel)</a> : null}</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
+    <div id="soc-major-items" hidden={!open} className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">ข้อใหญ่</th><th className="px-5 py-3">หัวข้อ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ตรวจโดย</th><th className="px-5 py-3" aria-label="ตรวจ" /></tr></thead><tbody>{shown.map((item, i) => <Fragment key={item.id}>{item.groupLabel && item.groupLabel !== shown[i - 1]?.groupLabel ? <GroupRow item={item} count={items.filter((m) => m.groupLabel === item.groupLabel).length} /> : null}<MajorItemRow jobId={jobId} item={item} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} open={importing === item.id} onToggle={() => setImporting(importing === item.id ? null : item.id)} onDone={() => setImporting(null)} /></Fragment>)}</tbody></table></div>
   </section>;
 }
 
@@ -112,7 +134,7 @@ function MajorItemRow({ jobId, item, viewerId, viewerIsAdmin, open, onToggle, on
   const request = item.request;
   const canCancel = item.state === "requested" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
-    <tr className={`border-t border-line ${item.skipped ? "text-muted" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจข้อ ${item.label} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
+    <tr className={`border-t border-line ${item.skipped ? "text-muted" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>ข้อ {item.label}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจข้อ ${item.label} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" onClick={() => writeStoredFlag(OPEN_DOCUMENTS_KEY, true)} className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} onDone={onDone} /></td></tr> : null}
   </>;
 }
@@ -252,6 +274,9 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState("");
   const inputs = documents.filter((d) => d.type === "SOC" || d.type === "EVIDENCE");
+  const evidenceCount = inputs.filter((d) => d.type === "EVIDENCE").length;
+  // Folded by default: a job can hold up to 200 PDFs.
+  const [open, setOpen] = useStoredFlag(OPEN_DOCUMENTS_KEY, false);
   function submit() {
     setError("");
     // The server also checks the job's total size.
@@ -279,13 +304,15 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
     });
   }
   return <section id="soc-documents" className="scroll-mt-6 rounded-card bg-surface p-5 shadow-card">
-    <h2 className="font-display font-semibold">เอกสารในงาน</h2>
+    <h2><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-documents-body"><span className="font-display font-semibold">เอกสารในงาน</span><span className="text-xs font-normal text-muted">SOC {inputs.length - evidenceCount} · PDF หลักฐาน {evidenceCount} ไฟล์</span></CollapseButton></h2>
+    <div id="soc-documents-body" hidden={!open}>
     <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "EVIDENCE" ? "_blank" : undefined} rel="noreferrer" className="min-w-0 break-all text-ink">{doc.name}</a>{doc.type === "EVIDENCE" ? <button type="button" onClick={() => remove(doc)} disabled={pending} className="ml-auto shrink-0 text-xs text-danger hover:underline disabled:opacity-50">ลบ</button> : null}</li>)}</ul>
     <form action={submit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
       <SocFilePicker files={files} onChange={setFiles} disabled={pending} multiple folders label="เลือกไฟล์ PDF ที่จะเพิ่ม" accept=".pdf,application/pdf" />
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : `เพิ่ม PDF หลักฐาน (${files.length} ไฟล์)`}</Button></div> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </form>
+    </div>
   </section>;
 }
 
