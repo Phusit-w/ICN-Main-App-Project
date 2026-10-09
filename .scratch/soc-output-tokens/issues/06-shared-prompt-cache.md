@@ -34,3 +34,10 @@
 - A move can fail if a file in the folder is still open (Windows); retry briefly, and if it still fails report the request as failed rather than run in a half-moved folder.
 
 ## Comments
+
+2026-10-09 (agent): **code done, gate not run yet** (needs the user's quota readings). `soc-runner/runner.py` + `claude_cli.py`, RUNNER_VERSION 0.4.0, Runner suite 106 OK, `npm test` 211 pass.
+- Fixed dir `work/current`; the marker `soc-runner-request.txt` is written into `work/<id>` *before* the move; moved back in `finally` on every outcome; leftover restored on start and before each request; a folder in `current` without a marker (a finished request a locked file kept) goes to `work/trash-*`; move fails 5x → `failed`.
+- `.claude/runner-system.md` = header + the four docs, raw bytes (identical per skill version); fixed packet prompt; item lines in `out/request.md`.
+- **Deviation from item 2:** a *resume* of a packet session also passes `--append-system-prompt-file` (same file). The CLI builds the system prompt per process and doesn't store it with the session, so "a resume keeps whatever its first run had" would have meant a resume without the docs. Old-flow sessions get none, first run or resume.
+- Auto memory: `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in `child_env`; verified on Claude Code 2.1.295: init event loses `memory_paths` (also with `autoMemoryEnabled:false` in settings). Harness also reports whether `~/.claude/projects/<…current>/memory` appeared.
+- Gate harness: `fixtures/06-cache/run_cache.py` drives the real `carry_out` + `ClaudeCli` with a local stand-in server on compact3 (`--dry` checks plumbing without quota). Run: `python run_cache.py C:/Phusit/s06 g55` then `python run_cache.py C:/Phusit/s06 g58 --item ๕.๘ --r1` (< 1 h apart, quota read before/after each).

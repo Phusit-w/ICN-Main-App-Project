@@ -53,6 +53,9 @@ class ClaudeTask:
     # A new run starts the session with this id; a resumed one continues it.
     session_id: str = ""
     resume: bool = False
+    # Appended to Claude Code's system prompt (the skill docs of the packet flow, ticket 06). The CLI
+    # builds the system prompt anew for every process, so a resume of a packet session passes it again.
+    system_prompt_file: Path | None = None
 
 
 @dataclass
@@ -153,6 +156,8 @@ def run_arguments(executable: str, model: str, task: ClaudeTask) -> list[str]:
             "--disallowedTools", DISALLOWED_TOOLS]
     if task.session_id:
         argv += ["--resume", task.session_id] if task.resume else ["--session-id", task.session_id]
+    if task.system_prompt_file:
+        argv += ["--append-system-prompt-file", str(task.system_prompt_file)]
     return argv
 
 
@@ -174,9 +179,10 @@ def child_env(base: dict, python_dir: Path) -> dict:
 
     The skill's scripts run `python` and need python-docx and PyMuPDF; the
     install command puts them in the Python the runner itself runs on, so that
-    Python comes first on PATH.
+    Python comes first on PATH. Auto memory is off: every run shares one work
+    folder, so one run's memory notes would reach the next (ticket 06).
     """
-    env = {**base, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    env = {**base, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
     key = next((k for k in env if k.upper() == "PATH"), "PATH")
     env[key] = os.pathsep.join(p for p in (str(python_dir), env.get(key, "")) if p)
     return env

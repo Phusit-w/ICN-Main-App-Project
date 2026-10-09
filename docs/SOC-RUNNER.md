@@ -171,12 +171,20 @@ npm run soc:runner:test                          # unittest ด้วย server 
   ถ้า session หายแล้วเริ่มใหม่ ใช้ packet ที่สร้างไว้แล้ว
 - prompt มี `SOC_RUNNER_HEADLESS=1`, ข้อใหญ่, โฟลเดอร์ output และ `acknowledged_missing` ตามสัญญาใน `docs/SOC-SKILL-HOSTING.md`
   และชี้ไปที่ skill ในโฟลเดอร์งานตรงๆ (กันชนกับ skill ชื่อเดียวกันที่ผู้ตรวจติดตั้งไว้เอง)
+- **prompt cache ข้ามข้อ (soc-output-tokens ticket 06, runner 0.4.0)**: flow packet ใช้ prompt ข้อความเดียวกันทุกคำขอ
+  ส่วนไฟล์ SOC/หลักฐาน ข้อใหญ่ แถว และ `acknowledged_missing` อยู่ใน `out/request.md` ที่ runner เขียนให้ Claude อ่านก่อน
+  และเอกสาร skill 4 ไฟล์ที่ flow packet อ่านอยู่แล้ว (SKILL.md, HEADLESS.md, references/evidence-packet.md, references/tor-decision.md)
+  ถูกรวมเป็น `.claude/runner-system.md` ส่งด้วย `--append-system-prompt-file` (flow เดิมไม่ใส่; `--resume` ของ session แบบ packet ส่งไฟล์เดิมอีกครั้ง เพราะ CLI สร้าง system prompt ใหม่ทุก process ไม่ได้เก็บไว้กับ session)
+  ข้อที่ 2 ขึ้นไปบนเครื่องเดียวกันภายใน 1 ชั่วโมง (skill รุ่นเดียวกัน วันเดียวกัน) จึงอ่าน system prompt + ข้อความแรกจาก cache แทนเขียนใหม่
+  Claude รันใน `work\current` เสมอ: runner ย้ายโฟลเดอร์ของคำขอ (`work\<id>`) เข้าไปก่อนรันและย้ายกลับหลังจบทุกกรณี
+  (`current\soc-runner-request.txt` บอกว่าเป็นของคำขอใด runner ที่ถูกปิดกลางคันย้ายกลับให้ตอนเริ่ม) ย้ายไม่ได้ (ไฟล์ถูกเปิดค้าง ลอง 5 ครั้ง) → `failed`
+  และปิด auto memory ของ `claude` (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`) เพราะทุกรอบใช้โฟลเดอร์เดียวกัน
 - `claude -p --output-format stream-json --verbose --model sonnet --permission-mode acceptEdits --allowedTools Bash,PowerShell,Read,Write,Edit,Glob,Grep,Skill,TodoWrite --disallowedTools WebFetch,WebSearch`
   พร้อม `--session-id <uuid>` (รอบแรก) หรือ `--resume <uuid>` (ตรวจต่อ)
   (บน Windows Claude Code รันคำสั่ง shell ผ่าน tool `PowerShell` ไม่ใช่ `Bash` ถ้าไม่อนุญาต ทุกคำสั่ง `python` จะติด "requires approval" แล้วหยุด)
   ใต้ login Claude ของผู้ใช้เครื่องนั้น สคริปต์ของ skill ต้องการ Python ที่มี python-docx / PyMuPDF: runner ใส่โฟลเดอร์ของ Python ที่ตัวเองรันอยู่
   ไว้หน้าสุดของ PATH ของ `claude` (คำสั่งติดตั้งให้ Python ที่มี package เหล่านี้) และรัน `claude` แบบไม่เปิดหน้าต่าง console
-- โฟลเดอร์งานตั้งชื่อตาม id ของคำขอ และเก็บ session ของ Claude ไว้ใน `soc-runner-run.json` คำขอที่กลับมา
+- โฟลเดอร์งานตั้งชื่อตาม id ของคำขอ (ระหว่างรันอยู่ที่ `work\current` ดังข้างบน) และเก็บ session ของ Claude ไว้ใน `soc-runner-run.json` คำขอที่กลับมา
   (หลังหยุดรอโควตา, login ใหม่ หรือ runner restart) จึง `--resume` session เดิมพร้อมผลระหว่างทางใน `out/` แถวที่ตรวจแล้วไม่หาย
   ถ้า skill ที่ตรึงตอน claim ใหม่เป็นคนละเวอร์ชันกับรอบก่อน จะล้าง `out/` แล้วเริ่ม session ใหม่
 - ผลลัพธ์: ส่งสำเร็จ → ลบโฟลเดอร์งาน / ล้มเหลว (ดาวน์โหลดไม่ครบ, Claude error, ไม่มี results.json หรือ SOC_Check)

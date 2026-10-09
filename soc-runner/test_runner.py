@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from datetime import datetime, timedelta, timezone
 
 from claude_cli import ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
-from runner import RUNNER_VERSION, SocRunner, build_evidence_packet, carry_out, load_config, open_log, parse_args, single_instance
+from runner import (RUNNER_VERSION, SocRunner, build_evidence_packet, carry_out, load_config, open_log, parse_args, restore_current,
+                    single_instance)
 from server_client import NotClaimed, ServerError, SubmitRejected
 
 SKILL_MD = "---\nname: tor-word-compliance-check\ndescription: test\n---\n# skill\n"
@@ -107,6 +108,9 @@ class FakeClaude:
         # Per run, in order: an exception to raise, or a dict of files to write first and then the exception.
         self.script: list = []
         self.seen_out: list[list[str]] = []
+        self.seen_system: list[bytes | None] = []  # the appended system prompt file, as Claude got it
+        self.seen_request: list[str | None] = []  # out/request.md
+        self.seen_marker: list[str | None] = []
 
     def login_state(self) -> str:
         self.login_checks += 1
@@ -120,6 +124,11 @@ class FakeClaude:
         inputs = task.cwd / "inputs"
         self.seen_input_files = sorted(p.relative_to(inputs).as_posix() for p in inputs.rglob("*") if p.is_file())
         self.seen_out.append(sorted(p.name for p in task.out_dir.iterdir()))
+        self.seen_system.append(task.system_prompt_file.read_bytes() if task.system_prompt_file else None)
+        request = task.out_dir / "request.md"
+        self.seen_request.append(request.read_text(encoding="utf-8") if request.is_file() else None)
+        marker = task.cwd / "soc-runner-request.txt"
+        self.seen_marker.append(marker.read_text(encoding="utf-8") if marker.is_file() else None)
         if self.script:
             step = self.script.pop(0)
             if step is not None:
@@ -595,6 +604,241 @@ class PacketFlowTest(unittest.TestCase):
         self.assertIn("evidence_packet", claude.tasks[2].prompt)
 
 
+DOCS = {
+    "tor-word-compliance-check/SKILL.md": SKILL_MD,
+    "tor-word-compliance-check/HEADLESS.md": "# headless\r\nอ่าน SKILL.md ครั้งเดียว\n",
+    "tor-word-compliance-check/references/evidence-packet.md": "# packet steps\n",
+    "tor-word-compliance-check/references/tor-decision.md": "# tor decision\n",
+    "tor-word-compliance-check/references/old-flow.md": "# old flow\n",
+}
+
+
+def packet_builder(work, skill_dir, documents, label):
+    (work / "out" / "packet").mkdir(parents=True)
+    (work / "out" / "packet" / "job.json").write_text("{}", encoding="utf-8")
+    return ""
+
+
+class SharedPrefixTest(unittest.TestCase):
+    """Ticket 06: every packet run starts the same, so a PC's 2nd item reads the prompt cache."""
+
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-test-"))
+        self.skill = skill_zip(DOCS)
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def request(self, request_id="req-1", label="๑", key="1", title="ระบบกล้อง", rows=None, acknowledged=None):
+        request, files = make_request(self.skill, b"soc-docx", b"%PDF-1.4", acknowledged)
+        request["id"] = request_id
+        request["majorItem"].update({"label": label, "key": key, "title": title})
+        if rows:
+            request["rows"] = rows
+        return request, FakeServer(request, files)
+
+    def run_one(self, claude, build_packet=packet_builder, **kwargs):
+        request, server = self.request(**kwargs)
+        return carry_out(request, server, claude, self.work_root, quiet, build_packet=build_packet), server
+
+    def test_claude_runs_in_one_fixed_folder_that_knows_its_request(self):
+        claude = FakeClaude()
+        self.run_one(claude, request_id="req-1")
+        self.run_one(claude, request_id="req-2")
+        self.assertEqual([t.cwd for t in claude.tasks], [self.work_root / "current"] * 2)
+        self.assertEqual([t.out_dir for t in claude.tasks], [self.work_root / "current" / "out"] * 2)
+        self.assertEqual(claude.seen_marker, ["req-1", "req-2"])
+        self.assertEqual(list(self.work_root.iterdir()), [], "submitted: nothing is left behind")
+
+    def test_the_request_folder_comes_back_out_after_every_other_outcome(self):
+        outcomes = {
+            "paused": ({"highlights.json": b"rows 1-3"}, ClaudeQuotaExhausted(None, "s")),
+            "needs_login": ClaudeLoggedOut("Login expired · Please run /login"),
+            "failed": ClaudeFailed("Claude หยุดทำงานก่อนตรวจเสร็จ"),
+        }
+        for expected, step in outcomes.items():
+            with self.subTest(expected):
+                claude = FakeClaude()
+                claude.script = [step]
+                outcome, _ = self.run_one(claude, request_id=f"req-{expected}")
+                self.assertEqual(outcome, expected)
+                self.assertFalse((self.work_root / "current").exists())
+                home = self.work_root / f"req-{expected}"
+                self.assertTrue((home / "soc-runner-run.json").is_file(), "the session is kept for a resume")
+        self.assertTrue((self.work_root / "req-paused" / "out" / "highlights.json").is_file())
+
+    def test_a_rejected_submit_keeps_the_folder_for_a_look(self):
+        request, server = self.request()
+        server.submit_error = SubmitRejected(["row 3: ขาด tor_decision"])
+        self.assertEqual(carry_out(request, server, FakeClaude(), self.work_root, quiet, build_packet=packet_builder), "rejected")
+        self.assertEqual([p.name for p in self.work_root.iterdir()], ["req-1"])
+
+    def test_the_marker_is_in_the_request_folder_before_it_moves(self):
+        # Killed between the move and a marker write, the folder would be thrown away as nobody's.
+        import runner
+        moved = []
+        real = runner.os.replace
+
+        def watch(src, dst):
+            moved.append((Path(src).name, (Path(src) / "soc-runner-request.txt").is_file()))
+            real(src, dst)
+        runner.os.replace = watch
+        try:
+            self.run_one(FakeClaude())
+        finally:
+            runner.os.replace = real
+        self.assertEqual(moved[0], ("req-1", True))
+
+    def test_needs_documents_and_dropped_leave_nothing(self):
+        claude = FakeClaude(writes={"missing_documents.json": json.dumps(MISSING, ensure_ascii=False).encode("utf-8")})
+        self.assertEqual(self.run_one(claude)[0], "needs_documents")
+        request, server = self.request(request_id="req-2")
+        server.submit_error = NotClaimed("NOT_CLAIMED")
+        self.assertEqual(carry_out(request, server, FakeClaude(), self.work_root, quiet, build_packet=packet_builder), "dropped")
+        self.assertEqual(list(self.work_root.iterdir()), [])
+
+    def test_a_crash_inside_the_run_still_moves_the_folder_back(self):
+        claude = FakeClaude(error=RuntimeError("bug"))
+        outcome, server = self.run_one(claude)
+        self.assertEqual(outcome, "failed")
+        self.assertIn("RuntimeError", server.reports[-1][1]["reason"])
+        self.assertFalse((self.work_root / "current").exists())
+        self.assertTrue((self.work_root / "req-1" / "soc-runner-run.json").is_file())
+
+    def test_a_folder_left_in_current_goes_back_to_its_request(self):
+        # The runner was killed mid-run: on start, or before the next request, it goes home.
+        current = self.work_root / "current"
+        (current / "out").mkdir(parents=True)
+        (current / "soc-runner-request.txt").write_text("req-9", encoding="utf-8")
+        (current / "out" / "highlights.json").write_bytes(b"rows")
+        restore_current(self.work_root)
+        self.assertFalse(current.exists())
+        self.assertEqual((self.work_root / "req-9" / "out" / "highlights.json").read_bytes(), b"rows")
+
+        (current / "out").mkdir(parents=True)
+        (current / "soc-runner-request.txt").write_text("req-8", encoding="utf-8")
+        claude = FakeClaude()
+        self.assertEqual(self.run_one(claude)[0], "submitted")
+        self.assertEqual(claude.seen_marker, ["req-1"])
+        self.assertEqual(sorted(p.name for p in self.work_root.iterdir()), ["req-8", "req-9"])
+
+    def test_a_finished_folder_that_could_not_all_be_deleted_is_not_moved_back(self):
+        import runner
+        claude = FakeClaude()
+        real = runner.shutil.rmtree
+        runner.shutil.rmtree = lambda path, ignore_errors=False: None  # a file still open: nothing goes
+        try:
+            self.assertEqual(self.run_one(claude)[0], "submitted")
+        finally:
+            runner.shutil.rmtree = real
+        self.assertFalse((self.work_root / "req-1").exists(), "a finished request does not come back")
+        self.assertFalse((self.work_root / "current").exists())
+
+    def test_a_folder_in_current_without_a_request_is_removed(self):
+        (self.work_root / "current" / "inputs").mkdir(parents=True)
+        restore_current(self.work_root)
+        self.assertEqual(list(self.work_root.iterdir()), [])
+
+    def test_the_runner_restores_a_leftover_folder_when_it_starts(self):
+        current = self.work_root / "current"
+        current.mkdir()
+        (current / "soc-runner-request.txt").write_text("req-7", encoding="utf-8")
+        SocRunner(FakeServer(None, {}), FakeClaude(), self.work_root, log=quiet).restore_leftover()
+        self.assertEqual([p.name for p in self.work_root.iterdir()], ["req-7"])
+
+    def test_a_folder_that_cannot_move_fails_the_request_instead_of_running_half_moved(self):
+        import runner
+        claude = FakeClaude()
+        real = runner.os.replace
+
+        def locked(src, dst):
+            raise PermissionError(32, "The process cannot access the file because it is being used by another process")
+        runner.os.replace = locked
+        try:
+            (self.work_root / "req-1").mkdir()
+            request, server = self.request()
+            outcome = carry_out(request, server, claude, self.work_root, quiet, build_packet=packet_builder,
+                                move_wait=lambda _: None)
+        finally:
+            runner.os.replace = real
+        self.assertEqual(outcome, "failed")
+        self.assertEqual(claude.tasks, [])
+        self.assertEqual(server.reports[-1][1]["state"], "failed")
+        self.assertTrue((self.work_root / "req-1").is_dir(), "the request folder stays where it was")
+
+    def test_two_items_get_the_same_system_prompt_and_the_same_prompt(self):
+        claude = FakeClaude()
+        self.run_one(claude, request_id="req-1")
+        self.run_one(claude, request_id="req-2", label="๕.๑", key="5.1", title="เครื่องแม่ข่าย",
+                     rows=[{"row": 12, "item": "๕.๑.๓"}], acknowledged=["Catalog กล้อง"])
+        first, second = claude.tasks
+        self.assertEqual(first.prompt, second.prompt)
+        self.assertIsNotNone(claude.seen_system[0])
+        self.assertEqual(claude.seen_system[0], claude.seen_system[1])
+        self.assertEqual(first.system_prompt_file, self.work_root / "current" / ".claude" / "runner-system.md")
+        self.assertIn("evidence_packet", first.prompt)
+        self.assertIn("out/request.md", first.prompt)
+        self.assertIn("สร้างไว้แล้วที่ `out/packet`", first.prompt)
+
+    def test_the_system_prompt_carries_the_four_packet_docs_verbatim(self):
+        claude = FakeClaude()
+        self.run_one(claude)
+        system = claude.seen_system[0]
+        for name in ("SKILL.md", "HEADLESS.md", "references/evidence-packet.md", "references/tor-decision.md"):
+            self.assertIn(DOCS[f"tor-word-compliance-check/{name}"].encode("utf-8"), system, name)
+        self.assertNotIn(b"# old flow", system)
+        self.assertIn("ห้ามเปิด".encode("utf-8"), system, "the header says they are loaded already")
+
+    def test_request_md_holds_the_item_scope_rows_files_and_acknowledged_documents(self):
+        claude = FakeClaude()
+        self.run_one(claude, label="๕.๑", key="5.1", title="เครื่องแม่ข่าย",
+                     rows=[{"row": 12, "item": "๕.๑.๓"}], acknowledged=["Catalog กล้อง"])
+        note = claude.seen_request[0]
+        self.assertIn('๕.๑ "เครื่องแม่ข่าย"', note)
+        self.assertIn("`๕.๑.`", note)
+        self.assertIn("row 12 (ข้อ ๕.๑.๓)", note)
+        self.assertIn("`inputs/SOC ภาคผนวก.docx`", note)
+        self.assertIn("`inputs/Datasheet A.pdf`", note)
+        self.assertIn('acknowledged_missing: ["Catalog กล้อง"]', note)
+
+    def test_the_old_flow_keeps_its_prompt_and_gets_no_system_prompt_file(self):
+        claude = FakeClaude()
+        self.run_one(claude, build_packet=lambda *_: "skill รุ่นนี้ไม่มีตัวสร้าง evidence packet")
+        self.assertIsNone(claude.tasks[0].system_prompt_file)
+        self.assertIsNone(claude.seen_request[0])
+        self.assertIn("inputs/SOC ภาคผนวก.docx", claude.tasks[0].prompt)
+        self.assertIn("อ่าน HEADLESS.md", claude.tasks[0].prompt)
+
+    def test_a_resume_gets_the_same_system_prompt_and_a_lost_session_gets_it_again(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s")]
+        request, server = self.request()
+        carry_out(request, server, claude, self.work_root, quiet, build_packet=packet_builder)
+        carry_out(request, server, claude, self.work_root, quiet, build_packet=packet_builder)
+        self.assertTrue(claude.tasks[1].resume)
+        self.assertEqual(claude.seen_system[1], claude.seen_system[0])
+        self.assertIn("ต่อจากที่ค้างไว้", claude.tasks[1].prompt)
+
+        # An old-flow session resumes without one, as it started.
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s")]
+        request, server = self.request(request_id="req-old")
+        old_flow = lambda *_: "skill รุ่นนี้ไม่มีตัวสร้าง evidence packet"
+        carry_out(request, server, claude, self.work_root, quiet, build_packet=old_flow)
+        carry_out(request, server, claude, self.work_root, quiet, build_packet=old_flow)
+        self.assertEqual(claude.seen_system, [None, None])
+
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s"), ClaudeSessionMissing("ไม่พบการตรวจรอบก่อน")]
+        request, server = self.request(request_id="req-2")
+        carry_out(request, server, claude, self.work_root, quiet, build_packet=packet_builder)
+        self.assertEqual(carry_out(request, server, claude, self.work_root, quiet, build_packet=packet_builder), "submitted")
+        fresh = claude.tasks[2]
+        self.assertIsNotNone(fresh.system_prompt_file)
+        self.assertIn("ผลระหว่างทาง", fresh.prompt)
+        self.assertIsNotNone(claude.seen_request[2])
+
+
 class BuildEvidencePacketTest(unittest.TestCase):
     """The real builder call, with a stand-in for the skill's build_evidence_packet.py."""
 
@@ -701,6 +945,8 @@ class AutomaticResumeTest(unittest.TestCase):
         self.assertFalse(first.resume)
         self.assertTrue(second.resume)
         self.assertEqual(second.session_id, first.session_id)
+        # Claude stores sessions per folder, so the resume must run in the same path.
+        self.assertEqual(second.cwd, first.cwd)
         self.assertIn("highlights.json", self.claude.seen_out[1], "the resumed run sees the rows already done")
         self.assertIn("ต่อจากที่ค้างไว้", second.prompt)
         self.assertEqual(len(self.server.submits), 1)

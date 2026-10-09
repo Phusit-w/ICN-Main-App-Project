@@ -136,6 +136,18 @@ class RunArgumentsTest(unittest.TestCase):
         self.assertEqual(argv[argv.index("--resume") + 1], SESSION)
         self.assertNotIn("--session-id", argv)
 
+    def test_the_skill_docs_go_into_the_system_prompt_when_given(self):
+        docs = Path("work/current/.claude/runner-system.md")
+        first = run_arguments("claude", "sonnet", ClaudeTask(prompt="p", cwd=Path("."), out_dir=Path("out"),
+                                                             session_id=SESSION, system_prompt_file=docs))
+        self.assertEqual(first[first.index("--append-system-prompt-file") + 1], str(docs))
+        # The CLI doesn't keep it with the session, so a resume passes it again.
+        resumed = run_arguments("claude", "sonnet", ClaudeTask(prompt="p", cwd=Path("."), out_dir=Path("out"),
+                                                               session_id=SESSION, resume=True, system_prompt_file=docs))
+        self.assertEqual(resumed[resumed.index("--append-system-prompt-file") + 1], str(docs))
+        plain = run_arguments("claude", "sonnet", ClaudeTask(prompt="p", cwd=Path("."), out_dir=Path("out"), session_id=SESSION))
+        self.assertNotIn("--append-system-prompt-file", plain)
+
 
 class InstalledClaudeTest(unittest.TestCase):
     """The runner starts at login, before a new PATH from the Claude Code install reaches it."""
@@ -161,6 +173,10 @@ class InstalledClaudeTest(unittest.TestCase):
         self.assertEqual(env["PATH"].split(";" if sys.platform == "win32" else ":")[0], str(Path(r"C:\SOCRunner\app\python")))
         self.assertEqual(env["OTHER"], "1")
         self.assertEqual(env["PYTHONUTF8"], "1")
+
+    def test_auto_memory_is_off(self):
+        # Every run shares work/current, so one run's memory notes would reach the next.
+        self.assertEqual(child_env({"PATH": ""}, python_dir=Path("p"))["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1")
 
 
 if __name__ == "__main__":
