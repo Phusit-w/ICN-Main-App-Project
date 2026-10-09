@@ -117,10 +117,13 @@ export default function SocFilePicker({ files, onChange, accept, multiple = fals
         {files.length ? (multiple ? "+ เพิ่มไฟล์" : "เปลี่ยนไฟล์") : label}
       </button>
       {folders ? <button type="button" disabled={disabled} onClick={() => folderInput.current?.click()} title="เลือกทั้งโฟลเดอร์ (เช่น บทที่ 2) ระบบเก็บชื่อโฟลเดอร์ย่อยไว้ให้ SOC ที่อ้างชื่อโฟลเดอร์หาไฟล์เจอ ไฟล์อื่นที่ไม่ใช่ PDF จะถูกข้าม" className="ui-btn flex-1 rounded-input border border-dashed border-line bg-ground p-4 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
-        + เลือกโฟลเดอร์
+        {files.length ? "+ เพิ่มโฟลเดอร์" : "+ เลือกโฟลเดอร์"}
       </button> : null}
     </div>
-    {multiple && !disabled ? <p className="text-xs text-muted">{dragging ? "ปล่อยเพื่อเพิ่ม" : folders ? "หรือลากหลายโฟลเดอร์/ไฟล์จาก File Explorer มาวางที่นี่พร้อมกันได้" : "หรือลากไฟล์มาวางที่นี่"}</p> : null}
+    {/* The browser's folder dialog takes one folder per pick; picks add up and go in one upload. */}
+    {multiple && !disabled ? <p className="text-xs text-muted">{dragging ? "ปล่อยเพื่อเพิ่ม"
+      : folders ? "เลือกไฟล์ได้หลายไฟล์ในครั้งเดียว (Ctrl/Shift+คลิก) ส่วนโฟลเดอร์เบราว์เซอร์ให้เลือกทีละโฟลเดอร์: กดเพิ่มได้หลายครั้งแล้วอัปโหลดทีเดียว เลือกโฟลเดอร์แม่ (เช่น บทที่ 2) เพื่อเอาทุกโฟลเดอร์ย่อย หรือลากหลายโฟลเดอร์จาก File Explorer มาวางพร้อมกัน"
+      : "หรือลากไฟล์มาวางที่นี่"}</p> : null}
     {dropNote ? <p className="text-xs text-muted">{dropNote}</p> : null}
   </div>;
 }

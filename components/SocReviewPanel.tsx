@@ -6,7 +6,7 @@
 // can open full screen. Each
 // row is confirmed on its own; there is no bulk confirm. Rows can be picked
 // to send to Claude again or to download as Excel.
-import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
@@ -18,6 +18,7 @@ type ReviewItem = { id: string; label: string; state: string; missingDocuments: 
 type StatusFilter = SocReviewFilter["status"];
 
 const STATUS_FILTERS: StatusFilter[] = ["all", "fail", "review", "ok"];
+const SORTS: [SocReviewSort, string, string][] = [["status", "ปัญหาก่อน", "❌ ⚠️ ✅ แล้วตามลำดับแถว"], ["item", "ตามข้อใน SOC", "ตามลำดับข้อใน SOC แยกกลุ่มตามข้อใหญ่"]];
 const decisionLabel = (value: SocFinalDecision | null) => (value ? SOC_FINAL_DECISION_LABELS[value] : null);
 const DEFAULT_FILTER: SocReviewFilter = { status: "all", majorItemId: "all", decision: "all", evidenceMissing: false };
 // Keyboard shortcuts stay out of the way while the reviewer types; a focused button or checkbox doesn't count.
@@ -110,6 +111,8 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
     </div> : null}
     <div className="flex flex-wrap items-center gap-2 rounded-card bg-surface p-3 text-sm shadow-card">
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="สถานะ">{STATUS_FILTERS.map((status) => <button key={status} type="button" aria-pressed={filter.status === status} onClick={() => setFilter({ ...filter, status })} className={`ui-btn rounded-full px-3 py-1.5 text-xs transition-colors ${filter.status === status ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{status === "all" ? "ทั้งหมด" : `${SOC_ROW_STATUS_ICONS[status]} ${SOC_ROW_STATUS_LABELS[status]}`} ({counts(status)})</button>)}</div>
+      <span aria-hidden className="mx-1 h-5 w-px bg-line" />
+      <div className="flex items-center gap-1.5" role="group" aria-label="เรียงแถว"><span className="text-xs text-label">เรียง</span>{SORTS.map(([value, text, title]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => setSort(value)} title={title} className={`ui-btn rounded-full px-3 py-1.5 text-xs transition-colors ${sort === value ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{text}</button>)}</div>
       <span aria-hidden className="mx-1 h-5 w-px bg-line" />
       <FilterMenu filter={filter} items={checkedItems} onChange={setFilter} />
       {filter.majorItemId !== "all" ? <FilterChip onRemove={() => setFilter({ ...filter, majorItemId: "all" })}>ข้อใหญ่ {label.get(filter.majorItemId) ?? "—"}</FilterChip> : null}
@@ -455,6 +458,7 @@ function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
   const shown = pages[shownIndex];
   const src = shown ? `/api/soc/jobs/${jobId}/evidence/${shown.document.id}/pages/${shown.page}` : null;
   const highlight = row.axes.find((axis) => axis.key === "highlight_check");
+  const pan = useDragToPan();
 
   // Asks the server once per page why it failed; the image's error event
   // carries no status.
@@ -502,18 +506,55 @@ function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
     {unpaged.map((c) => note(`การอ้างอิง ${c.document!.name} ไม่ได้ระบุเลขหน้า`))}
     {!shown || !src ? null
       : failures[src] ? <p role="alert" className="rounded-input border border-danger-border bg-surface p-3 text-xs text-danger">{failures[src]}</p>
-      : <div className="relative min-h-40 overflow-auto rounded-input border border-line bg-white">
+      : <div {...pan} title="คลิกค้างแล้วลากเพื่อเลื่อนหน้า" className="relative min-h-40 cursor-grab touch-auto overflow-auto rounded-input border border-line bg-white select-none active:cursor-grabbing">
         {/* Under the image, so it shows only until the page has loaded. */}
         <p className="absolute inset-x-0 top-0 p-3 text-xs text-muted">กำลังโหลดหน้า {shown.page}…</p>
         {/* A server-rendered PNG behind an access check; next/image adds nothing here. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={src} src={src} alt={`${shown.document.name} หน้า ${shown.page}`} data-zoom={zoom} style={zoom === "fit" ? undefined : { width: `${zoom}%` }} className={`relative block h-auto bg-white ${zoom === "fit" ? "w-full" : "max-w-none"}`} onError={(event) => explainFailure(src, event.currentTarget.src)}
+        <img key={src} src={src} alt={`${shown.document.name} หน้า ${shown.page}`} data-zoom={zoom} draggable={false} style={zoom === "fit" ? undefined : { width: `${zoom}%` }} className={`relative block h-auto bg-white ${zoom === "fit" ? "w-full" : "max-w-none"}`} onError={(event) => explainFailure(src, event.currentTarget.src)}
           // An image that failed before hydration never fires onError.
           ref={(img) => { if (img?.complete && img.naturalWidth === 0) explainFailure(src); }} />
       </div>}
     {/* The skill reports no highlight positions, only what it found highlighted. */}
     {highlight?.detail && highlight.detail !== "—" ? <p className="text-xs leading-relaxed text-muted"><span className="font-semibold text-label">Highlight ({socAxisValueLabel(highlight.value ?? "not_applicable")}):</span> {highlight.detail}</p> : null}
   </div>;
+}
+
+// The nearest box that scrolls along an axis: the page frame itself once
+// zoomed past its width, else the pane or page it sits in ("พอดี" is as
+// wide as the frame but taller than the pane).
+function scrollerFor(element: HTMLElement, axis: "x" | "y"): HTMLElement | null {
+  for (let box: HTMLElement | null = element; box; box = box.parentElement) {
+    const overflow = getComputedStyle(box)[axis === "x" ? "overflowX" : "overflowY"];
+    const room = axis === "x" ? box.scrollWidth - box.clientWidth : box.scrollHeight - box.clientHeight;
+    if (room > 0 && (overflow === "auto" || overflow === "scroll")) return box;
+  }
+  return document.scrollingElement as HTMLElement | null;
+}
+
+// Click and drag a zoomed page like a hand tool, instead of hunting for the
+// scrollbars. Mouse only: touch already scrolls by dragging.
+function useDragToPan() {
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onPointerDown(event: ReactPointerEvent<HTMLElement>) {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+      drag.current = { x: event.clientX, y: event.clientY };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault(); // no text selection while dragging
+    },
+    onPointerMove(event: ReactPointerEvent<HTMLElement>) {
+      const start = drag.current;
+      if (!start) return;
+      const dx = event.clientX - start.x, dy = event.clientY - start.y;
+      drag.current = { x: event.clientX, y: event.clientY };
+      const horizontal = scrollerFor(event.currentTarget, "x"), vertical = scrollerFor(event.currentTarget, "y");
+      if (horizontal) horizontal.scrollLeft -= dx;
+      if (vertical) vertical.scrollTop -= dy;
+    },
+    onPointerUp() { drag.current = null; },
+    onPointerCancel() { drag.current = null; },
+  };
 }
 
 function DecisionForm({ row, decision, note, error, pending, canSave, onDecision, onNote, onSave }: { row: SocReviewRow; decision: string; note: string; error: string; pending: boolean; canSave: boolean; onDecision: (value: string) => void; onNote: (value: string) => void; onSave: () => void }) {
