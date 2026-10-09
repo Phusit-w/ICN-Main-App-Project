@@ -167,10 +167,11 @@ test("a row whose cited page or document wasn't found or can't be read is flagge
   assert.equal(evidenceMissing({}), false);
 });
 
-test("after a decision the next row is the next undecided one in the list, wrapping round", () => {
+test("after a decision the next row is the next unsettled one in the list, including รอแก้ไข", () => {
   const rows = [{ id: "a", finalDecision: null }, { id: "b", finalDecision: "compliant" }, { id: "c", finalDecision: null }, { id: "d", finalDecision: "pending_fix" }];
   assert.equal(nextRowToReview(rows, "a")?.id, "c");
-  assert.equal(nextRowToReview(rows, "c")?.id, "a");
+  assert.equal(nextRowToReview(rows, "c")?.id, "d");
+  assert.equal(nextRowToReview(rows, "d")?.id, "a");
   assert.equal(nextRowToReview(rows, "b")?.id, "c");
   assert.equal(nextRowToReview(rows, "gone")?.id, "a");
   assert.equal(nextRowToReview([{ id: "a", finalDecision: null }, { id: "b", finalDecision: "better" }], "a"), null);

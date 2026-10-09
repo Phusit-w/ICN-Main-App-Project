@@ -91,12 +91,13 @@ export const PENDING_FIX = "pending_fix" satisfies SocFinalDecision;
 export const isSettledDecision = (value: string | null | undefined) => !!value && value !== PENDING_FIX;
 export const SOC_REVIEW_NOTE_MAX = 2000;
 
-// Where the review page goes after a decision: the next row in the list with
-// no Final Decision yet, wrapping round to the top; null when none is left.
+// Where the review page goes after a decision: the next unsettled row in the
+// list, wrapping round to the top; null when none is left. รอแก้ไข remains in
+// the review queue because it does not confirm a row.
 export function nextRowToReview<T extends { id: string; finalDecision?: string | null }>(rows: readonly T[], currentId: string): T | null {
   const at = rows.findIndex((row) => row.id === currentId);
   const ordered = at < 0 ? rows : [...rows.slice(at + 1), ...rows.slice(0, at)];
-  return ordered.find((row) => !row.finalDecision) ?? null;
+  return ordered.find((row) => !isSettledDecision(row.finalDecision)) ?? null;
 }
 
 // A major item shows `confirmed` once every row that needs a decision (every

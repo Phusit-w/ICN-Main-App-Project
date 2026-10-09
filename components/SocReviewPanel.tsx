@@ -18,18 +18,17 @@ type StatusFilter = SocReviewFilter["status"];
 
 const STATUS_FILTERS: StatusFilter[] = ["all", "fail", "review", "ok"];
 const decisionLabel = (value: SocFinalDecision | null) => (value ? SOC_FINAL_DECISION_LABELS[value] : null);
-// Keyboard shortcuts stay out of the way while the reviewer types or picks from a list.
-const isTyping = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+// Keyboard shortcuts stay out of the way while the reviewer uses a control.
+const isInteractive = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, a, [role='radio'], [contenteditable='true']");
 
 export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; items: ReviewItem[]; rows: SocReviewRow[] }) {
   const [filter, setFilter] = useState<SocReviewFilter>({ status: "all", majorItemId: "all", decision: "all", evidenceMissing: false });
   const [sort, setSort] = useState<SocReviewSort>("status");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  const visible = useMemo(() => sortReviewRows(filterReviewRows(rows, filter), sort), [rows, filter, sort]);
+  const filteredRows = useMemo(() => sortReviewRows(filterReviewRows(rows, filter), sort), [rows, filter, sort]);
   // A SOC without a Comply/Better tick box shows the recommendation only.
   const ticked = rows.some((row) => row.declaredSelection);
-  const selected = visible.find((r) => r.id === selectedId) ?? visible[0];
   const label = new Map(items.map((m) => [m.id, m.label]));
   const counts = (status: StatusFilter) => filterReviewRows(rows, { ...filter, status }).length;
   const decided = rows.filter((r) => isSettledDecision(r.finalDecision)).length;
@@ -39,7 +38,6 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
   const checkedItems = items.filter((m) => rows.some((r) => r.majorItemId === m.id));
   // Picked rows a re-check or reload replaced are gone from `rows`.
   const pickedRows = sortReviewRows(rows.filter((r) => picked.has(r.id)), sort);
-  const allVisiblePicked = visible.length > 0 && visible.every((r) => picked.has(r.id));
   const togglePicked = (ids: string[], on: boolean) => setPicked((current) => {
     const next = new Set(current);
     for (const id of ids) if (on) next.add(id); else next.delete(id);
@@ -54,7 +52,9 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
     return next;
   });
   const groupOf = (row: SocReviewRow) => row.majorItemId ?? "";
-  const listed = grouped ? visible.filter((row) => !folded.has(groupOf(row))) : visible;
+  const displayedRows = grouped ? filteredRows.filter((row) => !folded.has(groupOf(row))) : filteredRows;
+  const selected = displayedRows.find((r) => r.id === selectedId) ?? displayedRows[0];
+  const allDisplayedPicked = displayedRows.length > 0 && displayedRows.every((r) => picked.has(r.id));
   const tableRef = useRef<HTMLDivElement>(null);
   const select = (id: string) => {
     setSelectedId(id);
@@ -63,12 +63,12 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
   // ↑/↓ (or k/j) move through the listed rows, unless the reviewer is typing.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || isInteractive(event.target)) return;
       const step = event.key === "ArrowDown" || event.key === "j" ? 1 : event.key === "ArrowUp" || event.key === "k" ? -1 : 0;
-      if (!step || !listed.length) return;
+      if (!step || !displayedRows.length) return;
       event.preventDefault();
-      const at = listed.findIndex((row) => row.id === selected?.id);
-      select(listed[Math.min(listed.length - 1, Math.max(0, at + step))].id);
+      const at = displayedRows.findIndex((row) => row.id === selected?.id);
+      select(displayedRows[Math.min(displayedRows.length - 1, Math.max(0, at + step))].id);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -101,16 +101,16 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
         <option value="status">เรียง: ปัญหาก่อน (❌ ⚠️ ✅)</option>
         <option value="item">เรียง: ตามลำดับข้อใน SOC</option>
       </select>
-      <PickedActions jobId={jobId} picked={pickedRows} visible={visible} onClear={() => setPicked(new Set())} />
+      <PickedActions jobId={jobId} picked={pickedRows} visible={filteredRows} onClear={() => setPicked(new Set())} />
     </div>
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <div className="overflow-hidden rounded-card bg-surface shadow-card"><div ref={tableRef} className="max-h-[calc(100vh-160px)] overflow-auto">
         <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-chip text-left text-xs text-label"><tr><th className="py-2.5 pl-3"><input type="checkbox" aria-label="เลือกทุกแถวที่แสดง" title="ติ๊กเลือกแถวเพื่อส่งให้ Claude ตรวจใหม่ หรือดาวน์โหลด Excel" checked={allVisiblePicked} onChange={(e) => togglePicked(visible.map((r) => r.id), e.target.checked)} /></th><th className="px-3 py-2.5">สถานะ</th><th className="px-3 py-2.5">ข้อ</th><th className="px-3 py-2.5">ข้อกำหนด TOR</th><th className="whitespace-nowrap px-3 py-2.5">{ticked ? "ติ๊ก → แนะนำ" : "แนะนำ"}</th><th className="px-3 py-2.5">Final Decision</th></tr></thead>
-          <tbody>{visible.map((row, i) => {
+          <thead className="sticky top-0 z-10 bg-chip text-left text-xs text-label"><tr><th className="py-2.5 pl-3"><input type="checkbox" aria-label="เลือกทุกแถวที่แสดง" title="ติ๊กเลือกแถวเพื่อส่งให้ Claude ตรวจใหม่ หรือดาวน์โหลด Excel" checked={allDisplayedPicked} onChange={(e) => togglePicked(displayedRows.map((r) => r.id), e.target.checked)} /></th><th className="px-3 py-2.5">สถานะ</th><th className="px-3 py-2.5">ข้อ</th><th className="px-3 py-2.5">ข้อกำหนด TOR</th><th className="whitespace-nowrap px-3 py-2.5">{ticked ? "ติ๊ก → แนะนำ" : "แนะนำ"}</th><th className="px-3 py-2.5">Final Decision</th></tr></thead>
+          <tbody>{filteredRows.map((row, i) => {
             const groupId = groupOf(row);
-            const groupStart = grouped && (i === 0 || groupOf(visible[i - 1]) !== groupId);
-            const groupRows = groupStart ? visible.filter((r) => groupOf(r) === groupId) : [];
+            const groupStart = grouped && (i === 0 || groupOf(filteredRows[i - 1]) !== groupId);
+            const groupRows = groupStart ? rows.filter((r) => groupOf(r) === groupId) : [];
             const settled = isSettledDecision(row.finalDecision);
             return <Fragment key={row.id}>
               {groupStart ? <tr className="border-t border-line bg-ground"><td colSpan={6} className="p-0"><button type="button" onClick={() => toggleFolded(groupId)} aria-expanded={!folded.has(groupId)} className="ui-btn flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-hover">
@@ -130,9 +130,9 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
             </Fragment>;
           })}</tbody>
         </table>
-        {visible.length ? null : <p className="p-8 text-center text-sm text-muted">ไม่พบรายการในตัวกรองนี้</p>}
+        {filteredRows.length ? null : <p className="p-8 text-center text-sm text-muted">ไม่พบรายการในตัวกรองนี้</p>}
       </div></div>
-      {selected ? <RowInspector key={selected.id} jobId={jobId} row={selected} majorItemLabel={selected.majorItemId ? label.get(selected.majorItemId) ?? null : null} onSaved={() => { const next = nextRowToReview(listed, selected.id); if (next) select(next.id); }} /> : null}
+      {selected ? <RowInspector key={selected.id} jobId={jobId} row={selected} majorItemLabel={selected.majorItemId ? label.get(selected.majorItemId) ?? null : null} onSaved={() => { const next = nextRowToReview(displayedRows, selected.id); if (next) select(next.id); }} /> : null}
     </div>
   </section>;
 }
@@ -333,7 +333,7 @@ function DecisionForm({ jobId, row, onSaved }: { jobId: string; row: SocReviewRo
         if (canSave) { event.preventDefault(); save(); }
         return;
       }
-      if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || isInteractive(event.target)) return;
       const value = SOC_FINAL_DECISIONS[Number(event.key) - 1];
       if (value) { event.preventDefault(); setDecision(value); }
     }
