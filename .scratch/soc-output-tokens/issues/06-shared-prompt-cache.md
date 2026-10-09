@@ -52,3 +52,12 @@
 - The whole first turn (system prompt + 4 docs + fixed prompt) of the 2nd run came from the cache: −47k cache write, above the ≥ 30k target.
 - Quality: ๕.๕ passes the 02 key (89 n/a, ๑.๒ compliant, ๑.๓ partial_visible ✅, ๕.๕(๒) pass); ๕.๘ R1 **5/5** (171→p.43, 172→p.47/54, 177→p.34(/36), 190→p.5, 193 no AMS licence doc; 03 had 4/5). Validator 0 issues both; every packet page Read (10, 24 pages); none of the four docs Read; no auto-memory folder.
 - Caveat: units/quota also differ from 03 because these are single runs (the skill is the same compact family); the cache effect alone is the 47k first-turn write.
+
+2026-10-09 (user + agent): **live on prod, MOF_RFID all 11 major items queued at once** on one PC (Runner 0.4.0, pkg compact3, Sonnet), 14:24–14:49, quota 47% → 78% = 31 pts for 11 items (user per item: ๕.๑ 2, ๕.๒ 4, ๕.๓ 1, ๕.๔ 1, ๕.๕ 4, ๕.๖ 1, ๕.๗ 3, ๕.๘ 11, ๕.๙ 2, ๕.๑๐ 1, ๕.๑๑ 1). Meter of the 11 session logs (work-current):
+
+| item | t1 cache read / write | cache write total | output | units |
+|---|---|---|---|---|
+| ๕.๑ (1st) | 13,692 / 35,336 | 68k | 13.1k | 202k |
+| ๕.๒–๕.๑๑ (each) | **49,028 / 0** | 9–136k | 4–64k | 75k–758k (๕.๘) |
+
+All 11 on the packet flow, none of the four docs Read. 2.16M units in total; ≈ 35k cache write avoided × 10 follow-ups ≈ 400k units (~15%). ๕.๕ in the queue: 232k units / 4 pts (lone gate run 328k / 6 pts).
