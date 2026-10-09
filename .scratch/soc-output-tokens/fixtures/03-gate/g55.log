@@ -1,0 +1,95 @@
+{
+  "pages": 8,
+  "read_calls": 13,
+  "not_read": [],
+  "shell_only": [],
+  "crops_not_read": []
+}
+== live 5.5 slim (8 pts): turns 8 | input_tokens=16 cache_read_input_tokens=498,146 cache_creation_input_tokens=95,350 output_tokens=26,559
+   cost share: cache_read 17% cache_write 39% input 0% output 44% | units 302k
+   output chars: thinking 0 text 1,944 tool_use 24,332
+   biggest tool inputs: [(21614, 'Write'), (474, 'Bash'), (313, 'Bash'), (172, 'Read')]
+   biggest tool results: [(18945, 'Read'), (15835, 'Read'), (8812, 'Read'), (5704, 'Read'), (5552, 'Read'), (5333, 'Read')] total 88855
+== live 5.5 old skill (8 pts): turns 17 | input_tokens=34 cache_read_input_tokens=1,747,577 cache_creation_input_tokens=131,436 output_tokens=29,014
+   cost share: cache_read 36% cache_write 34% input 0% output 30% | units 484k
+   output chars: thinking 101 text 2,378 tool_use 28,441
+   biggest tool inputs: [(21713, 'Write'), (668, 'Bash'), (554, 'Bash'), (503, 'Bash')]
+   biggest tool results: [(25823, 'Read'), (18695, 'Read'), (10068, 'Read'), (9859, 'Read'), (8812, 'Read'), (5704, 'Read')] total 135401
+== live 5.8 v2 (17 pts): turns 26 | input_tokens=52 cache_read_input_tokens=3,505,155 cache_creation_input_tokens=184,618 output_tokens=54,495
+   cost share: cache_read 41% cache_write 27% input 0% output 32% | units 854k
+   output chars: thinking 474 text 2,672 tool_use 44,325
+   biggest tool inputs: [(31722, 'Write'), (858, 'Bash'), (692, 'Bash'), (610, 'Bash')]
+   biggest tool results: [(25823, 'Read'), (19719, 'Read'), (10068, 'Read'), (9859, 'Read'), (7286, 'Read'), (4701, 'Read')] total 153773
+== claude -p 5.8 slim (9 pts): turns 9 | input_tokens=18 cache_read_input_tokens=702,208 cache_creation_input_tokens=109,160 output_tokens=969
+   cost share: cache_read 33% cache_write 65% input 0% output 2% | units 212k
+   output chars: thinking 0 text 1,894 tool_use 25,243
+   biggest tool inputs: [(21804, 'Write'), (1125, 'Edit'), (590, 'PowerShell'), (312, 'PowerShell')]
+   biggest tool results: [(18096, 'Read'), (17723, 'Read'), (8872, 'Read'), (5764, 'Read'), (5612, 'Read'), (5393, 'Read')] total 90949
+packet fallback: (none, packet built)
+claude exit 0
+{
+  "turns": 9,
+  "context_tokens": 811386,
+  "output_tokens": 969,
+  "tools": {
+    "Read": 13,
+    "Glob": 1,
+    "Write": 1,
+    "PowerShell": 4,
+    "Edit": 1
+  },
+  "skill_doc_chars_read": 32142,
+  "skill_docs_read": [
+    "tor-word-compliance-check/HEADLESS.md",
+    "tor-word-compliance-check/SKILL.md",
+    "tor-word-compliance-check/references/evidence-packet.md",
+    "tor-word-compliance-check/references/tor-decision.md"
+  ],
+  "script_sources_read": []
+}
+options: ['evidence_support', 'tor_decision', 'evidence_packet']
+
+[89] ๕.๕ heading
+  reference_check: not_applicable
+  reference_file: None
+  item_label_check: not_applicable
+  highlight_check: not_applicable
+  highlight_evidence: -
+  evidence_support: not_applicable
+  tor_decision: not_applicable
+  key_issue: ไม่มีข้อพบ: หัวข้อตรงกับโฟลเดอร์อ้างอิง
+
+[92] ๑.๒ license
+  reference_check: match
+  reference_file: tc22-tc27-spec-sheet-en-us.pdf
+  item_label_check: match
+  highlight_check: partial
+  highlight_evidence: Highlight ครอบ Mobility DNA Enterprise License แต่ไม่มีข้อความเรื่องความเข้ากันได้กับ Software Asset Management ในหน้านี้หรือทั้งไฟล์
+  evidence_support: partially_supported
+  tor_decision: compliant
+  key_issue: ควรเพิ่มอ้างอิง ZPL2600054 Zebra Business Letter (หนังสือแต่งตั้งตัวแทนจำหน่ายจาก Zebra) เพราะหน้า 2 ไม่ระบุการทำงานร่วมกับ Software Asset Management
+
+[93] ๑.๓ สัมผัส
+  reference_check: match
+  reference_file: tc22-tc27-spec-sheet-en-us.pdf
+  item_label_check: match
+  highlight_check: partial_visible
+  highlight_evidence: Highlight Display 6.0 in. FHD+ (1080 x 2160) ไม่ครอบคำว่า สัมผัส แต่เห็น Touch Panel Multi mode capacitive touch ในแถวถัดไปของหน้าเดียวกัน
+  evidence_support: fully_supported
+  tor_decision: compliant
+  key_issue: ผ่าน
+
+[101] ๕.๕(๒) sub-heading
+  reference_check: match
+  reference_file: rfd40-premium-series-spec-sheet-en-us (1).pdf
+  item_label_check: not_applicable
+  highlight_check: not_applicable
+  highlight_evidence: -
+  evidence_support: fully_supported
+  tor_decision: not_applicable
+  key_issue: ผ่าน
+{
+  "Write compact.json": 20414,
+  "PowerShell": 1017,
+  "Edit compact.json": 649
+}

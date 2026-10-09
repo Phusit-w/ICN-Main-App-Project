@@ -6,7 +6,7 @@ Why: ticket 03's size target is measured against this. Earlier ๕.๘ numbers a
 
 **Blocked by:** –
 
-**Status:** ready-for-human
+**Status:** wontfix (2026-10-09: user skipped the slim baseline; 03 compared with v2 live instead)
 
 ## Acceptance
 
@@ -16,3 +16,5 @@ Why: ticket 03's size target is measured against this. Earlier ๕.๘ numbers a
 - [ ] Field share of results.json characters for ๕.๘ (as in 11's breakdown).
 
 ## Comments
+
+2026-10-09 (agent): the user's run (request `cmv0dyutd0002ecn2hmy9alxd`, 10:08–10:14) ran on the **`-compact` package** (sha `3ec43c66…`, `expand_results.py` present), not slim: prod already had `-compact` as current. User chose to let it finish; its numbers are recorded in 03 as the live compact ๕.๘ run. **The slim baseline is still to do:** make `2026-10-09-slim` current again, run ๕.๘ R1 alone, read quota before/after, then switch back.

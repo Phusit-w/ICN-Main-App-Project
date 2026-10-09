@@ -1,0 +1,19 @@
+{
+  "pages": 24,
+  "read_calls": 36,
+  "not_read": [],
+  "shell_only": [],
+  "crops_not_read": []
+}
+packet fallback: (none, packet built)
+claude exit 0
+Traceback (most recent call last):
+  File "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App\.scratch\soc-output-tokens\fixtures\03-gate\run_gate.py", line 43, in <module>
+    run_runner.main()
+  File "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App\.scratch\soc-evidence-packet\fixtures\11-slim\run_runner.py", line 117, in main
+    stats = measure(work / "run.jsonl")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Phusit\Claude Project\ICN Apps\Main_Project_Build_App\.scratch\soc-evidence-packet\fixtures\11-slim\run_runner.py", line 66, in measure
+    content = message.get("content") if isinstance(message.get("content"), list) else []
+                                                   ^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'get'
