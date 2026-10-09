@@ -3,7 +3,9 @@
 // imports written without an extension (`./foo` → `./foo.ts`). Node's own
 // type stripping does the rest — no transpiler or test library involved.
 import { existsSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
 
 const ROOT = new URL("../", import.meta.url);
 const CANDIDATES = [".ts", ".tsx", "/index.ts", "/index.tsx"];
@@ -40,4 +42,22 @@ export async function resolve(specifier, context, nextResolve) {
     return nextResolve(`${specifier}.js`, context);
   }
   return nextResolve(specifier, context);
+}
+
+// Node can strip types from .ts files itself, but JSX still needs a small
+// compile step. Keep it scoped to .tsx so the existing test runtime is
+// unchanged for server-side tests.
+export async function load(url, context, nextLoad) {
+  if (url.startsWith("file:") && url.endsWith(".tsx")) {
+    const source = await readFile(fileURLToPath(url), "utf8");
+    return {
+      format: "module",
+      shortCircuit: true,
+      source: ts.transpileModule(source, {
+        compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+        fileName: fileURLToPath(url),
+      }).outputText,
+    };
+  }
+  return nextLoad(url, context);
 }
