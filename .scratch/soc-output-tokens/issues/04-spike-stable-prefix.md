@@ -45,3 +45,5 @@
 **Caveats:** saves only on the 2nd+ item a PC runs within 1 h of the last one (a queue of one SOC's items: yes; a lone item: no; first run of each day pays the write since the date is in the system prompt). Same skill version and same flow needed (old-flow runs load other docs). A fixed dir means the Runner moves the request folder into `work/current` for the run and back out on pause, and resumes need the same path (Claude stores sessions per cwd). Docs in the system prompt always load all four packet docs (ticket 11's "read only what's needed" stays true for the packet flow: these are the four it reads anyway). The live first turn is smaller than the probe's (27k vs 36k) so the probe's numbers are an upper bound on the env/prompt part; the docs part (~21.5k) is the same files.
 
 **Recommendation:** B if the user often queues several items of one SOC on a PC, since it saves more than any other single change left except Compact Results, and needs no skill rule change. Wait for 03's numbers first so the two savings are measured separately. **Decision: the user's.**
+
+2026-10-09 (user): **chose option B** → ticket 06.

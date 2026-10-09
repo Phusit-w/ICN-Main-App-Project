@@ -4,7 +4,7 @@
 
 **Blocked by:** –
 
-**Status:** done (2026-10-09: measured, recommendation = drop; decision with the user)
+**Status:** done (2026-10-09: measured, dropped by the user)
 
 ## What to try (throwaway, no prod change)
 
@@ -44,3 +44,5 @@ So `MAX_THINKING_TOKENS` is not honoured in `-p` mode; `--effort` is. The sessio
 **๕.๘ R1 gate not run:** ๕.๕ shows no saving worth a Runner change, and quota was at 87% (๕.๘ costs ~12 pts).
 
 **Recommendation: drop** (no `RUNNER_VERSION` bump, reviewers don't need to re-paste). If ever revisited, the only knob is `--effort low` in `claude_cli.run_arguments`, gated on ๕.๘ R1 first. **Decision: the user's.**
+
+2026-10-09 (user): **drop.** Next: 04 option B → ticket 06.
