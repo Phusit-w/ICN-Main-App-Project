@@ -16,7 +16,7 @@ The spec and the grill decisions (2026-10-09) are in `spec.md`. Background: `../
 |---|---|---|---|
 | 01 | Baseline: ๕.๘ live on the slim skill | – | wontfix 2026-10-09 (skipped; 03 used v2 live) |
 | 02 | Compact Results: expand script + skill rules | – | done 2026-10-09 (pkg `-compact` built, not uploaded) |
-| 03 | Gate + upload | 01, 02 | gates done 2026-10-09: quality kept, size −6%/−5% (targets missed), user kept compact; ready-for-human: upload `2026-10-09-compact3` |
+| 03 | Gate + upload | 01, 02 | gates done 2026-10-09: quality kept, size −6%/−5% (targets missed), user kept compact; done 2026-10-09: pkg `2026-10-09-compact3` CURRENT on prod |
 | 04 | Spike: stable prompt prefix for cross-run cache hits | – | done 2026-10-09: measured, options A/B/C, decision with the user |
 | 05 | Spike: cap Claude's thinking on Runner runs | – | ready-for-agent (thinking = 39–48% of output) |
 

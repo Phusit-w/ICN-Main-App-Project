@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02
 
-**Status:** ready-for-human (user uploads `2026-10-09-compact3`; then done)
+**Status:** done (2026-10-09: user uploaded `2026-10-09-compact3`, current on prod)
 
 ## Steps
 
