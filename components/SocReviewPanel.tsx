@@ -223,7 +223,7 @@ function ReviewWorkspace({ jobId, row, rows, majorItemLabel, onClose, onSelect }
     return () => { window.removeEventListener("keydown", onKey); };
   });
 
-  return <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`ตรวจข้อ ${row.item}`} className="fixed inset-0 z-50 flex flex-col bg-ground">
+  return <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`ตรวจข้อ ${row.item}`} className="fixed inset-0 z-[1100] flex flex-col bg-ground">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 shadow-sm sm:px-6">
       <div><div className="text-xs font-medium text-muted">พื้นที่ตรวจ SOC</div><h2 className="font-display text-lg font-bold">{SOC_ROW_STATUS_ICONS[row.status]} ข้อ {row.item}</h2></div>
       <div className="flex items-center gap-2">
