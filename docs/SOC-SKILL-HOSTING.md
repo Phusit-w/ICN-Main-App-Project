@@ -35,6 +35,10 @@ admin จึงอัปเดต skill ได้ทุกเครื่อง�
 
 คำสั่งนี้มีผล **เฉพาะเมื่อ prompt มีข้อความ `SOC_RUNNER_HEADLESS=1`** ผู้ตรวจที่ใช้ skill ใน Claude Code เองจึงได้พฤติกรรมเดิม
 
+HEADLESS.md ยังบอกให้อ่านเอกสารของ skill เท่าที่ option ที่เปิดต้องใช้ (SKILL.md, `references/tor-decision.md`
+และ `references/evidence-packet.md` เมื่อมี packet), ห้ามเปิด source ของ `scripts/*.py` และขั้น QA ทำแค่ structural QA
+เพราะทุกตัวอักษรที่อ่านถูกส่งซ้ำทุก turn และกินโควตาของผู้ตรวจ (soc-evidence-packet 11)
+
 ### สัญญากับ SOC Runner (ticket 14)
 
 prompt ของ runner ต้องมี

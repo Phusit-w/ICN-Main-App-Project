@@ -3,7 +3,7 @@
 // rows as the review page (heading rows left out), in SOC order. One major
 // item → one sheet; the whole job → a summary sheet, then one sheet per
 // checked major item. The layout follows the SOC skill's Excel spec
-// (tor-word-compliance-check SKILL.md, "ส่งมอบแบบตารางผลแยกจาก SOC"), with
+// (tor-word-compliance-check references/deliverables.md), with
 // the reviewer's Final Decision and note added. The review page can also
 // download just the rows a reviewer picked or filtered, in its order, as one
 // sheet. Server-only.

@@ -67,6 +67,10 @@ test("the served package adds the headless step-0 instruction and keeps every ot
   // The packet flow's page-by-page reading holds under the runner too (soc-evidence-packet 10).
   assert.match(headless, /evidence_packet[\s\S]*job\.md[\s\S]*pages\/\*\.md/);
   assert.match(headless, /SOC_RUNNER_HEADLESS/);
+  // A run reads only the docs its options need, never script sources (soc-evidence-packet 11).
+  assert.match(headless, /references\/tor-decision\.md[\s\S]*references\/evidence-packet\.md/);
+  assert.match(headless, /scripts\/\*\.py/);
+  assert.match(headless, /structural QA/);
 
   const skill = entryText(served.bytes, "tor-word-compliance-check/SKILL.md")!;
   assert.ok(skill.startsWith("---\nname: \"tor-word-compliance-check\""), "frontmatter stays first");

@@ -26,12 +26,20 @@ export const HEADLESS_INSTRUCTION = `# โหมด headless (SOC Runner)
 หรือเลือกค่าที่ prompt กำหนด (โหมด \`full_audit\` + option ที่ prompt เปิด: \`evidence_support\`, \`tor_decision\`
 และ \`evidence_packet\` เมื่อ prompt บอกว่าสร้าง packet ไว้แล้ว) แล้วทำต่อ
 
+## อ่านเท่าที่จำเป็น
+
+ทุกตัวอักษรที่อ่านหรือพิมพ์ออกมาถูกส่งซ้ำทุก turn ที่เหลือ จึงกินโควตาของผู้ตรวจ อ่าน SKILL.md ครั้งเดียว แล้วอ่านเฉพาะ
+\`references/tor-decision.md\` และเมื่อเปิด \`evidence_packet\` \`references/evidence-packet.md\`
+(ไม่มี packet: เพิ่ม \`references/old-flow.md\`, \`references/highlight-audit.md\` และเมื่อเอกสารคนละภาษา
+\`references/metric-matching.md\`) ห้ามอ่านไฟล์อื่นใน \`references/\` ยกเว้น \`references/word-output.md\` เมื่อ script ล้ม
+ห้ามเปิด source ของ \`scripts/*.py\` เพื่อหา field หรือค่าที่ใช้ได้
+(อยู่ในหัวข้อ "results.json" ของ SKILL.md แล้ว) ขั้นที่ 8 ทำ structural QA ไม่ต้อง render เป็นภาพ (ไม่มีผู้ใช้ดูไฟล์ระหว่างรัน)
+
 ## evidence packet
 
 เมื่อ prompt เปิด \`evidence_packet\` ให้ทำตาม \`references/evidence-packet.md\` ทุกขั้นเหมือนตอนมีผู้ใช้ โหมด headless ไม่ได้ยกเว้นข้อใด
 โดยเฉพาะ P2/P3: เปิด \`job.md\` และไฟล์หน้า (\`pages/*.md\`) ของทุกหน้าด้วย tool Read ห้ามเขียนสคริปต์ python/shell
 รวมหรือ dump หลายไฟล์ของ packet ลงไฟล์เดียวแล้วอ่านแทน และไม่รัน script ของ flow เดิมซ้ำกับสิ่งที่ packet มีแล้ว
-(ทุกตัวอักษรที่อ่านหรือพิมพ์ออกมาถูกส่งซ้ำทุก turn ที่เหลือ จึงกินโควตาของผู้ตรวจ)
 
 ## ขั้นที่ 0: เอกสารที่ถูกอ้างไม่ครบ
 

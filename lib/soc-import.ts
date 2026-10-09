@@ -2,7 +2,7 @@
 // writes check results for an Imported SOC Check. Manual upload (phase 1) and
 // the SOC Runner API (phase 2) both call importLocalCheckRun().
 //
-// Validation follows the SOC skill's references/word-output.md and its
+// Validation follows the SOC skill's SKILL.md "results.json" section and its
 // append_results_to_docx.py validate(), for the full mode every check runs
 // in: full_audit + evidence_support + tor_decision. Any error rejects the
 // whole file and nothing is written.
