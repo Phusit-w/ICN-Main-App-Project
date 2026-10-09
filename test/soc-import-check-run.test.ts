@@ -294,6 +294,19 @@ test("every problem in a file is reported at once", { skip }, async () => {
   assert.equal(result.ok ? 0 : result.errors.length, 3);
 });
 
+// The review page and the Excel colours match confidence exactly; a reason in
+// the field, or a row whose fields shifted, would show as a wrong status.
+test("a confidence other than high, medium or low is rejected, naming the row", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  const run = withRow(withRow(runFor("1"), 2, { confidence: "high เพราะหน้าที่อ้างรองรับ" }), 3, { confidence: "หน้าอ้างไม่รองรับ" });
+  const result = await importRun(owner, jobId, item.id, run);
+  assert.equal(result.ok, false);
+  const errors = result.ok ? [] : result.errors.filter((e) => /confidence/.test(e));
+  assert.equal(errors.length, 2);
+  assert.match(errors[0], /ผลรายการที่ 2 .*high, medium หรือ low/);
+  await assertNothingWritten(jobId, item.id);
+});
+
 test("a run without a skill version or model is rejected", { skip }, async () => {
   const { owner, jobId, item } = await setup();
   const result = await importRun(owner, jobId, item.id, runFor("1"), { run: { skillVersion: " ", model: "" } });

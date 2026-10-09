@@ -51,6 +51,9 @@ const MAX_ERRORS = 50;
 // The skill's reference_check values (its LABELS); unlike the legacy
 // SOC_CHECK_STATUSES, there is no "review".
 const REFERENCE_CHECKS = new Set(["match", "mismatch", "not_found", "unverifiable", "not_applicable"]);
+// Matched exactly by the review statuses and the Excel colours (soc-results-excel.ts), as
+// in the skill's append_results_to_docx.py: a reason belongs in detail, not here.
+const CONFIDENCES = new Set(["high", "medium", "low"]);
 
 // Fields every result must carry in full mode, in the order the skill lists them.
 const REQUIRED_FIELDS = [
@@ -108,6 +111,9 @@ export function validateLocalCheckRun(data: unknown, majorItem: { key: string; l
     if (missing.length) errors.push(`${where}: ขาด ${missing.join(", ")}`);
     if (!isBlank(row.reference_check) && !REFERENCE_CHECKS.has(String(row.reference_check))) {
       errors.push(`${where}: reference_check ไม่ถูกต้อง (${JSON.stringify(row.reference_check)})`);
+    }
+    if (!isBlank(row.confidence) && !CONFIDENCES.has(String(row.confidence))) {
+      errors.push(`${where}: confidence ต้องเป็น high, medium หรือ low คำเดียว (ในไฟล์เป็น ${JSON.stringify(String(row.confidence).slice(0, 40))}) เหตุผลให้อยู่ใน detail`);
     }
     if (!isBlank(row.tor_claim_results) && !Array.isArray(row.tor_claim_results)) {
       errors.push(`${where}: tor_claim_results ต้องเป็นรายการ`);
