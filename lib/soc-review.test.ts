@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { filterReviewRows, citedEvidence, declaredSelection, evidenceMissing, isSettledDecision, majorItemConfirmed, overallRowStatus, parseReferencePages, SOC_FINAL_DECISION_LABELS, socAxisValueLabel, sortReviewRows, type SocAxisValues, type SocReviewFilter } from "@/lib/soc-review";
+import { filterReviewRows, citedEvidence, declaredSelection, evidenceMissing, isSettledDecision, majorItemConfirmed, nextRowToReview, overallRowStatus, parseReferencePages, SOC_FINAL_DECISION_LABELS, socAxisValueLabel, sortReviewRows, type SocAxisValues, type SocReviewFilter } from "@/lib/soc-review";
 
 type FixtureRow = SocAxisValues & { row: number; item: string; row_type: string };
 const RUN = JSON.parse(readFileSync(new URL("../test/fixtures/soc/results_sonnet.json", import.meta.url), "utf8")) as { results: FixtureRow[] };
@@ -165,4 +165,13 @@ test("a row whose cited page or document wasn't found or can't be read is flagge
   assert.equal(evidenceMissing({ reference_check: "match", evidence_support: "unverifiable" }), true);
   assert.equal(evidenceMissing({ reference_check: "mismatch", evidence_support: "not_supported" }), false);
   assert.equal(evidenceMissing({}), false);
+});
+
+test("after a decision the next row is the next undecided one in the list, wrapping round", () => {
+  const rows = [{ id: "a", finalDecision: null }, { id: "b", finalDecision: "compliant" }, { id: "c", finalDecision: null }, { id: "d", finalDecision: "pending_fix" }];
+  assert.equal(nextRowToReview(rows, "a")?.id, "c");
+  assert.equal(nextRowToReview(rows, "c")?.id, "a");
+  assert.equal(nextRowToReview(rows, "b")?.id, "c");
+  assert.equal(nextRowToReview(rows, "gone")?.id, "a");
+  assert.equal(nextRowToReview([{ id: "a", finalDecision: null }, { id: "b", finalDecision: "better" }], "a"), null);
 });
