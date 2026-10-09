@@ -45,6 +45,14 @@ _Avoid_: section, chapter (a SOC's บท is the whole document)
 One run of the shared SOC skill by a reviewer on their own machine. It uses that reviewer's own Claude subscription and covers one major item (ข้อใหญ่) of a SOC. It produces a results file, a SOC_Check document, and a record of the skill version and model it used.
 _Avoid_: server check, worker run
 
+**Evidence Packet**:
+What a Local Check Run reads instead of the raw PDFs: for one major item, every row with its raw reference, the candidate files and pages, the tick-box signals, and the cited pages' text. When it can't be built, the run uses the old flow (reading the PDFs itself).
+_Avoid_: bundle, context pack
+
+**Compact Results**:
+What Claude writes in a packet-flow Local Check Run: only its judgements and explanations per row. A skill script fills in everything the Evidence Packet already knows (the raw reference, row and item, declared status, the n/a fields of heading rows, standard wording for rows that pass on every axis) to make the full results file. A row with a TOR threshold still states the datasheet value per condition, even when the offer copies the TOR. The old flow and interactive use write the full results file directly.
+_Avoid_: short results, summary
+
 **SOC Runner**:
 The program installed on a reviewer's machine. It takes only that reviewer's check requests, performs Local Check Runs under their own Claude login, and sends the results back to the server.
 _Avoid_: worker, agent, bot

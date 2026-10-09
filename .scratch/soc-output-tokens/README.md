@@ -1,0 +1,25 @@
+# SOC output tokens: progress board and how to resume
+
+> **เริ่ม session ใหม่ทุกครั้ง อ่านไฟล์นี้ก่อน**
+
+The spec and the grill decisions (2026-10-09) are in `spec.md`. Background: `../soc-evidence-packet/issues/11-shrink-skill-docs.md` (last section, "where the quota still goes"). Work on branch `feature/soc-reviewer-run-check` unless a new branch is agreed.
+
+## How to continue
+
+1. Say **`/implement .scratch/soc-output-tokens/issues/<NN>-....md`**. Pick the first `ready-for-agent` ticket whose blockers are all `done`.
+2. At the end of every session: update the ticket's `Status:` and checkboxes, add a dated note under `## Comments`, and update this board.
+3. The skill is outside git: `ICN Apps/SOC model compliance/Skill/tor-word-compliance-check/tor-word-compliance-check/`. Back up the folder before editing. Quota readings need the user (this chat shares the account).
+
+## Board
+
+| # | Ticket | Blocked by | Status |
+|---|---|---|---|
+| 01 | Baseline: ๕.๘ live on the slim skill | – | ready-for-human |
+| 02 | Compact Results: expand script + skill rules | – | done 2026-10-09 (pkg `-compact` built, not uploaded) |
+| 03 | Gate + upload | 01, 02 | ready-for-agent |
+| 04 | Spike: stable prompt prefix for cross-run cache hits | – | ready-for-agent |
+
+## Deferred
+
+- Haiku per item: only behind a gate against the keys.
+- Shorter `job.md`.

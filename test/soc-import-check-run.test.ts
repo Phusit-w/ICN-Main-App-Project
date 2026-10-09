@@ -187,6 +187,17 @@ test("the run's event records whether the skill used the evidence packet, and wh
   assert.deepEqual([(event.detail as Record<string, unknown>).evidenceFlow, (event.detail as Record<string, unknown>).packetFallback], ["standard", "skill รุ่นนี้ไม่มีตัวสร้าง evidence packet"]);
 });
 
+test("a packet run whose rows have empty tor_claim_results (Compact Results, expanded by the skill) is accepted", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  const run = runFor("1");
+  run.options = [...run.options, "evidence_packet"];
+  run.results = run.results.map((row) => ({ ...row, tor_claim_results: [] }));
+  const imported = await importRun(owner, jobId, item.id, run);
+  assert.ok(imported.ok, JSON.stringify(imported));
+  const stored = await prisma.socCheckResult.findMany({ where: { majorItemId: item.id } });
+  assert.ok(stored.length > 0 && stored.every((row) => Array.isArray(row.torClaimResults) && row.torClaimResults.length === 0));
+});
+
 test("skill version and model typed in the upload form override the ones in the file", { skip }, async () => {
   const { owner, jobId, item } = await setup();
   signedIn = owner;
