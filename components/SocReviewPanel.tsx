@@ -223,17 +223,23 @@ function ReviewWorkspace({ jobId, row, rows, majorItemLabel, onClose, onSelect }
     return () => { window.removeEventListener("keydown", onKey); };
   });
 
+  const settled = rows.filter((candidate) => isSettledDecision(candidate.finalDecision)).length;
+  const navButton = "ui-btn inline-flex h-9 items-center gap-1 rounded-full border border-line px-3 text-sm hover:bg-hover disabled:opacity-40";
   return <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`ตรวจข้อ ${row.item}`} className="fixed inset-0 z-[1100] flex flex-col bg-ground">
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 shadow-sm sm:px-6">
-      <div><div className="text-xs font-medium text-muted">พื้นที่ตรวจ SOC</div><h2 className="font-display text-lg font-bold">{SOC_ROW_STATUS_ICONS[row.status]} ข้อ {row.item}</h2></div>
-      <div className="flex items-center gap-2">
-        <button type="button" disabled={!previous} onClick={() => previous && request({ type: "row", id: previous.id })} className="ui-btn rounded-full border border-line px-3 py-1.5 text-sm hover:bg-hover disabled:opacity-40">← ข้อก่อนหน้า</button>
-        <button type="button" disabled={!next} onClick={() => next && request({ type: "row", id: next.id })} className="ui-btn rounded-full border border-line px-3 py-1.5 text-sm hover:bg-hover disabled:opacity-40">ข้อถัดไป →</button>
-        <button ref={closeRef} type="button" onClick={() => request({ type: "close" })} aria-label="ปิดพื้นที่ตรวจ" className="ui-btn rounded-full border border-line px-3 py-1.5 text-sm hover:bg-hover">✕ ปิด</button>
-      </div>
+    <header className="relative flex items-center gap-2 border-b border-line bg-surface px-3 py-2 sm:gap-3 sm:px-5">
+      <h2 className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-base font-bold sm:text-lg">
+        <span className="whitespace-nowrap">{SOC_ROW_STATUS_ICONS[row.status]} ข้อ {row.item}</span>
+        <span className="truncate font-sans text-xs font-normal text-muted sm:text-sm">{SOC_ROW_STATUS_LABELS[row.status]}{majorItemLabel ? ` · ข้อใหญ่ ${majorItemLabel}` : ""} · แถว {row.rowNumber}</span>
+      </h2>
+      <span className="hidden whitespace-nowrap text-[11px] text-muted xl:inline">คีย์ลัด: ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก · Esc ปิด</span>
+      <span className="whitespace-nowrap text-xs tabular-nums text-label" title={`ยืนยันแล้ว ${settled} จาก ${rows.length} ข้อที่แสดง`}>{at + 1}/{rows.length}</span>
+      <button type="button" disabled={!previous} onClick={() => previous && request({ type: "row", id: previous.id })} aria-label="ข้อก่อนหน้า" title="ข้อก่อนหน้า (←)" className={navButton}>←<span className="hidden sm:inline"> ก่อนหน้า</span></button>
+      <button type="button" disabled={!next} onClick={() => next && request({ type: "row", id: next.id })} aria-label="ข้อถัดไป" title="ข้อถัดไป (→)" className={navButton}><span className="hidden sm:inline">ถัดไป </span>→</button>
+      <button ref={closeRef} type="button" onClick={() => request({ type: "close" })} aria-label="ปิดพื้นที่ตรวจ" title="ปิด (Esc)" className={navButton}>✕<span className="hidden sm:inline"> ปิด</span></button>
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-chip"><div className="h-full bg-accent transition-all" style={{ width: `${rows.length ? (settled / rows.length) * 100 : 0}%` }} /></div>
     </header>
-    <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-      <RowInspector jobId={jobId} row={row} majorItemLabel={majorItemLabel} decision={decision} note={note} error={error} pending={pending} onDecision={setDecision} onNote={setNote} onSave={() => save()} />
+    <div className="min-h-0 flex-1 overflow-hidden sm:p-3">
+      <RowInspector jobId={jobId} row={row} decision={decision} note={note} error={error} pending={pending} onDecision={setDecision} onNote={setNote} onSave={() => save()} />
     </div>
     {destination ? <div role="alertdialog" aria-modal="true" aria-label="มีข้อมูลที่ยังไม่ได้บันทึก" className="absolute inset-0 z-10 grid place-items-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-card bg-surface p-5 shadow-card">
@@ -315,45 +321,58 @@ function PickedActions({ jobId, picked, visible, onClear }: { jobId: string; pic
   </div>;
 }
 
-function RowInspector({ jobId, row, majorItemLabel, decision, note, error, pending, onDecision, onNote, onSave }: { jobId: string; row: SocReviewRow; majorItemLabel: string | null; decision: string; note: string; error: string; pending: boolean; onDecision: (value: string) => void; onNote: (value: string) => void; onSave: () => void }) {
-  const same = row.declaredSelection === row.systemRecommendation;
+function RowInspector({ jobId, row, decision, note, error, pending, onDecision, onNote, onSave }: { jobId: string; row: SocReviewRow; decision: string; note: string; error: string; pending: boolean; onDecision: (value: string) => void; onNote: (value: string) => void; onSave: () => void }) {
   const [pane, setPane] = useState<"comparison" | "evidence">("comparison");
-  return <div className="mx-auto flex h-full max-w-[1600px] flex-col overflow-hidden rounded-card bg-surface shadow-card">
-    <div role="tablist" aria-label="ส่วนของพื้นที่ตรวจ" className="grid grid-cols-2 border-b border-line md:hidden">
-      <button type="button" role="tab" aria-selected={pane === "comparison"} onClick={() => setPane("comparison")} className={`ui-btn px-3 py-2 text-sm font-medium ${pane === "comparison" ? "bg-ink text-ground" : "bg-surface text-label"}`}>รายละเอียดเทียบ</button>
-      <button type="button" role="tab" aria-selected={pane === "evidence"} onClick={() => setPane("evidence")} className={`ui-btn px-3 py-2 text-sm font-medium ${pane === "evidence" ? "bg-ink text-ground" : "bg-surface text-label"}`}>เอกสารอ้างอิง</button>
+  const tab = (value: typeof pane, text: string) => <button type="button" role="tab" aria-selected={pane === value} onClick={() => setPane(value)} className={`ui-btn px-3 py-2 text-sm font-medium ${pane === value ? "bg-ink text-ground" : "bg-surface text-label"}`}>{text}</button>;
+  // Narrow: tabs / the picked pane / the decision. Wide: comparison over the decision on the left, evidence on the right.
+  return <div className="mx-auto grid h-full max-w-[1600px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-surface shadow-card sm:rounded-card md:grid-cols-[minmax(20rem,2fr)_minmax(24rem,3fr)] md:grid-rows-[minmax(0,1fr)_auto]">
+    <div role="tablist" aria-label="ส่วนของพื้นที่ตรวจ" className="grid grid-cols-2 border-b border-line md:hidden">{tab("comparison", "รายละเอียดเทียบ")}{tab("evidence", "เอกสารอ้างอิง")}</div>
+    <section role="region" aria-label="รายละเอียดเทียบ" className={`${pane === "comparison" ? "flex" : "hidden"} min-h-0 flex-col gap-3 overflow-y-auto p-4 md:col-start-1 md:row-start-1 md:flex md:border-r md:border-line`}>
+      <ClampedText label="ข้อกำหนด TOR" text={row.torText} empty="ไม่พบข้อความในไฟล์ SOC" />
+      <ClampedText label="ข้อเสนอของผู้ยื่น" text={row.proposalText} empty="—" />
+      <Verdict row={row} />
+      <details className="rounded-input border border-line p-3"><summary className="cursor-pointer text-sm font-medium">รายละเอียดทุกแกน ({row.axes.length})</summary>
+        <table className="mt-2 w-full border-collapse text-sm"><tbody>{row.axes.map((axis) => <tr key={axis.key} className="border-t border-line align-top">
+          <td className="w-40 py-1.5 pr-2 text-label">{axis.label}</td>
+          <td className={`w-28 py-1.5 pr-2 font-medium ${axis.ok ? "" : "text-amber-700 dark:text-amber-400"}`}>{axis.ok ? "" : "• "}{socAxisValueLabel(axis.value ?? "not_applicable")}</td>
+          <td className="py-1.5 text-xs text-muted">{axis.detail}</td>
+        </tr>)}</tbody></table>
+      </details>
+    </section>
+    <section role="region" aria-label="เอกสารอ้างอิง" className={`${pane === "evidence" ? "flex" : "hidden"} min-h-0 flex-col overflow-y-auto bg-ground p-3 md:col-start-2 md:row-span-2 md:row-start-1 md:flex`}>
+      <PdfEvidence jobId={jobId} row={row} />
+    </section>
+    <div className="border-t border-line bg-surface p-3 md:col-start-1 md:row-start-2 md:border-r"><DecisionForm row={row} decision={decision} note={note} error={error} pending={pending} onDecision={onDecision} onNote={onNote} onSave={onSave} /></div>
+  </div>;
+}
+
+// Long TOR or proposal text shows its first lines, so the verdict below stays in view.
+function ClampedText({ label, text, empty }: { label: string; text: string | null; empty: string }) {
+  const [open, setOpen] = useState(false);
+  const long = !!text && (text.length > 280 || text.split("\n").length > 5);
+  return <div className="rounded-input border border-line p-3 text-sm">
+    <div className="text-xs font-semibold text-label">{label}</div>
+    {text ? <p className={`mt-1 whitespace-pre-wrap leading-relaxed ${long && !open ? "line-clamp-5" : ""}`}>{text}</p> : <p className="mt-1 text-muted">{empty}</p>}
+    {long ? <button type="button" onClick={() => setOpen(!open)} className="ui-btn mt-1 text-xs text-label underline hover:text-ink">{open ? "ย่อ" : "แสดงทั้งหมด"}</button> : null}
+  </div>;
+}
+
+// What the bidder ticked against what the system recommends, and why (Claude's summary).
+function Verdict({ row }: { row: SocReviewRow }) {
+  const same = row.declaredSelection === row.systemRecommendation;
+  const tone = row.status === "fail" ? "border-danger-border" : row.status === "review" ? "border-amber-300 dark:border-amber-700" : "border-line";
+  return <div className={`rounded-input border-2 bg-ground p-3 text-sm ${tone}`}>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      {row.declaredSelection ? <>
+        <span>ผู้ยื่นติ๊ก <span className="font-semibold">{socAxisValueLabel(row.declaredSelection)}</span></span>
+        <span className={same ? "text-muted" : "font-bold text-danger"} title={same ? "ตรงกัน" : "ไม่ตรงกัน"}>{same ? "=" : "≠"}</span>
+      </> : null}
+      <span>ระบบแนะนำ <span className="font-semibold">{socAxisValueLabel(row.systemRecommendation)}</span></span>
+      <span className="ml-auto text-[11px] text-muted">Claude · confidence {row.confidence || "—"}</span>
     </div>
-    <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(20rem,2fr)_minmax(24rem,3fr)]">
-      <section role="region" aria-label="รายละเอียดเทียบ" className={`${pane === "comparison" ? "flex" : "hidden"} min-h-0 flex-col md:flex md:border-r md:border-line`}>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-5">
-          <div className="flex flex-wrap items-baseline gap-2"><h3 className="font-display text-lg font-bold">{SOC_ROW_STATUS_ICONS[row.status]} ข้อ {row.item}</h3><span className="text-sm text-muted">{SOC_ROW_STATUS_LABELS[row.status]}{majorItemLabel ? ` · ข้อใหญ่ ${majorItemLabel}` : ""} · แถว {row.rowNumber}</span></div>
-          {row.reasons.length ? <ul className="list-disc pl-5 text-sm text-amber-700 dark:text-amber-400">{row.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : null}
-          <div className="grid gap-3 text-sm xl:grid-cols-2">
-          <div className="rounded-input border border-line p-3"><div className="text-xs font-semibold text-label">ข้อกำหนด TOR</div><p className="mt-1 whitespace-pre-wrap leading-relaxed">{row.torText || <span className="text-muted">ไม่พบข้อความในไฟล์ SOC</span>}</p></div>
-          <div className="rounded-input border border-line p-3"><div className="text-xs font-semibold text-label">ข้อเสนอของผู้ยื่น</div><p className="mt-1 whitespace-pre-wrap leading-relaxed">{row.proposalText || <span className="text-muted">—</span>}</p></div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-          {row.declaredSelection ? <>
-            <span className="rounded-full bg-chip px-3 py-1">ผู้ยื่นติ๊ก: <span className="font-medium">{socAxisValueLabel(row.declaredSelection)}</span></span>
-            <span className={same ? "text-muted" : "font-bold text-danger"} title={same ? "ตรงกัน" : "ไม่ตรงกัน"}>{same ? "=" : "≠"}</span>
-          </> : null}
-          <span className="rounded-full bg-chip px-3 py-1">ระบบแนะนำ: <span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></span>
-          </div>
-          <div className="rounded-input bg-ground p-3 text-sm"><div className="text-xs font-semibold text-label">สรุปจาก Claude · confidence {row.confidence || "—"}</div><p className="mt-1 leading-relaxed">{row.detail}</p>{row.keyIssue && row.keyIssue !== row.detail ? <p className="mt-1 text-sm text-label">ประเด็นหลัก: {row.keyIssue}</p> : null}</div>
-          <details className="rounded-input border border-line p-3"><summary className="cursor-pointer text-sm font-medium">รายละเอียดทุกแกน ({row.axes.length})</summary>
-          <table className="mt-2 w-full border-collapse text-sm"><tbody>{row.axes.map((axis) => <tr key={axis.key} className="border-t border-line align-top">
-            <td className="w-40 py-1.5 pr-2 text-label">{axis.label}</td>
-            <td className={`w-28 py-1.5 pr-2 font-medium ${axis.ok ? "" : "text-amber-700 dark:text-amber-400"}`}>{axis.ok ? "" : "• "}{socAxisValueLabel(axis.value ?? "not_applicable")}</td>
-            <td className="py-1.5 text-xs text-muted">{axis.detail}</td>
-          </tr>)}</tbody></table>
-          </details>
-        </div>
-        <div className="shrink-0 border-t border-line bg-surface p-3 md:p-4"><DecisionForm row={row} decision={decision} note={note} error={error} pending={pending} onDecision={onDecision} onNote={onNote} onSave={onSave} /></div>
-      </section>
-      <section role="region" aria-label="เอกสารอ้างอิง" className={`${pane === "evidence" ? "flex" : "hidden"} min-h-0 flex-col overflow-y-auto bg-ground p-3 md:flex md:p-4`}>
-        <PdfEvidence jobId={jobId} row={row} />
-      </section>
-    </div>
+    <p className="mt-1.5 leading-relaxed">{row.detail}</p>
+    {row.keyIssue && row.keyIssue !== row.detail ? <p className="mt-1 text-label">ประเด็นหลัก: {row.keyIssue}</p> : null}
+    {row.reasons.length ? <div className="mt-2 flex flex-wrap gap-1.5">{row.reasons.map((reason) => <span key={reason} className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800 dark:bg-amber-950 dark:text-amber-300">{reason}</span>)}</div> : null}
   </div>;
 }
 
@@ -395,20 +414,19 @@ function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
 
   const note = (text: string) => <p key={text} className="rounded-input bg-ground p-3 text-xs text-muted">{text}</p>;
   const documents = [...new Map(pages.map((p) => [p.document.id, p.document])).values()];
+  const zoomButton = "ui-btn rounded px-2 py-1 hover:bg-hover";
   return <div data-slot="pdf-evidence" className="flex flex-col gap-2">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="min-w-0 text-xs"><span className="font-semibold text-label">เอกสารอ้างอิง</span> <span className="whitespace-pre-wrap text-muted">{row.reference || "ไม่ได้ระบุ"}</span></div>
-      <div className="flex flex-wrap gap-3">{documents.map((d) => <a key={d.id} href={`/api/soc/documents/${d.id}`} target="_blank" rel="noreferrer" className="text-xs text-label underline hover:text-ink">เปิด {d.name}</a>)}</div>
+    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-input border border-line bg-surface px-2.5 py-1.5 text-xs">
+      <span className="min-w-0 flex-1 truncate" title={row.reference || undefined}><span className="font-semibold text-label">อ้างอิง</span> <span className="text-muted">{row.reference || "ไม่ได้ระบุ"}</span></span>
+      {shown && pages.length === 1 ? <span className="font-medium text-label">หน้า {shown.page}</span> : null}
+      {shown ? <span className="flex items-center gap-0.5">
+        <button type="button" aria-label="ย่อเอกสาร" onClick={() => setZoom((value) => Math.max(50, (value === "fit" ? 100 : value) - 25))} className={zoomButton}>−</button>
+        <span className="min-w-10 text-center tabular-nums text-muted">{zoom === "fit" ? "พอดี" : `${zoom}%`}</span>
+        <button type="button" aria-label="ขยายเอกสาร" onClick={() => setZoom((value) => Math.min(200, (value === "fit" ? 100 : value) + 25))} className={zoomButton}>＋</button>
+        <button type="button" aria-label="พอดีความกว้าง" title="พอดีความกว้าง" onClick={() => setZoom("fit")} className={`${zoomButton} text-label`}>⤢</button>
+      </span> : null}
+      {documents.map((d) => <a key={d.id} href={`/api/soc/documents/${d.id}`} target="_blank" rel="noreferrer" title={`เปิด ${d.name} ทั้งไฟล์`} className="whitespace-nowrap text-label underline hover:text-ink">{documents.length > 1 ? `${fileName(d.name)} ↗` : "เปิด PDF ↗"}</a>)}
     </div>
-    {shown ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-input border border-line bg-surface px-2 py-1.5 text-xs">
-      <span className="font-medium text-label">หน้า {shown.page}</span>
-      <div className="flex items-center gap-1">
-        <button type="button" aria-label="ย่อเอกสาร" onClick={() => setZoom((value) => Math.max(50, (value === "fit" ? 100 : value) - 25))} className="ui-btn rounded px-2 py-1 hover:bg-hover">−</button>
-        <span className="min-w-12 text-center tabular-nums text-muted">{zoom === "fit" ? "พอดี" : `${zoom}%`}</span>
-        <button type="button" aria-label="ขยายเอกสาร" onClick={() => setZoom((value) => Math.min(200, (value === "fit" ? 100 : value) + 25))} className="ui-btn rounded px-2 py-1 hover:bg-hover">＋</button>
-        <button type="button" onClick={() => setZoom("fit")} className="ui-btn rounded px-2 py-1 text-label hover:bg-hover">พอดีความกว้าง</button>
-      </div>
-    </div> : null}
     {pages.length > 1 ? <div className="flex flex-wrap gap-1.5" role="group" aria-label="หน้าที่อ้าง">
       {pages.map((p, i) => <button key={`${p.document.id}:${p.page}`} type="button" onClick={() => setShownIndex(i)} aria-pressed={i === shownIndex} className={`ui-btn rounded-full px-3 py-1 text-xs transition-colors ${i === shownIndex ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{severalDocuments ? `${p.document.name} ` : ""}หน้า {p.page}</button>)}
     </div> : null}
@@ -458,13 +476,14 @@ function DecisionForm({ row, decision, note, error, pending, onDecision, onNote,
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  return <div className="flex flex-col gap-2 rounded-input border border-line bg-ground p-3">
-    <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-xs font-semibold text-label">Final Decision ของผู้ตรวจ</span><span className="text-[11px] text-muted">คีย์ลัด: ↑↓ เลือกแถว · 1–4 เลือก · Ctrl+Enter ยืนยัน</span></div>
-    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Final Decision">{SOC_FINAL_DECISIONS.map((value, i) => <button key={value} type="button" role="radio" aria-checked={decision === value} aria-keyshortcuts={String(i + 1)} onClick={() => onDecision(value)} className={`ui-btn rounded-input border px-3 py-1.5 text-sm transition-colors ${decision === value ? "border-ink bg-accent text-black" : "border-line bg-surface hover:bg-hover"}`}><span className="mr-1.5 text-[11px] opacity-60">{i + 1}</span>{SOC_FINAL_DECISION_LABELS[value]}</button>)}</div>
-    <textarea value={note} onChange={(e) => onNote(e.target.value)} maxLength={SOC_REVIEW_NOTE_MAX} rows={2} placeholder="หมายเหตุของผู้ตรวจ (ไม่บังคับ)" className="rounded-input border border-line bg-surface p-2 text-sm leading-relaxed" />
-    <div className="flex flex-wrap items-center justify-end gap-3">
-      {error ? <span role="alert" className="text-xs text-danger">{error}</span> : row.finalDecision ? <span className="text-xs text-muted">{row.finalDecision === PENDING_FIX ? "บันทึกแล้ว" : "ยืนยันแล้ว"}: {decisionLabel(row.finalDecision)}{row.reviewedByName ? ` โดย ${row.reviewedByName}` : ""}</span> : null}
-      <Button size="sm" disabled={!canSave} onClick={onSave}>{pending ? "กำลังบันทึก…" : row.finalDecision ? "บันทึกการแก้ไข" : "ยืนยันข้อนี้"}</Button>
+  return <div className="flex flex-col gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Final Decision">{SOC_FINAL_DECISIONS.map((value, i) => <button key={value} type="button" role="radio" aria-checked={decision === value} aria-keyshortcuts={String(i + 1)} title={`กด ${i + 1}`} onClick={() => onDecision(value)} className={`ui-btn rounded-input border px-2.5 py-1.5 text-sm transition-colors ${decision === value ? "border-ink bg-accent text-black" : "border-line bg-surface hover:bg-hover"}`}><span className="mr-1 text-[11px] opacity-60">{i + 1}</span>{SOC_FINAL_DECISION_LABELS[value]}</button>)}</div>
     </div>
+    <div className="flex items-start gap-2">
+      <textarea value={note} onChange={(e) => onNote(e.target.value)} maxLength={SOC_REVIEW_NOTE_MAX} rows={1} aria-label="หมายเหตุของผู้ตรวจ" placeholder="หมายเหตุของผู้ตรวจ (ไม่บังคับ)" className="min-w-0 flex-1 max-h-32 min-h-9 resize-none rounded-input border border-line bg-surface px-2 py-1.5 text-sm leading-relaxed [field-sizing:content]" />
+      <Button size="sm" disabled={!canSave} onClick={onSave} title="Ctrl+Enter">{pending ? "กำลังบันทึก…" : row.finalDecision ? "บันทึกการแก้ไข" : "ยืนยันข้อนี้"}</Button>
+    </div>
+    {error ? <span role="alert" className="text-xs text-danger">{error}</span> : row.finalDecision ? <span className="text-[11px] text-muted">{row.finalDecision === PENDING_FIX ? "บันทึกแล้ว" : "ยืนยันแล้ว"}: {decisionLabel(row.finalDecision)}{row.reviewedByName ? ` โดย ${row.reviewedByName}` : ""}</span> : null}
   </div>;
 }
