@@ -4,7 +4,7 @@
 
 **Blocked by:** – (04 done; user chose option B 2026-10-09)
 
-**Status:** ready-for-agent
+**Status:** done (code + gate 2026-10-09; push/deploy left for the user)
 
 ## What to change (Runner, `soc-runner/`)
 
@@ -21,10 +21,10 @@
 
 ## Acceptance
 
-- [ ] Runner tests (`soc-runner/test_runner.py`, `test_claude_cli.py`): request folder moved into `work/current` and back on every outcome incl. exceptions; leftover `work/current` restored on start; pause → resume runs in the same path with the same session id; appended-system-prompt file identical for two different items of the same skill version; packet prompt identical for two different items; `out/request.md` holds item, scope, rows, files, acknowledged-missing; old-flow and resume prompts unchanged; `--append-system-prompt-file` only on packet-flow first runs.
-- [ ] Auto memory confirmed off in the fixed dir.
-- [ ] Gate above: 2nd run cache write ≥ 30k tokens lower on its first turns than the 1st run; quality keys pass.
-- [ ] `RUNNER_VERSION` 0.4.0; full Runner suite + repo `npm test` pass; installer rebuilt by `update.ps1` on deploy. **Left for the user:** push, deploy, reviewers re-paste the install command.
+- [x] Runner tests (`soc-runner/test_runner.py`, `test_claude_cli.py`): request folder moved into `work/current` and back on every outcome incl. exceptions; leftover `work/current` restored on start; pause → resume runs in the same path with the same session id; appended-system-prompt file identical for two different items of the same skill version; packet prompt identical for two different items; `out/request.md` holds item, scope, rows, files, acknowledged-missing; old-flow and resume prompts unchanged; `--append-system-prompt-file` only on packet-flow first runs.
+- [x] Auto memory confirmed off in the fixed dir.
+- [x] Gate above: 2nd run cache write ≥ 30k tokens lower on its first turns than the 1st run; quality keys pass.
+- [x] `RUNNER_VERSION` 0.4.0; full Runner suite + repo `npm test` pass; installer rebuilt by `update.ps1` on deploy. **Left for the user:** push, deploy, reviewers re-paste the install command.
 
 ## Notes / risks
 
@@ -41,3 +41,14 @@
 - **Deviation from item 2:** a *resume* of a packet session also passes `--append-system-prompt-file` (same file). The CLI builds the system prompt per process and doesn't store it with the session, so "a resume keeps whatever its first run had" would have meant a resume without the docs. Old-flow sessions get none, first run or resume.
 - Auto memory: `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in `child_env`; verified on Claude Code 2.1.295: init event loses `memory_paths` (also with `autoMemoryEnabled:false` in settings). Harness also reports whether `~/.claude/projects/<…current>/memory` appeared.
 - Gate harness: `fixtures/06-cache/run_cache.py` drives the real `carry_out` + `ClaudeCli` with a local stand-in server on compact3 (`--dry` checks plumbing without quota). Run: `python run_cache.py C:/Phusit/s06 g55` then `python run_cache.py C:/Phusit/s06 g58 --item ๕.๘ --r1` (< 1 h apart, quota read before/after each).
+
+2026-10-09 (agent): **gate PASSED.** `fixtures/06-cache/` (g55, g58: stats, prompt, request.md, results), Runner code fb45b8a + review fixes, work root `C:/Phusit/s06`, compact3, Sonnet.
+
+| run | first turn cache read / write | turns 2–3 write | units | quota (user) |
+|---|---|---|---|---|
+| g55 ๕.๕ original (1st, 13:56) | 0 / 47,259 | 16.5k, 20.3k | 328k | 30% → 36% = 6 pts (was 8) |
+| g58 ๕.๘ R1 (2nd, 13:59) | **47,259 / 0** | 21.0k, 41.3k | 546k (03 g58: 813k) | 36% → 45% = 9 pts (03: 12) |
+
+- The whole first turn (system prompt + 4 docs + fixed prompt) of the 2nd run came from the cache: −47k cache write, above the ≥ 30k target.
+- Quality: ๕.๕ passes the 02 key (89 n/a, ๑.๒ compliant, ๑.๓ partial_visible ✅, ๕.๕(๒) pass); ๕.๘ R1 **5/5** (171→p.43, 172→p.47/54, 177→p.34(/36), 190→p.5, 193 no AMS licence doc; 03 had 4/5). Validator 0 issues both; every packet page Read (10, 24 pages); none of the four docs Read; no auto-memory folder.
+- Caveat: units/quota also differ from 03 because these are single runs (the skill is the same compact family); the cache effect alone is the 47k first-turn write.

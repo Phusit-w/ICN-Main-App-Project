@@ -1,0 +1,96 @@
+{
+  "pages": 8,
+  "read_calls": 10,
+  "not_read": [],
+  "shell_only": [],
+  "crops_not_read": []
+}
+report: {"state": "running", "progress": "กำลังดาวน์โหลดไฟล์"}
+report: {"state": "running", "progress": "กำลังเตรียม evidence packet ข้อ ๕.๕"}
+report: {"state": "running", "progress": "Claude กำลังตรวจข้อ ๕.๕"}
+[gate-g55] ตรวจข้อ ๕.๕ ด้วย skill served-2026-10-09-compact3
+report: {"state": "running", "progress": "กำลังส่งผลตรวจ"}
+submit: claude-sonnet-5-5 served-2026-10-09-compact3 packetFallback: (none)
+[gate-g55] ส่งผลแล้ว 25 แถว
+outcome: submitted
+{
+  "first_turns": [
+    {
+      "read": 0,
+      "write": 47259
+    },
+    {
+      "read": 47259,
+      "write": 16549
+    },
+    {
+      "read": 63808,
+      "write": 20295
+    }
+  ],
+  "meter": {
+    "input_tokens": 18,
+    "cache_read_input_tokens": 723144,
+    "cache_creation_input_tokens": 107776,
+    "output_tokens": 24134,
+    "units": 327722
+  },
+  "turns": 9,
+  "context_tokens": 830938,
+  "output_tokens": 24134,
+  "tools": {
+    "Read": 10,
+    "Write": 1,
+    "PowerShell": 4,
+    "Edit": 6
+  },
+  "skill_doc_chars_read": 0,
+  "skill_docs_read": [],
+  "script_sources_read": [],
+  "system_docs_read": [],
+  "auto_memory_folder": false
+}
+validator: {"issue_count": 0, "issues": [], "skipped": [{"row": 89, "item": "5.5", "reason": "no reference_file"}]}
+exit 0
+[]
+options: ['evidence_support', 'tor_decision', 'evidence_packet']
+
+[89] ๕.๕ heading
+  reference_check: not_applicable
+  reference_file: None
+  item_label_check: not_applicable
+  highlight_check: not_applicable
+  highlight_evidence: -
+  evidence_support: not_applicable
+  tor_decision: not_applicable
+  key_issue: หัวข้อสอดคล้องกับเอกสาร 2.5 (TC22 + RFD40)
+
+[92] ๑.๒ license
+  reference_check: match
+  reference_file: tc22-tc27-spec-sheet-en-us.pdf
+  item_label_check: match
+  highlight_check: complete
+  highlight_evidence: ป้าย 1.2 ผูก Highlight Mobility DNA Enterprise License หน้า 2
+  evidence_support: partially_supported
+  tor_decision: compliant
+  key_issue: หน้า 2 ยืนยันเฉพาะ Mobility DNA License ควรเพิ่มอ้างอิง ZPL2600054 Zebra Business Letter (หนังสือแต่งตั้งตัวแทนจำหน่ายจาก Zebra) และเอกสารรับรองความเข้ากับ SAM
+
+[93] ๑.๓ สัมผัส
+  reference_check: match
+  reference_file: tc22-tc27-spec-sheet-en-us.pdf
+  item_label_check: match
+  highlight_check: partial_visible
+  highlight_evidence: Highlight 'Display 6.0 in. color Full High Definition+ (1080 x 2160)' ไม่ครอบคำว่า 'สัมผัส' แต่เห็นชัดที่แถว Touch Panel (Multi mode capacitive touch) หน้า 3 เดียวกัน
+  evidence_support: fully_supported
+  tor_decision: compliant
+  key_issue: ผ่าน
+
+[101] ๕.๕(๒) sub-heading
+  reference_check: match
+  reference_file: rfd40-premium-series-spec-sheet-en-us (1).pdf
+  item_label_check: not_applicable
+  highlight_check: not_applicable
+  highlight_evidence: -
+  evidence_support: fully_supported
+  tor_decision: not_applicable
+  key_issue: ผ่าน

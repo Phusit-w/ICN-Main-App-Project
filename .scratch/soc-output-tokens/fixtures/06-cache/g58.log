@@ -1,0 +1,105 @@
+{
+  "pages": 24,
+  "read_calls": 32,
+  "not_read": [],
+  "shell_only": [],
+  "crops_not_read": []
+}
+report: {"state": "running", "progress": "กำลังดาวน์โหลดไฟล์"}
+report: {"state": "running", "progress": "กำลังเตรียม evidence packet ข้อ ๕.๘"}
+report: {"state": "running", "progress": "Claude กำลังตรวจข้อ ๕.๘"}
+[gate-g58] ตรวจข้อ ๕.๘ ด้วย skill served-2026-10-09-compact3
+report: {"state": "running", "progress": "กำลังส่งผลตรวจ"}
+submit: claude-sonnet-5-5 served-2026-10-09-compact3 packetFallback: (none)
+[gate-g58] ส่งผลแล้ว 50 แถว
+outcome: submitted
+{
+  "first_turns": [
+    {
+      "read": 47259,
+      "write": 0
+    },
+    {
+      "read": 47259,
+      "write": 20959
+    },
+    {
+      "read": 68218,
+      "write": 41291
+    }
+  ],
+  "meter": {
+    "input_tokens": 32,
+    "cache_read_input_tokens": 2007977,
+    "cache_creation_input_tokens": 109578,
+    "output_tokens": 41600,
+    "units": 545802
+  },
+  "turns": 16,
+  "context_tokens": 2117587,
+  "output_tokens": 41600,
+  "tools": {
+    "Read": 32,
+    "PowerShell": 9,
+    "Write": 1,
+    "Edit": 10
+  },
+  "skill_doc_chars_read": 0,
+  "skill_docs_read": [],
+  "script_sources_read": [],
+  "system_docs_read": [],
+  "auto_memory_folder": false
+}
+validator: {"issue_count": 0, "issues": [], "skipped": []}
+exit 0
+options: ['evidence_support', 'tor_decision', 'evidence_packet']
+
+[171] 171 → p.43
+  reference_check: mismatch
+  reference_file: AMS WinApp_R4_for Asset RFID+SQL.pdf
+  item_label_check: match
+  highlight_check: partial
+  highlight_evidence: Highlight ป้าย 7.1 หน้า 31 ครอบเฉพาะขั้นตอนแก้ไขประเภทรับเข้า/เบิกออก ไม่ใช่ข้อมูลผู้รับเข้า
+  evidence_support: not_supported
+  tor_decision: unverifiable
+  key_issue: หน้า 31 ไม่มีข้อมูลผู้รับเข้า (Receiver Information) ป้าย 7.1 confident อยู่หน้า 43 (รับเข้าจากใบสั่งซื้อ) ซึ่งก็ไม่ระบุฟิลด์ผู้รับเข้า ควรแสดงหน้าจอที่เห็นข้อมูลผู้รับเข้า
+
+[172] 172 → p.47/54
+  reference_check: mismatch
+  reference_file: AMS WinApp_R4_for Asset RFID+SQL.pdf
+  item_label_check: match
+  highlight_check: partial
+  highlight_evidence: Highlight ป้าย 7.2 หน้า 33 ครอบข้อมูลผู้จำหน่าย ไม่ใช่ข้อมูลผู้เบิกออก
+  evidence_support: not_supported
+  tor_decision: unverifiable
+  key_issue: หน้า 33 เป็นข้อมูลผู้จำหน่าย ไม่ใช่ผู้เบิกออก ป้าย 7.2 อยู่หน้า 47 และ 54 ซึ่งไม่ได้อ้าง ควรแก้อ้างอิงและแสดงฟิลด์ข้อมูลผู้เบิก
+
+[177] 177 → p.34,37
+  reference_check: mismatch
+  reference_file: AMS WinApp_R4_for Asset RFID+SQL.pdf
+  item_label_check: not_found
+  highlight_check: not_found
+  highlight_evidence: หน้า 33 มี Highlight เฉพาะข้อมูลผู้จำหน่าย หน้า 36 ไม่มี Highlight/ป้าย
+  evidence_support: partially_supported
+  tor_decision: compliant
+  key_issue: หน้า 33 เป็นข้อมูลผู้จำหน่าย หน้า 36 ไม่มีป้ายเลขข้อ/Highlight ป้าย 10) อยู่หน้า 34 ควรแก้อ้างอิงเป็นหน้า 34 (และ 36)
+
+[190] 190 → p.5
+  reference_check: mismatch
+  reference_file: AMS WinApp_R4_for Asset RFID+SQL.pdf
+  item_label_check: not_found
+  highlight_check: not_found
+  highlight_evidence: หน้า 4 ไม่มี Highlight
+  evidence_support: partially_supported
+  tor_decision: compliant
+  key_issue: หน้า 4 เป็นสารบัญ ไม่มีป้าย/Highlight ข้อความรองรับ (ราย 1 เดือน/3 เดือน/ปี) อยู่หน้า 5 ควรแก้อ้างอิงเป็นหน้า 5
+
+[193] 193 rights, no reference
+  reference_check: not_found
+  reference_file: None
+  item_label_check: not_applicable
+  highlight_check: not_applicable
+  highlight_evidence: ไม่มีหน้าอ้างอิงให้ตรวจ Highlight
+  evidence_support: unverifiable
+  tor_decision: compliant
+  key_issue: ไม่พบเอกสารรับรองลิขสิทธิ์ซอฟต์แวร์ AMS ในชุดหลักฐาน (หนังสือ Zebra/HID เป็นของอุปกรณ์อื่น) เป็นเพียงคำรับรองของบริษัท

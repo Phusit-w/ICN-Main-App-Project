@@ -1,0 +1,37 @@
+{
+  "first_turns": [
+    {
+      "read": 47259,
+      "write": 0
+    },
+    {
+      "read": 47259,
+      "write": 20959
+    },
+    {
+      "read": 68218,
+      "write": 41291
+    }
+  ],
+  "meter": {
+    "input_tokens": 32,
+    "cache_read_input_tokens": 2007977,
+    "cache_creation_input_tokens": 109578,
+    "output_tokens": 41600,
+    "units": 545802
+  },
+  "turns": 16,
+  "context_tokens": 2117587,
+  "output_tokens": 41600,
+  "tools": {
+    "Read": 32,
+    "PowerShell": 9,
+    "Write": 1,
+    "Edit": 10
+  },
+  "skill_doc_chars_read": 0,
+  "skill_docs_read": [],
+  "script_sources_read": [],
+  "system_docs_read": [],
+  "auto_memory_folder": false
+}

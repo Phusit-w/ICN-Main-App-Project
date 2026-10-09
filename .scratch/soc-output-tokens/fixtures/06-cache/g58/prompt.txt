@@ -1,0 +1,9 @@
+SOC_RUNNER_HEADLESS=1
+
+ใช้ skill `tor-word-compliance-check` ที่อยู่ใน `.claude/skills/tor-word-compliance-check/` ของโฟลเดอร์นี้เท่านั้น (ห้ามใช้ skill ชื่อเดียวกันจากที่อื่น) เอกสารของ skill ที่ system prompt บอกว่าโหลดไว้แล้วห้ามเปิดอ่านซ้ำ
+ตรวจ SOC ในโหมด full_audit พร้อม option evidence_support, tor_decision และ evidence_packet ห้ามถามผู้ใช้
+อ่าน `out/request.md` ก่อนเริ่ม: ไฟล์ SOC ไฟล์หลักฐาน ข้อใหญ่และแถวที่ต้องตรวจ และ acknowledged_missing ของงานนี้อยู่ในไฟล์นั้น
+
+- packet: สร้างไว้แล้วที่ `out/packet` จากโฟลเดอร์งาน `inputs` ใช้ packet นี้ ไม่ต้องสร้างใหม่
+- โฟลเดอร์ output: `out/` ให้เขียนผลเป็น `out/results.json` และเอกสาร `out/SOC_Check.docx` ไฟล์ระหว่างทาง (เช่น highlights.json) ก็เก็บใน `out/`
+- ห้ามแก้ไขไฟล์ใน `inputs/`
