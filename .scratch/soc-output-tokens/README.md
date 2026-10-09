@@ -17,7 +17,7 @@ The spec and the grill decisions (2026-10-09) are in `spec.md`. Background: `../
 | 01 | Baseline: ๕.๘ live on the slim skill | – | ready-for-human |
 | 02 | Compact Results: expand script + skill rules | – | done 2026-10-09 (pkg `-compact` built, not uploaded) |
 | 03 | Gate + upload | 01, 02 | ready-for-agent |
-| 04 | Spike: stable prompt prefix for cross-run cache hits | – | ready-for-agent |
+| 04 | Spike: stable prompt prefix for cross-run cache hits | – | done 2026-10-09: measured, options A/B/C, decision with the user |
 
 ## Deferred
 
