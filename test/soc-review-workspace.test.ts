@@ -24,7 +24,7 @@ function installDom() {
 }
 
 const row = (id: string, item: string, page: number): SocReviewRow => ({
-  id, item, rowNumber: page, majorItemId: "major-1", status: "review", reasons: ["ควรตรวจหลักฐาน"], evidenceMissing: false,
+  id, item, rowNumber: page, majorItemId: "major-1", sheet: null, status: "review", reasons: ["ควรตรวจหลักฐาน"], evidenceMissing: false,
   torText: `ข้อกำหนด ${item}`, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
   citations: [{ cited: "Datasheet", document: { id: "pdf-1", name: "Datasheet.pdf" }, pages: [page] }],
   declaredSelection: "comply", systemRecommendation: "compliant",

@@ -10,18 +10,19 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { writeAudit } from "@/lib/authorization";
 import { resolveStorageKey } from "@/lib/soc";
-import { importLocalCheckRun, type ConfirmedRow, type LocalCheckRunImport } from "@/lib/soc-import";
+import { importLocalCheckRun, jobSocDocument, type ConfirmedRow, type LocalCheckRunImport } from "@/lib/soc-import";
 import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
 import {
-  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, isRequestableItemState, socRunnerState,
+  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, XLSX_MIME, isExcelSoc, isRequestableItemState,
+  socRunnerAtLeast, socRunnerState,
   type SocCheckRequestView,
 } from "@/lib/soc-shared";
 
 type Actor = { id: string; role: string; displayName: string };
 type Job = { id: string; title: string; kind: string; deletedAt: Date | null };
 // The runner's link, as authenticateSocRunner() returns it.
-type RunnerLink = { id: string; userId: string; claudeLogin: string | null };
+type RunnerLink = { id: string; userId: string; claudeLogin: string | null; runnerVersion: string | null };
 
 const MAX_NOTE = 200;
 const MAX_REASON = 1000;
@@ -248,8 +249,9 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
   const requests = await prisma.socCheckRequest.findMany({
     where: { jobId, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES, "failed"] } },
     orderBy: { createdAt: "desc" },
-    include: { requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true } } } } },
+    include: { requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } } },
   });
+  const excelSoc = requests.length ? isExcelSoc(await jobSocDocument(jobId)) : false;
   const views = new Map<string, { request: SocCheckRequestView | null; failureReason: string | null }>();
   for (const r of requests) {
     if (views.has(r.majorItemId)) continue; // the latest one per item
@@ -262,6 +264,8 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
           id: r.id, state: r.state, requestedById: r.requestedById, requestedByName: r.requestedBy.displayName,
           runnerState: link ? socRunnerState(link.lastSeenAt, now) : null,
           progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null, rowCount: r.rowNumbers.length,
+          // A runner that has never reported shows as not connected instead.
+          ...(excelSoc && link?.runnerVersion && !socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC) ? { runnerTooOld: true } : {}),
         },
       });
   }
@@ -275,6 +279,10 @@ const requestFiles = (id: string) => `/api/soc-runner/requests/${id}`;
 // What the runner gets for a claimed request: the major item to check (and
 // `rows`, the rows of a re-check of picked rows; empty = every row), the
 // documents and the pinned Skill Package, each with the URL to fetch it.
+// `needsRunner`: the oldest runner version that can carry the request out
+// (null = any); a runner older than it reports the request as failed.
+// `socCheck`: whether the run must come with a SOC_Check document (false for
+// an Excel SOC). The runner takes it from here, not from the SOC's file name.
 async function runnerView(requestId: string) {
   const request = await prisma.socCheckRequest.findUniqueOrThrow({
     where: { id: requestId },
@@ -285,6 +293,7 @@ async function runnerView(requestId: string) {
     },
   });
   const skill = request.skillPackage;
+  const excelSoc = request.job.documents.some((d) => d.type === "SOC" && isExcelSoc(d));
   const picked = request.rowNumbers.length
     ? await prisma.socCheckResult.findMany({ where: { majorItemId: request.majorItemId, rowNumber: { in: request.rowNumbers } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true } })
     : [];
@@ -294,6 +303,8 @@ async function runnerView(requestId: string) {
     job: { id: request.job.id, title: request.job.title },
     majorItem: request.majorItem,
     acknowledgedMissing: request.acknowledgedMissing,
+    needsRunner: excelSoc ? SOC_RUNNER_FOR_EXCEL_SOC : null,
+    socCheck: !excelSoc,
     rows: picked.map((r) => ({ row: r.rowNumber, item: r.item })),
     skill: skill ? { version: skill.version, fileName: socSkillDownloadName(skill), sizeBytes: skill.sizeBytes, checksum: skill.checksum, url: `${requestFiles(request.id)}/skill` } : null,
     documents: request.job.documents.map((d) => ({
@@ -303,16 +314,19 @@ async function runnerView(requestId: string) {
 }
 export type RunnerCheckRequest = Awaited<ReturnType<typeof runnerView>>;
 
-const CLAIMABLE = (userId: string, now: Date): Prisma.SocCheckRequestWhereInput => ({
+// `excelSoc` false: the runner is too old for an Excel SOC, so requests on
+// such jobs wait (the job page says to install the runner again).
+const CLAIMABLE = (userId: string, now: Date, excelSoc: boolean): Prisma.SocCheckRequestWhereInput => ({
   requestedById: userId,
-  job: { deletedAt: null },
+  job: { deletedAt: null, ...(excelSoc ? {} : { documents: { none: { type: "SOC", mimeType: XLSX_MIME } } }) },
   OR: [{ state: { in: ["requested", "needs_login"] } }, { state: "paused_quota", resumeAt: { lte: now } }],
 });
 
 // The next request for the runner's own user, oldest first, now `running`
 // on this link with the current Skill Package pinned. A request this link
 // already runs (e.g. the runner restarted) comes back first. null when there
-// is nothing to do, or while the runner reports Claude as logged out.
+// is nothing to do, or while the runner reports Claude as logged out. A
+// runner too old for an Excel SOC is handed no request of such a job.
 // Throws NO_SKILL_PACKAGE when there is work but no current skill.
 export async function claimNextCheckRequest(link: RunnerLink): Promise<RunnerCheckRequest | null> {
   await releaseStaleCheckRequests();
@@ -324,7 +338,7 @@ export async function claimNextCheckRequest(link: RunnerLink): Promise<RunnerChe
   }
   if (link.claudeLogin === "logged_out") return null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const next = await prisma.socCheckRequest.findFirst({ where: CLAIMABLE(link.userId, now), orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { majorItem: { select: { label: true } } } });
+    const next = await prisma.socCheckRequest.findFirst({ where: CLAIMABLE(link.userId, now, socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC)), orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { majorItem: { select: { label: true } } } });
     if (!next) return null;
     const skill = await currentSocSkillPackage();
     if (!skill) throw new Error("NO_SKILL_PACKAGE");
@@ -465,14 +479,15 @@ export async function reportCheckRequest(link: RunnerLink, requestId: string, re
   });
 }
 
-// Submits the run's results.json and SOC_Check through the import (seam 1),
+// Submits the run's results.json and SOC_Check (none for an Excel SOC)
+// through the import (seam 1),
 // as the requester, source "runner". On success the request is done. Any
 // rejection (the same validation as a manual upload) closes the request as
 // failed with the reasons, since sending the same output again can't pass.
 export async function submitCheckRequest(
   link: RunnerLink,
   requestId: string,
-  input: { results: unknown; socCheck: { name: string; bytes: Uint8Array }; skillVersion: string; model: string; packetFallback?: string },
+  input: { results: unknown; socCheck?: { name: string; bytes: Uint8Array }; skillVersion: string; model: string; packetFallback?: string },
 ): Promise<LocalCheckRunImport> {
   const request = await claimedRequest(link, requestId);
   await touch(request.id);

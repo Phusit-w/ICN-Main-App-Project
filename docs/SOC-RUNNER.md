@@ -111,6 +111,8 @@
   "job": { "id": "...", "title": "..." },
   "majorItem": { "id": "...", "key": "1", "label": "๑", "title": "..." },
   "acknowledgedMissing": [],
+  "needsRunner": null,
+  "socCheck": true,
   "rows": [ { "row": 12, "item": "๕.๕.๓" } ],
   "skill": { "version": "...", "fileName": "....skill", "sizeBytes": 123, "checksum": "<sha256>", "url": "/api/soc-runner/requests/<id>/skill" },
   "documents": [ { "id": "...", "type": "SOC" | "EVIDENCE", "name": "...", "sizeBytes": 1, "checksum": "<sha256>", "url": "/api/soc-runner/requests/<id>/documents/<docId>" } ]
@@ -122,6 +124,10 @@
 - ได้เฉพาะคำขอของผู้ใช้เจ้าของโทเคน เก่าสุดก่อน (`createdAt`) และ skill ปัจจุบันถูก **ตรึง** ไว้กับคำขอตอน claim
 - ถ้า link นี้มีคำขอ `running` ค้างอยู่ (เช่น runner restart) จะได้คำขอเดิมคืน
 - ถ้า runner รายงาน Claude `logged_out` จะไม่ได้งานจนกว่า heartbeat บอก `logged_in`
+- **SOC ที่เป็น Excel (`.xlsx`) ต้องใช้ runner 0.5.0 ขึ้นไป** (`SOC_RUNNER_FOR_EXCEL_SOC`): runner ที่ heartbeat รายงานรุ่นเก่ากว่า
+  (หรือยังไม่เคยรายงาน) จะไม่ได้คำขอของงานที่ SOC เป็น Excel คำขอค้างที่ `requested` และหน้างานแสดง
+  "รอติดตั้ง SOC Runner รุ่นใหม่" พอผู้ตรวจติดตั้งใหม่ คำขอเดิมถูกรับไปตรวจเอง คำขอของงานแบบนี้มี `needsRunner: "0.5.0"`
+  (งาน Word เป็น `null`) และ `socCheck: false` (ไม่ต้องมีเอกสาร SOC_Check; runner ดูค่านี้ ไม่ดูนามสกุลไฟล์ SOC) runner ตั้งแต่ 0.5.0 ที่เก่ากว่า `needsRunner` รายงาน `failed` พร้อมเหตุผลให้ติดตั้งใหม่ โดยไม่ดาวน์โหลดอะไร
 - `409 { "error": "NO_SKILL_PACKAGE", "message": "ยังไม่มี skill บน server ติดต่อ admin" }` เมื่อมีงานรอแต่ยังไม่มี skill ปัจจุบัน
 
 ### `GET /api/soc-runner/requests/:id/documents/:documentId` และ `GET .../skill`
@@ -142,7 +148,8 @@
 
 ### `POST /api/soc-runner/requests/:id/submit`
 
-multipart: `results` (results.json), `socCheck` (.docx), `model`, `skillVersion` (เว้นได้ ใช้เวอร์ชันที่ตรึงไว้),
+multipart: `results` (results.json), `socCheck` (.docx; ไม่ต้องส่งเมื่อ SOC ของงานเป็น Excel เพราะไม่มี SOC_Check
+และถ้าส่งมาก็ไม่ถูกเก็บ; SOC แบบ Word ยังต้องมี ไม่งั้น 422), `model`, `skillVersion` (เว้นได้ ใช้เวอร์ชันที่ตรึงไว้),
 `packetFallback` (runner ตั้งแต่ 0.3.0 ส่งมาเฉพาะเมื่อข้อนี้ไม่ได้ใช้ evidence packet: เหตุผลภาษาไทย ≤ 300 ตัวอักษร)
 ผ่านการนำเข้าเดียวกับการอัปโหลดด้วยมือ (`importLocalCheckRun`, source `runner`) ตอบ `201 { runId, rowCount }`
 event `RUN_IMPORTED` ของ run เก็บ `evidenceFlow` (`packet` เมื่อ `options` ใน results.json มี `evidence_packet` ไม่งั้น `standard`
@@ -164,6 +171,7 @@ npm run soc:runner:test                          # unittest ด้วย server 
 - ต่อหนึ่งคำขอ (`carry_out` ใน `runner.py`): รายงาน `running` → ดาวน์โหลด skill ที่ตรึงไว้ แตก zip ไปที่
   `<งาน>/.claude/skills/<name>/` (ตรวจ checksum และปฏิเสธ path ที่มี `..`) → ดาวน์โหลด SOC/หลักฐานไป `<งาน>/inputs/` ตามโฟลเดอร์ที่อัปโหลดมา (เช่น `inputs/บทที่ 2/2.5 …/tc22.pdf` เพราะ SOC อ้างชื่อโฟลเดอร์; ตัด `..` ทิ้ง และตัดโฟลเดอร์ชั้นนอกออกถ้า path ยาวเกิน 250 ตัวอักษรของ Windows)
   (ตรวจ checksum) → สร้าง evidence packet (ด้านล่าง) → รัน `claude -p` ในโฟลเดอร์งาน ให้เขียน `out/results.json` และ `out/SOC_Check.docx`
+  (SOC เป็น Excel: prompt ไม่ขอ SOC_Check และส่งผลเฉพาะ results.json ตั้งแต่ runner 0.5.0)
   → submit พร้อม `model` (โมเดลที่เขียนมากที่สุดใน `modelUsage`), `skillVersion` (header `X-Soc-Skill-Version`) และ `packetFallback` ถ้ามี
 - **evidence packet (ticket 10, runner 0.3.0; ตัดสินใช้ที่ gate soc-evidence-packet 09)**: ก่อนเรียก Claude runner รัน
   `scripts/build_evidence_packet.py <inputs/SOC.docx> <ข้อใหญ่> inputs out/packet` ของ skill ที่ตรึงไว้ ด้วย `python.exe`

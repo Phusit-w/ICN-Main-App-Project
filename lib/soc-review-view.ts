@@ -4,7 +4,8 @@
 // decided by reviewedAt with a settled decision (not รอแก้ไข), the same test
 // a re-check uses. Server-only.
 import { prisma } from "@/lib/prisma";
-import { jobSocRowTexts } from "@/lib/soc-import";
+import { jobSocDocument, readJobSoc } from "@/lib/soc-import";
+import { isExcelSoc } from "@/lib/soc-shared";
 import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
 // Each axis with the field the skill uses to explain it.
@@ -19,6 +20,7 @@ type StoredRow = NonNullable<Awaited<ReturnType<typeof prisma.socCheckResult.fin
 
 export type SocReviewRow = {
   id: string; rowNumber: number; item: string; majorItemId: string | null;
+  sheet: string | null; // the row's sheet, when the SOC is an Excel workbook with more than one
   status: Exclude<SocRowStatus, "heading">; reasons: string[];
   evidenceMissing: boolean; // Claude couldn't find or read the cited page or document
   torText: string; proposalText: string | null; reference: string; referencePages: number[];
@@ -50,16 +52,18 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
   const reviewers = new Map((await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, displayName: true } })).map((u) => [u.id, u.displayName]));
   // Rows imported before the SOC lookup knew relative numbering ("๗.๑)" for ๕.๘.๗.๑) have no
   // TOR text stored; read it from the SOC now rather than show "ไม่พบข้อความในไฟล์ SOC".
-  const socText = stored.some((r) => !r.socText) ? await jobSocRowTexts(jobId) : null;
+  // An Excel SOC is read for its rows' sheets too.
+  const socDocument = await jobSocDocument(jobId);
+  const soc = stored.some((r) => !r.socText) || isExcelSoc(socDocument) ? await readJobSoc(socDocument) : null;
 
   const rows: SocReviewRow[] = [];
   for (const r of stored) {
     const axes = axisValues(r);
     const { status, reasons } = overallRowStatus(r.rowType, axes);
     if (status === "heading") continue;
-    const text = r.socText ? { tor: r.socText, proposal: r.proposalText } : socText?.(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
+    const text = r.socText ? { tor: r.socText, proposal: r.proposalText } : soc?.rowText(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
     rows.push({
-      id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, status, reasons, evidenceMissing: evidenceMissing(axes),
+      id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, sheet: soc?.sheetOfRow(r.rowNumber) ?? null, status, reasons, evidenceMissing: evidenceMissing(axes),
       torText: text.tor, proposalText: text.proposal, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),

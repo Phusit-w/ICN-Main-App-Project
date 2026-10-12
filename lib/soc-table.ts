@@ -27,6 +27,9 @@ export type SocTable = {
   // trusted only when that row has the same item number, otherwise the one row
   // with that item, if the number is unique in the SOC. Null otherwise.
   rowText: (row: number, item: string) => SocRowText | null;
+  // The sheet a SOC row is on, to show with the row when an Excel SOC has
+  // more than one sheet. Null otherwise.
+  sheetOfRow: (row: number) => string | null;
   // What the reviewer is told at upload and on the job page: sheets left
   // out, pictures not read. The check can still be requested.
   warnings: string[];
@@ -61,22 +64,28 @@ export function readSocTable(soc: Uint8Array): SocTable {
     throw new Error(UNREADABLE);
   }
   const word = parts.find((part) => part.name === WORD_DOCUMENT);
-  if (word) return socTable({ extension: ".docx", mimeType: DOCX_MIME }, readWordSocTables(word.data.toString("utf8")), []);
+  if (word) return socTable({ extension: ".docx", mimeType: DOCX_MIME }, readWordSocTables(word.data.toString("utf8")), [], () => null);
   if (!parts.some((part) => part.name === "xl/workbook.xml")) throw new Error(UNREADABLE);
   const excel = readExcelSoc(parts);
   const quoted = excel.skippedSheets.map((name) => `"${name}"`).join(", ");
+  const sheetOfRow = (row: number) => {
+    if (excel.sheets.length < 2 || row < 1) return null;
+    let last = 0;
+    return excel.sheets.find((sheet) => row <= (last += sheet.rowCount))?.name ?? null;
+  };
   return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows], [
     ...(quoted ? [`ไม่ได้รวมชีต ${quoted} เพราะไม่พบหัวตาราง SOC (ลำดับ, ข้อกำหนด TOR, ข้อเสนอ) ชีตนี้จะไม่ถูกตรวจ`] : []),
     ...(excel.imageCount ? [`มีรูป ${excel.imageCount} รูปในไฟล์ Excel ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
-  ]);
+  ], sheetOfRow);
 }
 
 const WORD_DOCUMENT = "word/document.xml";
 
 // `tables`: the SOC's tables as rows of [item number, TOR text, proposal text, …].
-function socTable(file: SocTable["file"], tables: string[][][], warnings: string[]): SocTable {
+function socTable(file: SocTable["file"], tables: string[][][], warnings: string[], sheetOfRow: SocTable["sheetOfRow"]): SocTable {
   return {
     file,
+    sheetOfRow,
     majorItems: majorItemsOfRows(tables.flat()),
     rowText: (row, item) => {
       const onlyTable = tables.filter((rows) => rows[row - 1]).length === 1;

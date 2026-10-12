@@ -270,7 +270,7 @@ function ReviewWorkspace({ jobId, row, rows, majorItemLabel, expanded, onExpand,
   const header = <header className={`relative flex items-center gap-2 border-b border-line bg-surface ${expanded ? "px-3 py-2 sm:gap-3 sm:px-5" : "px-4 py-2.5"}`}>
     <h2 className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-base font-bold sm:text-lg">
       <span className="whitespace-nowrap">{SOC_ROW_STATUS_ICONS[row.status]} ข้อ {row.item}</span>
-      <span className="truncate font-sans text-xs font-normal text-muted sm:text-sm">{SOC_ROW_STATUS_LABELS[row.status]}{majorItemLabel ? ` · ข้อใหญ่ ${majorItemLabel}` : ""} · แถว {row.rowNumber}</span>
+      <span className="truncate font-sans text-xs font-normal text-muted sm:text-sm">{SOC_ROW_STATUS_LABELS[row.status]}{majorItemLabel ? ` · ข้อใหญ่ ${majorItemLabel}` : ""}{row.sheet ? ` · ชีต ${row.sheet}` : ""} · แถว {row.rowNumber}</span>
     </h2>
     {expanded ? <span className="hidden whitespace-nowrap text-[11px] text-muted xl:inline">คีย์ลัด: ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก · Esc ย่อ</span> : null}
     <span className="whitespace-nowrap text-xs tabular-nums text-label" title={`ยืนยันแล้ว ${settled} จาก ${rows.length} ข้อที่แสดง · คีย์ลัด ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก`}>{at + 1}/{rows.length}</span>

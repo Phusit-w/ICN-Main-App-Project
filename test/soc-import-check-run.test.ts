@@ -150,7 +150,7 @@ test("a real full-mode run for one major item imports through the upload route, 
     [storedRun.majorItemId, storedRun.source, storedRun.skillVersion, storedRun.model, storedRun.rowCount, storedRun.importedById],
     [item.id, "manual", run.skill_version, run.model, 7, signedIn.id],
   );
-  const document = await prisma.socDocument.findUniqueOrThrow({ where: { id: storedRun.documentId } });
+  const document = await prisma.socDocument.findUniqueOrThrow({ where: { id: storedRun.documentId! } });
   assert.deepEqual([document.jobId, document.type, document.originalName], [jobId, "RUN_OUTPUT", "SOC_Check-ข้อ1.docx"]);
   assert.ok(existsSync(path.join(storageRoot, ...document.storageKey.split("/"))));
 

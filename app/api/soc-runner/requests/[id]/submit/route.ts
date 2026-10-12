@@ -9,7 +9,7 @@ const MAX_RESULTS_BYTES = 10 * 1024 * 1024;
 
 // The runner submits a finished Local Check Run for a request it is running
 // (docs/SOC-RUNNER.md): multipart `results` (results.json), `socCheck`
-// (.docx), `skillVersion` (else the pinned package's version), `model` and,
+// (.docx; left out for an Excel SOC, which has none), `skillVersion` (else the pinned package's version), `model` and,
 // when the item ran without the evidence packet, `packetFallback` (why).
 // It goes through the same import as a manual upload: 201 { runId,
 // rowCount }, or 422/409 { errors } and the request is closed as failed.
@@ -21,12 +21,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     try {
       form = await request.formData();
     } catch {
-      return NextResponse.json({ error: "multipart/form-data with results and socCheck is required" }, { status: 400 });
+      return NextResponse.json({ error: "multipart/form-data with results is required" }, { status: 400 });
     }
     const resultsFile = form.get("results");
     const socCheck = form.get("socCheck");
-    if (!(resultsFile instanceof File) || resultsFile.size === 0 || !(socCheck instanceof File) || socCheck.size === 0) {
-      return NextResponse.json({ error: "results (results.json) and socCheck (.docx) files are required" }, { status: 400 });
+    if (!(resultsFile instanceof File) || resultsFile.size === 0) {
+      return NextResponse.json({ error: "the results (results.json) file is required" }, { status: 400 });
     }
     // Too large or not JSON: passed on as null, so the import rejects it like
     // any malformed results file (and the request is closed as failed).
@@ -40,7 +40,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     const imported = await submitCheckRequest(link, id, {
       results,
-      socCheck: { name: socCheck.name, bytes: new Uint8Array(await socCheck.arrayBuffer()) },
+      // Whether the job's SOC needs one is the import's rule.
+      socCheck: socCheck instanceof File && socCheck.size > 0
+        ? { name: socCheck.name, bytes: new Uint8Array(await socCheck.arrayBuffer()) }
+        : undefined,
       skillVersion: String(form.get("skillVersion") || "").trim(),
       model: String(form.get("model") || "").trim(),
       packetFallback: String(form.get("packetFallback") || "").trim(),

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeSocJob, socErrorStatus } from "@/lib/soc";
-import { importLocalCheckRun } from "@/lib/soc-import";
+import { importLocalCheckRun, jobSocDocument } from "@/lib/soc-import";
+import { isExcelSoc } from "@/lib/soc-shared";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,7 @@ const MAX_RESULTS_BYTES = 10 * 1024 * 1024;
 
 // Manual upload of one Local Check Run (phase 1): the results.json and
 // SOC_Check document a reviewer got from running the skill in Claude Code.
+// A job whose SOC is an Excel workbook needs the results.json only.
 // Any user who may open the job may import. Skill version and model come
 // from the form, or else from the file's top-level `skill_version`/`model`.
 // Importing into an item that has results re-checks it; if that would replace
@@ -22,7 +24,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const resultsFile = form.get("results");
     const socCheck = form.get("socCheck");
     if (!(resultsFile instanceof File) || resultsFile.size === 0) return NextResponse.json({ error: "กรุณาแนบไฟล์ results.json" }, { status: 400 });
-    if (!(socCheck instanceof File) || socCheck.size === 0) return NextResponse.json({ error: "กรุณาแนบไฟล์ SOC_Check (.docx)" }, { status: 400 });
+    const hasSocCheck = socCheck instanceof File && socCheck.size > 0;
+    if (!hasSocCheck && !isExcelSoc(await jobSocDocument(id))) return NextResponse.json({ error: "กรุณาแนบไฟล์ SOC_Check (.docx)" }, { status: 400 });
     if (resultsFile.size > MAX_RESULTS_BYTES) return NextResponse.json({ errors: ["ไฟล์ results.json ต้องมีขนาดไม่เกิน 10 MB"] }, { status: 422 });
 
     let results: unknown;
@@ -41,7 +44,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       jobId: id,
       majorItemId: itemId,
       results,
-      socCheck: { name: socCheck.name, bytes: new Uint8Array(await socCheck.arrayBuffer()) },
+      socCheck: hasSocCheck ? { name: socCheck.name, bytes: new Uint8Array(await socCheck.arrayBuffer()) } : undefined,
       run: { skillVersion: typed("skillVersion") || fromFile("skill_version"), model: typed("model") || fromFile("model"), source: "manual" },
       replaceConfirmed: typed("replaceConfirmed").split(",").map(Number).filter(Number.isInteger),
     });

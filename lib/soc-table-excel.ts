@@ -22,6 +22,7 @@ import type { ZipEntry } from "@/lib/zip";
 
 export type ExcelSoc = {
   rows: string[][]; // per SOC row: item number, TOR text, proposal text
+  sheets: { name: string; rowCount: number }[]; // the sheets the rows come from, in order
   skippedSheets: string[]; // visible sheets with text but no header row
   imageCount: number; // floating pictures, which are not read
 };
@@ -54,16 +55,18 @@ export function readExcelSoc(parts: ZipEntry[]): ExcelSoc {
   const shared = elements(text("xl/sharedStrings.xml") ?? "", "si").map((si) => richText(si.body));
   const decimals = numberDecimals(text("xl/styles.xml") ?? "");
   const rows: string[][] = [];
+  const sheets: ExcelSoc["sheets"] = [];
   const skippedSheets: string[] = [];
   for (const sheet of readSheets(text, shared, decimals)) {
     if (sheet.hidden || !sheet.rows.some((cells) => cells?.some(Boolean))) continue;
     const table = socRowsOfSheet(sheet);
-    if (table) rows.push(...table);
-    else skippedSheets.push(sheet.name);
+    if (!table) { skippedSheets.push(sheet.name); continue; }
+    rows.push(...table);
+    sheets.push({ name: sheet.name, rowCount: table.length });
   }
   if (!rows.length) throw new Error(NO_SOC_TABLE);
   const imageCount = parts.filter((part) => part.name.startsWith("xl/drawings/")).reduce((count, part) => count + elements(text(part.name) ?? "", "pic").length, 0);
-  return { rows, skippedSheets, imageCount };
+  return { rows, sheets, skippedSheets, imageCount };
 }
 
 function socRowsOfSheet(sheet: Sheet): string[][] | null {

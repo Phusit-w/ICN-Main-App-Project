@@ -10,7 +10,8 @@ login with `--log`, one copy at a time.
 It sends a heartbeat every 30 s, polls the server for the oldest Check Request
 of its user, downloads the SOC, the evidence and the pinned skill package,
 runs `claude -p` with the skill in full mode on one major item, and submits
-results.json and the SOC_Check document. It only polls; it opens no port.
+results.json and the SOC_Check document (an Excel SOC has no SOC_Check). It
+only polls; it opens no port.
 """
 from __future__ import annotations
 
@@ -33,7 +34,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.4.2"
+RUNNER_VERSION = "0.5.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -138,9 +139,14 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
     request_id = request["id"]
     item = request["majorItem"]
     try:
+        needs = request.get("needsRunner")
+        if needs and not _version_at_least(RUNNER_VERSION, str(needs)):
+            raise RunFailed(f"SOC Runner รุ่น {RUNNER_VERSION} เก่าเกินไปสำหรับงานนี้ (ต้องเป็นรุ่น {needs} ขึ้นไป)"
+                            " กรุณาติดตั้ง SOC Runner ใหม่ด้วยคำสั่งติดตั้งจากหน้า SOC แล้วกดตรวจอีกครั้ง")
         server.report(request_id, {"state": "running", "progress": "กำลังดาวน์โหลดไฟล์"})
         skill_name, skill_version = _install_skill(request, server, work)
         documents = _download_documents(request, server, work / "inputs")
+        needs_soc_check = _needs_soc_check(request)
         out_dir = work / "out"
         saved = _read_run_state(work)
         resume = bool(saved.get("sessionId")) and saved.get("skillVersion") == skill_version
@@ -180,7 +186,7 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
         def resumed_run() -> ClaudeTask:
             # The CLI doesn't keep an appended system prompt with the session: a packet session gets the docs again.
             docs = work / ".claude" / SYSTEM_PROMPT_FILE
-            return ClaudeTask(prompt=build_resume_prompt(request), cwd=work, out_dir=out_dir, session_id=saved["sessionId"],
+            return ClaudeTask(prompt=build_resume_prompt(request, needs_soc_check), cwd=work, out_dir=out_dir, session_id=saved["sessionId"],
                               resume=True, system_prompt_file=docs if not saved["packetFallback"] and docs.is_file() else None)
 
         task, note, retries = (resumed_run() if resume else first_run()), "", BUSY_RETRIES
@@ -218,7 +224,7 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
             return "needs_documents"
         if (out_dir / MISSING_DOCUMENTS_FILE).is_file() and not (out_dir / "results.json").is_file():
             raise RunFailed(f"Claude หยุดเพราะขาดเอกสารที่ผู้ตรวจรับทราบแล้ว ({', '.join(acknowledged)}) แทนที่จะตรวจต่อ ลองกดตรวจใหม่")
-        results, soc_check = _outputs(out_dir, run.summary)
+        results, soc_check = _outputs(out_dir, run.summary, needs_soc_check)
         server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตรวจ"})
         submitted = server.submit(request_id, results, soc_check, run.model, skill_version,
                                   packet_fallback=saved.get("packetFallback") or "")
@@ -258,8 +264,9 @@ PARTIAL_OUTPUT_NOTE = ("- `out/` อาจมีผลระหว่างท�
                        " ไม่ต้องทำซ้ำส่วนที่ถูกต้องแล้ว\n")
 
 
-def build_resume_prompt(request: dict) -> str:
-    """Continues the Claude session a quota pause or an expired login cut short."""
+def build_resume_prompt(request: dict, needs_soc_check: bool = True) -> str:
+    """Continues the Claude session a quota pause or an expired login cut short.
+    `needs_soc_check` false: the SOC is an Excel workbook, which gets no SOC_Check document."""
     item = request["majorItem"]
     acknowledged = json.dumps(request.get("acknowledgedMissing") or [], ensure_ascii=False)
     lines = [
@@ -267,7 +274,7 @@ def build_resume_prompt(request: dict) -> str:
         "",
         f"การตรวจข้อใหญ่ {item['label']} ถูกหยุดไว้ (โควตา Claude หมดหรือต้องเข้าสู่ระบบใหม่) ตอนนี้ใช้งานได้แล้ว"
         " ให้ตรวจต่อจากที่ค้างไว้ในการสนทนานี้ ใช้ skill ไฟล์ และผลระหว่างทางใน `out/` ชุดเดิม ห้ามตรวจแถวที่ตรวจเสร็จแล้วซ้ำ ห้ามถามผู้ใช้",
-        "- เมื่อเสร็จให้เขียน `out/results.json` และ `out/SOC_Check.docx` ให้ครบทุกแถว"
+        "- เมื่อเสร็จให้เขียน `out/results.json`" + (" และ `out/SOC_Check.docx`" if needs_soc_check else "") + " ให้ครบทุกแถว"
         + ("ที่ขอตรวจใหม่" if request.get("rows") else "ของข้อใหญ่นี้") + " (รวมแถวที่ตรวจไว้ก่อนหยุด)",
         f"- acknowledged_missing: {acknowledged}",
         "- ห้ามแก้ไขไฟล์ใน `inputs/`",
@@ -312,15 +319,34 @@ def _acknowledged_line(request: dict) -> str:
     return f"- acknowledged_missing: {json.dumps(request.get('acknowledgedMissing') or [], ensure_ascii=False)}"
 
 
-OUTPUT_LINE = ("- โฟลเดอร์ output: `out/` ให้เขียนผลเป็น `out/results.json` และเอกสาร `out/SOC_Check.docx`"
-               " ไฟล์ระหว่างทาง (เช่น highlights.json) ก็เก็บใน `out/`")
+def _needs_soc_check(request: dict) -> bool:
+    """Whether the run must come with a SOC_Check document. The server says no for an Excel SOC, which
+    the skill writes none for (it knows the SOC's kind from the file's content, not its name)."""
+    return request.get("socCheck") is not False
+
+
+def _output_line(request: dict) -> str:
+    """Where the results go."""
+    soc_check = " และเอกสาร `out/SOC_Check.docx`" if _needs_soc_check(request) else " (SOC เป็น Excel: ไม่ต้องสร้างเอกสาร SOC_Check)"
+    return ("- โฟลเดอร์ output: `out/` ให้เขียนผลเป็น `out/results.json`" + soc_check
+            + " ไฟล์ระหว่างทาง (เช่น highlights.json) ก็เก็บใน `out/`")
+
+
+def _version_at_least(version: str, needed: str) -> bool:
+    """"0.5.0" against "0.4.2": the numbers between the dots, compared in order."""
+    def numbers(text: str) -> list[int]:
+        return [int(part) if part.isdigit() else 0 for part in text.split(".")]
+    have, want = numbers(version), numbers(needed)
+    width = max(len(have), len(want))
+    return have + [0] * (width - len(have)) >= want + [0] * (width - len(want))
 
 
 def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]], packet: bool = False) -> str:
     """`packet`: the runner built the evidence packet in out/packet, so the skill's packet flow is on.
 
-    The packet prompt is the same for every request (the item is in out/request.md, `build_request_file`)
-    and the skill docs are in the system prompt (`write_system_prompt`), so it is cached across runs."""
+    The packet prompt is the same for every request on a Word SOC, and for every request on an Excel SOC
+    (the item is in out/request.md, `build_request_file`), and the skill docs are in the system prompt
+    (`write_system_prompt`), so it is cached across runs."""
     if packet:
         lines = [
             HEADLESS_MARKER,
@@ -332,7 +358,7 @@ def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]
             " ของงานนี้อยู่ในไฟล์นั้น",
             "",
             f"- packet: สร้างไว้แล้วที่ `out/{PACKET_DIR}` จากโฟลเดอร์งาน `inputs` ใช้ packet นี้ ไม่ต้องสร้างใหม่",
-            OUTPUT_LINE,
+            _output_line(request),
             "- ห้ามแก้ไขไฟล์ใน `inputs/`",
         ]
         return "\n".join(lines) + "\n"
@@ -344,7 +370,7 @@ def build_prompt(request: dict, skill_name: str, documents: list[tuple[str, str]
         "ตรวจ SOC ในโหมด full_audit พร้อม option evidence_support และ tor_decision ห้ามถามผู้ใช้",
         "",
         *_request_lines(request, documents),
-        OUTPUT_LINE,
+        _output_line(request),
         _acknowledged_line(request),
         "- ห้ามแก้ไขไฟล์ใน `inputs/`",
     ]
@@ -451,8 +477,8 @@ def build_evidence_packet(work: Path, skill_dir: Path, documents: list[tuple[str
     socs = [name for kind, name in documents if kind == "SOC"]
     if len(socs) != 1:
         return f"งานนี้มีไฟล์ SOC {len(socs)} ไฟล์ packet ใช้ได้กับ SOC ไฟล์เดียว"
-    if not socs[0].lower().endswith(".docx"):
-        return "packet ใช้ได้กับ SOC แบบ Word .docx เท่านั้น"
+    if not socs[0].lower().endswith((".docx", ".xlsx")):
+        return "packet ใช้ได้กับ SOC แบบ Word .docx หรือ Excel .xlsx เท่านั้น"
     packet = work / "out" / PACKET_DIR
     shutil.rmtree(packet, ignore_errors=True)
     # pythonw (the installed runner) has no stdout, so the builder runs on the python.exe beside it.
@@ -601,11 +627,14 @@ def _download_documents(request: dict, server, inputs: Path) -> list[tuple[str, 
     return saved
 
 
-def _outputs(out_dir: Path, summary: str = "") -> tuple[Path, Path]:
+def _outputs(out_dir: Path, summary: str = "", needs_soc_check: bool = True) -> tuple[Path, Path | None]:
+    """The run's results.json and SOC_Check document; no SOC_Check when `needs_soc_check` is false (an Excel SOC)."""
     said = f" Claude ตอบว่า: {summary[:300]}" if summary else ""
     results = out_dir / "results.json"
     if not results.is_file():
         raise RunFailed("Claude ตรวจจบแต่ไม่ได้สร้างไฟล์ results.json." + said)
+    if not needs_soc_check:
+        return results, None
     soc_check = out_dir / "SOC_Check.docx"
     if not soc_check.is_file():
         candidates = sorted(out_dir.glob("SOC_Check*.docx"), key=lambda p: p.stat().st_mtime, reverse=True)

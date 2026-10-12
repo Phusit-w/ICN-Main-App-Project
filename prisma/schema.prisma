@@ -266,8 +266,8 @@ model SocCheckRun {
   source       String // "manual" | "runner"
   skillVersion String
   model        String
-  documentId   String // the run's SOC_Check document (SocDocument type RUN_OUTPUT)
-  document     SocDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId   String? // the run's SOC_Check document (SocDocument type RUN_OUTPUT); null for an Excel SOC
+  document     SocDocument?     @relation(fields: [documentId], references: [id], onDelete: Cascade)
   rowCount     Int
   importedById String?
   importedBy   User?            @relation(fields: [importedById], references: [id], onDelete: SetNull)

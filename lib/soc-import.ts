@@ -15,7 +15,7 @@ import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSoc
 import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
 import { readSocTable, type SocTable } from "@/lib/soc-table";
 import { parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
-import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
+import { isExcelSoc, SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
 
@@ -23,7 +23,9 @@ export type LocalCheckRunInput = {
   jobId: string;
   majorItemId: string;
   results: unknown; // the parsed results.json
-  socCheck: { name: string; bytes: Uint8Array }; // the run's SOC_Check .docx
+  // The run's SOC_Check .docx. Required for a Word SOC. A run on an Excel SOC
+  // has none; one sent anyway is not kept.
+  socCheck?: { name: string; bytes: Uint8Array };
   // packetFallback (runner only): why the item ran on the old flow instead of the
   // evidence packet; recorded with the run in its RUN_IMPORTED event.
   run: { skillVersion: string; model: string; source: LocalCheckRunSource; packetFallback?: string };
@@ -121,7 +123,7 @@ export function validateLocalCheckRun(data: unknown, majorItem: { key: string; l
     }
     if (!isBlank(row.row)) {
       if (!Number.isInteger(row.row) || (row.row as number) < 1) {
-        errors.push(`${where}: row ต้องเป็นเลขแถวในตาราง Word (จำนวนเต็มบวก)`);
+        errors.push(`${where}: row ต้องเป็นเลขแถวในตาราง SOC (จำนวนเต็มบวก)`);
       } else if (seenRows.has(row.row as number)) {
         errors.push(`${where}: row ${row.row} ซ้ำกับรายการก่อนหน้า`);
       } else {
@@ -208,7 +210,10 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   const model = input.run.model.trim().slice(0, 200);
   if (!skillVersion) errors.push("กรุณาระบุเวอร์ชันของ skill ที่ใช้ตรวจ");
   if (!model) errors.push("กรุณาระบุชื่อโมเดล Claude ที่ใช้ตรวจ");
-  if (!magicIsDocx(input.socCheck.bytes) || input.socCheck.bytes.byteLength > MAX_SOC_FILE_BYTES) {
+  const soc = await jobSocDocument(job.id);
+  const needsSocCheck = !isExcelSoc(soc);
+  const socCheck = needsSocCheck ? input.socCheck ?? null : null;
+  if (needsSocCheck && (!socCheck || !magicIsDocx(socCheck.bytes) || socCheck.bytes.byteLength > MAX_SOC_FILE_BYTES)) {
     errors.push("ไฟล์ SOC_Check ต้องเป็น Word (.docx) ที่ถูกต้อง ขนาดไม่เกิน 25 MB");
   }
   const groupFirst = item.groupLabel ? await prisma.socMajorItem.findFirst({ where: { jobId: job.id, groupLabel: item.groupLabel }, orderBy: { position: "asc" }, select: { id: true } }) : null;
@@ -219,18 +224,18 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   const runRows = onlyRows ? validated.rows.filter((row) => onlyRows.includes(row.row)) : validated.rows;
   if (!runRows.length) return { ok: false, errors: [`ผลตรวจไม่มีแถวที่ขอตรวจใหม่ (แถว ${onlyRows!.join(", ")})`] };
 
-  const rowText = await jobSocRowTexts(job.id);
+  const rowText = (await readJobSoc(soc))?.rowText ?? (() => null);
   // For the banner: documents the requester chose to check without, and
   // those Claude reports it couldn't find.
   // A re-check of picked rows keeps the names already on the item.
   const kept = onlyRows && Array.isArray(item.missingDocuments) ? item.missingDocuments.filter((n): n is string => typeof n === "string") : [];
   const missingDocuments = [...new Set([...kept, ...(input.checkRequest?.acknowledgedMissing ?? []), ...reportedMissingDocuments(input.results)])];
   const runId = randomUUID();
-  const documentId = randomUUID();
-  const stored = await storeSocFile(job.id, input.socCheck.name, ".docx", input.socCheck.bytes);
+  const documentId = socCheck ? randomUUID() : null;
+  const stored = socCheck ? await storeSocFile(job.id, socCheck.name, ".docx", socCheck.bytes) : null;
   const source = input.run.source;
   const packetFallback = input.run.packetFallback?.trim().slice(0, 300);
-  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: runRows.length, source, skillVersion, model, documentId, evidenceFlow: evidenceFlow(input.results), ...(packetFallback ? { packetFallback } : {}), ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}), ...(onlyRows ? { rowNumbers: runRows.map((r) => r.row) } : {}) };
+  const detail = { runId, majorItemId: item.id, majorItem: item.label, rowCount: runRows.length, source, skillVersion, model, ...(documentId ? { documentId } : {}), evidenceFlow: evidenceFlow(input.results), ...(packetFallback ? { packetFallback } : {}), ...(input.checkRequest ? { checkRequestId: input.checkRequest.id } : {}), ...(onlyRows ? { rowNumbers: runRows.map((r) => r.row) } : {}) };
   let replacedRowCount = 0;
   try {
     const now = new Date();
@@ -257,7 +262,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
         if (closed.count !== 1) throw new Error(RACED);
       }
       replacedRowCount = await replacePreviousRows(tx, { jobId: job.id, actorId: actor.id, item, runId, replaceConfirmed: input.replaceConfirmed ?? [], onlyRows: onlyRows ? runRows.map((r) => r.row) : null });
-      await tx.socDocument.create({ data: { id: documentId, jobId: job.id, type: "RUN_OUTPUT", mimeType: DOCX_MIME, ...stored } });
+      if (documentId && stored) await tx.socDocument.create({ data: { id: documentId, jobId: job.id, type: "RUN_OUTPUT", mimeType: DOCX_MIME, ...stored } });
       await tx.socCheckRun.create({
         data: { id: runId, jobId: job.id, majorItemId: item.id, source, skillVersion, model, documentId, rowCount: runRows.length, importedById: actor.id },
       });
@@ -266,7 +271,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
       await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "RUN_IMPORTED", detail } });
     });
   } catch (error) {
-    await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
+    if (stored) await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
     if (error instanceof ConfirmationRequired) {
       const listed = error.rows.map((r) => `ข้อ ${r.item}`).join(", ");
       return { ok: false, confirmedRows: error.rows, errors: [`ข้อ ${item.label} มี ${error.rows.length} แถวที่ยืนยันผลแล้ว (${listed}) การตรวจซ้ำจะแทนที่แถวเหล่านี้ ต้องเลือก "แทนที่แถวที่ยืนยันแล้ว" ก่อนนำเข้า`] };
@@ -309,17 +314,19 @@ async function replacePreviousRows(
   return previous.length;
 }
 
-// The TOR and bidder text of each row, from the job's SOC. An unreadable SOC
-// leaves them empty rather than rejecting a valid run. The review page also
-// reads it for rows imported with no text.
-export async function jobSocRowTexts(jobId: string): Promise<SocTable["rowText"]> {
+// The job's SOC file, as stored at upload.
+export const jobSocDocument = (jobId: string) => prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
+
+// The table of a job's SOC, for the TOR and bidder text of each row (and its
+// sheet). Null when the SOC can't be read: the texts are then left empty
+// rather than a valid run rejected. The review page reads it too.
+export async function readJobSoc(soc: { jobId: string; storageKey: string } | null): Promise<SocTable | null> {
   try {
-    const soc = await prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
-    if (soc) return readSocTable(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey)))).rowText;
+    if (soc) return readSocTable(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey))));
   } catch (error) {
-    console.error(`SOC ${jobId}: TOR text not read from the SOC`, error);
+    console.error(`SOC ${soc?.jobId}: TOR text not read from the SOC`, error);
   }
-  return () => null;
+  return null;
 }
 
 // One results.json row as a SocCheckResult. The skill's standard axes fill

@@ -78,9 +78,10 @@ class HttpServerClient:
     def report(self, request_id: str, payload: dict) -> None:
         self._json("POST", f"/api/soc-runner/requests/{request_id}/report", payload)
 
-    def submit(self, request_id: str, results: Path, soc_check: Path, model: str, skill_version: str,
+    def submit(self, request_id: str, results: Path, soc_check: Path | None, model: str, skill_version: str,
                packet_fallback: str = "") -> dict:
-        """`packet_fallback`: why the item ran on the old flow instead of the evidence packet ("" = it didn't)."""
+        """`soc_check`: None for an Excel SOC, which has no SOC_Check document.
+        `packet_fallback`: why the item ran on the old flow instead of the evidence packet ("" = it didn't)."""
         boundary = f"----soc-runner-{uuid.uuid4().hex}"
         parts: list[bytes] = []
 
@@ -94,7 +95,8 @@ class HttpServerClient:
             parts.append(head.encode() + path.read_bytes() + b"\r\n")
 
         file_part("results", results, "application/json")
-        file_part("socCheck", soc_check, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        if soc_check:
+            file_part("socCheck", soc_check, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         field_part("model", model)
         field_part("skillVersion", skill_version)
         if packet_fallback:

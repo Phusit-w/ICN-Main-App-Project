@@ -17,13 +17,15 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 |---|---|---|---|
 | 01 | One SOC table reader on the web (prefactor) | – | done (2026-10-12) |
 | 02 | One SOC table reader in the skill (prefactor) | – | done (2026-10-12) |
-| 03 | Upload an Excel SOC and see its major items | 01 | done (2026-10-12), deploy only with 04 + 05 |
+| 03 | Upload an Excel SOC and see its major items | 01 | done (2026-10-12) |
 | 04 | The skill checks an Excel SOC | 02 | done (2026-10-12), skill outside git, no package uploaded |
-| 05 | Excel SOC end to end through the Runner | 03, 04 | ready-for-agent |
+| 05 | Excel SOC end to end through the Runner | 03, 04 | done (2026-10-12), Runner 0.5.0, not deployed |
 | 06 | The web recognises Image Rows | 01 | ready-for-agent |
 | 07 | The skill reads Image Rows | 02 | ready-for-agent |
 | 08 | Image Rows end to end on the review page | 06, 07 | ready-for-agent |
 | 09 | Live acceptance and quota | 05, 08 | ready-for-human |
+
+The Excel lane (01 to 05) is complete and can be deployed on its own if the user asks: upload the Skill Package first, then deploy (one migration), then reviewers re-install the Runner (0.5.0). See the end of ticket 05.
 
 ## Deferred (not ticketed)
 

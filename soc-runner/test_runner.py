@@ -20,8 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from datetime import datetime, timedelta, timezone
 
 from claude_cli import ClaudeBusy, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
-from runner import (RUNNER_VERSION, SocRunner, build_evidence_packet, carry_out, load_config, open_log, parse_args, restore_current,
-                    single_instance)
+from runner import (RUNNER_VERSION, SocRunner, _version_at_least, build_evidence_packet, carry_out, load_config, open_log, parse_args,
+                    restore_current, single_instance)
 from server_client import NotClaimed, ServerError, SubmitRejected
 
 SKILL_MD = "---\nname: tor-word-compliance-check\ndescription: test\n---\n# skill\n"
@@ -75,15 +75,15 @@ class FakeServer:
             raise self.report_error
         self.reports.append((request_id, payload))
 
-    def submit(self, request_id: str, results: Path, soc_check: Path, model: str, skill_version: str,
+    def submit(self, request_id: str, results: Path, soc_check: Path | None, model: str, skill_version: str,
                packet_fallback: str = "") -> dict:
         if self.submit_error:
             raise self.submit_error
         self.submits.append({
             "id": request_id,
             "results": json.loads(results.read_text(encoding="utf-8")),
-            "socCheckName": soc_check.name,
-            "socCheck": soc_check.read_bytes(),
+            "socCheckName": soc_check.name if soc_check else None,
+            "socCheck": soc_check.read_bytes() if soc_check else None,
             "model": model,
             "skillVersion": skill_version,
             "packetFallback": packet_fallback,
@@ -376,6 +376,64 @@ class CarryOutTest(unittest.TestCase):
         claude = FakeClaude()
         carry_out(self.request, self.server, claude, self.work_root, quiet)
         self.assertIn("_NUL.pdf", claude.seen_inputs)
+
+
+class ExcelSocTest(unittest.TestCase):
+    """A job whose SOC is an Excel workbook: results alone, no SOC_Check document."""
+
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-test-"))
+        skill = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD})
+        self.request, files = make_request(skill, b"soc-xlsx", b"%PDF-1.4")
+        self.request["documents"][0]["name"] = "Compliance Table.xlsx"
+        self.request.update(needsRunner=RUNNER_VERSION, socCheck=False)
+        self.server = FakeServer(self.request, files)
+        self.results_only = {"results.json": json.dumps(RESULTS).encode("utf-8")}
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def test_results_are_submitted_without_a_soc_check_and_the_prompt_asks_for_none(self):
+        for packet_fallback in ("", "ไม่มี packet"):  # the packet flow and the old flow
+            self.setUp()
+            claude = FakeClaude(writes=self.results_only)
+            outcome = carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=lambda *_: packet_fallback)
+            self.assertEqual(outcome, "submitted", self.server.reports[-1])
+            self.assertEqual((self.server.submits[0]["results"], self.server.submits[0]["socCheck"]), (RESULTS, None))
+            self.assertNotIn("SOC_Check.docx", claude.tasks[0].prompt)
+            self.assertIn("ไม่ต้องสร้างเอกสาร SOC_Check", claude.tasks[0].prompt)
+
+    def test_the_server_not_the_file_name_says_whether_a_soc_check_is_needed(self):
+        self.request["socCheck"] = True  # a Word SOC, whatever it is called
+        claude = FakeClaude(writes=self.results_only)
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=lambda *_: ""), "failed")
+        self.assertIn("out/SOC_Check.docx", claude.tasks[0].prompt)
+
+    def test_a_resume_after_a_pause_asks_for_no_soc_check_either(self):
+        claude = FakeClaude(writes=self.results_only)
+        claude.script = [ClaudeQuotaExhausted(None)]
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=lambda *_: ""), "paused")
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=lambda *_: ""), "submitted")
+        self.assertTrue(claude.tasks[1].resume)
+        self.assertNotIn("SOC_Check", claude.tasks[1].prompt)
+
+    def test_a_request_that_needs_a_newer_runner_is_refused_before_anything_is_downloaded(self):
+        self.request["needsRunner"] = "99.0.0"
+        claude = FakeClaude(writes=self.results_only)
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet), "failed")
+        self.assertEqual(claude.tasks, [])
+        reason = self.server.reports[-1][1]["reason"]
+        self.assertIn(f"SOC Runner รุ่น {RUNNER_VERSION} เก่าเกินไป", reason)
+        self.assertIn("99.0.0", reason)
+        self.assertIn("ติดตั้ง SOC Runner ใหม่", reason)
+        self.assertEqual(len(self.server.reports), 1)
+
+    def test_versions_compare_by_their_numbers(self):
+        self.assertTrue(_version_at_least("0.5.0", "0.5.0"))
+        self.assertTrue(_version_at_least("0.10.0", "0.9.9"))
+        self.assertTrue(_version_at_least("1.0", "0.9.9"))
+        self.assertFalse(_version_at_least("0.4.2", "0.5.0"))
+        self.assertFalse(_version_at_least("0.5", "0.5.1"))
 
 
 class SocRunnerTest(unittest.TestCase):
@@ -917,6 +975,11 @@ class BuildEvidencePacketTest(unittest.TestCase):
         self.stand_in("raise SystemExit('should not run')")
         self.assertIn("SOC_RUNNER_PACKET=0", self.build(env={"SOC_RUNNER_PACKET": "0"}))
         self.assertIn(".docx", self.build([("SOC", "SOC.doc")]))
+
+    def test_an_excel_soc_gets_a_packet_too(self):
+        self.stand_in("out = pathlib.Path(sys.argv[4]); out.mkdir(parents=True)",
+                      "(out / 'job.json').write_text(json.dumps(sys.argv[1:4], ensure_ascii=False), encoding='utf-8')")
+        self.assertEqual(self.build([("SOC", "Compliance Table.xlsx"), ("EVIDENCE", "Brochure.pdf")]), "")
         self.assertIn("2 ไฟล์", self.build(self.SOC + [("SOC", "SOC2.docx")]))
 
 

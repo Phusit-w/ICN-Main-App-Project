@@ -54,6 +54,9 @@ export type SocCheckRequestView = {
   progressNote: string | null; resumeAt: string | null;
   // Rows of a re-check of picked rows; 0 = the whole major item.
   rowCount: number;
+  // The requester's runner is older than this job's SOC needs (an Excel SOC):
+  // it is not handed the request until it is installed again.
+  runnerTooOld?: boolean;
 };
 
 // "๑๓" → "13".
@@ -77,6 +80,9 @@ export function majorItemStateText(
   const machine = `เครื่องของ${self ? "คุณ" : ` ${request.requestedByName}`}`;
   switch (item.state) {
     case "requested":
+      if (request?.runnerTooOld) {
+        return { label: "รอติดตั้ง SOC Runner รุ่นใหม่", detail: `SOC Runner บน${machine}เป็นรุ่นเก่า ตรวจ SOC ที่เป็น Excel ไม่ได้ (ต้องเป็นรุ่น ${SOC_RUNNER_FOR_EXCEL_SOC} ขึ้นไป) ติดตั้งใหม่ด้วยคำสั่งติดตั้งจากหน้า SOC แล้วคำขอนี้จะเริ่มตรวจเอง` };
+      }
       if (request && request.runnerState !== "online") {
         return { label: `รอ${machine}เปิด`, detail: request.runnerState ? null : `${self ? "คุณ" : request.requestedByName}ยังไม่ได้เชื่อม SOC Runner` };
       }
@@ -214,6 +220,25 @@ export type SocRunnerRevokeReason = "replaced" | "admin";
 export const SOC_RUNNER_REVOKE_REASON_LABELS: Record<SocRunnerRevokeReason, string> = {
   replaced: "ผู้ใช้ดาวน์โหลดใหม่", admin: "ผู้ดูแลยกเลิก",
 };
+
+// The oldest SOC Runner that can check an Excel SOC: it builds the evidence
+// packet from the workbook and submits a run without a SOC_Check document.
+// An older runner is not handed such a request (it would spend the quota and
+// then fail for lack of a SOC_Check).
+export const SOC_RUNNER_FOR_EXCEL_SOC = "0.5.0";
+export const isExcelSoc = (soc: { mimeType: string } | null | undefined) => soc?.mimeType === XLSX_MIME;
+
+// Whether a runner's reported version ("0.4.2") is at least `needed`,
+// comparing the numbers between the dots. A runner that never reported is not.
+export function socRunnerAtLeast(version: string | null, needed: string): boolean {
+  if (!version) return false;
+  const numbers = (text: string) => text.split(".").map((part) => parseInt(part.replace(/^\D+/, ""), 10) || 0); // "v0.5.0" too
+  const [have, want] = [numbers(version), numbers(needed)];
+  for (let i = 0; i < Math.max(have.length, want.length); i++) {
+    if ((have[i] ?? 0) !== (want[i] ?? 0)) return (have[i] ?? 0) > (want[i] ?? 0);
+  }
+  return true;
+}
 
 // A Runner Link as /soc and the admin page show it (dates as ISO strings).
 export type SocRunnerView = {
