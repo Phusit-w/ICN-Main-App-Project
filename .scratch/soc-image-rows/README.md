@@ -16,7 +16,7 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 | # | Ticket | Blocked by | Status |
 |---|---|---|---|
 | 01 | One SOC table reader on the web (prefactor) | – | done (2026-10-12) |
-| 02 | One SOC table reader in the skill (prefactor) | – | ready-for-agent |
+| 02 | One SOC table reader in the skill (prefactor) | – | done (2026-10-12) |
 | 03 | Upload an Excel SOC and see its major items | 01 | ready-for-agent |
 | 04 | The skill checks an Excel SOC | 02 | ready-for-agent |
 | 05 | Excel SOC end to end through the Runner | 03, 04 | ready-for-agent |
