@@ -134,6 +134,16 @@ test("a SOC with no item numbers is rejected and nothing is kept", { skip }, asy
   assert.deepEqual(await readdir(storageRoot), storedBefore);
 });
 
+test("a SOC file that isn't a Word document is rejected and nothing is kept", { skip }, async () => {
+  signedIn = await user("owner");
+  const storedBefore = await readdir(storageRoot);
+  const response = await createJob(upload({ title: "x", soc: PDF, evidence: [{ name: "a.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 400);
+  assert.match(((await response.json()) as { error: string }).error, /ไฟล์ SOC ต้องเป็น DOCX/);
+  assert.equal(await prisma.socJob.count(), 0);
+  assert.deepEqual(await readdir(storageRoot), storedBefore);
+});
+
 test("a user without soc access can't create a job", { skip }, async () => {
   signedIn = await user("expense-only", ["expense"]);
   const response = await createJob(upload({ title: "x", soc: SOC, evidence: [{ name: "a.pdf", bytes: PDF }] }));

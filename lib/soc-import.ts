@@ -12,7 +12,8 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSocFile } from "@/lib/soc";
-import { isItemInMajorItem, majorItemKey, socRowTexts } from "@/lib/soc-major-items";
+import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
+import { readSocTable, type SocTable } from "@/lib/soc-table";
 import { parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
 import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 
@@ -311,10 +312,10 @@ async function replacePreviousRows(
 // The TOR and bidder text of each row, from the job's SOC. An unreadable SOC
 // leaves them empty rather than rejecting a valid run. The review page also
 // reads it for rows imported with no text.
-export async function jobSocRowTexts(jobId: string): Promise<ReturnType<typeof socRowTexts>> {
+export async function jobSocRowTexts(jobId: string): Promise<SocTable["rowText"]> {
   try {
     const soc = await prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
-    if (soc) return socRowTexts(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey))));
+    if (soc) return readSocTable(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey)))).rowText;
   } catch (error) {
     console.error(`SOC ${jobId}: TOR text not read from the SOC`, error);
   }

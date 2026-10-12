@@ -108,6 +108,11 @@ export function majorItemProgress(items: readonly { state: string; skipped?: boo
   return { checked, total: counted.length, percent: counted.length ? Math.round((checked / counted.length) * 100) : 0 };
 }
 
+export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export function magicIsDocx(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
 export const SOC_RUN_SOURCE_LABELS: Record<string, string> = { manual: "นำเข้าด้วยมือ", runner: "SOC Runner" };
 
 // Thai labels for the values of an imported row's axes, as the skill's

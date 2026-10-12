@@ -1,9 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isItemInMajorItem, majorItemKey, readSocMajorItems, socRowTexts } from "@/lib/soc-major-items";
+import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
+import { readSocTable } from "@/lib/soc-table";
 import { buildDocx, buildSocDocx, buildZip, tableXml } from "@/test/docx-fixture";
 
 const HEADER = ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"];
+// Read through the SOC table reader, as every caller does.
+const readSocMajorItems = (bytes: Uint8Array) => readSocTable(bytes).majorItems;
+const socRowTexts = (bytes: Uint8Array) => readSocTable(bytes).rowText;
 const brief = (soc: Uint8Array) => readSocMajorItems(soc).map(({ key, label, title }) => ({ key, label, title }));
 
 test("lists the top-level item numbers in SOC order, with the heading row's text as title", () => {

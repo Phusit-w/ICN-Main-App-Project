@@ -3,10 +3,9 @@
 // of the table structure, not a compliance check (spec "Job model"); a major
 // item is the unit one Local Check Run covers.
 //
-// Reads the .docx directly (zip + word/document.xml), so the web server needs
-// no Python or extra dependency.
+// The rules here work on table rows (cells of text); lib/soc-table.ts reads
+// the rows out of the SOC file.
 import { SPLIT_MAJOR_ITEM_ROWS, toArabicDigits as toArabic } from "@/lib/soc-shared";
-import { readZip } from "@/lib/zip";
 
 export type SocMajorItemSpec = {
   key: string; // the number in Arabic digits, e.g. "1" for both "๑" and "1.", or "5.5" for a sub-section of a split item
@@ -22,7 +21,6 @@ export type SocMajorItemSpec = {
   skipped: boolean;
 };
 
-const UNREADABLE = "ไม่สามารถอ่านไฟล์ SOC ได้ กรุณาตรวจว่าเป็นไฟล์ Word (.docx) ที่ถูกต้อง";
 const MAX_TITLE = 300;
 
 // "๑.๒.๗", "4.3.1", "1.5.1." — the same shape soc-worker's is_item_label accepts.
@@ -56,23 +54,18 @@ export function isItemInMajorItem(item: string, majorItem: { key: string }, { ta
   return key.every((segment, i) => path[i] === segment);
 }
 
-// Only SOC tables count: ones with at least one dotted item number ("๑.๑").
-// A cover or signature table numbered 1, 2, 3 adds no major items.
-function readSocTables(docx: Uint8Array): string[][][] {
-  return readTables(readZipEntry(docx, "word/document.xml"))
-    .filter((rows) => rows.some((cells) => /[0-9๐-๙]\.[0-9๐-๙]/.test((cells[0] || "").replace(/\s+/g, ""))));
-}
-
 type ItemTally = { key: string; label: string; title: string | null; rowCount: number };
 // rowsBeforeSubs: its heading row and any row before its first sub-section.
 type MajorItemTally = ItemTally & { rowsBeforeSubs: number; subs: Map<string, ItemTally> };
 
-export function readSocMajorItems(docx: Uint8Array): SocMajorItemSpec[] {
+// The major items of a SOC, from every row of its tables in order (first cell
+// = item number).
+export function majorItemsOfRows(rows: string[][]): SocMajorItemSpec[] {
   // Each row counts towards the item number above it, until the next one.
   const majors = new Map<string, MajorItemTally>();
   let major: MajorItemTally | null = null;
   let sub: ItemTally | null = null;
-  for (const cells of readSocTables(docx).flat()) {
+  for (const cells of rows) {
     const segments = itemSegments(cells[0] || "");
     const text = () => cells.slice(1).find((t) => t)?.slice(0, MAX_TITLE) || null;
     if (segments) {
@@ -104,97 +97,6 @@ export function readSocMajorItems(docx: Uint8Array): SocMajorItemSpec[] {
   return items.map((item) => ({ ...item, skipped: split && !item.groupLabel }));
 }
 
-const sameItem = (a: string, b: string) => {
-  const normal = (item: string) => toArabic(item.replace(/\s+/g, "")).replace(/\.$/, "");
-  return normal(a) === normal(b);
-};
-
-// A SOC row's TOR text (second cell) and the bidder's text (third cell), for
-// the review page. A results.json `row` is the 1-based row of the SOC table
-// (the skill's inspect_word_table.py); it is trusted only when that row has
-// the same item number, otherwise the one row with that item, if the number
-// is unique in the SOC. Returns a lookup that gives null otherwise.
-// A row the SOC numbers relative to its major item ("๗.๑)", "(1)") is matched by
-// row number when the absolute item ends with that number ("๕.๘.๗.๑"); a row with
-// no number ("-", blank) by row number alone, when only one table has that row.
-const RELATIVE_NUMBER = /^\(?(\d+(?:\.\d+)*)[.)]?$/;
-const segments = (item: string) => toArabic(item.replace(/\s+/g, "")).replace(/\.$/, "").split(".");
-
-function rowMatches(cell: string, item: string, onlyTable: boolean): boolean {
-  if (sameItem(cell, item)) return true;
-  const relative = RELATIVE_NUMBER.exec(toArabic(cell.replace(/\s+/g, "")));
-  if (!relative) return onlyTable && !/\d/.test(toArabic(cell));
-  const own = relative[1].split(".").map(Number);
-  const full = segments(item).map(Number);
-  return full.length > own.length && own.every((part, index) => part === full[full.length - own.length + index]);
-}
-
-export function socRowTexts(docx: Uint8Array): (row: number, item: string) => { tor: string; proposal: string | null } | null {
-  const tables = readSocTables(docx);
-  return (row, item) => {
-    const onlyTable = tables.filter((rows) => rows[row - 1]).length === 1;
-    const byRow = tables.map((rows) => rows[row - 1]).find((cells) => cells && rowMatches(cells[0] || "", item, onlyTable));
-    const byItem = tables.flat().filter((cells) => sameItem(cells[0] || "", item));
-    const cells = byRow ?? (byItem.length === 1 ? byItem[0] : undefined);
-    return cells ? { tor: cells[1] ?? "", proposal: cells[2] ?? null } : null;
-  };
-}
-
-// Every top-level table as rows of cells (whitespace collapsed). Tables
-// nested inside a cell are skipped; their text isn't part of the cell.
-function readTables(xml: string): string[][][] {
-  const tables: string[][][] = [];
-  let rows: string[][] = [];
-  const token = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:tab|br|cr)\b[^>]*\/>|<(\/?)w:(tbl|tr|tc|p)\b[^>]*?(\/?)>/g;
-  let depth = 0;
-  let row: string[] | null = null;
-  let cell: string[] | null = null;
-  for (const match of xml.matchAll(token)) {
-    const [, text, closing, tag, selfClosing] = match;
-    if (text !== undefined) {
-      if (depth === 1 && cell) cell.push(decodeXml(text));
-      continue;
-    }
-    if (!tag) {
-      if (depth === 1 && cell) cell.push(" ");
-      continue;
-    }
-    if (selfClosing) continue;
-    if (tag === "tbl") {
-      depth += closing ? -1 : 1;
-      if (closing && depth === 0) { tables.push(rows); rows = []; }
-    } else if (depth !== 1) {
-      continue;
-    } else if (tag === "tr") {
-      if (closing && row) rows.push(row);
-      row = closing ? null : [];
-    } else if (tag === "tc") {
-      if (closing && row && cell) row.push(cell.join("").replace(/\s+/g, " ").trim());
-      cell = closing ? null : [];
-    } else if (tag === "p" && closing && cell) {
-      cell.push(" ");
-    }
-  }
-  return tables;
-}
-
-function decodeXml(value: string): string {
-  return value.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);/gi, (_, entity: string) => {
-    const named: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
-    if (entity[0] !== "#") return named[entity.toLowerCase()];
-    const code = entity[1].toLowerCase() === "x" ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
-    return String.fromCodePoint(code);
-  });
-}
-
-// Reads one text file out of a .docx (or any zip archive).
-export function readZipEntry(zip: Uint8Array, name: string): string {
-  let entry;
-  try {
-    [entry] = readZip(zip, { only: (entryName) => entryName === name });
-  } catch {
-    throw new Error(UNREADABLE);
-  }
-  if (!entry) throw new Error(UNREADABLE);
-  return entry.data.toString("utf8");
-}
+// The same item number, whatever its digits or trailing dot ("๒.๑" = "2.1.").
+export const normalItem = (item: string) => toArabic(item.replace(/\s+/g, "")).replace(/\.$/, "");
+export const sameItem = (a: string, b: string) => normalItem(a) === normalItem(b);

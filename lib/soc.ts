@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
-import { readSocMajorItems } from "@/lib/soc-major-items";
+import { assertSocFile, readSocTable } from "@/lib/soc-table";
 import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
 import { evidencePath, UPLOAD_BATCH_BYTES, UPLOAD_BATCH_FILES } from "@/lib/soc-upload";
 export * from "@/lib/soc-shared";
@@ -12,8 +12,6 @@ type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 type Upload = { name: string; bytes: Uint8Array };
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
 
 export function socStorageRoot(): string {
   return path.resolve(process.env.SOC_STORAGE_ROOT || path.join(process.cwd(), "data", "soc"));
@@ -77,11 +75,11 @@ export function socErrorStatus(message: string): number {
 // not_checked major item per ข้อใหญ่ of the SOC. It starts in NEEDS_REVIEW;
 // soc-worker never claims it. Nothing is kept if any step fails.
 export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }) {
-  const majorItems = readSocMajorItems(input.soc.bytes);
+  const { file: socFile, majorItems } = readSocTable(input.soc.bytes);
   if (!majorItems.length) throw new Error("ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์แรกของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1");
   const jobId = randomUUID();
   try {
-    const storedSoc = await storeSocFile(jobId, input.soc.name, ".docx", input.soc.bytes);
+    const storedSoc = await storeSocFile(jobId, input.soc.name, socFile.extension, input.soc.bytes);
     const storedEvidence = await Promise.all(input.evidence.map((file) => storeSocFile(jobId, file.name, ".pdf", file.bytes)));
     const detail = { kind: "IMPORTED", evidenceCount: input.evidence.length, majorItemCount: majorItems.length };
     await prisma.$transaction([
@@ -92,7 +90,7 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
           expiresAt: new Date(Date.now() + RETENTION_MS),
         },
       }),
-      prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: DOCX_MIME, ...storedSoc } }),
+      prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: socFile.mimeType, ...storedSoc } }),
       ...storedEvidence.map((stored) => prisma.socDocument.create({ data: { jobId, type: "EVIDENCE", mimeType: "application/pdf", ...stored } })),
       prisma.socMajorItem.createMany({ data: majorItems.map((item, i) => ({ jobId, ...item, position: i + 1 })) }),
       prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "JOB_CREATED", detail } }),
@@ -152,10 +150,6 @@ export async function removeSocEvidence(actor: SocActor, documentId: string) {
   await writeAudit({ actorId: actor.id, action: "SOC_EVIDENCE_REMOVED", entityType: "SOC_JOB", entityId: job.id, summary: `ลบเอกสารหลักฐาน ${document.originalName} จากงาน ${job.title}`, metadata: detail });
 }
 
-export function magicIsDocx(bytes: Uint8Array): boolean {
-  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
-}
-
 function magicIsPdf(bytes: Uint8Array): boolean {
   return new TextDecoder("ascii").decode(bytes.slice(0, 5)) === "%PDF-";
 }
@@ -166,10 +160,9 @@ export async function validateUpload(file: File, kind: "SOC" | "EVIDENCE") {
   if (file.size <= 0 || file.size > maxBytes) {
     throw new Error(`ไฟล์ ${file.name} ต้องมีขนาดไม่เกิน ${maxLabel}`);
   }
-  const ext = path.extname(file.name).toLowerCase();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const valid = kind === "SOC" ? ext === ".docx" && magicIsDocx(bytes) : ext === ".pdf" && magicIsPdf(bytes);
-  if (!valid) throw new Error(kind === "SOC" ? "ไฟล์ SOC ต้องเป็น DOCX ที่ถูกต้อง" : `ไฟล์ ${file.name} ต้องเป็น PDF ที่ถูกต้อง`);
+  if (kind === "SOC") assertSocFile({ name: file.name, bytes });
+  else if (path.extname(file.name).toLowerCase() !== ".pdf" || !magicIsPdf(bytes)) throw new Error(`ไฟล์ ${file.name} ต้องเป็น PDF ที่ถูกต้อง`);
   return bytes;
 }
 
