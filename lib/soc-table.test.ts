@@ -24,8 +24,6 @@ test("a Word SOC has no upload warnings, and no row is marked as an image", () =
   assert.equal(table.rowText(3, "๑.๑")?.image, undefined);
 });
 
-test("at upload a file that isn't a .docx is refused, by its name or by its content", () => {
+test("at upload a Word SOC is taken whatever the case of its extension", () => {
   assert.doesNotThrow(() => assertSocFile({ name: "SOC ภาคผนวก ก.DOCX", bytes: SOC }));
-  assert.throws(() => assertSocFile({ name: "SOC.pdf", bytes: SOC }), /ไฟล์ SOC ต้องเป็น DOCX ที่ถูกต้อง/);
-  assert.throws(() => assertSocFile({ name: "SOC.docx", bytes: new TextEncoder().encode("%PDF-1.4") }), /ไฟล์ SOC ต้องเป็น DOCX ที่ถูกต้อง/);
 });

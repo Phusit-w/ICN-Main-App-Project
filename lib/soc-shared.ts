@@ -109,6 +109,25 @@ export function majorItemProgress(items: readonly { state: string; skipped?: boo
 }
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+// What the SOC file picker offers. The old formats and PDF are offered too, so
+// that picking one is answered with what to do instead of being ignored.
+export const SOC_FILE_ACCEPT = ".docx,.xlsx,.doc,.xls,.pdf";
+
+// Why a file can't be a SOC, by its name: null for .docx and .xlsx. The
+// upload form says it before sending; the server checks the content too
+// (lib/soc-table.ts).
+export function socFileNameProblem(name: string): string | null {
+  const extension = /\.[^.\/]*$/.exec(name)?.[0].toLowerCase() ?? "";
+  if (extension === ".docx" || extension === ".xlsx") return null;
+  if (extension === ".doc" || extension === ".xls") return "ไฟล์ SOC เป็น Word/Excel รุ่นเก่า (.doc/.xls) กรุณา Save As เป็น .docx หรือ .xlsx แล้วอัปโหลดใหม่";
+  if (extension === ".pdf") return SOC_FILE_IS_PDF;
+  return NOT_A_SOC_FILE;
+}
+export const SOC_FILE_IS_PDF = "ยังไม่รองรับ SOC ที่เป็น PDF กรุณาอัปโหลดไฟล์ Word (.docx) หรือ Excel (.xlsx)";
+export const NOT_A_SOC_FILE = "ไฟล์ SOC ต้องเป็น Word (.docx) หรือ Excel (.xlsx) ที่ถูกต้อง";
+
+// A zip archive by its first bytes: a .docx or an .xlsx.
 export function magicIsDocx(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }

@@ -21,7 +21,7 @@ type ResultItem = {
   finalReferenceCheck: string; finalHeadingTitleCheck: string; finalDetail: string; reviewed: boolean;
 };
 type MajorItem = { id: string; label: string; title: string | null; groupLabel: string | null; groupTitle: string | null; large: boolean; skipped: boolean; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
-type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null };
+type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null; socWarnings: string[] };
 
 const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING"]);
 const FILTERS = ["all", "match", "mismatch", "review", "not_found", "unverifiable", "not_applicable"];
@@ -47,7 +47,7 @@ export default function SocJobDetail({ job }: { job: Job }) {
 
   return <div className="flex flex-col gap-6">
     <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <SocTrashJobButton jobId={job.id} title={job.title} goToList /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
-    {imported ? <><MajorItemsPanel jobId={job.id} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
+    {imported ? <>{job.socWarnings.length ? <SocWarnings warnings={job.socWarnings} /> : null}<MajorItemsPanel jobId={job.id} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
     {job.status === "FAILED" ? <FailurePanel job={job} /> : null}
     {outputs.length ? <section className="rounded-card bg-surface p-5 shadow-card"><h2 className="font-display font-semibold">ไฟล์ผลลัพธ์</h2><div className="mt-3 flex flex-wrap gap-3">{outputs.map((doc) => <a key={doc.id} href={`/api/soc/documents/${doc.id}`} target={doc.type === "PREVIEW" ? "_blank" : undefined} className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">{doc.type === "PREVIEW" ? "เปิดตัวอย่าง PDF" : "ดาวน์โหลด DOCX"}</a>)}</div></section> : null}
     {job.status === "NEEDS_REVIEW" && !imported ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-5 shadow-card"><div><div className="font-medium">ตรวจทานแล้ว {job.results.length - unreviewed}/{job.results.length} รายการ</div><p className="mt-1 text-xs text-muted">ผลจากระบบเป็นเพียงคำแนะนำ ต้องยืนยันทุกข้อก่อนสร้าง DOCX</p></div><ReviewActions jobId={job.id} unreviewed={unreviewed} /></div> : null}
@@ -61,6 +61,12 @@ export default function SocJobDetail({ job }: { job: Job }) {
 // Yes/no view choices remembered per browser (falls back to memory when storage is blocked).
 const STORED_FLAG_EVENT = "soc:stored-flag-changed";
 const storedFlagFallback = new Map<string, boolean>();
+// What the SOC table reader told the reviewer at upload: parts of the SOC
+// file that are not checked.
+function SocWarnings({ warnings }: { warnings: string[] }) {
+  return <section role="status" className="rounded-card border border-danger-border bg-surface p-5 shadow-card"><h2 className="font-display text-sm font-semibold">ส่วนของไฟล์ SOC ที่ระบบไม่ได้ตรวจ</h2><ul className="mt-2 list-disc pl-5 text-sm text-label">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></section>;
+}
+
 function readStoredFlag(key: string, initial: boolean) {
   try {
     const value = window.localStorage.getItem(key);

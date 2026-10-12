@@ -17,7 +17,7 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 |---|---|---|---|
 | 01 | One SOC table reader on the web (prefactor) | – | done (2026-10-12) |
 | 02 | One SOC table reader in the skill (prefactor) | – | done (2026-10-12) |
-| 03 | Upload an Excel SOC and see its major items | 01 | ready-for-agent |
+| 03 | Upload an Excel SOC and see its major items | 01 | done (2026-10-12), deploy only with 04 + 05 |
 | 04 | The skill checks an Excel SOC | 02 | ready-for-agent |
 | 05 | Excel SOC end to end through the Runner | 03, 04 | ready-for-agent |
 | 06 | The web recognises Image Rows | 01 | ready-for-agent |
@@ -31,3 +31,9 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 - Accepting `.doc` / `.xls` directly.
 - Reading images inside an Excel SOC.
 - Editing an Image Reading and re-checking with the corrected text.
+
+## Found on the way (2026-10-12)
+
+- **MEA Y69 SOC is a `.doc`**, not `.docx`: it must be saved as `.docx` before upload (the web now says so).
+- **MEA major items come out wrong today.** Its table has no header row inside the table and restarts item numbers in every ผนวก (7 to 21): each ผนวก starts with an unnumbered row "ผนวก N" and then 1., 2., 1.1 … again. The web reads that as one ข้อ 1 split into 1.1, 1.2 … mixing all ผนวก. Needs a decision before ticket 09 (for example: an unnumbered "ผนวก N" row starts a major item). Not covered by any ticket yet.
+- **MEA rows have 6, 7 or 8 cells**; the reference (the "หมายเหตุ (คำอธิบายเพิ่มเติม)" column) is always at grid column 9 but at cell 5, 6 or 7 of the row. The skill's `reference_columns` picks one cell position per table, so it would miss the reference on 86 of 296 cited rows. Fix with ticket 07 (use the grid column, which `SocCell.column` has).

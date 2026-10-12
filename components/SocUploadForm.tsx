@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import SocFilePicker, { appendEvidence, readUploadResponse, sendEvidenceBatches } from "@/components/SocFilePicker";
-import { evidenceSelectionProblem, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
+import { evidenceSelectionProblem, MAX_SOC_FILE_BYTES, SOC_FILE_ACCEPT, socFileNameProblem } from "@/lib/soc-shared";
 import { uploadBatches } from "@/lib/soc-upload";
 
 export default function SocUploadForm() {
@@ -20,7 +20,9 @@ export default function SocUploadForm() {
 
   function submit(formData: FormData) {
     setError("");
-    if (!soc.length) return setError("กรุณาเลือกไฟล์ SOC (DOCX)");
+    if (!soc.length) return setError("กรุณาเลือกไฟล์ SOC (Word หรือ Excel)");
+    const socProblem = socFileNameProblem(soc[0].name);
+    if (socProblem) return setError(socProblem);
     if (soc[0].size > MAX_SOC_FILE_BYTES) return setError(`ไฟล์ ${soc[0].name} ต้องมีขนาดไม่เกิน ${MAX_SOC_FILE_BYTES / 1024 / 1024} MB`);
     const problem = evidenceSelectionProblem(evidence);
     if (problem) return setError(problem);
@@ -59,8 +61,8 @@ export default function SocUploadForm() {
           <input name="title" required maxLength={160} placeholder="เช่น Udon CASRI-H3C" className="h-[46px] rounded-input border border-line bg-surface px-4 text-ink outline-none focus:border-ink" />
         </label>
       </UploadSection>
-      <UploadSection number="2" title="เอกสาร SOC" description="รองรับ DOCX ขนาดไม่เกิน 25 MB">
-        <SocFilePicker files={soc} onChange={setSoc} disabled={pending} label="เลือกไฟล์ SOC (DOCX)" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+      <UploadSection number="2" title="เอกสาร SOC" description="รองรับ Word (.docx) และ Excel (.xlsx) ขนาดไม่เกิน 25 MB">
+        <SocFilePicker files={soc} onChange={setSoc} disabled={pending} label="เลือกไฟล์ SOC (Word หรือ Excel)" accept={SOC_FILE_ACCEPT} />
       </UploadSection>
       <UploadSection number="3" title="Datasheet / Catalog" description="แนบ PDF ได้ไม่เกิน 200 ไฟล์ ไฟล์ละไม่เกิน 120 MB รวมไม่เกิน 1 GB ถ้า SOC อ้างชื่อโฟลเดอร์ (เช่น 2.5 …) ให้กดเลือกโฟลเดอร์ ระบบจะเก็บโฟลเดอร์ย่อยไว้ให้">
         <SocFilePicker files={evidence} onChange={setEvidence} disabled={pending} multiple folders label="เลือกไฟล์ PDF" accept=".pdf,application/pdf" />

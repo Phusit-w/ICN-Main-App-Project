@@ -10,6 +10,7 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
 import { buildSocDocx } from "@/test/docx-fixture";
+import { buildXlsx } from "@/test/xlsx-fixture";
 
 const skip = setupTestDatabase();
 
@@ -47,10 +48,10 @@ function user(username: string, appAccess: string[] = ["soc"], role = "USER") {
   return prisma.user.create({ data: { username, displayName: username, passwordHash: "x", role, appAccess } });
 }
 
-function upload(fields: { title?: string; soc?: Uint8Array<ArrayBuffer>; evidence?: { name: string; bytes: Uint8Array<ArrayBuffer> }[] }) {
+function upload(fields: { title?: string; soc?: Uint8Array<ArrayBuffer>; socName?: string; evidence?: { name: string; bytes: Uint8Array<ArrayBuffer> }[] }) {
   const form = new FormData();
   if (fields.title !== undefined) form.set("title", fields.title);
-  if (fields.soc) form.set("soc", new File([fields.soc], "SOC ภาคผนวก ก.docx"));
+  if (fields.soc) form.set("soc", new File([fields.soc], fields.socName ?? "SOC ภาคผนวก ก.docx"));
   for (const file of fields.evidence ?? []) form.append("evidence", new File([file.bytes], file.name));
   return new Request("http://localhost/api/soc/jobs", { method: "POST", body: form });
 }
@@ -134,12 +135,57 @@ test("a SOC with no item numbers is rejected and nothing is kept", { skip }, asy
   assert.deepEqual(await readdir(storageRoot), storedBefore);
 });
 
-test("a SOC file that isn't a Word document is rejected and nothing is kept", { skip }, async () => {
+test("a SOC file that is really a PDF is rejected with its own message and nothing is kept", { skip }, async () => {
   signedIn = await user("owner");
   const storedBefore = await readdir(storageRoot);
   const response = await createJob(upload({ title: "x", soc: PDF, evidence: [{ name: "a.pdf", bytes: PDF }] }));
   assert.equal(response.status, 400);
-  assert.match(((await response.json()) as { error: string }).error, /ไฟล์ SOC ต้องเป็น DOCX/);
+  assert.match(((await response.json()) as { error: string }).error, /ยังไม่รองรับ SOC ที่เป็น PDF/);
+  assert.equal(await prisma.socJob.count(), 0);
+  assert.deepEqual(await readdir(storageRoot), storedBefore);
+});
+
+test("an Excel SOC creates the job with its major items, and keeps what the reviewer was told at upload", { skip }, async () => {
+  signedIn = await user("owner");
+  const header = ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "ตรงข้อกำหนด", "ดีกว่าข้อกำหนด", "เอกสารอ้างอิง"];
+  const soc = await buildXlsx([
+    { name: "หมายเหตุ", rows: [["ร่างครั้งที่ 2"]] },
+    { name: "SOC", images: 2, rows: [header, ["1", "ระบบเฝ้าระวัง", null, null, null, null], ["1.1", "กล้อง", "CASRI", null, "√", "Brochure page 3"], ["2.1", "เรดาร์", "X", "√", null, "Brochure page 5"]] },
+  ]);
+  const response = await createJob(upload({ title: "Surat CASRI", soc, socName: "Compliance Table.xlsx", evidence: [{ name: "Brochure.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const jobId = ((await response.json()) as { id: string }).id;
+
+  const job = await prisma.socJob.findUniqueOrThrow({ where: { id: jobId }, include: { documents: true, majorItems: { orderBy: { position: "asc" } } } });
+  assert.deepEqual(job.majorItems.map((m) => [m.key, m.label, m.title, m.rowCount, m.state]), [["1", "1", "ระบบเฝ้าระวัง", 2, "not_checked"], ["2", "2", null, 1, "not_checked"]]);
+  const stored = job.documents.find((d) => d.type === "SOC")!;
+  assert.deepEqual([stored.originalName, stored.mimeType, path.extname(stored.storageKey)], ["Compliance Table.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"]);
+  assert.equal(Array.isArray(job.socWarnings) ? job.socWarnings.length : 0, 2);
+  assert.match(String((job.socWarnings as string[])[0]), /ชีต "หมายเหตุ"/);
+  assert.match(String((job.socWarnings as string[])[1]), /มีรูป 2 รูป/);
+});
+
+test("a Word SOC has nothing to tell the reviewer at upload", { skip }, async () => {
+  const jobId = await createImported(await user("owner"));
+  assert.equal((await prisma.socJob.findUniqueOrThrow({ where: { id: jobId } })).socWarnings, null);
+});
+
+test("an old .doc or .xls SOC is rejected with what to do", { skip }, async () => {
+  signedIn = await user("owner");
+  const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  const response = await createJob(upload({ title: "x", soc: ole, socName: "SOC.xls", evidence: [{ name: "a.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 400);
+  assert.match(((await response.json()) as { error: string }).error, /Save As เป็น \.docx หรือ \.xlsx/);
+  assert.equal(await prisma.socJob.count(), 0);
+});
+
+test("a workbook with no SOC table is rejected and nothing is kept", { skip }, async () => {
+  signedIn = await user("owner");
+  const storedBefore = await readdir(storageRoot);
+  const soc = await buildXlsx([{ name: "ราคา", rows: [["รายการ", "ราคา"], ["กล้อง", 1000]] }]);
+  const response = await createJob(upload({ title: "x", soc, socName: "ราคา.xlsx", evidence: [{ name: "a.pdf", bytes: PDF }] }));
+  assert.equal(response.status, 400);
+  assert.match(((await response.json()) as { error: string }).error, /ไม่พบตาราง SOC ในไฟล์ Excel/);
   assert.equal(await prisma.socJob.count(), 0);
   assert.deepEqual(await readdir(storageRoot), storedBefore);
 });

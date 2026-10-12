@@ -75,8 +75,8 @@ export function socErrorStatus(message: string): number {
 // not_checked major item per ข้อใหญ่ of the SOC. It starts in NEEDS_REVIEW;
 // soc-worker never claims it. Nothing is kept if any step fails.
 export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }) {
-  const { file: socFile, majorItems } = readSocTable(input.soc.bytes);
-  if (!majorItems.length) throw new Error("ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์แรกของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1");
+  const { file: socFile, majorItems, warnings } = readSocTable(input.soc.bytes);
+  if (!majorItems.length) throw new Error("ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์ลำดับของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1");
   const jobId = randomUUID();
   try {
     const storedSoc = await storeSocFile(jobId, input.soc.name, socFile.extension, input.soc.bytes);
@@ -88,6 +88,7 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
           id: jobId, kind: "IMPORTED", title: input.title, ownerId: actor.id,
           status: "NEEDS_REVIEW", stage: "รอตรวจข้อใหญ่", progress: 0,
           expiresAt: new Date(Date.now() + RETENTION_MS),
+          socWarnings: warnings.length ? warnings : undefined,
         },
       }),
       prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: socFile.mimeType, ...storedSoc } }),
