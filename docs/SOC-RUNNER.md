@@ -51,7 +51,9 @@
 
 - `runnerVersion`: `A-Z a-z 0-9 . _ + -` ไม่เกิน 64 ตัว
 - `claudeLogin`: `logged_in` | `logged_out` | `unknown` (`logged_out` ทำให้หน้า `/soc` เตือนให้เข้าสู่ระบบ Claude ใหม่)
-- ตอบ `200 { "ok": true, "username": "...", "serverTime": "<ISO>" }`, `400` เมื่อ body ไม่ถูกต้อง (ไม่บันทึกอะไร)
+- ตอบ `200 { "ok": true, "username": "...", "serverTime": "<ISO>", "quotaPaused": true|false }`, `400` เมื่อ body ไม่ถูกต้อง (ไม่บันทึกอะไร)
+- `quotaPaused`: ผู้ใช้นี้ยังมีคำขอ `paused_quota` ที่ยังไม่ถึง `resumeAt` หรือไม่ runner ที่กำลังรอโควตา (0.4.2 ขึ้นไป) เลิกรอทันทีเมื่อได้ `false`
+  ซึ่งเกิดเมื่อผู้ใช้กด **ตรวจต่อเลย** บนหน้างาน
 - heartbeat ไม่ถูกบันทึกใน audit (มาทุก 30 วินาที)
 - heartbeat ต่ออายุคำขอที่ runner นี้กำลังตรวจ (ไม่ให้กลับเป็น `requested`)
 
@@ -78,7 +80,7 @@
 |---|---|---|
 | `requested` | รอคิวตรวจ / **รอเครื่องของคุณเปิด** (runner ของผู้ขอออฟไลน์หรือยังไม่เชื่อม) | รอ runner ของผู้ขอ |
 | `running` | กำลังตรวจ (+ ข้อความ progress) | runner รับไปแล้ว |
-| `paused_quota` | หยุดชั่วคราว จะตรวจต่อประมาณ HH:MM | runner รับใหม่ได้เมื่อถึง `resumeAt` |
+| `paused_quota` | หยุดชั่วคราว จะตรวจต่อประมาณ HH:MM + ปุ่ม **ตรวจต่อเลย** (ผู้ขอหรือ ADMIN) | runner รับใหม่ได้เมื่อถึง `resumeAt`; ตรวจต่อเลย = ตั้ง `resumeAt` เป็นตอนนี้ (`resumeCheckRequestNow`, audit `SOC_CHECK_REQUEST_RESUME_NOW`) runner รู้จาก heartbeat ถัดไป (ไม่เกิน ~30 วินาที) ถ้าโควตายังไม่กลับมาจะหยุดอีกครั้ง |
 | `needs_login` | รอเข้าสู่ระบบ Claude | runner รับใหม่ได้เมื่อ heartbeat บอก `logged_in` |
 | `needs_documents` | ขาดเอกสาร (+ ชื่อไฟล์) | ปิดคำขอ ปุ่ม [อัปโหลดเพิ่ม] (ไปที่ "เอกสารในงาน" แล้วกด **ตรวจใหม่**) หรือ [ตรวจต่อโดยไม่มีไฟล์นี้] |
 | `failed` | ตรวจไม่สำเร็จ (+ เหตุผล) | ปิดคำขอ ปุ่ม **ลองใหม่** |

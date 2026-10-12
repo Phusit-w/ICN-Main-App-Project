@@ -33,7 +33,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.4.1"
+RUNNER_VERSION = "0.4.2"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -695,7 +695,14 @@ class SocRunner:
             return "logged_out" if self.clock() < self.logged_out_until else state
 
     def heartbeat(self) -> None:
-        self.server.heartbeat(RUNNER_VERSION, self.claude_login())
+        paused_until = self.paused_until
+        reply = self.server.heartbeat(RUNNER_VERSION, self.claude_login())
+        # ตรวจต่อเลย on the web: none of the user's requests waits for the quota any more. Only a pause
+        # that was already set when this beat left: the server may not have had a newer one yet.
+        if (isinstance(reply, dict) and reply.get("quotaPaused") is False
+                and self.clock() < paused_until == self.paused_until):
+            self.paused_until = 0.0
+            self.log("มีคำสั่งตรวจต่อเลยจากหน้าเว็บ เลิกรอโควตา")
 
     def poll_once(self) -> str | None:
         if self.clock() < self.paused_until or self.claude_login() == "logged_out":

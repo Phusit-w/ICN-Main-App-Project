@@ -57,8 +57,11 @@ class FakeServer:
         self.submit_error: Exception | None = None
         self.report_error: Exception | None = None
 
-    def heartbeat(self, runner_version: str, claude_login: str) -> None:
+    heartbeat_reply: dict | None = None
+
+    def heartbeat(self, runner_version: str, claude_login: str) -> dict | None:
         self.heartbeats.append({"runnerVersion": runner_version, "claudeLogin": claude_login})
+        return self.heartbeat_reply
 
     def claim(self) -> dict | None:
         request, self.pending = self.pending, None
@@ -976,6 +979,23 @@ class AutomaticResumeTest(unittest.TestCase):
         self.assertIn("ต่อจากที่ค้างไว้", second.prompt)
         self.assertEqual(len(self.server.submits), 1)
         self.assertEqual(list(self.work_root.iterdir()), [])
+
+    def test_resume_now_on_the_web_ends_the_wait_at_the_next_heartbeat(self):
+        self.claude.script = [ClaudeQuotaExhausted(datetime.fromtimestamp(T0 + 3600, timezone.utc), "s")]
+        self.assertEqual(self.runner.poll_once(), "paused")
+        self.clock.now = T0 + 10 * 60
+
+        # Still waiting on the server, or a server that doesn't say: the runner keeps waiting.
+        for reply in ({"ok": True, "quotaPaused": True}, {"ok": True}):
+            self.server.heartbeat_reply = reply
+            self.runner.heartbeat()
+            self.assertIsNone(self.runner.poll_once())
+
+        self.server.paused = (self.server.original, self.clock.now)  # ตรวจต่อเลย: due now
+        self.server.heartbeat_reply = {"ok": True, "quotaPaused": False}
+        self.runner.heartbeat()
+        self.assertEqual(self.runner.poll_once(), "submitted")
+        self.assertTrue(self.claude.tasks[-1].resume)
 
     def test_an_expired_login_holds_claims_and_tells_the_server_until_rechecked(self):
         self.claude.script = [ClaudeLoggedOut("Login expired · Please run /login")]

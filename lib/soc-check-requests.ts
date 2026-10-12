@@ -185,6 +185,34 @@ export async function cancelCheckRequest(actor: Actor, job: Job, requestId: stri
   return cancelled ? { ok: true } : { ok: false, error: "คำขอนี้เริ่มตรวจแล้วหรือปิดไปแล้ว ยกเลิกไม่ได้" };
 }
 
+// ตรวจต่อเลย: a request paused for the Claude quota becomes due now, instead
+// of at the reset time its runner reported (the quota came back early, or
+// the reviewer signed Claude in to another account). The requester or ADMIN.
+// The runner drops its own wait at its next heartbeat (quotaPaused), claims
+// the request and resumes; if the quota is still used up it pauses again.
+export async function resumeCheckRequestNow(actor: Actor, job: Job, requestId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const request = await prisma.socCheckRequest.findFirst({ where: { id: requestId, jobId: job.id }, include: { majorItem: { select: { label: true } } } });
+  if (!request) throw new Error("NOT_FOUND");
+  if (request.requestedById !== actor.id && actor.role !== "ADMIN") throw new Error("FORBIDDEN");
+  const resumed = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.socCheckRequest.updateMany({ where: { id: request.id, state: "paused_quota" }, data: { resumeAt: new Date() } });
+    if (!count) return false;
+    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_RESUME_NOW", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label, resumeAt: request.resumeAt?.toISOString() ?? null } } });
+    await writeAudit({
+      actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_RESUME_NOW", entityType: "SOC_JOB", entityId: job.id,
+      summary: `สั่งตรวจต่อเลยข้อ ${request.majorItem.label} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
+    }, tx);
+    return true;
+  });
+  return resumed ? { ok: true } : { ok: false, error: "คำขอนี้ไม่ได้หยุดรอโควตาอยู่แล้ว กรุณาโหลดหน้าใหม่" };
+}
+
+// Whether a request of this user still waits for its quota resume time. A
+// runner that paused itself keeps waiting only while this is true.
+export async function hasQuotaPausedCheckRequest(userId: string, now = new Date()) {
+  return (await prisma.socCheckRequest.count({ where: { requestedById: userId, state: "paused_quota", resumeAt: { gt: now }, job: { deletedAt: null } } })) > 0;
+}
+
 // ---- Stale claims -----------------------------------------------------------------
 
 // Running requests whose runner has been quiet for SOC_CHECK_REQUEST_STALE_MS

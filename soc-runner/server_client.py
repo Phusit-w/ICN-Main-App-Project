@@ -65,8 +65,8 @@ class HttpServerClient:
             self.context = ssl.create_default_context()
             self.context.load_verify_locations(cafile=ca_file, cadata=ca_pem)
 
-    def heartbeat(self, runner_version: str, claude_login: str) -> None:
-        self._json("POST", "/api/soc-runner/heartbeat", {"runnerVersion": runner_version, "claudeLogin": claude_login})
+    def heartbeat(self, runner_version: str, claude_login: str) -> dict:
+        return self._json("POST", "/api/soc-runner/heartbeat", {"runnerVersion": runner_version, "claudeLogin": claude_login})
 
     def claim(self) -> dict | None:
         return self._json("POST", "/api/soc-runner/claim").get("request")

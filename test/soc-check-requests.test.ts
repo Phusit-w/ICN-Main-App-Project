@@ -25,7 +25,7 @@ let signedIn: Actor | null = null;
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const { requestSocCheck, requestAllSocChecks, requestSocRowRechecks, cancelSocCheckRequest, continueSocCheckWithoutMissing, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
+const { requestSocCheck, requestAllSocChecks, requestSocRowRechecks, cancelSocCheckRequest, resumeSocCheckRequestNow, continueSocCheckWithoutMissing, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob, listSocJobs } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 const { uploadSocSkillPackage, setCurrentSocSkillPackage } = await import("@/lib/soc-skill-package");
@@ -463,6 +463,31 @@ test("each state report moves the major item to the right state", { skip }, asyn
 
   const audited = await prisma.socAuditEvent.findMany({ where: { jobId, action: "CHECK_REQUEST_REPORTED" } });
   assert.deepEqual(audited.map((e) => (e.detail as { state: string }).state).sort(), ["failed", "needs_documents", "needs_login", "paused_quota"]);
+});
+
+test("ตรวจต่อเลย makes a quota-paused request due now, tells the runner to stop waiting, for its requester or ADMIN only", { skip }, async () => {
+  const { alice, bob, jobId, item1 } = await setup();
+  const token = await linkRunner(alice);
+  const quotaPaused = async () => ((await (await heartbeat(token)).json()) as { quotaPaused: boolean }).quotaPaused;
+  signedIn = alice;
+  await requestSocCheck(jobId, item1.id);
+  const request = (await claim(token)).body.request!;
+  assert.equal((await resumeSocCheckRequestNow(jobId, request.id)).ok, false, "only a paused request");
+  assert.equal(await quotaPaused(), false);
+
+  assert.equal((await report(token, request.id, { state: "paused_quota", resumeAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() })).status, 200);
+  assert.equal(await quotaPaused(), true);
+  assert.equal((await claim(token)).body.request, null);
+
+  signedIn = bob;
+  await assert.rejects(resumeSocCheckRequestNow(jobId, request.id), /FORBIDDEN/);
+  signedIn = alice;
+  assert.deepEqual(await resumeSocCheckRequestNow(jobId, request.id), { ok: true });
+  assert.equal(await itemState(item1.id), "paused_quota", "until its runner claims it");
+  assert.equal(await quotaPaused(), false);
+  assert.equal(await prisma.auditLog.count({ where: { action: "SOC_CHECK_REQUEST_RESUME_NOW" } }), 1);
+  assert.equal((await claim(token)).body.request?.id, request.id);
+  assert.equal(await itemState(item1.id), "running");
 });
 
 test("[ตรวจต่อโดยไม่มีไฟล์นี้] re-issues the request acknowledging the missing documents, and the checked item keeps the banner", { skip }, async () => {
