@@ -70,6 +70,8 @@
   ผลเดิมของแถวที่ไม่ได้เลือกยังอยู่) แถวที่เลือกซึ่งยืนยันแล้วถือว่าผู้กดยอมให้แทนที่ (หน้าเว็บถามก่อน) แถว **รอแก้ไข** ไม่ต้องถาม
 - **ยกเลิกคำขอ** ได้เฉพาะตอนยัง `requested` (runner ยังไม่รับ) โดยผู้ขอหรือ ADMIN ข้อใหญ่กลับไปเป็นสถานะก่อนขอ
 - ระหว่างมีคำขอเปิดอยู่ นำเข้าผลด้วยมือในข้อนั้นไม่ได้
+- ปุ่ม **นำเข้าผล / นำเข้าผลใหม่** (อัปโหลด results.json + SOC_Check ด้วยมือ) แสดงเฉพาะ ADMIN ตั้งแต่ 2026-10-12 เพราะผู้ตรวจที่ใช้ runner
+  ไม่มีสองไฟล์นี้ในมือ (runner ส่งให้เองแล้วลบ) ซ่อนที่หน้าเว็บเท่านั้น API นำเข้ายังรับจากผู้ใช้ที่เปิดงานได้ตามเดิม
 - Audit: `SOC_CHECK_REQUESTED`, `SOC_CHECK_REQUEST_CANCELLED`, `SOC_CHECK_REQUEST_REPORTED` (เฉพาะสถานะพิเศษ) และ `SOC_RUN_IMPORTED`
   ตอนส่งผล ส่วนประวัติของงาน (`SocAuditEvent`) มี `CHECK_REQUESTED`, `CHECK_REQUEST_CLAIMED`, `CHECK_REQUEST_REPORTED`,
   `CHECK_REQUEST_RELEASED`, `CHECK_REQUEST_CANCELLED`

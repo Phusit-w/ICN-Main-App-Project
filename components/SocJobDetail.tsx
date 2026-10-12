@@ -130,8 +130,9 @@ function SkillVersionFlag({ status }: { status: SkillVersionStatus | null }) {
 const isProblemItem = (item: MajorItem) => item.state === "failed" || item.state === "needs_documents" || item.state === "needs_login" || (item.state === "checked" && item.missingDocuments.length > 0);
 
 function MajorItemRow({ jobId, item, viewerId, viewerIsAdmin, open, onToggle, onDone }: { jobId: string; item: MajorItem; viewerId: string; viewerIsAdmin: boolean; open: boolean; onToggle: () => void; onDone: () => void }) {
-  // A checked item can be imported again: a re-check replaces its rows.
-  const canImport = !item.skipped && (item.state === "not_checked" || item.state === "checked");
+  // A checked item can be imported again: a re-check replaces its rows. Shown to ADMIN only: reviewers
+  // check through their SOC Runner and never hold a results.json to upload; the manual import is the fallback.
+  const canImport = viewerIsAdmin && !item.skipped && (item.state === "not_checked" || item.state === "checked");
   const recheck = item.state === "checked";
   const state = item.skipped ? { label: "ไม่ต้องตรวจ", detail: null } : majorItemStateText(item, viewerId);
   const canSkip = !item.skipped && (item.state === "not_checked" || item.state === "failed");
