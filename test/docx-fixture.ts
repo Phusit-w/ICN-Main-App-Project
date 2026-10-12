@@ -6,9 +6,23 @@ function escapeXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export function tableXml(rows: string[][]): string {
+// A TOR cell that is an image instead of text (an Image Row): `vml` writes it
+// the way a .doc saved as .docx has it (w:pict), otherwise as a w:drawing.
+export type ImageCell = { image: Uint8Array; name?: string; vml?: boolean };
+export type Cell = string | ImageCell;
+
+// 1 x 1 pixel.
+export const PNG = new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+
+const textRun = (text: string) => `<w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+const imageRun = (id: string, vml: boolean) => vml
+  ? `<w:r><w:pict><v:shape id="_x0000_i1025" type="#_x0000_t75" style="width:249pt;height:82.5pt"><v:imagedata r:id="${id}" o:title="Screenshot"/></v:shape></w:pict></w:r>`
+  : `<w:r><w:drawing><wp:inline><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="${id}"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+
+// `imageId` names the relationship of each image cell, in order.
+export function tableXml(rows: Cell[][], imageId: (cell: ImageCell) => string = () => "rId1"): string {
   const body = rows
-    .map((cells) => `<w:tr>${cells.map((text) => `<w:tc><w:p><w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p></w:tc>`).join("")}</w:tr>`)
+    .map((cells) => `<w:tr>${cells.map((cell) => `<w:tc><w:p>${typeof cell === "string" ? textRun(cell) : imageRun(imageId(cell), !!cell.vml)}</w:p></w:tc>`).join("")}</w:tr>`)
     .join("");
   return `<w:tbl><w:tblPr/>${body}</w:tbl>`;
 }
@@ -17,13 +31,13 @@ export function documentXml(bodyXml: string): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${bodyXml}</w:body></w:document>`;
 }
 
-export function buildZip(files: Record<string, string>, { deflate = false } = {}): Uint8Array<ArrayBuffer> {
+export function buildZip(files: Record<string, string | Uint8Array>, { deflate = false } = {}): Uint8Array<ArrayBuffer> {
   const local: Buffer[] = [];
   const central: Buffer[] = [];
   let offset = 0;
   for (const [name, content] of Object.entries(files)) {
     const nameBytes = Buffer.from(name, "utf8");
-    const raw = Buffer.from(content, "utf8");
+    const raw = typeof content === "string" ? Buffer.from(content, "utf8") : Buffer.from(content);
     const data = deflate ? deflateRawSync(raw) : raw;
     const method = deflate ? 8 : 0;
     const crc = crc32(raw);
@@ -61,13 +75,24 @@ export function buildZip(files: Record<string, string>, { deflate = false } = {}
   return new Uint8Array(Buffer.concat([...local, ...central, end]));
 }
 
-export function buildDocx(bodyXml: string, options?: { deflate?: boolean }): Uint8Array<ArrayBuffer> {
+export function buildDocx(bodyXml: string, options?: { deflate?: boolean; parts?: Record<string, string | Uint8Array> }): Uint8Array<ArrayBuffer> {
   return buildZip({
     "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`,
     "word/document.xml": documentXml(bodyXml),
+    ...options?.parts,
   }, options);
 }
 
-export function buildSocDocx(rows: string[][]): Uint8Array<ArrayBuffer> {
-  return buildDocx(tableXml(rows));
+// A SOC of one table. Image cells become word/media files, named by the
+// document's relationships as Word does.
+export function buildSocDocx(rows: Cell[][]): Uint8Array<ArrayBuffer> {
+  const images: ImageCell[] = [];
+  const body = tableXml(rows, (cell) => `rId${images.push(cell)}`);
+  if (!images.length) return buildDocx(body);
+  const target = (cell: ImageCell, i: number) => `media/${cell.name ?? `image${i + 1}.png`}`;
+  const relationships = images.map((cell, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${target(cell, i)}"/>`).join("");
+  return buildDocx(body, { parts: {
+    "word/_rels/document.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships}</Relationships>`,
+    ...Object.fromEntries(images.map((cell, i) => [`word/${target(cell, i)}`, cell.image])),
+  } });
 }

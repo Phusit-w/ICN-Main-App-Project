@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { jobSocDocument, readJobSoc } from "@/lib/soc-import";
 import { isExcelSoc } from "@/lib/soc-shared";
+import type { SocRowText } from "@/lib/soc-table";
 import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
 // Each axis with the field the skill uses to explain it.
@@ -24,6 +25,7 @@ export type SocReviewRow = {
   status: Exclude<SocRowStatus, "heading">; reasons: string[];
   evidenceMissing: boolean; // Claude couldn't find or read the cited page or document
   torText: string; proposalText: string | null; reference: string; referencePages: number[];
+  torImage: boolean; // an Image Row: the TOR cell of the SOC is an image, shown in place of the text
   // Each document the reference cites, with its pages and the evidence PDF it names (null when none fits).
   citations: EvidenceCitation[];
   declaredSelection: string | null; // declared_status: Comply/Better as ticked in the SOC; null when it has no tick box
@@ -61,10 +63,11 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
     const axes = axisValues(r);
     const { status, reasons } = overallRowStatus(r.rowType, axes);
     if (status === "heading") continue;
-    const text = r.socText ? { tor: r.socText, proposal: r.proposalText } : soc?.rowText(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
+    // An Image Row has no TOR text stored either, so it is found by the same read.
+    const text: SocRowText = r.socText ? { tor: r.socText, proposal: r.proposalText } : soc?.rowText(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
     rows.push({
       id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, sheet: soc?.sheetOfRow(r.rowNumber) ?? null, status, reasons, evidenceMissing: evidenceMissing(axes),
-      torText: text.tor, proposalText: text.proposal, reference: r.referenceText,
+      torText: text.tor, proposalText: text.proposal, torImage: !!text.image, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),
       declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,

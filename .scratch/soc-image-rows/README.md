@@ -20,7 +20,7 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 | 03 | Upload an Excel SOC and see its major items | 01 | done (2026-10-12) |
 | 04 | The skill checks an Excel SOC | 02 | done (2026-10-12), skill outside git, no package uploaded |
 | 05 | Excel SOC end to end through the Runner | 03, 04 | done (2026-10-12), Runner 0.5.0, not deployed |
-| 06 | The web recognises Image Rows | 01 | ready-for-agent |
+| 06 | The web recognises Image Rows | 01 | done (2026-10-12), not pushed, not deployed |
 | 07 | The skill reads Image Rows | 02 | ready-for-agent |
 | 08 | Image Rows end to end on the review page | 06, 07 | ready-for-agent |
 | 09 | Live acceptance and quota | 05, 08 | ready-for-human |

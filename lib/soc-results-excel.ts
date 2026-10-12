@@ -26,6 +26,8 @@ const COLUMNS: { header: string; width: number }[] = [
 ];
 const CONFIDENCE_LABELS: Record<string, string> = { high: "สูง", medium: "กลาง", low: "ต่ำ" };
 const RED = "FFC7CE";
+// The TOR cell of an Image Row: images aren't put in the workbook.
+const IMAGE_ROW_TOR = "[รูป]";
 
 // The ผลอ้างอิง cell with the skill's sub-status: a matching page whose
 // evidence isn't complete is not shown as a plain green "ตรง". Same texts and
@@ -94,7 +96,7 @@ function addItemSheet(book: ExcelJS.Workbook, name: string, rows: SocReviewRow[]
     const leading = majorItemLabels ? [majorItemLabels.get(row.majorItemId ?? "") ?? "", SOC_ROW_STATUS_LABELS[row.status]] : [];
     const added = sheet.addRow([
       ...leading,
-      row.sheet ? `${row.sheet} · ${row.rowNumber}` : row.rowNumber, row.item, row.torText, row.reference, reference.text,
+      row.sheet ? `${row.sheet} · ${row.rowNumber}` : row.rowNumber, row.item, row.torImage ? IMAGE_ROW_TOR : row.torText, row.reference, reference.text,
       socAxisValueLabel(axis(row, "item_label_check")), socAxisValueLabel(axis(row, "highlight_check")),
       socAxisValueLabel(axis(row, "evidence_support")), socAxisValueLabel(row.systemRecommendation),
       CONFIDENCE_LABELS[row.confidence] ?? row.confidence ?? "", row.keyIssue ?? "",

@@ -25,7 +25,7 @@ function installDom() {
 
 const row = (id: string, item: string, page: number): SocReviewRow => ({
   id, item, rowNumber: page, majorItemId: "major-1", sheet: null, status: "review", reasons: ["ควรตรวจหลักฐาน"], evidenceMissing: false,
-  torText: `ข้อกำหนด ${item}`, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
+  torText: `ข้อกำหนด ${item}`, torImage: false, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
   citations: [{ cited: "Datasheet", document: { id: "pdf-1", name: "Datasheet.pdf" }, pages: [page] }],
   declaredSelection: "comply", systemRecommendation: "compliant",
   axes: [{ key: "reference_check", label: "หน้าอ้างอิง", value: "match", ok: true, detail: "ตรง" }],
@@ -43,11 +43,11 @@ afterEach(async () => {
 });
 after(() => dom.window.close());
 
-const setup = async (jobId = "job-1") => {
+const setup = async (jobId = "job-1", shown = rows) => {
   const testing = await import("@testing-library/react");
   const user = (await import("@testing-library/user-event")).default.setup({ document: dom.window.document });
   const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
-  const view = testing.render(React.createElement(SocReviewPanel, { jobId, items, rows }));
+  const view = testing.render(React.createElement(SocReviewPanel, { jobId, items, rows: shown }));
   return { ...testing, user, view };
 };
 
@@ -62,6 +62,23 @@ test("clicking a SOC row shows its comparison and cited page beside the table", 
   assert.ok(within(detail).getByText("ข้อเสนอ ๑.๒"));
   assert.equal(within(detail).getByRole("img", { name: "Datasheet.pdf หน้า 5" }).getAttribute("src"), "/api/soc/jobs/job-1/evidence/pdf-1/pages/5");
   assert.equal(screen.queryByRole("dialog"), null);
+});
+
+test("an Image Row shows the image of its TOR cell in place of the text, beside the table and full screen", async () => {
+  // An Image Row carries the item number of the row above it.
+  const imageRow = { ...row("row-3", "๑.๒", 7), torText: "", torImage: true };
+  const { screen, within, user } = await setup("job-1", [...rows, imageRow]);
+  assert.ok(screen.getByText("รูป"), "the table marks the row");
+  await user.click(screen.getAllByRole("button", { name: "๑.๒" })[1]);
+
+  const detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๒" });
+  const image = within(detail).getByRole("img", { name: "รูปข้อกำหนด TOR ข้อ ๑.๒ แถว 7" });
+  assert.equal(image.getAttribute("src"), "/api/soc/jobs/job-1/soc-rows/7/image?item=%E0%B9%91.%E0%B9%92");
+  assert.equal(within(detail).queryByText("ไม่พบข้อความในไฟล์ SOC"), null);
+  assert.ok(within(detail).getByText("ข้อเสนอ ๑.๒"));
+
+  await user.click(screen.getByRole("button", { name: "ขยายเต็มจอ" }));
+  assert.ok(within(screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๒" })).getByRole("img", { name: "รูปข้อกำหนด TOR ข้อ ๑.๒ แถว 7" }));
 });
 
 test("the row opens full screen with comparison/evidence panes and PDF zoom, and keeps an unsaved decision", async () => {

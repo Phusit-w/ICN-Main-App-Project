@@ -139,7 +139,7 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
                 <td className="py-3 pl-3" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`เลือกข้อ ${row.item}`} checked={picked.has(row.id)} onChange={(e) => togglePicked([row.id], e.target.checked)} /></td>
                 <td className="px-3 py-3 text-base" title={SOC_ROW_STATUS_LABELS[row.status]}>{SOC_ROW_STATUS_ICONS[row.status]}</td>
                 <td className="whitespace-nowrap px-3 py-3"><button type="button" onClick={(e) => { e.stopPropagation(); pick(row.id); }} className="ui-btn font-medium text-ink">{row.item}</button></td>
-                <td className="px-3 py-3"><span className="line-clamp-2 leading-relaxed">{row.torText || <span className="text-muted">{row.keyIssue || row.detail}</span>}</span>{row.evidenceMissing ? <span className="mt-1 inline-block rounded-full border border-danger-border px-2 py-0.5 text-[11px] text-danger">หาเอกสารไม่เจอ</span> : null}</td>
+                <td className="px-3 py-3"><span className="line-clamp-2 leading-relaxed">{row.torImage ? <span className="mr-1.5 rounded-full bg-chip px-2 py-0.5 text-[11px] text-label">รูป</span> : null}{row.torText ||<span className="text-muted">{row.keyIssue || row.detail}</span>}</span>{row.evidenceMissing ? <span className="mt-1 inline-block rounded-full border border-danger-border px-2 py-0.5 text-[11px] text-danger">หาเอกสารไม่เจอ</span> : null}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-xs">{row.declaredSelection ? <>{socAxisValueLabel(row.declaredSelection)} → </> : null}<span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></td>
                 <td className="whitespace-nowrap px-3 py-3 text-xs">{row.finalDecision ? <DecisionChip decision={row.finalDecision} /> : <span className="text-muted">—</span>}</td>
               </tr>}
@@ -375,7 +375,7 @@ function PickedActions({ jobId, picked, visible, onClear }: { jobId: string; pic
 function RowInspector({ jobId, row, layout, decisionForm }: { jobId: string; row: SocReviewRow; layout: "stack" | "split"; decisionForm: ReactNode }) {
   const [pane, setPane] = useState<"comparison" | "evidence">("comparison");
   const comparison = <>
-    <ClampedText label="ข้อกำหนด TOR" text={row.torText} empty="ไม่พบข้อความในไฟล์ SOC" />
+    {row.torImage ? <TorImage jobId={jobId} row={row} /> : <ClampedText label="ข้อกำหนด TOR" text={row.torText} empty="ไม่พบข้อความในไฟล์ SOC" />}
     <ClampedText label="ข้อเสนอของผู้ยื่น" text={row.proposalText} empty="—" />
     <Verdict row={row} />
   </>;
@@ -415,6 +415,41 @@ function ClampedText({ label, text, empty }: { label: string; text: string | nul
     <div className="text-xs font-semibold text-label">{label}</div>
     {text ? <p className={`mt-1 whitespace-pre-wrap leading-relaxed ${long && !open ? "line-clamp-5" : ""}`}>{text}</p> : <p className="mt-1 text-muted">{empty}</p>}
     {long ? <button type="button" onClick={() => setOpen(!open)} className="ui-btn mt-1 text-xs text-label underline hover:text-ink">{open ? "ย่อ" : "แสดงทั้งหมด"}</button> : null}
+  </div>;
+}
+
+// Why the server sent no image: its Thai reason, asked for again because an
+// image's error event carries no status.
+async function imageFailureReason(url: string, generic: string): Promise<string> {
+  try {
+    const body = await (await fetch(url)).json();
+    if (typeof body?.error === "string") return body.error;
+  } catch { /* keep the generic reason */ }
+  return generic;
+}
+
+// The TOR cell of an Image Row: the image from the SOC file, where the TOR
+// text would be. A click opens it full size; an image that can't be shown
+// gets the server's Thai reason instead of a broken image.
+function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
+  const src = `/api/soc/jobs/${jobId}/soc-rows/${row.rowNumber}/image?item=${encodeURIComponent(row.item)}`;
+  const [failure, setFailure] = useState<string | null>(null);
+  const explained = useRef(false);
+  async function explainFailure() {
+    if (explained.current) return;
+    explained.current = true;
+    setFailure(await imageFailureReason(src, "แสดงรูปนี้ไม่ได้ กรุณาลองใหม่"));
+  }
+  return <div className="rounded-input border border-line p-3 text-sm">
+    <div className="text-xs font-semibold text-label">ข้อกำหนด TOR <span className="ml-1 rounded-full bg-chip px-2 py-0.5 text-[11px] font-normal">รูปในไฟล์ SOC</span></div>
+    {failure ? <p role="alert" className="mt-2 rounded-input border border-danger-border bg-surface p-3 text-xs text-danger">{failure}</p>
+      : <a href={src} target="_blank" rel="noreferrer" title="เปิดรูปขนาดเต็ม" className="mt-2 block overflow-auto rounded-input border border-line bg-white">
+        {/* An image behind an access check; next/image adds nothing here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={`รูปข้อกำหนด TOR ข้อ ${row.item} แถว ${row.rowNumber}`} className="block h-auto max-w-full" onError={explainFailure}
+          // An image that failed before hydration never fires onError.
+          ref={(img) => { if (img?.complete && img.naturalWidth === 0) explainFailure(); }} />
+      </a>}
   </div>;
 }
 
@@ -466,11 +501,7 @@ function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
   async function explainFailure(url: string, failedUrl = url) {
     if (explained.current.has(url)) return;
     explained.current.add(url);
-    let reason = "แสดงหน้านี้ไม่ได้ กรุณาลองใหม่";
-    try {
-      const body = await (await fetch(failedUrl)).json();
-      if (typeof body?.error === "string") reason = body.error;
-    } catch { /* keep the generic reason */ }
+    const reason = await imageFailureReason(failedUrl, "แสดงหน้านี้ไม่ได้ กรุณาลองใหม่");
     setFailures((current) => ({ ...current, [url]: reason }));
   }
 
