@@ -4,6 +4,9 @@ import { assertSocFile, readSocTable } from "@/lib/soc-table";
 import { buildSocDocx, buildZip } from "@/test/docx-fixture";
 import { buildXlsx, STACKED_HEADER, STACKED_HEADER_MERGES } from "@/test/xlsx-fixture";
 
+// The skill's reader must number rows the same way: its tests build these
+// same workbook layouts (skill tests/test_soc_table_excel.py). A layout
+// changed or added here goes there too.
 const HEADER = ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เอกสารอ้างอิง"];
 const numbered = (prefix: string, count: number) => Array.from({ length: count }, (_, i) => [`${prefix}.${i + 1}`, `TOR ${prefix}.${i + 1}`, `ข้อเสนอ ${prefix}.${i + 1}`, null, "√", "Brochure page 2"]);
 
