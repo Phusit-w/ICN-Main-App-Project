@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from datetime import datetime, timedelta, timezone
 
-from claude_cli import ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
+from claude_cli import ClaudeBusy, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
 from runner import (RUNNER_VERSION, SocRunner, build_evidence_packet, carry_out, load_config, open_log, parse_args, restore_current,
                     single_instance)
 from server_client import NotClaimed, ServerError, SubmitRejected
@@ -502,6 +502,31 @@ class SpecialStatesTest(unittest.TestCase):
         self.assertEqual(self.carry_out(claude), "failed")
         self.assertEqual(self.server.reports[-1][1]["state"], "failed")
         self.assertIn("Claude หยุดทำงาน", self.server.reports[-1][1]["reason"])
+
+    def test_a_busy_claude_is_tried_again_in_the_same_session_after_a_pause(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeQuotaExhausted(None, "s"), ClaudeBusy("Failed to refresh OAuth token"), ClaudeBusy("Failed to refresh OAuth token")]
+        waits = []
+        self.carry_out(claude)
+        self.assertEqual(self.carry_out(claude, busy_wait=waits.append), "submitted")
+        first, *resumed = claude.tasks
+        self.assertEqual([(t.resume, t.session_id) for t in resumed], [(True, first.session_id)] * 3)
+        self.assertEqual(waits, [60, 60])
+        self.assertNotIn("failed", self.states())
+
+    def test_a_busy_claude_on_a_first_run_is_tried_again_with_a_new_session(self):
+        claude = FakeClaude()
+        claude.script = [ClaudeBusy("Failed to refresh OAuth token")]
+        self.assertEqual(self.carry_out(claude, busy_wait=lambda _: None), "submitted")
+        first, second = claude.tasks
+        self.assertFalse(second.resume)
+        self.assertNotEqual(second.session_id, first.session_id)
+
+    def test_a_claude_that_stays_busy_fails_with_its_reason(self):
+        claude = FakeClaude(error=ClaudeBusy("Claude หยุดทำงานก่อนตรวจเสร็จ (exit 1): Failed to refresh OAuth token"))
+        self.assertEqual(self.carry_out(claude, busy_wait=lambda _: None), "failed")
+        self.assertEqual(len(claude.tasks), 4)
+        self.assertIn("Failed to refresh OAuth token", self.server.reports[-1][1]["reason"])
 
     def test_a_lost_session_after_a_pause_starts_a_new_one_with_the_rows_already_written(self):
         claude = FakeClaude()

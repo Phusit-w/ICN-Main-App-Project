@@ -43,6 +43,10 @@ QUOTA_ERRORS = {"rate_limit"}
 LOGIN_TEXT = re.compile(r"/login|not logged in|login expired|oauth token (has expired|revoked)|invalid_grant", re.I)
 # Not "Context limit reached" or "Subagent nesting limit reached".
 QUOTA_TEXT = re.compile(r"usage limit|hit your [a-z ]{0,20}limit|(session|weekly|opus|sonnet|fable) limit reached", re.I)
+# Seen live on 2.1.295 (exit 1, `error` "server_error") when the runner started at logon beside other Claude Code
+# processes: "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh.
+# This is usually transient; retry in a minute, ...". No quota is used and the login is still good.
+BUSY_TEXT = re.compile(r"failed to refresh oauth token", re.I)
 
 
 @dataclass
@@ -80,6 +84,10 @@ class ClaudeQuotaExhausted(Exception):
 
 class ClaudeLoggedOut(Exception):
     """Claude Code on this machine is not signed in, or its login expired."""
+
+
+class ClaudeBusy(ClaudeFailed):
+    """The CLI stopped before it reached the API, for a reason that passes on its own: worth another try shortly."""
 
 
 class ClaudeSessionMissing(ClaudeFailed):
@@ -139,6 +147,9 @@ def interpret(stream: RunStream, returncode: int, stderr: str = "") -> ClaudeRun
     # The message text is only trusted when the run ended on an API error, not
     # when Claude itself merely wrote "/login" or "limit" in its last message.
     api_error = bool(stream.api_errors) or status is not None or result.get("terminal_reason") == "api_error"
+    detail = (text or stderr or "").strip()[:300]
+    if (api_error and BUSY_TEXT.search(text)) or BUSY_TEXT.search(stderr):
+        raise ClaudeBusy(f"Claude หยุดทำงานก่อนตรวจเสร็จ (exit {returncode}): {detail}")
     if stream.api_errors & LOGIN_ERRORS or status == 401 or (api_error and LOGIN_TEXT.search(text)):
         raise ClaudeLoggedOut(text or "Not logged in")
     rejected = (stream.rate_limit or {}).get("status") == "rejected"
@@ -146,7 +157,6 @@ def interpret(stream: RunStream, returncode: int, stderr: str = "") -> ClaudeRun
         resets_at = (stream.rate_limit or {}).get("resetsAt") if rejected else None
         when = datetime.fromtimestamp(resets_at, timezone.utc) if isinstance(resets_at, (int, float)) and resets_at > 0 else None
         raise ClaudeQuotaExhausted(when, stream.session_id)
-    detail = (text or stderr or "").strip()[:300]
     raise ClaudeFailed(f"Claude หยุดทำงานก่อนตรวจเสร็จ (exit {returncode}): {detail}")
 
 

@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from claude_cli import (ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask, child_env,
+from claude_cli import (ClaudeBusy, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask, child_env,
                         find_claude, interpret_stream, run_arguments)
 
 SESSION = "5aa7306e-bce2-4edc-822e-c5ba3e00f205"
@@ -66,6 +66,17 @@ class InterpretStreamTest(unittest.TestCase):
                      "Failed to authenticate. API Error: 401 {\"error\":\"invalid_grant\"}"):
             with self.subTest(text=text), self.assertRaises(ClaudeLoggedOut):
                 interpret_stream([INIT, result(True, text, status=401)], returncode=1)
+
+    def test_a_login_refresh_held_by_another_claude_is_busy_not_logged_out(self):
+        # Real output of a run started beside other Claude Code processes at logon (2.1.295).
+        text = ("Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh."
+                " This is usually transient; retry in a minute, and if it persists close other Claude Code processes or sign in again")
+        lines = [INIT,
+                 line({"type": "assistant", "session_id": SESSION, "error": "server_error", "is_api_error_message": True,
+                       "message": {"model": "<synthetic>", "content": [{"type": "text", "text": text}]}}),
+                 result(True, text)]
+        with self.assertRaises(ClaudeBusy):
+            interpret_stream(lines, returncode=1)
 
     def test_a_used_up_quota_pauses_until_the_window_resets(self):
         lines = [INIT, rate_limit("rejected", RESET),

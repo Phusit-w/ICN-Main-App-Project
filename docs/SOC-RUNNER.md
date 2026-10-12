@@ -209,6 +209,7 @@ npm run soc:runner:test                          # unittest ด้วย server 
 | skill เขียน `out/missing_documents.json` (ขั้นที่ 0 แบบ headless) | รายงาน `needs_documents` พร้อมชื่อ (ไม่นับชื่อใน `acknowledged_missing`) ไม่ submit และลบโฟลเดอร์งาน | ขาดเอกสาร + [อัปโหลดเพิ่ม] [ตรวจต่อโดยไม่มีไฟล์นี้] [ตรวจใหม่] |
 | โควตา Claude หมด | รายงาน `paused_quota` โดย `resumeAt` = เวลา reset + 2 นาที (ไม่รู้เวลา → อีก 30 นาที) เก็บโฟลเดอร์งาน และ**ไม่ claim คำขอใดเลย**จนถึงเวลานั้น (โควตาเป็นของผู้ใช้) แล้ว claim คำขอเดิมกลับมา `--resume` ต่อเอง | หยุดชั่วคราว จะตรวจต่อประมาณ HH:MM |
 | login ของ Claude หมดอายุ / ไม่ได้ login | รายงาน `needs_login` เก็บโฟลเดอร์งาน heartbeat ส่ง `logged_out` ทันที และไม่ claim อย่างน้อย 5 นาที (เพิ่มเป็นเท่าตัวทุกครั้งที่ยังหมดอายุ สูงสุด 30 นาที เพื่อให้หน้าเว็บเลิกแสดงว่ายังไม่ได้ login ไม่นานหลังผู้ใช้ /login ใหม่) จากนั้นเชื่อ `claude auth status` | รอเข้าสู่ระบบ Claude: เปิดโปรแกรม claude แล้วพิมพ์ /login |
+| Claude ยังไม่พร้อมชั่วคราว ("Failed to refresh OAuth token": Claude Code อีกตัวกำลังต่ออายุ login อยู่ เช่น ตอนเปิดเครื่อง; runner 0.4.1) | ยังเป็น `running` รอ 60 วินาทีแล้วลองใหม่ สูงสุด 3 ครั้ง (ตรวจต่อ → `--resume` session เดิม, ตรวจครั้งแรก → session ใหม่) ถ้ายังไม่ได้ → `failed` | กำลังตรวจ: Claude ยังไม่พร้อม กำลังรอเพื่อลองใหม่ |
 | ล้มเหลวแบบอื่น | รายงาน `failed` พร้อมเหตุผลภาษาไทย | ตรวจไม่สำเร็จ + เหตุผล + [ลองใหม่] |
 
 heartbeat ส่ง `claudeLogin` จาก `claude auth status --json` (`loggedIn` true/false, อ่านผลซ้ำทุก 5 นาที, ไม่ใช้โควตา)
@@ -229,6 +230,8 @@ heartbeat ส่ง `claudeLogin` จาก `claude auth status --json` (`logged
 - runner (`claude_cli.interpret`) จึงตัดสินตามลำดับ:
   - "No conversation found" → `ClaudeSessionMissing` ถ้าเป็นการตรวจต่อ runner เริ่ม session ใหม่ แต่เก็บ `out/` ไว้
     และบอก Claude ให้ใช้ผลระหว่างทางที่มีอยู่ (ถ้าเป็นการตรวจครั้งแรก → `failed`)
+  - ข้อความ "Failed to refresh OAuth token" (เจอจริง 2026-10-12 บน 2.1.295: exit 1, `error` เป็น `server_error`) → `ClaudeBusy`
+    runner รอแล้วลองใหม่เอง ไม่ใช่ `needs_login` เพราะ login ยังใช้ได้
   - `authentication_failed` / `oauth_org_not_allowed` (บัญชีไม่อยู่ในองค์กรที่อนุญาต ต้อง /login ใหม่ด้วยบัญชีอื่น) / status 401 /
     ข้อความ `/login` → `needs_login`
   - `rate_limit` / status 429 / `rate_limit_event` ที่ `rejected` / ข้อความ usage limit → `paused_quota` (เวลา reset จาก

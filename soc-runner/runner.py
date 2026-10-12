@@ -30,10 +30,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
-from claude_cli import NO_WINDOW, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
+from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.4.0"
+RUNNER_VERSION = "0.4.1"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -60,6 +60,8 @@ REQUEST_FILE = "request.md"  # under out/: the item, rows and files of this requ
 RESUME_MARGIN_SECONDS = 2 * 60  # after the quota window resets
 DEFAULT_PAUSE_SECONDS = 30 * 60  # when the CLI didn't say when the quota comes back
 MAX_PAUSE_SECONDS = 7 * 24 * 3600 - 3600  # the server refuses a resume time beyond 7 days
+BUSY_RETRIES = 3  # Claude stopped for a reason that passes on its own (ClaudeBusy)
+BUSY_RETRY_SECONDS = 60
 LOGIN_CHECK_SECONDS = 5 * 60  # `claude auth status` is cached this long
 LOGIN_RECHECK_SECONDS = 5 * 60  # after a run found the login expired; doubles each time, up to 30 min
 # Short enough that the web stops saying "logged out" soon after the reviewer logs in again.
@@ -98,7 +100,7 @@ def load_config(path: Path) -> Config:
 
 
 def carry_out(request: dict, server, claude, work_root: Path, log=print, on_pause=None, clock=time.time,
-              build_packet=None, move_wait=time.sleep) -> str:
+              build_packet=None, move_wait=time.sleep, busy_wait=time.sleep) -> str:
     """Carries out one claimed Check Request.
 
     Returns "submitted", "rejected" (the import refused the results and the
@@ -126,13 +128,13 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
     except RunFailed as error:
         return _report_failed(server, request_id, str(error), log)
     try:
-        return _carry_out(request, server, claude, work, log, on_pause, clock, build_packet or build_evidence_packet)
+        return _carry_out(request, server, claude, work, log, on_pause, clock, build_packet or build_evidence_packet, busy_wait)
     finally:
         # Tried again before the next request and when the runner starts.
         _restore_and_log(Path(work_root), log, move_wait)
 
 
-def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, build_packet) -> str:
+def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, build_packet, busy_wait) -> str:
     request_id = request["id"]
     item = request["majorItem"]
     try:
@@ -181,18 +183,32 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
             return ClaudeTask(prompt=build_resume_prompt(request), cwd=work, out_dir=out_dir, session_id=saved["sessionId"],
                               resume=True, system_prompt_file=docs if not saved["packetFallback"] and docs.is_file() else None)
 
-        task = resumed_run() if resume else first_run()
-        try:
-            run = claude.run(task)
-        except ClaudeSessionMissing:
-            if not resume:
-                raise
-            # The session was never saved (it stopped at once) or is gone: a new
-            # one, which still finds the rows already written in out/.
-            log(f"[{request_id}] ไม่พบ session เดิมของ Claude เริ่มใหม่โดยใช้ผลระหว่างทางใน out/")
-            saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
-            prepare_packet()
-            run = claude.run(first_run(PARTIAL_OUTPUT_NOTE))
+        task, note, retries = (resumed_run() if resume else first_run()), "", BUSY_RETRIES
+        while True:
+            try:
+                run = claude.run(task)
+                break
+            except ClaudeSessionMissing:
+                if not task.resume:
+                    raise
+                # The session was never saved (it stopped at once) or is gone: a new
+                # one, which still finds the rows already written in out/.
+                log(f"[{request_id}] ไม่พบ session เดิมของ Claude เริ่มใหม่โดยใช้ผลระหว่างทางใน out/")
+                saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
+                prepare_packet()
+                note = PARTIAL_OUTPUT_NOTE
+                task = first_run(note)
+            except ClaudeBusy as error:
+                if not retries:
+                    raise
+                retries -= 1
+                log(f"[{request_id}] Claude ยังไม่พร้อม จะลองใหม่ใน {BUSY_RETRY_SECONDS} วินาที ({error})")
+                server.report(request_id, {"state": "running", "progress": "Claude ยังไม่พร้อม กำลังรอเพื่อลองใหม่"})
+                busy_wait(BUSY_RETRY_SECONDS)
+                if not task.resume:
+                    # The CLI may have saved the session before it stopped, and a new run can't take a used id.
+                    saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
+                    task = first_run(note)
         acknowledged = request.get("acknowledgedMissing") or []
         missing = _missing_documents(out_dir, acknowledged)
         if missing:
