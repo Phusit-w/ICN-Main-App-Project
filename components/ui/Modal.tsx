@@ -42,7 +42,8 @@ export default function Modal({
         aria-labelledby={labelledBy}
         onClick={(e) => e.stopPropagation()}
         style={{ width: `min(92vw, ${width}px)` }}
-        className="rounded-card bg-surface p-6 shadow-dropdown"
+        // A modal opened from a table cell must not inherit its nowrap or alignment.
+        className="whitespace-normal text-left rounded-card bg-surface p-6 shadow-dropdown"
       >
         {children}
       </div>
