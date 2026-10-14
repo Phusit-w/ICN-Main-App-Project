@@ -25,7 +25,7 @@ function installDom() {
 
 const row = (id: string, item: string, page: number): SocReviewRow => ({
   id, item, rowNumber: page, majorItemId: "major-1", sheet: null, status: "review", reasons: ["ควรตรวจหลักฐาน"], evidenceMissing: false,
-  torText: `ข้อกำหนด ${item}`, torImage: false, image: null, referenceNote: null, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
+  torText: `ข้อกำหนด ${item}`, torImage: false, image: null, socPdfPage: null, referenceNote: null, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
   citations: [{ cited: "Datasheet", document: { id: "pdf-1", name: "Datasheet.pdf" }, pages: [page] }],
   declaredSelection: "comply", systemRecommendation: "compliant",
   axes: [{ key: "reference_check", label: "หน้าอ้างอิง", value: "match", ok: true, detail: "ตรง" }],
@@ -79,6 +79,20 @@ test("an Image Row shows the image of its TOR cell in place of the text, beside 
 
   await user.click(screen.getByRole("button", { name: "ขยายเต็มจอ" }));
   assert.ok(within(screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๒" })).getByRole("img", { name: "รูปข้อกำหนด TOR ข้อ ๑.๒ แถว 7" }));
+});
+
+test("a PDF SOC row shows its page of the PDF SOC on a button press; a row without a page shows no button", async () => {
+  const pdfRow = { ...row("row-3", "๑.๓", 7), socPdfPage: 2 };
+  const { screen, within, user } = await setup("job-1", [...rows, pdfRow]);
+  assert.equal(within(screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๑" })).queryByRole("button", { name: /ดูหน้า PDF SOC/ }), null);
+
+  await user.click(screen.getByRole("button", { name: "๑.๓" }));
+  const detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๓" });
+  assert.equal(within(detail).queryByRole("img", { name: "PDF SOC หน้า 2" }), null, "shown only when asked");
+  await user.click(within(detail).getByRole("button", { name: "ดูหน้า PDF SOC (หน้า 2)" }));
+  assert.equal(within(detail).getByRole("img", { name: "PDF SOC หน้า 2" }).getAttribute("src"), "/api/soc/jobs/job-1/soc-rows/7/pdf-page?item=%E0%B9%91.%E0%B9%93");
+  await user.click(within(detail).getByRole("button", { name: "ซ่อนหน้า PDF SOC" }));
+  assert.equal(within(detail).queryByRole("img", { name: "PDF SOC หน้า 2" }), null);
 });
 
 test("an Image Row shows what Claude read from the image and its notes; a picture shows no verdict and still takes a decision", async () => {

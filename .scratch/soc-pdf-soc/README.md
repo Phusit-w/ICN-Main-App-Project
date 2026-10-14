@@ -17,7 +17,7 @@ Spec: `spec.md` (grilled 2026-10-14). Glossary: PDF SOC and Scanned PDF SOC in `
 | 01 | Upload a text PDF SOC and get an Excel SOC job | – | done (not pushed) |
 | 02 | Scanned pages, upload warnings and the Word-file advice | 01 | done (not pushed) |
 | 03 | No item-number column: the item number comes from the TOR text | 01 | done (not pushed) |
-| 04 | "ดูหน้า PDF SOC" on the review page | 01 | ready-for-agent |
+| 04 | "ดูหน้า PDF SOC" on the review page | 01 | done (not pushed) |
 | 05 | Live acceptance on Surat CASRI | 01, 02, 04 | ready-for-human |
 
 Next feature after this: Scanned PDF SOCs. Start with `/prototype` on the USO 4 School PDF, comparing OCR on the server with Claude reading page images on the Runner.

@@ -35,6 +35,9 @@ export type SocTable = {
   // The image of an Image Row, found like `rowText`, for the review page.
   // Null when the row isn't an Image Row or its image can't be read.
   rowImage: (row: number, item: string) => SocRowImage | null;
+  // The 1-based position, across the whole SOC, of the row `rowText` finds:
+  // an Excel SOC's own row number, which a PDF SOC's row pages are kept by.
+  rowPosition: (row: number, item: string) => number | null;
   // The sheet a SOC row is on, to show with the row when an Excel SOC has
   // more than one sheet. Null otherwise.
   sheetOfRow: (row: number) => string | null;
@@ -136,6 +139,10 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
     rowImage: (rowNumber, itemNumber) => {
       const imageId = findRow(rowNumber, itemNumber)?.imageId;
       return imageId ? readImage(imageId) : null;
+    },
+    rowPosition: (rowNumber, itemNumber) => {
+      const row = findRow(rowNumber, itemNumber);
+      return row ? allRows.indexOf(row) + 1 : null;
     },
     warnings,
   };

@@ -360,6 +360,16 @@ export async function readJobSoc(soc: { jobId: string; storageKey: string } | nu
   return null;
 }
 
+// The page of the PDF SOC that results row `row` with item `item` was read
+// from, the row found as its TOR text is. `rowPages` is the job's
+// socRowPages: the page of the Excel SOC's row i + 1 at index i (soc-pdf-soc
+// ticket 01). Null when the SOC wasn't a PDF or the row isn't found.
+export function socRowPage(soc: SocTable | null, rowPages: unknown, row: number, item: string): number | null {
+  const position = soc?.rowPosition(row, item);
+  const page: unknown = position && Array.isArray(rowPages) ? rowPages[position - 1] : null;
+  return typeof page === "number" && Number.isInteger(page) && page > 0 ? page : null;
+}
+
 // One results.json row as a SocCheckResult. The skill's standard axes fill
 // the legacy ai* columns (the System Recommendation). The legacy final*
 // columns stay empty: the Final Decision is a separate, human step.

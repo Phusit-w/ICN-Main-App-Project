@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authorizeSocJob, resolveStorageKey, socErrorStatus } from "@/lib/soc";
-import { renderPdfPage } from "@/lib/soc-pdf-page";
+import { pdfPageResponse } from "@/lib/soc-pdf-page";
 
 export const runtime = "nodejs";
 
@@ -17,31 +16,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     await authorizeSocJob(id);
     const document = await prisma.socDocument.findFirst({ where: { id: documentId, jobId: id, type: "EVIDENCE" } });
     if (!document) return NextResponse.json({ error: "ไม่พบเอกสารอ้างอิงนี้ในงานตรวจ" }, { status: 404 });
-
-    const unreadable = NextResponse.json({ error: `อ่านไฟล์ ${document.originalName} ไม่ได้ ไฟล์อาจเสียหรือไม่ใช่ PDF` }, { status: 422 });
-    const pageNumber = /^\d{1,5}$/.test(page) ? Number(page) : NaN;
-    let bytes: Uint8Array;
-    try {
-      bytes = await readFile(resolveStorageKey(document.storageKey));
-    } catch {
-      return unreadable;
-    }
-    const rendered = renderPdfPage(bytes, pageNumber);
-    if (!rendered.ok && rendered.reason === "unreadable") return unreadable;
-    if (!rendered.ok) {
-      const total = rendered.pageCount ? ` (ไฟล์นี้มีทั้งหมด ${rendered.pageCount} หน้า)` : "";
-      return NextResponse.json({ error: `ไม่พบหน้า ${page} ใน ${document.originalName}${total}` }, { status: 404 });
-    }
-    return new NextResponse(Buffer.from(rendered.png), {
-      headers: {
-        "Content-Type": "image/png",
-        // The file behind a document id never changes, so a viewer paging
-        // back and forth needn't re-render it; private keeps it off shared
-        // caches, and 5 minutes bounds how long a revoked user still sees it.
-        "Cache-Control": "private, max-age=300",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
+    return await pdfPageResponse(resolveStorageKey(document.storageKey), document.originalName, page);
   } catch (error) {
     const status = socErrorStatus(error instanceof Error ? error.message : "");
     if (status === 401) return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ" }, { status });

@@ -378,6 +378,7 @@ function RowInspector({ jobId, row, layout, decisionForm }: { jobId: string; row
   const [pane, setPane] = useState<"comparison" | "evidence">("comparison");
   const comparison = <>
     {row.torImage ? <TorImage jobId={jobId} row={row} /> : <ClampedText label="ข้อกำหนด TOR" text={row.torText} empty="ไม่พบข้อความในไฟล์ SOC" />}
+    {row.socPdfPage ? <SocPdfPage key={row.id} jobId={jobId} row={row} page={row.socPdfPage} /> : null}
     <ClampedText label="ข้อเสนอของผู้ยื่น" text={row.proposalText} empty="—" />
     <Verdict row={row} />
   </>;
@@ -434,15 +435,21 @@ async function imageFailureReason(url: string, generic: string): Promise<string>
 // The TOR cell of an Image Row: the image from the SOC file, where the TOR
 // text would be. A click opens it full size; an image that can't be shown
 // gets the server's Thai reason instead of a broken image.
-function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
-  const src = `/api/soc/jobs/${jobId}/soc-rows/${row.rowNumber}/image?item=${encodeURIComponent(row.item)}`;
+// A server image that may fail: its Thai reason once it has, asked for once.
+function useImageFailure(src: string, generic: string) {
   const [failure, setFailure] = useState<string | null>(null);
   const explained = useRef(false);
   async function explainFailure() {
     if (explained.current) return;
     explained.current = true;
-    setFailure(await imageFailureReason(src, "แสดงรูปนี้ไม่ได้ กรุณาลองใหม่"));
+    setFailure(await imageFailureReason(src, generic));
   }
+  return { failure, explainFailure };
+}
+
+function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
+  const src = `/api/soc/jobs/${jobId}/soc-rows/${row.rowNumber}/image?item=${encodeURIComponent(row.item)}`;
+  const { failure, explainFailure } = useImageFailure(src, "แสดงรูปนี้ไม่ได้ กรุณาลองใหม่");
   const image = row.image;
   return <div className="rounded-input border border-line p-3 text-sm">
     <div className="text-xs font-semibold text-label">ข้อกำหนด TOR <span className="ml-1 rounded-full bg-chip px-2 py-0.5 text-[11px] font-normal">{image?.label ?? "รูปในไฟล์ SOC"}</span></div>
@@ -461,6 +468,30 @@ function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
     </section> : null}
     {image?.unsure ? <p className="mt-2 text-xs text-amber-800 dark:text-amber-300"><span className="font-semibold">ไม่แน่ใจ:</span> {image.unsure}</p> : null}
     {image?.note ? <p className="mt-1 text-xs text-muted">{image.note}</p> : null}
+  </div>;
+}
+
+// The page of the PDF SOC a row was read from (soc-pdf-soc ticket 04), shown
+// on a button press so the reviewer can check the table was read right. A
+// click opens it full size; a page that can't be shown gets the server's Thai
+// reason instead of a broken image.
+function SocPdfPage({ jobId, row, page }: { jobId: string; row: SocReviewRow; page: number }) {
+  const src = `/api/soc/jobs/${jobId}/soc-rows/${row.rowNumber}/pdf-page?item=${encodeURIComponent(row.item)}`;
+  const [open, setOpen] = useState(false);
+  const { failure, explainFailure } = useImageFailure(src, "แสดงหน้านี้ไม่ได้ กรุณาลองใหม่");
+  return <div className="flex flex-col gap-2">
+    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="ui-btn self-start text-xs text-label underline hover:text-ink">{open ? "ซ่อนหน้า PDF SOC" : `ดูหน้า PDF SOC (หน้า ${page})`}</button>
+    {!open ? null
+      : failure ? <p role="alert" className="rounded-input border border-danger-border bg-surface p-3 text-xs text-danger">{failure}</p>
+      : <a href={src} target="_blank" rel="noreferrer" title="เปิดหน้าขนาดเต็ม" className="relative block min-h-40 overflow-auto rounded-input border border-line bg-white">
+        {/* Under the image, so it shows only until the page has loaded. */}
+        <span className="absolute inset-x-0 top-0 p-3 text-xs text-muted">กำลังโหลดหน้า {page}…</span>
+        {/* A server-rendered PNG behind an access check; next/image adds nothing here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={`PDF SOC หน้า ${page}`} className="relative block h-auto w-full bg-white" onError={explainFailure}
+          // An image that failed before hydration never fires onError.
+          ref={(img) => { if (img?.complete && img.naturalWidth === 0) explainFailure(); }} />
+      </a>}
   </div>;
 }
 

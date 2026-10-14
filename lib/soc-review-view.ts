@@ -4,7 +4,7 @@
 // decided by reviewedAt with a settled decision (not รอแก้ไข), the same test
 // a re-check uses. Server-only.
 import { prisma } from "@/lib/prisma";
-import { jobSocDocument, readJobSoc } from "@/lib/soc-import";
+import { jobSocDocument, readJobSoc, socRowPage } from "@/lib/soc-import";
 import { isExcelSoc, isSocImageKind, MIXED_IMAGE_NOTE, SOC_IMAGE_KIND_LABELS, type SocImageKind } from "@/lib/soc-shared";
 import type { SocRowText } from "@/lib/soc-table";
 import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
@@ -26,6 +26,7 @@ export type SocReviewRow = {
   evidenceMissing: boolean; // Claude couldn't find or read the cited page or document
   torText: string; proposalText: string | null; reference: string; referencePages: number[];
   torImage: boolean; // an Image Row: the TOR cell of the SOC is an image, shown in place of the text
+  socPdfPage: number | null; // the page of the PDF SOC the row was read from; null when the SOC wasn't a PDF
   // What Claude made of an Image Row's image: its kind and label, the Image
   // Reading (read-only), what it was unsure of, and for a mixed image the note
   // that the drawing wasn't compared. Null for other rows and runs before Image Rows.
@@ -68,6 +69,9 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
   // An Excel SOC is read for its rows' sheets too.
   const socDocument = await jobSocDocument(jobId);
   const soc = stored.some((r) => !r.socText) || isExcelSoc(socDocument) ? await readJobSoc(socDocument) : null;
+  // A PDF SOC's rows each show their page of the PDF, while the PDF is kept.
+  const job = await prisma.socJob.findUnique({ where: { id: jobId }, select: { socRowPages: true, documents: { where: { type: "SOC_SOURCE_PDF" }, select: { id: true } } } });
+  const rowPages = job?.documents.length ? job.socRowPages : null;
 
   const rows: SocReviewRow[] = [];
   for (const r of stored) {
@@ -78,7 +82,7 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
     const text: SocRowText = r.socText ? { tor: r.socText, proposal: r.proposalText } : soc?.rowText(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
     rows.push({
       id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, sheet: soc?.sheetOfRow(r.rowNumber) ?? null, status, reasons, evidenceMissing: evidenceMissing(axes),
-      torText: text.tor, proposalText: text.proposal, torImage: !!text.image, image: reviewImage(r), referenceNote: r.referenceNote, reference: r.referenceText,
+      torText: text.tor, proposalText: text.proposal, torImage: !!text.image, socPdfPage: socRowPage(soc, rowPages, r.rowNumber, r.item), image: reviewImage(r), referenceNote: r.referenceNote, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),
       declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,

@@ -15,6 +15,7 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
 import { buildDocx, buildZip } from "@/test/docx-fixture";
+import { pngSize } from "@/test/pdf-fixture";
 import { buildTablePdf } from "@/test/pdf-table-fixture";
 import { buildXlsx, type SheetSpec } from "@/test/xlsx-fixture";
 import { newSocRunnerToken } from "@/lib/soc-runner-token";
@@ -32,6 +33,7 @@ const { GET: excelRoute } = await import("@/app/api/soc/jobs/[id]/results-excel/
 const { POST: claimRoute } = await import("@/app/api/soc-runner/claim/route");
 const { POST: submitRoute } = await import("@/app/api/soc-runner/requests/[id]/submit/route");
 const { POST: heartbeatRoute } = await import("@/app/api/soc-runner/heartbeat/route");
+const { GET: socPdfPageRoute } = await import("@/app/api/soc/jobs/[id]/soc-rows/[row]/pdf-page/route");
 const { requestSocCheck, requestSocRowRechecks, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob, validateUpload } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
@@ -261,6 +263,45 @@ test("a PDF SOC upload becomes an Excel SOC job: the major items of that table, 
   assert.ok(request);
   assert.equal(request.socCheck, false);
   assert.deepEqual(request.documents.map((d) => [d.type, d.name]), [["SOC", "Compliance Table.xlsx"], ["EVIDENCE", "Brochure.pdf"]]);
+});
+
+test("the review page shows each PDF SOC row's page of the PDF, to whoever may open the job; Excel and Word jobs have none", { skip }, async () => {
+  const owner = await user("pdf-page-owner");
+  signedIn = owner;
+  const pdf = buildTablePdf([
+    { columns: [50, 200, 150, 150], rows: [HEADER, SHEET_A.rows[1].map((cell) => String(cell ?? ""))] },
+    { columns: [50, 200, 150, 150], rows: [HEADER, SHEET_A.rows[2].map((cell) => String(cell ?? ""))] },
+  ]);
+  const jobId = await createImportedSocJob(owner, { title: "Surat", soc: { name: "Compliance Table.pdf", bytes: pdf }, evidence: [{ name: "Brochure.pdf", bytes: PDF }] });
+  const item = await prisma.socMajorItem.findFirstOrThrow({ where: { jobId, key: "1" } });
+  const imported = await importLocalCheckRun(owner, { jobId, majorItemId: item.id, results: run([[1, "1"], [2, "1.1"]]), run: MANUAL });
+  assert.ok(imported.ok, JSON.stringify(imported));
+  const view = await socReviewView(jobId);
+  assert.deepEqual(view.rows.map((r) => [r.rowNumber, r.socPdfPage]).sort(), [[1, 1], [2, 2]]);
+
+  const page = (row: string, item = "1.1") => socPdfPageRoute(new Request(`http://test/api/soc/jobs/${jobId}/soc-rows/${row}/pdf-page?item=${encodeURIComponent(item)}`), { params: Promise.resolve({ id: jobId, row }) });
+  const shown = await page("2");
+  assert.equal(shown.status, 200);
+  assert.equal(shown.headers.get("content-type"), "image/png");
+  const png = new Uint8Array(await shown.arrayBuffer());
+  assert.ok(pngSize(png).width > 0);
+  // A row number that is off is found by its item, as its TOR text is: still page 2.
+  assert.deepEqual(new Uint8Array(await (await page("3")).arrayBuffer()), png);
+  assert.notDeepEqual(new Uint8Array(await (await page("1", "1")).arrayBuffer()), png);
+  assert.equal((await page("3", "9.9")).status, 404, "a row the PDF SOC doesn't have");
+
+  signedIn = await prisma.user.create({ data: { username: "no-soc", displayName: "no-soc", passwordHash: "x", role: "USER", appAccess: [] } });
+  assert.equal((await page("2")).status, 403);
+  signedIn = null;
+  assert.equal((await page("2")).status, 401);
+
+  // A job without a source PDF has no page to show.
+  const { owner: excelOwner, jobId: excelJobId, item: excelItem } = await excelJob([SHEET_A]);
+  signedIn = excelOwner;
+  assert.ok((await importLocalCheckRun(excelOwner, { jobId: excelJobId, majorItemId: excelItem("1").id, results: run([[1, "1"], [2, "1.1"]]), run: MANUAL })).ok);
+  assert.deepEqual((await socReviewView(excelJobId)).rows.map((r) => r.socPdfPage), [null, null]);
+  const excelPage = await socPdfPageRoute(new Request("http://test"), { params: Promise.resolve({ id: excelJobId, row: "1" }) });
+  assert.equal(excelPage.status, 404);
 });
 
 test("an old runner still takes a Word SOC's request, which names no runner version, and its submit still needs the SOC_Check", { skip }, async () => {
