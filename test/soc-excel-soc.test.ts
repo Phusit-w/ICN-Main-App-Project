@@ -227,12 +227,13 @@ test("a runner too old for an Excel SOC is handed nothing and the job page says 
   assert.deepEqual([stored.source, stored.documentId, stored.rowCount], ["runner", null, 2]);
 });
 
-test("a PDF SOC upload becomes an Excel SOC job: the major items of that table, the runner gets the .xlsx, and the PDF and each row's page are kept", { skip }, async () => {
+test("a PDF SOC upload becomes an Excel SOC job: the major items of that table, the runner gets the .xlsx, the PDF and each row's page are kept, and a scanned page is a warning", { skip }, async () => {
   const owner = await user("pdf-owner");
   signedIn = owner;
   const pdf = buildTablePdf([
     { columns: [50, 200, 150, 150], rows: [HEADER, SHEET_A.rows[1].map((cell) => String(cell ?? ""))] },
     { columns: [50, 200, 150, 150], rows: [HEADER, SHEET_A.rows[2].map((cell) => String(cell ?? ""))] },
+    { columns: [], rows: [], scanned: true }, // a signed page, scanned: named, not read
   ]);
   // Known by its content, whatever it is called.
   assert.deepEqual(await validateUpload(new File([pdf], "Compliance Table.pdf"), "SOC"), pdf);
@@ -244,6 +245,7 @@ test("a PDF SOC upload becomes an Excel SOC job: the major items of that table, 
 
   const job = await prisma.socJob.findUniqueOrThrow({ where: { id: jobId }, include: { documents: { orderBy: { type: "asc" } } } });
   assert.deepEqual(job.socRowPages, [1, 2]);
+  assert.deepEqual(job.socWarnings, ["หน้า 3 เป็นภาพสแกน ไม่ได้ตรวจ"]); // shown on the job page; the upload went on
   assert.deepEqual(job.documents.map((d) => [d.type, d.originalName, d.mimeType]), [
     ["EVIDENCE", "Brochure.pdf", "application/pdf"],
     ["SOC", "Compliance Table.xlsx", XLSX_MIME],

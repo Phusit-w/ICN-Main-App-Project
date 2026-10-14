@@ -4,16 +4,27 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A page with no text layer counts as scanned. If every page is scanned, the upload is refused with "SOC นี้เป็น PDF แบบสแกน ระบบยังไม่รองรับ กรุณาอัปโหลดไฟล์ Word หรือ Excel ถ้ามี".
-- [ ] When some pages are scanned, the job is created and one warning names them ("หน้า 58–59 เป็นภาพสแกน ไม่ได้ตรวจ").
-- [ ] A text page with no SOC table is skipped without a warning. A PDF with no SOC table at all gets the existing no-table refusal.
-- [ ] Images inside TOR cells are counted into one warning, worded like the Excel SOC's warning, and are not read.
-- [ ] An unreadable or encrypted PDF is refused with its own message.
-- [ ] Warnings appear on the job page where Excel SOC warnings appear, and do not block the upload.
-- [ ] The upload form shows the Word-file advice only when the picked SOC file is a PDF.
-- [ ] Tests at the converter seam cover: all scanned, some scanned, a page with no table, a TOR-cell image, encrypted.
-- [ ] Manual check: the USO 4 School PDF is refused with the scanned message.
+- [x] A page with no text layer counts as scanned. If every page is scanned, the upload is refused with "SOC นี้เป็น PDF แบบสแกน ระบบยังไม่รองรับ กรุณาอัปโหลดไฟล์ Word หรือ Excel ถ้ามี".
+- [x] When some pages are scanned, the job is created and one warning names them ("หน้า 58–59 เป็นภาพสแกน ไม่ได้ตรวจ").
+- [x] A text page with no SOC table is skipped without a warning. A PDF with no SOC table at all gets the existing no-table refusal.
+- [x] Images inside TOR cells are counted into one warning, worded like the Excel SOC's warning, and are not read.
+- [x] An unreadable or encrypted PDF is refused with its own message.
+- [x] Warnings appear on the job page where Excel SOC warnings appear, and do not block the upload.
+- [x] The upload form shows the Word-file advice only when the picked SOC file is a PDF.
+- [x] Tests at the converter seam cover: all scanned, some scanned, a page with no table, a TOR-cell image, encrypted.
+- [x] Manual check: the USO 4 School PDF is refused with the scanned message.
 
 ## Comments
+
+2026-10-14 (done, committed, not pushed):
+- Converter (`lib/soc-pdf-soc.ts`): a page with no non-space character is a scan when it draws a picture (`fillImage` or `fillImageMask`, for 1-bit scans), and blank when it draws none. Blank pages are skipped silently.
+- No rows plus any scanned page gives the scanned refusal. This also covers scanned table pages behind a typed signature page, which would otherwise get "no table".
+- Scanned pages are named as ranges ("หน้า 2–3, 6 เป็นภาพสแกน ไม่ได้ตรวจ").
+- A password PDF now has its own message (`LOCKED_PDF`), and the damaged message no longer mentions a password.
+- TOR pictures: a picture is counted when its middle lies in a cell whose left grid column is the TOR column, in a row under the header. A picture in a merged cell that starts in another column (for example a section row spanning ลำดับ+TOR) is not counted. This was accepted as an edge case.
+- A scan with a stamped text page number counts as a text page, so it is skipped silently and not named. This follows the spec's "no text layer".
+- The Word advice is decided by the file name (`.pdf`). The form already refuses, by name, any SOC not named .docx/.xlsx/.pdf, so a PDF without the .pdf name never gets that far.
+- Manual check from `C:\Phusit\socpdf`: `uso.pdf` is refused with the scanned message. Surat still gives 332 rows and no warnings.
+- Tests used test-db9 (ports 51308/51309/51307). The next fresh name is test-db10.

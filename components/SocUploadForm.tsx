@@ -63,6 +63,7 @@ export default function SocUploadForm() {
       </UploadSection>
       <UploadSection number="2" title="เอกสาร SOC" description="รองรับ Word (.docx), Excel (.xlsx) และ PDF ขนาดไม่เกิน 25 MB">
         <SocFilePicker files={soc} onChange={setSoc} disabled={pending} label="เลือกไฟล์ SOC (Word, Excel หรือ PDF)" accept={SOC_FILE_ACCEPT} />
+        {/\.pdf$/i.test(soc[0]?.name ?? "") ? <p className="mt-3 text-sm text-muted">ถ้ามีไฟล์ Word ต้นฉบับ แนะนำให้อัป Word</p> : null}
       </UploadSection>
       <UploadSection number="3" title="Datasheet / Catalog" description="แนบ PDF ได้ไม่เกิน 200 ไฟล์ ไฟล์ละไม่เกิน 120 MB รวมไม่เกิน 1 GB ถ้า SOC อ้างชื่อโฟลเดอร์ (เช่น 2.5 …) ให้กดเลือกโฟลเดอร์ ระบบจะเก็บโฟลเดอร์ย่อยไว้ให้">
         <SocFilePicker files={evidence} onChange={setEvidence} disabled={pending} multiple folders label="เลือกไฟล์ PDF" accept=".pdf,application/pdf" />

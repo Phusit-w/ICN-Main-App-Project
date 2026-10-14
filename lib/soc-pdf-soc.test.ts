@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
 import { convertPdfSoc } from "@/lib/soc-pdf-soc";
 import { readSocTable } from "@/lib/soc-table";
-import { buildTablePdf, type TableCell } from "@/test/pdf-table-fixture";
+import { buildTablePdf, type TableCell, type TablePage } from "@/test/pdf-table-fixture";
 import { buildXlsx, STACKED_HEADER, STACKED_HEADER_MERGES } from "@/test/xlsx-fixture";
 
 // The generated sheet as text rows, header first, each as wide as the header.
@@ -118,4 +118,48 @@ test("a PDF with no SOC table, or one that can't be opened, is refused", async (
   const noHeader = buildTablePdf([{ columns: [100, 100], rows: [["ชื่อ", "ลายมือชื่อ"], ["นาย ก", ""]] }]);
   await assert.rejects(convertPdfSoc(noHeader), /ไม่พบตาราง SOC ในไฟล์ PDF/);
   await assert.rejects(convertPdfSoc(new TextEncoder().encode("%PDF-1.7 broken")), /ไม่สามารถเปิดไฟล์ PDF ของ SOC ได้/);
+});
+
+test("a PDF locked with a password is refused with its own message", async () => {
+  const locked = buildTablePdf([{ columns: COLUMNS, rows: [...SURAT_HEADER, ["1", "ระบบกล้อง", "CASRI", "✓", "", "page 1"]] }], { password: "secret" });
+  await assert.rejects(convertPdfSoc(locked), { message: "ไฟล์ PDF ของ SOC ใส่รหัสผ่านไว้ กรุณาเอารหัสผ่านออกแล้วอัปโหลดใหม่" });
+});
+
+test("a PDF SOC that is scans all the way through is refused as a scanned PDF SOC", async () => {
+  const scan: TablePage = { columns: [], rows: [], scanned: true };
+  const message = "SOC นี้เป็น PDF แบบสแกน ระบบยังไม่รองรับ กรุณาอัปโหลดไฟล์ Word หรือ Excel ถ้ามี";
+  await assert.rejects(convertPdfSoc(buildTablePdf([scan, scan])), { message });
+  // Scanned table pages behind a typed signature page: still a scanned SOC, not "no table".
+  await assert.rejects(convertPdfSoc(buildTablePdf([scan, scan, { columns: [], rows: [], textAbove: "ลงชื่อ ผู้ยื่นข้อเสนอ" }])), { message });
+});
+
+test("scanned pages in a text PDF SOC are skipped and named in one warning; a text page with no table is skipped silently", async () => {
+  const scan: TablePage = { columns: [], rows: [], scanned: true };
+  const pdf = buildTablePdf([
+    { columns: COLUMNS, rows: [...SURAT_HEADER, ["1", "ระบบกล้อง", "CASRI", "✓", "", "page 1"]] },
+    scan,
+    scan,
+    { columns: COLUMNS, rows: [...SURAT_HEADER, ["1.1", "กล้อง PTZ", "CASRI PTZ", "✓", "", "page 9"]] },
+    { columns: [], rows: [], textAbove: "ลงชื่อ ผู้ยื่นข้อเสนอ" }, // a signature page: text, no table
+    scan,
+  ]);
+  const converted = await convertPdfSoc(pdf);
+  assert.deepEqual(converted.warnings, ["หน้า 2–3, 6 เป็นภาพสแกน ไม่ได้ตรวจ"]);
+  assert.deepEqual(converted.rowPages, [1, 4]);
+  assert.deepEqual(readSocTable(converted.xlsx).rowText(2, "1.1"), { tor: "กล้อง PTZ", proposal: "CASRI PTZ" });
+});
+
+test("pictures in TOR cells are counted into one warning and not read; pictures elsewhere are not counted", async () => {
+  const pdf = buildTablePdf([{
+    columns: COLUMNS,
+    rows: [
+      ...SURAT_HEADER,
+      ["1", { text: "ระบบกล้อง ตามรูป", image: true }, "CASRI", "✓", "", "page 1"],
+      ["1.1", { text: "กล้อง PTZ", image: true }, { text: "CASRI PTZ", image: true }, "✓", "", "page 9"],
+      ["1.2", "กล้องมุมกว้าง", { text: "ตามรูป", image: true }, "✓", "", "page 10"],
+    ],
+  }]);
+  const converted = await convertPdfSoc(pdf);
+  assert.deepEqual(converted.warnings, ["มีรูป 2 รูปในช่องข้อกำหนด TOR ของ PDF SOC ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง"]);
+  assert.deepEqual(readSocTable(converted.xlsx).rowText(1, "1"), { tor: "ระบบกล้อง ตามรูป", proposal: "CASRI" });
 });
