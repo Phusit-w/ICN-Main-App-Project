@@ -86,10 +86,13 @@ function socRowsOfSheet(sheet: Sheet): string[][] | null {
 }
 
 // The SOC header of a grid, by the rules at the top of this file: which
-// column is which, and the last header row. Null when the grid has none.
+// column is which, and the first and last header rows. Null when the grid has none.
 // `nameKey` is applied to each column name before it is matched (a PDF SOC's
 // header text keeps the spaces of its line breaks: "ตรง ข้อกำหนด").
-export function findSocHeader(sheet: SocGrid, nameKey = (name: string) => name): { columns: SocColumns; last: number } | null {
+// `needsItem: false` (a PDF SOC that writes its item numbers in the TOR text)
+// also takes a header with no item column, named by its TOR and proposal
+// columns alone; its item column is then -1.
+export function findSocHeader(sheet: SocGrid, nameKey = (name: string) => name, { needsItem = true } = {}): { columns: SocColumns; first: number; last: number } | null {
   const own = (row: number, column: number) => sheet.rows[row]?.[column] ?? "";
   const mergeAt = (row: number, column: number) => sheet.merges.find((m) => row >= m.top && row <= m.bottom && column >= m.left && column <= m.right);
   // A cell's text as the reader of the sheet sees it: a merged cell shows its text over every cell it covers.
@@ -112,16 +115,19 @@ export function findSocHeader(sheet: SocGrid, nameKey = (name: string) => name):
   };
   for (let first = 0; first < Math.min(sheet.rows.length, HEADER_SEARCH_ROWS); first++) {
     const item = allColumns.findIndex((column) => ITEM_NAME.test(nameKey(own(first, column))));
-    if (item < 0) continue;
+    if (item < 0 && needsItem) continue;
     let last = first;
     while (last - first + 1 < MAX_STACKED_HEADER_ROWS && last + 1 < sheet.rows.length) {
       const row = last + 1;
-      if (own(row, item) || !allColumns.every((column) => !own(row, column) || underGroupName(first, row, column))) break;
+      if ((item >= 0 && own(row, item)) || !allColumns.every((column) => !own(row, column) || underGroupName(first, row, column))) break;
       last = row;
     }
     const columns = namedColumns(columnNames(first, last).map(nameKey), item);
     if (columns.tor < 0 || columns.proposal < 0) continue;
-    return { columns, last };
+    // Without an item column, a title merged across the table ("ตารางเปรียบเทียบข้อกำหนด
+    // กับข้อเสนอ") would name the TOR and proposal columns at once: it isn't the header.
+    if (item < 0 && shown(first, columns.tor) === shown(first, columns.proposal)) continue;
+    return { columns, first, last };
   }
   return null;
 }

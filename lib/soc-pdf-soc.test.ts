@@ -163,3 +163,66 @@ test("pictures in TOR cells are counted into one warning and not read; pictures 
   assert.deepEqual(converted.warnings, ["มีรูป 2 รูปในช่องข้อกำหนด TOR ของ PDF SOC ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง"]);
   assert.deepEqual(readSocTable(converted.xlsx).rowText(1, "1"), { tor: "ระบบกล้อง ตามรูป", proposal: "CASRI" });
 });
+
+test("no item column: the item number is the leading dotted number of the TOR text, kept as typed and left in the text; a row without one is unnumbered", async () => {
+  const header: TableCell[] = ["ข้อกำหนด TOR", "ข้อเสนอ", "เอกสารอ้างอิง"];
+  const pdf = buildTablePdf([
+    {
+      columns: [300, 150, 150],
+      rows: [
+        [{ text: "ตารางเปรียบเทียบข้อกำหนด TOR กับข้อเสนอ", span: 3 }], // a title, not the header
+        header,
+        ["๔. การจัดการระบบ", "", ""],
+        ["๔.๓.๑ การเริ่มจัดเก็บข้อมูล", "รองรับ", "page 1"],
+        ["ต่อเนื่องจากข้อบน", "รองรับ", "page 2"],
+        ["4.3.2 Processor 2.5 GHz", "Intel", "page 3"],
+        ["10 ช่องสัญญาณ", "12", "page 4"], // a number with no dot is not an item number
+      ],
+    },
+    // No header on this page; its first row reads like one ("กำหนด", "เสนอ") and is still a SOC row.
+    { columns: [300, 150, 150], rows: [["ตามที่กำหนด", "ผู้เสนอ", "page 5"], ["๔.๓.๓ สำรองข้อมูล", "รองรับ", "page 6"]] },
+    { columns: [300, 150, 150], rows: [header, ["๕.๑ การอบรม", "๓ วัน", "page 7"]] },
+  ]);
+  const converted = await convertPdfSoc(pdf);
+  assert.deepEqual(await sheetRows(converted.xlsx), [
+    ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เอกสารอ้างอิง"],
+    ["๔.", "๔. การจัดการระบบ", null, null],
+    ["๔.๓.๑", "๔.๓.๑ การเริ่มจัดเก็บข้อมูล", "รองรับ", "page 1"],
+    [null, "ต่อเนื่องจากข้อบน", "รองรับ", "page 2"],
+    ["4.3.2", "4.3.2 Processor 2.5 GHz", "Intel", "page 3"],
+    [null, "10 ช่องสัญญาณ", "12", "page 4"],
+    [null, "ตามที่กำหนด", "ผู้เสนอ", "page 5"],
+    ["๔.๓.๓", "๔.๓.๓ สำรองข้อมูล", "รองรับ", "page 6"],
+    ["๕.๑", "๕.๑ การอบรม", "๓ วัน", "page 7"],
+  ]);
+  assert.deepEqual(converted.rowPages, [1, 1, 1, 1, 1, 2, 2, 3]);
+  assert.deepEqual(readSocTable(converted.xlsx).majorItems.map((m) => [m.key, m.rowCount]), [["4", 7], ["5", 1]]);
+});
+
+test("an item column is always used: a number at the start of the TOR text never replaces it or fills an empty item cell", async () => {
+  const pdf = buildTablePdf([{
+    columns: [50, 300, 150],
+    rows: [
+      ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ"],
+      ["๑.๑", "๒.๒ กล้องวงจรปิด", "CASRI"],
+      ["", "๑.๒ ต่อจากข้อบน", "CASRI"],
+    ],
+  }]);
+  assert.deepEqual((await sheetRows((await convertPdfSoc(pdf)).xlsx)).slice(1), [
+    ["๑.๑", "๒.๒ กล้องวงจรปิด", "CASRI"],
+    [null, "๑.๒ ต่อจากข้อบน", "CASRI"],
+  ]);
+});
+
+test("no item column: major items, the over-60-row split included, are those of the Excel SOC with the same numbers in an item column", async () => {
+  const body: [string, string, string][] = [["๔.", "๔. ระบบจัดเก็บ", ""]];
+  for (const sub of ["๑", "๒"]) for (let k = 1; k <= 35; k++) body.push([`๔.${sub}.${k}`, `๔.${sub}.${k} ความจุ`, "รองรับ"]);
+  body.push(["๕.๑", "๕.๑ การอบรม", "๓ วัน"]);
+  const header: TableCell[] = ["ข้อกำหนด TOR", "ข้อเสนอ"];
+  const pages: TablePage[] = [];
+  for (let start = 0; start < body.length; start += 20) pages.push({ columns: [300, 150], rows: [header, ...body.slice(start, start + 20).map(([, tor, proposal]) => [tor, proposal])] });
+  const fromPdf = readSocTable((await convertPdfSoc(buildTablePdf(pages))).xlsx);
+  const excel = await buildXlsx([{ name: "SOC", rows: [["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ"], ...body.map((cells) => cells.map((cell) => cell || null))] }]);
+  assert.deepEqual(fromPdf.majorItems, readSocTable(excel).majorItems);
+  assert.deepEqual(fromPdf.majorItems.map((m) => m.key), ["4.1", "4.2", "5"]);
+});

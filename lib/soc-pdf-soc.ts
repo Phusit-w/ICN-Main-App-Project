@@ -14,6 +14,11 @@
 // with the columns of the last header; a page before any header (a cover) is
 // skipped. A row cut by a page break stays two rows.
 //
+// A SOC whose header has no item column (it writes "๔.๓.๑ การเริ่มจัด…" in the
+// TOR cell) is read too: each row's item number is the dotted number its TOR
+// text starts with, and a row without one is unnumbered. An item column, when
+// there is one, is always used.
+//
 // A page with no text is a scan: it is skipped and named in a warning, and a
 // PDF with scans and no table on its text pages is refused as a scanned PDF SOC. A text
 // page with no SOC table (a signature page) is skipped silently. Pictures in
@@ -31,7 +36,7 @@ export type PdfSoc = {
 const UNREADABLE_PDF = "ไม่สามารถเปิดไฟล์ PDF ของ SOC ได้ ไฟล์อาจเสีย กรุณาตรวจไฟล์แล้วอัปโหลดใหม่";
 const LOCKED_PDF = "ไฟล์ PDF ของ SOC ใส่รหัสผ่านไว้ กรุณาเอารหัสผ่านออกแล้วอัปโหลดใหม่";
 const SCANNED_PDF = "SOC นี้เป็น PDF แบบสแกน ระบบยังไม่รองรับ กรุณาอัปโหลดไฟล์ Word หรือ Excel ถ้ามี";
-const NO_SOC_TABLE = "ไม่พบตาราง SOC ในไฟล์ PDF: ต้องมีแถวหัวตารางที่มีคอลัมน์ ลำดับ, ข้อกำหนด TOR และ ข้อเสนอ";
+const NO_SOC_TABLE = "ไม่พบตาราง SOC ในไฟล์ PDF: ต้องมีแถวหัวตารางที่มีคอลัมน์ ข้อกำหนด TOR และ ข้อเสนอ";
 
 type Role = keyof SocColumns;
 // The generated sheet's columns, in this order, named so that the web's and
@@ -41,6 +46,9 @@ const COLUMN_NAMES: [Role, string][] = [
   ["item", "ลำดับ"], ["tor", "ข้อกำหนด TOR"], ["proposal", "ข้อเสนอ"],
   ["comply", "ตรงข้อกำหนด"], ["better", "ดีกว่าข้อกำหนด"], ["reference", "เอกสารอ้างอิง"], ["remark", "หมายเหตุ"],
 ];
+// An item number at the start of a TOR text, dotted, kept as typed: "๔.",
+// "๔.๓.๑", "4.3.2". A number without a dot ("10 ช่อง") is not one.
+const LEADING_ITEM = /^(?:[0-9๐-๙]+\.)+[0-9๐-๙]*/;
 const CHECK_MARK = /[✓✔√☑☒🗸]/u;
 const TICK = "✓"; // a check mark the skill reads as a tick
 
@@ -62,6 +70,7 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
   try {
     if (document.needsPassword()) throw new Error(LOCKED_PDF);
     let columns: { role: Role; left: number }[] | null = null; // by left edge
+    let itemlessHeader: string | null = null; // the last header's key when it has no item column; null: none yet, or it has one
     const pageCount = document.countPages();
     for (let index = 0; index < pageCount; index++) {
       const page = document.loadPage(index);
@@ -75,9 +84,17 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
       if (read === "scanned" || read === "blank") continue;
       const table = read.table;
       if (!table) continue;
-      const header = findSocHeader(table.grid, (name) => name.replace(/\s+/g, ""));
+      let header = findSocHeader(table.grid, nameKey);
+      // A header with no item column is looked for only while no header with
+      // one is known. A later page must repeat it exactly: a row that only reads
+      // like one ("ตามที่กำหนด", "ผู้เสนอ") stays a SOC row.
+      if (!header && (!columns || itemlessHeader !== null)) {
+        const found = findSocHeader(table.grid, nameKey, { needsItem: false });
+        if (found && (itemlessHeader === null || headerKey(table.grid, found) === itemlessHeader)) header = found;
+      }
       let first = 0;
       if (header) {
+        itemlessHeader = header.columns.item < 0 ? headerKey(table.grid, header) : null;
         columns = (Object.entries(header.columns) as [Role, number][])
           .filter(([, column]) => column >= 0)
           .map(([role, column]) => ({ role, left: table.columnEdges[column] }))
@@ -113,6 +130,16 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
     ...(torImages ? [`มีรูป ${torImages} รูปในช่องข้อกำหนด TOR ของ PDF SOC ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
   ];
 
+  // No item column: each row's item number is the one its TOR text starts with,
+  // written into the item column and left in the text.
+  if (!named.has("item")) {
+    named.add("item");
+    for (const { cells } of rows) {
+      const item = cells.tor?.match(LEADING_ITEM)?.[0];
+      if (item) cells.item = item;
+    }
+  }
+
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("SOC");
   const written = COLUMN_NAMES.filter(([role]) => named.has(role));
@@ -126,6 +153,11 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
   }
   return { xlsx: new Uint8Array(await workbook.xlsx.writeBuffer()), rowPages: rows.map((row) => row.page), warnings };
 }
+
+// A header's column names are matched with the spaces of their line breaks left out.
+const nameKey = (name: string) => name.replace(/\s+/g, "");
+const headerKey = (grid: SocGrid, { first, last }: { first: number; last: number }) =>
+  grid.rows.slice(first, last + 1).flatMap((cells) => (cells ?? []).filter(Boolean).map(nameKey)).join("|");
 
 // Ascending page numbers as ranges: [2, 3, 6] → "2–3, 6".
 function pageRanges(pages: number[]): string {
