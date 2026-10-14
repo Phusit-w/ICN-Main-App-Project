@@ -11,10 +11,10 @@
 
 **Blocked by:** 05, 08
 
-**Status:** ready-for-human
+**Status:** done (2026-10-14)
 
-- [ ] Deployed; Skill Package current; Runner re-installed
-- [ ] Surat Thani: one major item checked, reviewed and exported on prod
+- [x] Deployed; Skill Package current; Runner re-installed
+- [x] Surat Thani: one major item checked, reviewed and exported on prod
 - [x] MEA Y69: one major item with Image Rows checked and reviewed on prod; the user has compared the readings with the images
 - [x] Quota in pts recorded here for the image major item and the comparison item
 - [x] The user's decision on the quota cost is recorded here
@@ -45,5 +45,7 @@ Left for the user, in this order (the order matters, see the end of tickets 05 a
 ผนวก 9 cost 2 points more with 3 fewer rows. The meter moves in whole points and each item ran once, so the share of the 2 points that is image reading isn't known; the two ผนวก also differ in their text and evidence pages. The meter moved 47% → 48% between the runs, outside both. Not yet: the user's look at the readings against the images, and the decision.
 
 **2026-10-14: decision: Claude keeps reading Image Rows.** Asked whether the ผนวก 9 readings match the images and whether the quota above is acceptable, the user answered "คิดว่าน่าจะผ่าน" (I think it should pass). Recorded as accepting both; the fallback ("every Image Row waits for the reviewer") is not built. Left in this ticket: the Surat Thani (Excel) run.
+
+**2026-10-14: Surat Thani (Excel) on prod.** The user exported a results Excel; Excel refused to open it from a long folder path (over 259 characters) until moved out, so a tip about it was added beside the downloads (`41a1232`, pushed to origin/main, not deployed). Then ข้อ 2 check started; meter before: 55%. The user deployed `41a1232` while it ran; the run went on and finished (one run, not re-claimed, as far as the user saw). Meter after: 60% → **Surat ข้อ 2 = 5 points** (55% → 56% was already moving during the deploy). Left: the user's look at its review page and its results Excel. The user answered "โอเค" to both: ticket done.
 
 Known before the MEA run (board, "Found on the way"): MEA restarts item numbers in every ผนวก, so the web shows one ข้อ 1 split into 1.1, 1.2 … mixing all ผนวก, and the skill reaches only 3 of its 19 Image Rows (2.5, 1.7, 11.). Items 2.5 and 1.7 can be checked as they are; the other Image Rows wait for that decision.
