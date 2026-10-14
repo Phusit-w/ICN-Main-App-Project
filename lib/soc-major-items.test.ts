@@ -65,6 +65,31 @@ test("a row of a ผนวก is found by its row and its item under the ผน�
   assert.ok(isItemInMajorItem("7.7", { key: "7" }) && isItemInMajorItem("7", { key: "7" }) && !isItemInMajorItem("8.1", { key: "7" }));
 });
 
+test("a row of another ผนวก isn't found under this ผนวก's number", () => {
+  const rowText = socRowTexts(ANNEX_SOC());
+  // Row 9 is ข้อ 1 of ผนวก 8; ผนวก 7 has a ข้อ 1 too.
+  assert.equal(rowText(9, "8.1")?.tor, "รายละเอียดตู้");
+  assert.equal(rowText(9, "7.1"), null);
+  assert.equal(rowText(8, "7"), null);
+});
+
+test("a SOC with one table per ผนวก: the row is the one in that ผนวก's table", () => {
+  const soc = buildDocx(tableXml([
+    ["", "ผนวก 7 Indoor FDF", "", ""],
+    ["1.", "a7", "", ""],
+    ["1.1", "a7.1", "", ""],
+  ]) + tableXml([
+    ["", "ผนวก 8 Outdoor FDF", "", ""],
+    ["1.", "a8", "", ""],
+    ["1.1", "a8.1", "", ""],
+  ]));
+  assert.deepEqual(readSocMajorItems(soc).map((m) => m.label), ["ผนวก 7", "ผนวก 8"]);
+  const rowText = socRowTexts(soc);
+  assert.equal(rowText(2, "7.1")?.tor, "a7");
+  assert.equal(rowText(2, "8.1")?.tor, "a8");
+  assert.equal(rowText(1, "8")?.tor, "ผนวก 8 Outdoor FDF");
+});
+
 test("one row that mentions a ผนวก doesn't turn a numbered SOC into ผนวก items", () => {
   const soc = buildSocDocx([
     HEADER,

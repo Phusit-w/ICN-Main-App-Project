@@ -70,13 +70,27 @@ function annexHeading(cells: string[]): { key: string; label: string; title: str
   return match ? { key: String(Number(toArabic(match[1]))), label: `ผนวก ${match[1]}`, title: match[2].slice(0, MAX_TITLE) || null } : null;
 }
 
+// The ผนวก heading of each row that is one, or null when the SOC isn't
+// divided into ผนวก (fewer than two ผนวก).
+function annexHeadingsOfRows(rows: string[][]) {
+  const headings = rows.map(annexHeading);
+  return new Set(headings.flatMap((heading) => heading?.key ?? [])).size < 2 ? null : headings;
+}
+
+// The key of the ผนวก each row lies in (null above the first ผนวก), or null
+// when the SOC isn't divided into ผนวก.
+export function annexKeysOfRows(rows: string[][]): (string | null)[] | null {
+  let key: string | null = null;
+  return annexHeadingsOfRows(rows)?.map((heading) => (key = heading?.key ?? key)) ?? null;
+}
+
 // A SOC divided into ผนวก (MEA Y69): at least two ผนวก heading rows. Its rows
 // number from 1 again in every ผนวก, so each ผนวก is a major item: key = the
 // ผนวก number, and a row's item is that number, then the row's own ("7.1").
 // Never split. Rows above the first ผนวก belong to no major item.
 function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean): SocMajorItemSpec[] | null {
-  const headings = rows.map(annexHeading);
-  if (new Set(headings.flatMap((heading) => heading?.key ?? [])).size < 2) return null;
+  const headings = annexHeadingsOfRows(rows);
+  if (!headings) return null;
   const items = new Map<string, SocMajorItemSpec>();
   let item: SocMajorItemSpec | null = null;
   for (const [index, heading] of headings.entries()) {

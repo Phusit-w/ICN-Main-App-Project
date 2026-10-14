@@ -36,4 +36,11 @@ For the user, in order: upload the package and make it current; deploy (`git pul
 
 Known limits: the review page shows the item as `7.3` (ผนวก 7 ข้อ 3), and several rows of one ผนวก can carry the same item because MEA restarts its numbers under each sub-heading; a whole ผนวก is one request (up to 51 rows), so one check costs more quota than the 4-row "1.7" of the local runs in ticket 08; the rule needs the word "ผนวก" at the start of an unnumbered row's TOR cell, twice or more.
 
-Local test databases: `test-db3`, `test-db4` and `test-db5` no longer start after being stopped with a kill. Start a fresh one (`npx prisma dev --name test-db6 -P 51278 --shadow-db-port 51279 -p 51277`) and stop it with `npx prisma dev stop test-db6`.
+**2026-10-14: `/code-review` done (Standards + Spec), fixes committed, not pushed, not deployed.** lint, typecheck and build pass; `npm test` 271/271 (on `test-db7`).
+
+- Fixed: three places still said "ข้อ ผนวก 7" (activity log of a check request, of ไม่ต้องตรวจ, and the name of the one-item results Excel).
+- Fixed: a row was matched to an item by its own number only, so row 9 (ข้อ 1 of ผนวก 8) answered to `7.1`, and with one Word table per ผนวก `rowText(2, "8.1")` gave ผนวก 7's row. A row now answers only to an item of its own ผนวก (`annexKeysOfRows`, `findRow` in `lib/soc-table.ts`; two tests).
+- Glossary: "SOC divided into ผนวก" added under Major item.
+- Not changed, the user's call: (1) the import still accepts a result whose row isn't in the claimed ผนวก when its item says it is (it is stored without TOR text now, not with another ผนวก's text); a refusal was not added because no run of all 369 MEA rows has shown every row is found; (2) the Runner's progress line says "ตรวจข้อ 7" (the ticket says no Runner change); (3) headings the rule doesn't read: "ผนวก 7. …" with a dot after the number, the same ผนวก number twice ("ผนวก 7 (ต่อ)") as the only two headings, a heading typed in the first cell, and a Word ผนวก SOC whose tables have no dotted number at all (the table is not read as a SOC table). Changing the rule means changing the skill's `annex_heading` too and a new Skill Package.
+
+Local test databases: `test-db6` no longer starts either; `test-db7` (`-P 51288 --shadow-db-port 51289 -p 51287`) was used. `test-db3`, `test-db4` and `test-db5` no longer start after being stopped with a kill. Start a fresh one (`npx prisma dev --name test-db6 -P 51278 --shadow-db-port 51279 -p 51277`) and stop it with `npx prisma dev stop test-db6`.

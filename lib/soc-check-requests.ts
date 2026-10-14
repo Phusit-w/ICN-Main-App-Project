@@ -128,11 +128,13 @@ async function createRequests(actor: Actor, job: Job, items: { id: string; label
       labels.push(item.label);
     }
     if (labels.length) {
+      // "ข้อ ๑, ๒", or "ผนวก 7, ผนวก 8" in a SOC divided into ผนวก.
+      const names = labels.every(isAnnexLabel) ? labels.join(", ") : `ข้อ ${labels.join(", ")}`;
       await writeAudit({
         actorId: actor.id, action: "SOC_CHECK_REQUESTED", entityType: "SOC_JOB", entityId: job.id,
         summary: items.some((i) => i.rowNumbers?.length)
-          ? `ขอตรวจใหม่ ${items.reduce((n, i) => n + (i.rowNumbers?.length ?? 0), 0)} แถวในข้อ ${labels.join(", ")} ด้วย SOC Runner ในงาน ${job.title}`
-          : `ขอตรวจข้อ ${labels.join(", ")} ด้วย SOC Runner ในงาน ${job.title}`,
+          ? `ขอตรวจใหม่ ${items.reduce((n, i) => n + (i.rowNumbers?.length ?? 0), 0)} แถวใน${names} ด้วย SOC Runner ในงาน ${job.title}`
+          : `ขอตรวจ${names} ด้วย SOC Runner ในงาน ${job.title}`,
         metadata: { majorItems: labels },
       }, tx);
     }
@@ -157,7 +159,7 @@ export async function setMajorItemSkipped(actor: Actor, job: Job, majorItemId: s
     await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: skipped ? "MAJOR_ITEM_SKIPPED" : "MAJOR_ITEM_UNSKIPPED", detail: { majorItemId: item.id, majorItem: item.label } } });
     await writeAudit({
       actorId: actor.id, action: skipped ? "SOC_MAJOR_ITEM_SKIPPED" : "SOC_MAJOR_ITEM_UNSKIPPED", entityType: "SOC_JOB", entityId: job.id,
-      summary: `${skipped ? "ตั้งข้อ" : "เปลี่ยนข้อ"} ${item.label} ${skipped ? "เป็นไม่ต้องตรวจ" : "กลับเป็นต้องตรวจ"} ในงาน ${job.title}`,
+      summary: `${skipped ? "ตั้ง" : "เปลี่ยน"}${majorItemName(item.label)} ${skipped ? "เป็นไม่ต้องตรวจ" : "กลับเป็นต้องตรวจ"} ในงาน ${job.title}`,
       metadata: { majorItem: item.label },
     }, tx);
     return true;

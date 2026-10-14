@@ -214,6 +214,6 @@ export async function downloadSocResultsExcel(actor: { id: string }, jobId: stri
       : `ดาวน์โหลดผลตรวจ Excel (ตรวจแล้ว ${checked.length}/${job.majorItems.length} ข้อใหญ่) ของงาน ${job.title}`,
     metadata: detail,
   });
-  const name = [fileBase(job.title), only ? `ข้อ ${safeName(only.label)}` : null].filter(Boolean).join("-");
+  const name = [fileBase(job.title), only ? safeName(majorItemName(only.label)) : null].filter(Boolean).join("-");
   return { ok: true, bytes, fileName: `${name}.xlsx` };
 }

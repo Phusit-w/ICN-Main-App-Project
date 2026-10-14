@@ -34,6 +34,8 @@ _Avoid_: Compliance result, audit verdict
 **Major item (ข้อใหญ่)**:
 The unit of an Imported SOC Check that one Local Check Run covers and one Check Request asks for: a top-level item number of the SOC (๑, ๒ …) with every row under it, unnumbered rows included. On import, a major item of more than 60 rows is split into its second-level sub-sections (๕ → ๕.๑ … ๕.๑๕), and each sub-section is a major item of its own (label "๕.๕"), grouped under ๕ on the job page. The split goes one level only, and ๕'s own heading row belongs to ๕.๑. A major item over 60 rows with fewer than two sub-sections stays whole, with the warning "ข้อนี้ใหญ่ อาจใช้โควตามาก". Jobs imported before the split keep their major items as they were.
 
+A **SOC divided into ผนวก** (annex in code) is the exception: when the SOC has two or more ผนวก heading rows (no item number, TOR cell starting "ผนวก 7 …" or "ภาคผนวกที่ ๘ …"), each ผนวก is one major item (label "ผนวก 7", key "7"), never split, and rows above the first ผนวก belong to no major item. Its rows number from 1 again in every ผนวก, so a row's item is the ผนวก number then its own number (`7.3`). Pages and messages name it "ผนวก 7", not "ข้อ ผนวก 7". This ผนวก is a part of one SOC, not ภาคผนวก as a name for the whole SOC.
+
 A row's **Final Decision** is ผ่าน (Comply), ดีกว่า (Better), ไม่ผ่าน, or **รอแก้ไข** (pending_fix): waiting for the bidder's fix. รอแก้ไข is saved with its note but doesn't settle the row: the major item isn't confirmed while a row is รอแก้ไข, and a re-check replaces such a row without asking.
 
 A **re-check of picked rows** (ส่งให้ Claude ตรวจใหม่ on the review page) re-checks only the rows the reviewer ticked; the major item's other results stay.
@@ -72,6 +74,22 @@ _Avoid_: pairing code, API key
 **Skill Package**:
 One version of the SOC skill (`tor-word-compliance-check`) that an admin uploaded to the server. Exactly one Skill Package is **current**: the one SOC Runners download for their next check. The server serves it with a headless instruction added (see `docs/SOC-SKILL-HOSTING.md`).
 _Avoid_: skill file, plugin
+
+**Image Row (แถวรูป)**:
+A SOC row whose TOR cell holds an image instead of typed text. It is a row of its own under the numbered row above it, and when its reference cell is empty it uses that row's reference. It is one of three kinds: a **text image** (a scan or capture of requirement text or a table), a **picture** (a drawing, symbol or photo with nothing to read), or a **mixed image** (a drawing with specification values printed in it).
+_Avoid_: scanned row, attachment
+
+**Image Reading (อ่านจากรูป)**:
+The requirement text Claude read out of a text image or mixed image. It is checked like typed TOR text and always shown beside the image it came from. A reviewer cannot edit it: a wrong reading is handled by the reviewer's own Final Decision or a re-check of that row. For a mixed image only the printed values are checked, and the row says the drawing itself was not compared.
+_Avoid_: OCR text (OCR is the server-side fidelity of evidence pages), transcription
+
+**Picture Row (รูปที่ต้องดูเอง)**:
+An Image Row whose image is a picture. Claude gives no verdict on it. The reviewer must give its Final Decision before the major item can be confirmed.
+_Avoid_: skipped row, heading row
+
+**Excel SOC**:
+A SOC whose comparison table is a worksheet instead of a Word table. Every visible sheet with a recognised header row is part of the SOC; other sheets are left out and named at upload. It is checked by the same rules as a Word SOC, and its major items follow the same rule, with item numbers shown as typed in the file. Only cell text is read: images in the workbook are counted and reported at upload, not read. Its check has no SOC_Check copy; the results are on the review page and in the results Excel.
+_Avoid_: spreadsheet job, Excel check
 
 ## Core objects
 

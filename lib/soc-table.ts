@@ -7,7 +7,7 @@
 // needs no Python or extra dependency. An Excel SOC's rows come from
 // lib/soc-table-excel.ts.
 import path from "node:path";
-import { majorItemsOfRows, normalItem, sameItem, type SocMajorItemSpec } from "@/lib/soc-major-items";
+import { annexKeysOfRows, majorItemKey, majorItemsOfRows, normalItem, sameItem, type SocMajorItemSpec } from "@/lib/soc-major-items";
 import { DOCX_MIME, magicIsDocx, NOT_A_SOC_FILE, SOC_FILE_IS_PDF, socFileNameProblem, toArabicDigits as toArabic, XLSX_MIME } from "@/lib/soc-shared";
 import { isExcelSocPart, readExcelSoc } from "@/lib/soc-table-excel";
 import { decodeXml } from "@/lib/xml";
@@ -98,9 +98,15 @@ const hasNumber = (cell: string) => /\d/.test(toArabic(cell));
 
 function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[], sheetOfRow: SocTable["sheetOfRow"], readImage: (imageId: string) => SocRowImage | null): SocTable {
   const itemOf = (row: SocRow) => row.cells[0] || "";
+  // A SOC divided into ผนวก numbers its rows from 1 again in each, so a row
+  // answers only to an item of its own ผนวก ("7.1" is never ข้อ 1 of ผนวก 8).
+  const allRows = tables.flat();
+  const annexKeys = annexKeysOfRows(allRows.map((row) => row.cells));
+  const annexOf = new Map(allRows.map((row, index) => [row, annexKeys?.[index] ?? null]));
   const findRow = (rowNumber: number, itemNumber: string): SocRow | undefined => {
     const index = rowNumber - 1;
-    const withRow = tables.filter((rows) => rows[index]);
+    const annex = annexKeys && majorItemKey(itemNumber);
+    const withRow = tables.filter((rows) => rows[index] && (!annexKeys || annexOf.get(rows[index]) === annex));
     const byRow = withRow.find((rows) => rowMatches(itemOf(rows[index]), itemNumber, withRow.length === 1));
     if (byRow) return byRow[index];
     // A row with no number (an Image Row, a sub-condition) that several
@@ -111,16 +117,14 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
       return above !== undefined && rowMatches(itemOf(above), itemNumber, false);
     });
     if (underItem.length === 1) return underItem[0][index];
-    const byItem = tables.flat().filter((row) => sameItem(itemOf(row), itemNumber));
+    if (annexKeys) return undefined;
+    const byItem = allRows.filter((row) => sameItem(itemOf(row), itemNumber));
     return byItem.length === 1 ? byItem[0] : undefined;
   };
   return {
     file,
     sheetOfRow,
-    majorItems: (() => {
-      const rows = tables.flat();
-      return majorItemsOfRows(rows.map((row) => row.cells), (index) => !!rows[index].imageId);
-    })(),
+    majorItems: majorItemsOfRows(allRows.map((row) => row.cells), (index) => !!allRows[index].imageId),
     rowText: (rowNumber, itemNumber) => {
       const row = findRow(rowNumber, itemNumber);
       return row ? { tor: row.cells[1] ?? "", proposal: row.cells[2] ?? null, ...(row.imageId ? { image: true } : {}) } : null;
