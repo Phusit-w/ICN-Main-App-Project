@@ -117,7 +117,10 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
   return {
     file,
     sheetOfRow,
-    majorItems: majorItemsOfRows(tables.flat().map((row) => row.cells)),
+    majorItems: (() => {
+      const rows = tables.flat();
+      return majorItemsOfRows(rows.map((row) => row.cells), (index) => !!rows[index].imageId);
+    })(),
     rowText: (rowNumber, itemNumber) => {
       const row = findRow(rowNumber, itemNumber);
       return row ? { tor: row.cells[1] ?? "", proposal: row.cells[2] ?? null, ...(row.imageId ? { image: true } : {}) } : null;

@@ -42,8 +42,12 @@ export const isHeadingRow = (rowType: string) => rowType.endsWith("heading_row")
 //   ⚠️ review: otherwise, any axis outside its OK set
 //   ✅ ok:     every axis OK
 // The reasons are the axes outside their OK set.
-export function overallRowStatus(rowType: string, axes: SocAxisValues): { status: SocRowStatus; reasons: string[] } {
+// A Picture Row (imageKind "picture") has no axes: Claude doesn't judge it,
+// so it is ⚠️ until the reviewer decides it, never ✅.
+export const PICTURE_ROW_REASON = "รูปที่ต้องดูเอง: Claude ไม่ตัดสินแถวนี้";
+export function overallRowStatus(rowType: string, axes: SocAxisValues, imageKind?: string | null): { status: SocRowStatus; reasons: string[] } {
   if (isHeadingRow(rowType)) return { status: "heading", reasons: [] };
+  if (imageKind === "picture") return { status: "review", reasons: [PICTURE_ROW_REASON] };
   const reasons = SOC_REVIEW_AXES.filter((axis) => !isAxisOk(axes, axis)).map((axis) => `${axis.label}: ${socAxisValueLabel(axes[axis.key])}`);
   const fail = axes.tor_decision === "non_compliant"
     || axes.evidence_support === "not_supported" || axes.evidence_support === "wording_conflict"

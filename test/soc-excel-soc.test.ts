@@ -205,7 +205,7 @@ test("a runner too old for an Excel SOC is handed nothing and the job page says 
     assert.equal((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: item("1").id } })).state, "requested");
   }
   const waiting = (await majorItemRequestViews(jobId)).get(item("1").id)!.request!;
-  assert.equal(waiting.runnerTooOld, true);
+  assert.equal(waiting.runnerTooOld, "excel_soc");
   const text = majorItemStateText({ state: "requested", request: waiting }, owner.id);
   assert.equal(text.label, "รอติดตั้ง SOC Runner รุ่นใหม่");
   assert.match(text.detail ?? "", new RegExp(`ต้องเป็นรุ่น ${SOC_RUNNER_FOR_EXCEL_SOC.replaceAll(".", "\\.")} ขึ้นไป.*ติดตั้งใหม่`));

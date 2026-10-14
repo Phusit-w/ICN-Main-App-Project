@@ -54,9 +54,10 @@ export type SocCheckRequestView = {
   progressNote: string | null; resumeAt: string | null;
   // Rows of a re-check of picked rows; 0 = the whole major item.
   rowCount: number;
-  // The requester's runner is older than this job's SOC needs (an Excel SOC):
-  // it is not handed the request until it is installed again.
-  runnerTooOld?: boolean;
+  // The requester's runner is older than the request needs (an Excel SOC, or
+  // a major item with Image Rows): it is not handed the request until it is
+  // installed again.
+  runnerTooOld?: SocRunnerNeed;
 };
 
 // "๑๓" → "13".
@@ -81,7 +82,8 @@ export function majorItemStateText(
   switch (item.state) {
     case "requested":
       if (request?.runnerTooOld) {
-        return { label: "รอติดตั้ง SOC Runner รุ่นใหม่", detail: `SOC Runner บน${machine}เป็นรุ่นเก่า ตรวจ SOC ที่เป็น Excel ไม่ได้ (ต้องเป็นรุ่น ${SOC_RUNNER_FOR_EXCEL_SOC} ขึ้นไป) ติดตั้งใหม่ด้วยคำสั่งติดตั้งจากหน้า SOC แล้วคำขอนี้จะเริ่มตรวจเอง` };
+        const { what, version } = SOC_RUNNER_NEEDS[request.runnerTooOld];
+        return { label: "รอติดตั้ง SOC Runner รุ่นใหม่", detail: `SOC Runner บน${machine}เป็นรุ่นเก่า ตรวจ${what}ไม่ได้ (ต้องเป็นรุ่น ${version} ขึ้นไป) ติดตั้งใหม่ด้วยคำสั่งติดตั้งจากหน้า SOC แล้วคำขอนี้จะเริ่มตรวจเอง` };
       }
       if (request && request.runnerState !== "online") {
         return { label: `รอ${machine}เปิด`, detail: request.runnerState ? null : `${self ? "คุณ" : request.requestedByName}ยังไม่ได้เชื่อม SOC Runner` };
@@ -227,6 +229,29 @@ export const SOC_RUNNER_REVOKE_REASON_LABELS: Record<SocRunnerRevokeReason, stri
 // then fail for lack of a SOC_Check).
 export const SOC_RUNNER_FOR_EXCEL_SOC = "0.5.0";
 export const isExcelSoc = (soc: { mimeType: string } | null | undefined) => soc?.mimeType === XLSX_MIME;
+
+// The oldest SOC Runner that can check a major item with Image Rows: it never
+// runs such an item on the old flow (no packet), which can't read the images.
+// An older runner is not handed such a request.
+export const SOC_RUNNER_FOR_IMAGE_ROWS = "0.6.0";
+
+// Why a request needs a newer runner, what the job page says it can't check,
+// and from which version it can.
+export type SocRunnerNeed = "excel_soc" | "image_rows";
+export const SOC_RUNNER_NEEDS: Record<SocRunnerNeed, { what: string; version: string }> = {
+  excel_soc: { what: " SOC ที่เป็น Excel ", version: SOC_RUNNER_FOR_EXCEL_SOC },
+  image_rows: { what: "ข้อที่มีแถวรูป (ช่อง TOR เป็นรูป) ", version: SOC_RUNNER_FOR_IMAGE_ROWS },
+};
+
+// An Image Row's kind, as the skill sorts the image (results.json `image_kind`).
+// A text image and a mixed image are read and checked; a picture gets no
+// verdict from Claude and waits for the reviewer's Final Decision.
+export const SOC_IMAGE_KINDS = ["text_image", "mixed_image", "picture"] as const;
+export type SocImageKind = (typeof SOC_IMAGE_KINDS)[number];
+export const isSocImageKind = (value: unknown): value is SocImageKind => (SOC_IMAGE_KINDS as readonly unknown[]).includes(value);
+export const SOC_IMAGE_KIND_LABELS: Record<SocImageKind, string> = { text_image: "อ่านจากรูป", mixed_image: "อ่านจากรูป", picture: "รูปที่ต้องดูเอง" };
+// The skill's fixed note on a mixed image (expand_results.py), shown whatever the run wrote.
+export const MIXED_IMAGE_NOTE = "ตรวจเฉพาะค่าที่พิมพ์ในรูป ไม่ได้เทียบรูปวาดกับหลักฐาน";
 
 // Whether a runner's reported version ("0.4.2") is at least `needed`,
 // comparing the numbers between the dots. A runner that never reported is not.

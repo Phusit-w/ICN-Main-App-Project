@@ -25,7 +25,7 @@ function installDom() {
 
 const row = (id: string, item: string, page: number): SocReviewRow => ({
   id, item, rowNumber: page, majorItemId: "major-1", sheet: null, status: "review", reasons: ["ควรตรวจหลักฐาน"], evidenceMissing: false,
-  torText: `ข้อกำหนด ${item}`, torImage: false, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
+  torText: `ข้อกำหนด ${item}`, torImage: false, image: null, referenceNote: null, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
   citations: [{ cited: "Datasheet", document: { id: "pdf-1", name: "Datasheet.pdf" }, pages: [page] }],
   declaredSelection: "comply", systemRecommendation: "compliant",
   axes: [{ key: "reference_check", label: "หน้าอ้างอิง", value: "match", ok: true, detail: "ตรง" }],
@@ -81,6 +81,57 @@ test("an Image Row shows the image of its TOR cell in place of the text, beside 
   assert.ok(within(screen.getByRole("dialog", { name: "ตรวจข้อ ๑.๒" })).getByRole("img", { name: "รูปข้อกำหนด TOR ข้อ ๑.๒ แถว 7" }));
 });
 
+test("an Image Row shows what Claude read from the image and its notes; a picture shows no verdict and still takes a decision", async () => {
+  const mixed: SocReviewRow = {
+    ...row("row-3", "๑.๒", 7), torText: "", torImage: true, referenceNote: "ใช้อ้างอิงของข้อ ๑.๒",
+    image: { kind: "mixed_image", label: "อ่านจากรูป", reading: "ขนาด: 290 มม.\nรู: [?] มม.", unsure: "ขนาดรูอ่านไม่ชัด", note: "ตรวจเฉพาะค่าที่พิมพ์ในรูป ไม่ได้เทียบรูปวาดกับหลักฐาน" },
+  };
+  const picture: SocReviewRow = {
+    ...row("row-4", "๑.๓", 8), torText: "", torImage: true, systemRecommendation: null, declaredSelection: null, detail: "", reasons: ["รูปที่ต้องดูเอง: Claude ไม่ตัดสินแถวนี้"],
+    image: { kind: "picture", label: "รูปที่ต้องดูเอง", reading: "ตัวอย่างสัญลักษณ์บนฝาตู้", unsure: null, note: null },
+  };
+  const { screen, within, user } = await setup("job-1", [...rows, mixed, picture]);
+
+  await user.click(screen.getAllByRole("button", { name: "๑.๒" })[1]); // the Image Row, under the text row ๑.๒
+  let detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๒" });
+  assert.ok(within(detail).getByText("อ่านจากรูป"));
+  const reading = within(detail).getByRole("region", { name: "ข้อความที่อ่านจากรูป" });
+  assert.equal(within(reading).getByText(/ขนาด: 290 มม\./).textContent, "ขนาด: 290 มม.\nรู: [?] มม.");
+  assert.equal(within(detail).queryByRole("textbox", { name: /อ่านจากรูป/ }), null, "the reading is read-only");
+  assert.ok(within(detail).getByText("ขนาดรูอ่านไม่ชัด"));
+  assert.ok(within(detail).getByText("ตรวจเฉพาะค่าที่พิมพ์ในรูป ไม่ได้เทียบรูปวาดกับหลักฐาน"));
+  assert.ok(within(detail).getByText("ช่องอ้างอิงของแถวนี้ว่าง ใช้อ้างอิงของข้อ ๑.๒"));
+
+  // The table shows what was read, after the "รูป" chip.
+  assert.ok(screen.getByRole("button", { name: "๑.๓" }).closest("tr")!.textContent!.includes("รูปตัวอย่างสัญลักษณ์บนฝาตู้"));
+  await user.click(screen.getByRole("button", { name: "๑.๓" }));
+  detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๓" });
+  assert.ok(within(detail).getByText("รูปที่ต้องดูเอง: Claude ไม่ตัดสินแถวนี้"));
+  assert.equal(within(detail).queryByText(/ระบบแนะนำ/), null);
+  assert.equal(within(detail).queryByText(/รายละเอียดทุกแกน/), null, "no axes to show");
+  assert.ok(within(detail).getByText("ตัวอย่างสัญลักษณ์บนฝาตู้"));
+  assert.ok(within(detail).getByRole("img", { name: "Datasheet.pdf หน้า 8" }), "the cited evidence page beside the image");
+  await user.click(within(detail).getByRole("radio", { name: /ผ่าน \(Comply\)/ }));
+  assert.equal(within(detail).getByRole("radio", { name: /ผ่าน \(Comply\)/ }).getAttribute("aria-checked"), "true");
+});
+
+test("a text image shows its reading with the verdict and axes of any checked row, and no drawing note", async () => {
+  const textImage: SocReviewRow = {
+    ...row("row-3", "๑.๒", 7), torText: "", torImage: true,
+    image: { kind: "text_image", label: "อ่านจากรูป", reading: "แรงดัน: 24 kV", unsure: null, note: null },
+  };
+  const { screen, within, user } = await setup("job-1", [...rows, textImage]);
+  await user.click(screen.getAllByRole("button", { name: "๑.๒" })[1]);
+
+  const detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๒" });
+  assert.ok(within(detail).getByText("อ่านจากรูป"));
+  assert.ok(within(within(detail).getByRole("region", { name: "ข้อความที่อ่านจากรูป" })).getByText("แรงดัน: 24 kV"));
+  assert.ok(within(detail).getByText(/รายละเอียดทุกแกน/));
+  assert.equal(within(detail).queryByText(/ไม่แน่ใจ/), null);
+  assert.equal(within(detail).queryByText(/ไม่ได้เทียบรูปวาด/), null);
+  assert.equal(within(detail).queryByText(/Claude ไม่ตัดสินแถวนี้/), null);
+});
+
 test("the row opens full screen with comparison/evidence panes and PDF zoom, and keeps an unsaved decision", async () => {
   const { screen, within, user } = await setup();
   await user.click(screen.getByRole("button", { name: "๑.๑" }));
@@ -125,8 +176,9 @@ test("leaving full screen returns focus to the expand button and unlocks page sc
 
 test("the extra filters sit behind one button, show as removable chips, and reset clears everything", async () => {
   const { screen, user } = await setup();
-  const reset = () => screen.getAllByRole("button", { name: "↺ ล้างตัวกรอง" })[0];
-  assert.equal(reset().hasAttribute("disabled"), true);
+  // The reset button shows only while a filter or sort is changed.
+  const reset = () => screen.queryByRole("button", { name: "↺ ล้าง" });
+  assert.equal(reset(), null);
 
   await user.click(screen.getByRole("button", { name: /^ตัวกรอง/ }));
   await user.click(screen.getByRole("checkbox", { name: "เฉพาะแถวที่หาเอกสารไม่เจอ" }));
@@ -134,11 +186,11 @@ test("the extra filters sit behind one button, show as removable chips, and rese
   assert.ok(screen.getByText("ไม่พบรายการในตัวกรองนี้"));
 
   await user.click(screen.getByRole("button", { name: "ข้อ" }));
-  await user.click(reset());
+  await user.click(reset()!);
   assert.ok(screen.getByRole("button", { name: "๑.๑" }));
   assert.equal(screen.queryByRole("button", { name: "เอาตัวกรอง หาเอกสารไม่เจอ ออก" }), null);
   assert.equal(screen.getByRole("button", { name: "สถานะ" }).getAttribute("aria-pressed"), "true");
-  assert.equal(reset().hasAttribute("disabled"), true);
+  assert.equal(reset(), null);
 });
 
 test("a folded major-item group stays folded after the page is opened again", async () => {

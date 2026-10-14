@@ -22,7 +22,7 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 | 05 | Excel SOC end to end through the Runner | 03, 04 | done (2026-10-12), Runner 0.5.0, not deployed |
 | 06 | The web recognises Image Rows | 01 | done (2026-10-12), not pushed, not deployed |
 | 07 | The skill reads Image Rows | 02 | done (2026-10-12): live MEA runs 2.5 (mixed), 1.7 (picture), 1.12 OK; skill outside git, no package |
-| 08 | Image Rows end to end on the review page | 06, 07 | ready-for-agent |
+| 08 | Image Rows end to end on the review page | 06, 07 | done |
 | 09 | Live acceptance and quota | 05, 08 | ready-for-human |
 
 The Excel lane (01 to 05) is complete and can be deployed on its own if the user asks: upload the Skill Package first, then deploy (one migration), then reviewers re-install the Runner (0.5.0). See the end of ticket 05.

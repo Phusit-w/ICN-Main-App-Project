@@ -670,6 +670,25 @@ class PacketFlowTest(unittest.TestCase):
         self.assertEqual(self.server.submits[0]["packetFallback"], "สร้าง evidence packet ไม่สำเร็จ (exit 1): ValueError")
         self.assertTrue(any("ใช้ flow เดิม" in line for line in logged))
 
+    def test_an_item_with_image_rows_fails_rather_than_run_the_old_flow_without_a_packet(self):
+        # Only the packet gives Claude the images; the old flow would check the rows blind.
+        self.request["imageRows"] = 2
+        claude = FakeClaude()
+        outcome = carry_out(self.request, self.server, claude, self.work_root, quiet,
+                            build_packet=self.builder("สร้าง evidence packet ไม่สำเร็จ (exit 1): ValueError"))
+        self.assertEqual(outcome, "failed")
+        self.assertEqual(claude.tasks, [])
+        reason = self.server.reports[-1][1]["reason"]
+        self.assertIn("แถวรูป 2 แถว", reason)
+        self.assertIn("สร้าง evidence packet ไม่สำเร็จ (exit 1): ValueError", reason)
+        self.assertEqual(self.server.submits, [])
+
+    def test_an_item_with_image_rows_runs_on_the_packet_as_any_other(self):
+        self.request["imageRows"] = 1
+        claude = FakeClaude()
+        self.assertEqual(carry_out(self.request, self.server, claude, self.work_root, quiet, build_packet=self.builder()), "submitted")
+        self.assertIn("evidence_packet", claude.tasks[0].prompt)
+
     def test_a_resumed_run_keeps_its_flow_and_does_not_build_again(self):
         claude = FakeClaude()
         claude.script = [ClaudeQuotaExhausted(None, "s")]

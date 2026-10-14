@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
 import { readSocTable } from "@/lib/soc-table";
-import { buildDocx, buildSocDocx, buildZip, tableXml } from "@/test/docx-fixture";
+import { buildDocx, buildSocDocx, buildZip, PNG, tableXml } from "@/test/docx-fixture";
 
 const HEADER = ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"];
 // Read through the SOC table reader, as every caller does.
@@ -115,8 +115,8 @@ test("a major item over 60 rows is split into its sub-sections; its heading row 
     ...section("๕.๓", "เครื่องพิมพ์", 5),
     ...section("๖.", "การฝึกอบรม", 1),
   ]);
-  const group = { groupLabel: "๕", groupTitle: "ระบบ RFID มีรายละเอียดดังนี้", skipped: false };
-  const other = { groupLabel: null, groupTitle: null, skipped: true };
+  const group = { imageRowCount: 0, groupLabel: "๕", groupTitle: "ระบบ RFID มีรายละเอียดดังนี้", skipped: false };
+  const other = { imageRowCount: 0, groupLabel: null, groupTitle: null, skipped: true };
   assert.deepEqual(readSocMajorItems(soc), [
     { key: "4", label: "๔", title: "ระบบเดิม", rowCount: 3, ...other },
     { key: "5.1", label: "๕.๑", title: "เครื่องแม่ข่าย", rowCount: 22, ...group },
@@ -124,6 +124,18 @@ test("a major item over 60 rows is split into its sub-sections; its heading row 
     { key: "5.3", label: "๕.๓", title: "เครื่องพิมพ์", rowCount: 6, ...group },
     { key: "6", label: "๖", title: "การฝึกอบรม", rowCount: 2, ...other },
   ]);
+});
+
+test("Image Rows are counted under the item they sit in, also after a split", () => {
+  const image = (item = "") => [item, { image: PNG }, "", ""];
+  const soc = buildSocDocx([
+    HEADER,
+    ...section("๔.", "ระบบเดิม", 1), image(),
+    ["๕.", "ระบบ RFID มีรายละเอียดดังนี้", "", ""], image(), // before ๕.๑: joins the first sub-section, as its heading does
+    ...section("๕.๑", "เครื่องแม่ข่าย", 30), image(), image(),
+    ...section("๕.๒", "เครื่องอ่าน RFID", 30),
+  ]);
+  assert.deepEqual(readSocMajorItems(soc).map((m) => [m.key, m.rowCount, m.imageRowCount]), [["4", 3, 1], ["5.1", 35, 3], ["5.2", 31, 0]]);
 });
 
 test("with no split, no item is guessed as ไม่ต้องตรวจ", () => {

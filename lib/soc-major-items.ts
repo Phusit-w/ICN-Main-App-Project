@@ -12,6 +12,7 @@ export type SocMajorItemSpec = {
   label: string; // the number as the SOC writes it, e.g. "๑" or "๕.๕"
   title: string | null; // text of the item's own heading row, when the SOC has one
   rowCount: number; // SOC table rows the item covers, its heading row and unnumbered rows included
+  imageRowCount: number; // of those, the Image Rows (TOR cell is an image, no text)
   groupLabel: string | null; // a sub-section of a split major item: that major item's label, e.g. "๕"
   groupTitle: string | null; // and its heading row's text
   // ไม่ต้องตรวจ, guessed on import: when a large item was split, that item is
@@ -54,44 +55,51 @@ export function isItemInMajorItem(item: string, majorItem: { key: string }, { ta
   return key.every((segment, i) => path[i] === segment);
 }
 
-type ItemTally = { key: string; label: string; title: string | null; rowCount: number };
-// rowsBeforeSubs: its heading row and any row before its first sub-section.
-type MajorItemTally = ItemTally & { rowsBeforeSubs: number; subs: Map<string, ItemTally> };
+type ItemTally = { key: string; label: string; title: string | null; rowCount: number; imageRowCount: number };
+// rowsBeforeSubs (imagesBeforeSubs): its heading row and any row before its first sub-section (the Image Rows among them).
+type MajorItemTally = ItemTally & { rowsBeforeSubs: number; imagesBeforeSubs: number; subs: Map<string, ItemTally> };
 
 // The major items of a SOC, from every row of its tables in order (first cell
-// = item number).
-export function majorItemsOfRows(rows: string[][]): SocMajorItemSpec[] {
+// = item number). `isImageRow(i)`: whether row i is an Image Row.
+export function majorItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean = () => false): SocMajorItemSpec[] {
   // Each row counts towards the item number above it, until the next one.
   const majors = new Map<string, MajorItemTally>();
   let major: MajorItemTally | null = null;
   let sub: ItemTally | null = null;
-  for (const cells of rows) {
+  for (const [index, cells] of rows.entries()) {
     const segments = itemSegments(cells[0] || "");
     const text = () => cells.slice(1).find((t) => t)?.slice(0, MAX_TITLE) || null;
     if (segments) {
       const key = segmentKey(segments.slice(0, 1));
-      major = majors.get(key) ?? { key, label: segments[0], title: null, rowCount: 0, rowsBeforeSubs: 0, subs: new Map() };
+      major = majors.get(key) ?? { key, label: segments[0], title: null, rowCount: 0, imageRowCount: 0, rowsBeforeSubs: 0, imagesBeforeSubs: 0, subs: new Map() };
       majors.set(key, major);
       if (segments.length === 1 && !major.title) major.title = text();
       sub = null;
       if (segments.length > 1) {
         const subKey = segmentKey(segments.slice(0, 2));
-        sub = major.subs.get(subKey) ?? { key: subKey, label: segments.slice(0, 2).join("."), title: null, rowCount: 0 };
+        sub = major.subs.get(subKey) ?? { key: subKey, label: segments.slice(0, 2).join("."), title: null, rowCount: 0, imageRowCount: 0 };
         major.subs.set(subKey, sub);
         if (segments.length === 2 && !sub.title) sub.title = text();
       }
     }
     if (!major) continue;
+    const image = isImageRow(index) ? 1 : 0;
     major.rowCount += 1;
-    if (sub) sub.rowCount += 1;
-    else major.rowsBeforeSubs += 1;
+    major.imageRowCount += image;
+    if (sub) {
+      sub.rowCount += 1;
+      sub.imageRowCount += image;
+    } else {
+      major.rowsBeforeSubs += 1;
+      major.imagesBeforeSubs += image;
+    }
   }
   // Over SPLIT_MAJOR_ITEM_ROWS: split one level, into the second-level
   // sub-sections (๕ → ๕.๑ … ๕.๑๕). A sub-section isn't split again.
-  const items = [...majors.values()].flatMap(({ rowsBeforeSubs, subs, ...item }): Omit<SocMajorItemSpec, "skipped">[] => {
+  const items = [...majors.values()].flatMap(({ rowsBeforeSubs, imagesBeforeSubs, subs, ...item }): Omit<SocMajorItemSpec, "skipped">[] => {
     if (item.rowCount <= SPLIT_MAJOR_ITEM_ROWS || subs.size < 2) return [{ ...item, groupLabel: null, groupTitle: null }];
     // The major item's own heading row (and any row before ๕.๑) joins the first sub-section.
-    return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title }));
+    return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), imageRowCount: s.imageRowCount + (i === 0 ? imagesBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title }));
   });
   const split = items.some((item) => item.groupLabel);
   return items.map((item) => ({ ...item, skipped: split && !item.groupLabel }));

@@ -34,7 +34,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.5.0"
+RUNNER_VERSION = "0.6.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -163,7 +163,12 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
             if "packetFallback" in saved:
                 return
             server.report(request_id, {"state": "running", "progress": f"กำลังเตรียม evidence packet ข้อ {item['label']}"})
-            saved["packetFallback"] = build_packet(work, skill_dir, documents, item["label"]) or ""
+            fallback = build_packet(work, skill_dir, documents, item["label"]) or ""
+            # The old flow has no way to show Claude the images of Image Rows.
+            if fallback and request.get("imageRows"):
+                raise RunFailed(f"ข้อ {item['label']} มีแถวรูป {request['imageRows']} แถว ซึ่งตรวจได้ด้วย evidence packet เท่านั้น"
+                                f" แต่สร้าง packet ไม่ได้: {fallback}")
+            saved["packetFallback"] = fallback
             _write_run_state(work, saved)
             if saved["packetFallback"]:
                 log(f"[{request_id}] ไม่ใช้ evidence packet ใช้ flow เดิม: {saved['packetFallback']}")

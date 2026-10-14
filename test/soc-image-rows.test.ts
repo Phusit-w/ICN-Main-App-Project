@@ -11,9 +11,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
-import { buildDocx, buildSocDocx, PNG } from "@/test/docx-fixture";
+import { buildDocx, buildSocDocx, buildZip, PNG } from "@/test/docx-fixture";
+import { newSocRunnerToken } from "@/lib/soc-runner-token";
+import { majorItemStateText, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS } from "@/lib/soc-shared";
 
 const skip = setupTestDatabase();
 
@@ -27,6 +30,14 @@ const { GET: excelRoute } = await import("@/app/api/soc/jobs/[id]/results-excel/
 const { createImportedSocJob } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 const { socReviewView } = await import("@/lib/soc-review-view");
+const { decideSocRow } = await import("@/actions/soc");
+const { requestSocCheck, requestSocRowRechecks } = await import("@/actions/socCheckRequests");
+const { majorItemRequestViews } = await import("@/lib/soc-check-requests");
+const { uploadSocSkillPackage } = await import("@/lib/soc-skill-package");
+const { POST: claimRoute } = await import("@/app/api/soc-runner/claim/route");
+const { POST: submitRoute } = await import("@/app/api/soc-runner/requests/[id]/submit/route");
+const { POST: heartbeatRoute } = await import("@/app/api/soc-runner/heartbeat/route");
+const SKILL = buildZip({ "tor-word-compliance-check/SKILL.md": "---\nname: tor-word-compliance-check\n---\n\n# skill\n" }, { deflate: true });
 
 let storageRoot = "";
 before(async () => {
@@ -53,10 +64,20 @@ const SOC = buildSocDocx([
 
 // A valid full-mode run: rows of the real Sonnet run, renumbered for this SOC.
 // The skill gives an unnumbered row the item number of the row above it.
-function run(rows: [number, string][]) {
+// `extra`: fields per row number, e.g. an Image Row's kind and reading.
+function run(rows: [number, string][], extra: Record<number, Row> = IMAGE_FIELDS) {
   const content = SONNET_RUN.results.find((r) => r.row_type === "content_row") ?? SONNET_RUN.results[1];
-  return { ...SONNET_RUN, results: rows.map(([row, item]): Row => ({ ...content, row, item })) };
+  return { ...SONNET_RUN, results: rows.map(([row, item]): Row => ({ ...content, row, item, ...extra[row] })) };
 }
+
+// What the skill writes for an Image Row (ticket 07): a mixed image is
+// checked like any row; a picture carries no verdict field at all (the shape
+// of MEA Y69 row 92 in fixtures/07-image-run).
+const MIXED: Row = { image_kind: "mixed_image", image_reading: "ขนาดท่อ: 110 มม.\nความหนา: [?] มม.", image_unsure: "ความหนาอ่านไม่ออก", image_note: "ตรวจเฉพาะค่าที่พิมพ์ในรูป ไม่ได้เทียบรูปวาดกับหลักฐาน", reference_note: "ใช้อ้างอิงของข้อ ๑.๑" };
+const PICTURE: Row = { image_kind: "picture", image_reading: "รูปข้อต่อ", image_unsure: "" };
+const IMAGE_FIELDS: Record<number, Row> = { 4: MIXED, 6: PICTURE };
+// The picture row exactly as the skill gives it: no verdict fields.
+const pictureRow = (row: number, item: string): Row => ({ row, item, reference: "", ...PICTURE });
 
 function user(username: string, appAccess: string[] = ["soc"]) {
   return prisma.user.create({ data: { username, displayName: username, passwordHash: "x", role: "USER", appAccess } });
@@ -66,8 +87,10 @@ async function checkedJob(ownerName = "owner") {
   const owner = await user(ownerName);
   const jobId = await createImportedSocJob(owner, { title: "MEA", soc: { name: "SOC.docx", bytes: SOC }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
   const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+  const results = run([[3, "๑.๑"], [4, "๑.๑"], [5, "๑.๒"]]);
+  results.results.push(pictureRow(6, "๑.๒"));
   const imported = await importLocalCheckRun(owner, {
-    jobId, majorItemId: items[0].id, results: run([[3, "๑.๑"], [4, "๑.๑"], [5, "๑.๒"], [6, "๑.๒"]]),
+    jobId, majorItemId: items[0].id, results,
     socCheck: { name: "SOC_Check.docx", bytes: SOC_CHECK },
     run: { skillVersion: "v1", model: "claude-cli:sonnet", source: "manual" },
   });
@@ -145,5 +168,183 @@ test("the results Excel writes [รูป] in the TOR column of an Image Row", {
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(await response.arrayBuffer());
   const cells = book.getWorksheet("ข้อ ๑")!.getSheetValues().slice(2).map((row) => (row as unknown[]).slice(1, 4).map(String));
-  assert.deepEqual(cells, [["3", "๑.๑", "ขนาดท่อตามตาราง"], ["4", "๑.๑", "[รูป]"], ["5", "๑.๒", "ข้อต่อ"], ["6", "๑.๒", "[รูป]"]]);
+  assert.deepEqual(cells, [
+    ["3", "๑.๑", "ขนาดท่อตามตาราง"], ["4", "๑.๑", "[รูป]\nขนาดท่อ: 110 มม.\nความหนา: [?] มม."],
+    ["5", "๑.๒", "ข้อต่อ"], ["6", "๑.๒", "[รูป]\nรูปข้อต่อ"],
+  ]);
+});
+
+// ---- Ticket 08: Image Rows end to end -------------------------------------------
+
+const MANUAL = { skillVersion: "v1", model: "claude-cli:sonnet", source: "manual" as const };
+
+async function uncheckedJob(ownerName = "owner") {
+  const owner = await user(ownerName);
+  const jobId = await createImportedSocJob(owner, { title: "MEA", soc: { name: "SOC.docx", bytes: SOC }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
+  const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+  return { owner, jobId, items };
+}
+
+function importInto(owner: Actor, jobId: string, majorItemId: string, results: unknown) {
+  return importLocalCheckRun(owner, { jobId, majorItemId, results, socCheck: { name: "SOC_Check.docx", bytes: SOC_CHECK }, run: MANUAL });
+}
+
+test("each major item knows how many Image Rows it has", { skip }, async () => {
+  const { items } = await uncheckedJob();
+  assert.deepEqual(items.map((m) => [m.label, m.imageRowCount]), [["๑", 2], ["๒", 0]]);
+});
+
+test("the import keeps an Image Row's kind, reading, unsure note and borrowed reference; a picture comes with no verdict", { skip }, async () => {
+  await checkedJob();
+  const rows = await prisma.socCheckResult.findMany({ orderBy: { rowNumber: "asc" } });
+  assert.deepEqual(rows.map((r) => [r.rowNumber, r.imageKind, r.imageReading, r.imageUnsure, r.referenceNote]), [
+    [3, null, null, null, null],
+    [4, "mixed_image", "ขนาดท่อ: 110 มม.\nความหนา: [?] มม.", "ความหนาอ่านไม่ออก", "ใช้อ้างอิงของข้อ ๑.๑"],
+    [5, null, null, null, null],
+    [6, "picture", "รูปข้อต่อ", null, null],
+  ]);
+  const picture = rows[3];
+  assert.deepEqual([picture.aiReferenceCheck, picture.torDecision, picture.aiConfidence, picture.evidenceSupport], ["", null, "", null]);
+});
+
+test("the import refuses an Image Row without a kind, a kind it doesn't know, and a read image without its reading, naming the row", { skip }, async () => {
+  const { owner, jobId, items } = await uncheckedJob();
+  const rows: [number, string][] = [[3, "๑.๑"], [4, "๑.๑"], [5, "๑.๒"], [6, "๑.๒"]];
+  const refused = async (extra: Record<number, Row>, pattern: RegExp) => {
+    const result = await importInto(owner, jobId, items[0].id, run(rows, extra));
+    assert.equal(result.ok, false, JSON.stringify(extra));
+    assert.match((result as { errors: string[] }).errors.join("\n"), pattern);
+  };
+  await refused({ 6: PICTURE }, /แถว 4 .*แถวรูป.*image_kind/);
+  await refused({ 4: { ...MIXED, image_kind: "photo" }, 6: PICTURE }, /แถว 4 .*image_kind.*text_image, mixed_image หรือ picture/);
+  await refused({ 4: { ...MIXED, image_kind: "text_image", image_reading: "" }, 6: PICTURE }, /แถว 4 .*image_reading/);
+  // A kind on a row whose TOR cell is text: the skill and the web disagree on the SOC.
+  await refused({ 3: PICTURE, 4: MIXED, 6: PICTURE }, /แถว 3 .*ไม่ใช่แถวรูป/);
+  // A picture still needs its row and item; nothing else.
+  await refused({ 4: MIXED, 6: { ...PICTURE, item: "" } }, /ขาด item/);
+  // A picture has no verdict, so a row the SOC doesn't have can't be one.
+  const notInSoc = await importInto(owner, jobId, items[0].id, { ...run(rows), results: [...run(rows).results, pictureRow(99, "๑.๙")] });
+  assert.match((notInSoc as { errors: string[] }).errors.join("\n"), /แถว 99 .*หาแถวนี้ในไฟล์ SOC ไม่เจอ/);
+  assert.equal(await prisma.socCheckResult.count({ where: { jobId } }), 0);
+});
+
+test("a picture the run calls a heading row is still a row waiting for a Final Decision", { skip }, async () => {
+  const { owner, jobId, items } = await uncheckedJob();
+  const results = run([[3, "๑.๑"], [4, "๑.๑"], [5, "๑.๒"]]);
+  results.results.push({ ...pictureRow(6, "๑.๒"), row_type: "heading_row" });
+  assert.ok((await importInto(owner, jobId, items[0].id, results)).ok);
+  const picture = (await socReviewView(jobId)).rows.find((r) => r.rowNumber === 6);
+  assert.equal(picture?.status, "review");
+});
+
+test("the review page shows an Image Row's kind, reading and notes; a picture waits for the reviewer", { skip }, async () => {
+  const { jobId } = await checkedJob();
+  const view = (await socReviewView(jobId)).rows.sort((a, b) => a.rowNumber - b.rowNumber);
+  const [text, mixed, , picture] = view;
+  assert.equal(text.image, null);
+  assert.deepEqual(mixed.image, {
+    kind: "mixed_image", label: "อ่านจากรูป", reading: "ขนาดท่อ: 110 มม.\nความหนา: [?] มม.", unsure: "ความหนาอ่านไม่ออก",
+    note: "ตรวจเฉพาะค่าที่พิมพ์ในรูป ไม่ได้เทียบรูปวาดกับหลักฐาน",
+  });
+  assert.equal(mixed.referenceNote, "ใช้อ้างอิงของข้อ ๑.๑");
+  assert.deepEqual(picture.image, { kind: "picture", label: "รูปที่ต้องดูเอง", reading: "รูปข้อต่อ", unsure: null, note: null });
+  // No verdict from Claude: never ✅, always waiting for the reviewer.
+  assert.deepEqual([picture.status, picture.systemRecommendation, picture.reasons], ["review", null, ["รูปที่ต้องดูเอง: Claude ไม่ตัดสินแถวนี้"]]);
+  assert.equal(picture.evidenceMissing, false);
+});
+
+test("a major item with an undecided Picture Row is not confirmed; it is once the row has a Final Decision", { skip }, async () => {
+  const { owner, jobId, items } = await checkedJob();
+  signedIn = owner;
+  await prisma.socJob.update({ where: { id: jobId }, data: { status: "NEEDS_REVIEW" } });
+  const rows = await prisma.socCheckResult.findMany({ where: { jobId }, orderBy: { rowNumber: "asc" } });
+  for (const row of rows.filter((r) => r.imageKind !== "picture")) await decideSocRow({ jobId, resultId: row.id, decision: "compliant", note: "" });
+  assert.deepEqual((await socReviewView(jobId)).confirmedItemIds, []);
+  const picture = rows.find((r) => r.imageKind === "picture")!;
+  await decideSocRow({ jobId, resultId: picture.id, decision: "pending_fix", note: "รอแบบจริง" });
+  assert.deepEqual((await socReviewView(jobId)).confirmedItemIds, [], "รอแก้ไข does not settle it");
+  await decideSocRow({ jobId, resultId: picture.id, decision: "compliant", note: "ดูรูปเทียบแบบแล้ว" });
+  assert.deepEqual((await socReviewView(jobId)).confirmedItemIds, [items[0].id]);
+});
+
+// ---- The runner: re-check of a picked Image Row, and runners too old for Image Rows ----
+
+const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+type Claimed = { id: string; needsRunner: string | null; imageRows: number; rows: { row: number; item: string }[] };
+
+async function linkRunner(owner: Actor, runnerVersion: string) {
+  const token = newSocRunnerToken();
+  await prisma.socRunnerLink.create({ data: { userId: owner.id, tokenHash: createHash("sha256").update(token).digest("hex") } });
+  await heartbeat(token, runnerVersion);
+  return token;
+}
+
+async function heartbeat(token: string, runnerVersion: string) {
+  const response = await heartbeatRoute(new Request("http://localhost/api/soc-runner/heartbeat", { method: "POST", headers: { ...auth(token), "content-type": "application/json" }, body: JSON.stringify({ runnerVersion, claudeLogin: "logged_in" }) }));
+  assert.equal(response.status, 200);
+}
+
+async function claim(token: string) {
+  const response = await claimRoute(new Request("http://localhost/api/soc-runner/claim", { method: "POST", headers: auth(token) }));
+  assert.equal(response.status, 200, await response.clone().text());
+  return ((await response.json()) as { request: Claimed | null }).request;
+}
+
+function submit(token: string, requestId: string, results: unknown) {
+  const form = new FormData();
+  form.set("results", new File([JSON.stringify(results)], "results.json", { type: "application/json" }));
+  form.set("socCheck", new File([SOC_CHECK], "SOC_Check.docx"));
+  form.set("model", "claude-cli:sonnet");
+  return submitRoute(new Request(`http://localhost/api/soc-runner/requests/${requestId}/submit`, { method: "POST", headers: auth(token), body: form }), { params: Promise.resolve({ id: requestId }) });
+}
+
+async function uploadSkill() {
+  const requester = signedIn;
+  signedIn = await prisma.user.create({ data: { username: "admin", displayName: "admin", passwordHash: "x", role: "ADMIN", appAccess: ["soc"] } });
+  const uploaded = await uploadSocSkillPackage({ name: "tor-word-compliance-check.skill", bytes: SKILL, version: "v1" });
+  assert.ok(uploaded.ok, JSON.stringify(uploaded));
+  signedIn = requester;
+}
+
+test("a runner too old for Image Rows is handed no major item that has them, and the job page says why; items without them still go to it", { skip }, async () => {
+  const { owner, jobId, items } = await uncheckedJob();
+  signedIn = owner;
+  await uploadSkill();
+  const token = await linkRunner(owner, SOC_RUNNER_FOR_EXCEL_SOC); // 0.5.0, the one before Image Rows
+  assert.deepEqual(await requestSocCheck(jobId, items[0].id), { ok: true, requested: 1 });
+  assert.equal(await claim(token), null);
+  const waiting = (await majorItemRequestViews(jobId)).get(items[0].id)!.request!;
+  assert.equal(waiting.runnerTooOld, "image_rows");
+  const text = majorItemStateText({ state: "requested", request: waiting }, owner.id);
+  assert.equal(text.label, "รอติดตั้ง SOC Runner รุ่นใหม่");
+  assert.match(text.detail ?? "", new RegExp(`แถวรูป.*ต้องเป็นรุ่น ${SOC_RUNNER_FOR_IMAGE_ROWS.replaceAll(".", "\\.")} ขึ้นไป.*ติดตั้งใหม่`));
+
+  // ข้อ ๒ has no Image Row: the old runner takes it, and is told no newer version is needed.
+  assert.deepEqual(await requestSocCheck(jobId, items[1].id), { ok: true, requested: 1 });
+  const plain = await claim(token);
+  assert.deepEqual([plain?.needsRunner, plain?.imageRows], [null, 0]);
+  await prisma.socCheckRequest.update({ where: { id: plain!.id }, data: { state: "cancelled" } });
+
+  await heartbeat(token, SOC_RUNNER_FOR_IMAGE_ROWS);
+  const request = await claim(token);
+  assert.deepEqual([request?.needsRunner, request?.imageRows], [SOC_RUNNER_FOR_IMAGE_ROWS, 2]);
+  assert.equal((await majorItemRequestViews(jobId)).get(items[0].id)!.request!.runnerTooOld, undefined);
+});
+
+test("a picked Image Row is re-checked alone through the runner", { skip }, async () => {
+  const { owner, jobId } = await checkedJob();
+  signedIn = owner;
+  await uploadSkill();
+  const token = await linkRunner(owner, SOC_RUNNER_FOR_IMAGE_ROWS);
+  const picture = await prisma.socCheckResult.findFirstOrThrow({ where: { jobId, rowNumber: 6 } });
+  assert.deepEqual(await requestSocRowRechecks(jobId, [picture.id]), { ok: true, requested: 1 });
+  const request = await claim(token);
+  assert.deepEqual(request?.rows, [{ row: 6, item: "๑.๒" }]);
+  // Read again, the image is now a text image with a verdict.
+  const recheck = run([[3, "๑.๑"], [4, "๑.๑"], [5, "๑.๒"], [6, "๑.๒"]], { 4: MIXED, 6: { image_kind: "text_image", image_reading: "ข้อต่อ: PVC", image_unsure: "" } });
+  const response = await submit(token, request!.id, recheck);
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const rows = await prisma.socCheckResult.findMany({ where: { jobId }, orderBy: { rowNumber: "asc" } });
+  assert.deepEqual(rows.map((r) => [r.rowNumber, r.imageKind]), [[3, null], [4, "mixed_image"], [5, null], [6, "text_image"]]);
+  assert.ok(rows[3].torDecision);
 });

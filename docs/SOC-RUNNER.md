@@ -112,6 +112,7 @@
   "majorItem": { "id": "...", "key": "1", "label": "๑", "title": "..." },
   "acknowledgedMissing": [],
   "needsRunner": null,
+  "imageRows": 0,
   "socCheck": true,
   "rows": [ { "row": 12, "item": "๕.๕.๓" } ],
   "skill": { "version": "...", "fileName": "....skill", "sizeBytes": 123, "checksum": "<sha256>", "url": "/api/soc-runner/requests/<id>/skill" },
@@ -128,6 +129,10 @@
   (หรือยังไม่เคยรายงาน) จะไม่ได้คำขอของงานที่ SOC เป็น Excel คำขอค้างที่ `requested` และหน้างานแสดง
   "รอติดตั้ง SOC Runner รุ่นใหม่" พอผู้ตรวจติดตั้งใหม่ คำขอเดิมถูกรับไปตรวจเอง คำขอของงานแบบนี้มี `needsRunner: "0.5.0"`
   (งาน Word เป็น `null`) และ `socCheck: false` (ไม่ต้องมีเอกสาร SOC_Check; runner ดูค่านี้ ไม่ดูนามสกุลไฟล์ SOC) runner ตั้งแต่ 0.5.0 ที่เก่ากว่า `needsRunner` รายงาน `failed` พร้อมเหตุผลให้ติดตั้งใหม่ โดยไม่ดาวน์โหลดอะไร
+- **ข้อใหญ่ที่มีแถวรูป (ช่อง TOR เป็นรูป) ต้องใช้ runner 0.6.0 ขึ้นไป** (`SOC_RUNNER_FOR_IMAGE_ROWS`): นับแถวรูปของแต่ละข้อใหญ่ไว้ตอนอัปโหลด
+  (`SocMajorItem.imageRowCount`; งานที่อัปโหลดก่อนหน้านี้เป็น 0) runner ที่เก่ากว่าไม่ได้คำขอของข้อนั้น หน้างานแสดง "รอติดตั้ง SOC Runner รุ่นใหม่"
+  เหมือนกรณี Excel คำขอมี `needsRunner: "0.6.0"` และ `imageRows` (จำนวนแถวรูป) runner 0.6.0 ไม่ตรวจข้อที่มีแถวรูปด้วย flow เดิม:
+  ถ้าสร้าง evidence packet ไม่ได้ (packet เท่านั้นที่ส่งรูปให้ Claude อ่าน) รายงาน `failed` พร้อมเหตุผล แทนการตรวจต่อแบบไม่มี packet
 - `409 { "error": "NO_SKILL_PACKAGE", "message": "ยังไม่มี skill บน server ติดต่อ admin" }` เมื่อมีงานรอแต่ยังไม่มี skill ปัจจุบัน
 
 ### `GET /api/soc-runner/requests/:id/documents/:documentId` และ `GET .../skill`

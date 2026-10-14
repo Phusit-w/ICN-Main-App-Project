@@ -15,7 +15,7 @@ import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSoc
 import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
 import { readSocTable, type SocTable } from "@/lib/soc-table";
 import { parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
-import { isExcelSoc, SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
+import { isExcelSoc, isSocImageKind, SOC_CHECK_REQUEST_OPEN_STATES, SOC_IMAGE_KINDS } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
 
@@ -68,6 +68,9 @@ const REQUIRED_FIELDS = [
   "tor_claim_results", "declared_status", "declared_status_check",
 ] as const;
 
+// A picture (an Image Row Claude doesn't judge) carries no verdict: only these.
+const PICTURE_REQUIRED_FIELDS = ["row", "item"] as const;
+
 type ValidRow = Record<string, unknown> & { row: number; item: string };
 
 function isBlank(value: unknown) {
@@ -78,7 +81,14 @@ function isBlank(value: unknown) {
 // imported into. Returns every problem found, in Thai, or the rows.
 // `takesGroupHeading`: the item is the first sub-section of a split major
 // item, so that item's own heading row ("๕") may be among its rows.
-export function validateLocalCheckRun(data: unknown, majorItem: { key: string; label: string }, { takesGroupHeading = false } = {}): { rows: ValidRow[] } | { errors: string[] } {
+// `isImageRow`: whether a row of the job's SOC is an Image Row (null when the
+// row isn't found); an Image Row must come with its image_kind, and only an
+// Image Row may. Without it (the SOC can't be read) the kinds are only checked
+// against their values.
+export function validateLocalCheckRun(
+  data: unknown, majorItem: { key: string; label: string },
+  { takesGroupHeading = false, isImageRow }: { takesGroupHeading?: boolean; isImageRow?: (row: number, item: string) => boolean | null } = {},
+): { rows: ValidRow[] } | { errors: string[] } {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return { errors: ["ไฟล์ results.json ต้องเป็น JSON object ที่มี mode, options และ results"] };
   }
@@ -110,8 +120,10 @@ export function validateLocalCheckRun(data: unknown, majorItem: { key: string; l
     }
     const row = result as Record<string, unknown>;
     const where = typeof row.item === "string" && row.item ? `${at} (ข้อ ${row.item})` : at;
-    const missing = REQUIRED_FIELDS.filter((field) => isBlank(row[field]));
+    const kind = isBlank(row.image_kind) ? null : row.image_kind;
+    const missing = (kind === "picture" ? PICTURE_REQUIRED_FIELDS : REQUIRED_FIELDS).filter((field) => isBlank(row[field]));
     if (missing.length) errors.push(`${where}: ขาด ${missing.join(", ")}`);
+    errors.push(...imageRowErrors(row, kind, where, isImageRow));
     if (!isBlank(row.reference_check) && !REFERENCE_CHECKS.has(String(row.reference_check))) {
       errors.push(`${where}: reference_check ไม่ถูกต้อง (${JSON.stringify(row.reference_check)})`);
     }
@@ -140,6 +152,24 @@ export function validateLocalCheckRun(data: unknown, majorItem: { key: string; l
     return { errors: [...errors.slice(0, MAX_ERRORS), `และปัญหาอื่นอีก ${errors.length - MAX_ERRORS} รายการ`] };
   }
   return errors.length ? { errors } : { rows: results as ValidRow[] };
+}
+
+// An Image Row's fields (soc-image-rows): a kind the skill knows, the
+// reading of an image it read, and a kind exactly on the SOC's Image Rows.
+function imageRowErrors(row: Record<string, unknown>, kind: unknown, where: string, isImageRow?: (row: number, item: string) => boolean | null): string[] {
+  const errors: string[] = [];
+  const rowName = Number.isInteger(row.row) ? `แถว ${row.row} ` : "";
+  if (kind !== null && !isSocImageKind(kind)) {
+    errors.push(`${where}: ${rowName}มี image_kind ที่ไม่รู้จัก (${JSON.stringify(String(kind).slice(0, 40))}) ต้องเป็น ${SOC_IMAGE_KINDS.slice(0, -1).join(", ")} หรือ ${SOC_IMAGE_KINDS.at(-1)}`);
+  } else if ((kind === "text_image" || kind === "mixed_image") && isBlank(row.image_reading)) {
+    errors.push(`${where}: ${rowName}อ่านรูปเป็น ${kind} แต่ไม่มี image_reading (ข้อความที่อ่านจากรูป)`);
+  }
+  const imageRow = isImageRow && Number.isInteger(row.row) && typeof row.item === "string" ? isImageRow(row.row as number, row.item) : null;
+  if (imageRow === true && kind === null) errors.push(`${where}: ${rowName}เป็นแถวรูป (ช่อง TOR ใน SOC เป็นรูป) แต่ไม่มี image_kind ให้ตรวจใหม่ด้วย skill รุ่นที่อ่านแถวรูป`);
+  if (imageRow === false && kind !== null) errors.push(`${where}: ${rowName}ไม่ใช่แถวรูป (ช่อง TOR ใน SOC เป็นข้อความ) แต่มี image_kind`);
+  // A picture comes without a verdict, so it must be a row known to be an Image Row.
+  if (isImageRow && imageRow === null && kind === "picture" && rowName) errors.push(`${where}: ${rowName}เป็น picture (ไม่มีผลตรวจ) แต่หาแถวนี้ในไฟล์ SOC ไม่เจอ จึงยืนยันไม่ได้ว่าเป็นแถวรูป`);
+  return errors;
 }
 
 // A results.json value for a String column: values are normally strings,
@@ -217,14 +247,15 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
     errors.push("ไฟล์ SOC_Check ต้องเป็น Word (.docx) ที่ถูกต้อง ขนาดไม่เกิน 25 MB");
   }
   const groupFirst = item.groupLabel ? await prisma.socMajorItem.findFirst({ where: { jobId: job.id, groupLabel: item.groupLabel }, orderBy: { position: "asc" }, select: { id: true } }) : null;
-  const validated = validateLocalCheckRun(input.results, item, { takesGroupHeading: groupFirst?.id === item.id });
+  const rowText = (await readJobSoc(soc))?.rowText ?? (() => null);
+  const isImageRow = (row: number, itemNumber: string) => { const text = rowText(row, itemNumber); return text ? !!text.image : null; };
+  const validated = validateLocalCheckRun(input.results, item, { takesGroupHeading: groupFirst?.id === item.id, isImageRow });
   if ("errors" in validated) errors.push(...validated.errors);
   if (errors.length || !("rows" in validated)) return { ok: false, errors };
   const onlyRows = input.checkRequest?.rowNumbers?.length ? input.checkRequest.rowNumbers : null;
   const runRows = onlyRows ? validated.rows.filter((row) => onlyRows.includes(row.row)) : validated.rows;
   if (!runRows.length) return { ok: false, errors: [`ผลตรวจไม่มีแถวที่ขอตรวจใหม่ (แถว ${onlyRows!.join(", ")})`] };
 
-  const rowText = (await readJobSoc(soc))?.rowText ?? (() => null);
   // For the banner: documents the requester chose to check without, and
   // those Claude reports it couldn't find.
   // A re-check of picked rows keeps the names already on the item.
@@ -338,12 +369,13 @@ function resultRow(jobId: string, majorItemId: string, runId: string, row: Valid
     jobId, majorItemId, runId,
     rowNumber: row.row,
     item: row.item,
-    rowType: asColumnText(row.row_type) ?? "content_row",
+    // A picture is never a heading row: it waits for a Final Decision.
+    rowType: row.image_kind === "picture" ? "content_row" : asColumnText(row.row_type) ?? "content_row",
     socText: text?.tor ?? "",
     proposalText: text?.proposal ?? null,
     referenceText: reference,
     referencePages: parseReferencePages(reference),
-    aiReferenceCheck: String(row.reference_check),
+    aiReferenceCheck: asColumnText(row.reference_check) ?? "", // a picture has none
     aiHeadingTitleCheck: asColumnText(row.heading_title_check) ?? "",
     aiProductIdentity: asColumnText(row.product_identity) ?? "",
     aiContentRelevance: asColumnText(row.content_relevance) ?? "",
@@ -368,6 +400,10 @@ function resultRow(jobId: string, majorItemId: string, runId: string, row: Valid
     declaredStatus: asColumnText(row.declared_status),
     declaredStatusCheck: asColumnText(row.declared_status_check),
     keyIssue: asColumnText(row.key_issue),
+    imageKind: asColumnText(row.image_kind),
+    imageReading: asColumnText(row.image_reading) || null,
+    imageUnsure: asColumnText(row.image_unsure) || null,
+    referenceNote: asColumnText(row.reference_note) || null,
     rawResult: row as Prisma.InputJsonValue,
   };
 }

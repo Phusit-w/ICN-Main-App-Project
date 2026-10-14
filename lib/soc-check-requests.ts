@@ -14,9 +14,9 @@ import { importLocalCheckRun, jobSocDocument, type ConfirmedRow, type LocalCheck
 import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
 import {
-  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, XLSX_MIME, isExcelSoc, isRequestableItemState,
+  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, XLSX_MIME, isExcelSoc, isRequestableItemState,
   socRunnerAtLeast, socRunnerState,
-  type SocCheckRequestView,
+  type SocCheckRequestView, type SocRunnerNeed,
 } from "@/lib/soc-shared";
 
 type Actor = { id: string; role: string; displayName: string };
@@ -249,13 +249,17 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
   const requests = await prisma.socCheckRequest.findMany({
     where: { jobId, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES, "failed"] } },
     orderBy: { createdAt: "desc" },
-    include: { requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } } },
+    include: {
+      requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
+      majorItem: { select: { imageRowCount: true } },
+    },
   });
   const excelSoc = requests.length ? isExcelSoc(await jobSocDocument(jobId)) : false;
   const views = new Map<string, { request: SocCheckRequestView | null; failureReason: string | null }>();
   for (const r of requests) {
     if (views.has(r.majorItemId)) continue; // the latest one per item
     const link = r.requestedBy.socRunnerLinks[0];
+    const tooOldFor = link?.runnerVersion ? runnerTooOldFor(link.runnerVersion, { excelSoc, imageRows: r.majorItem.imageRowCount }) : null;
     views.set(r.majorItemId, r.state === "failed"
       ? { request: null, failureReason: r.failureReason }
       : {
@@ -265,7 +269,7 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
           runnerState: link ? socRunnerState(link.lastSeenAt, now) : null,
           progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null, rowCount: r.rowNumbers.length,
           // A runner that has never reported shows as not connected instead.
-          ...(excelSoc && link?.runnerVersion && !socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC) ? { runnerTooOld: true } : {}),
+          ...(tooOldFor ? { runnerTooOld: tooOldFor } : {}),
         },
       });
   }
@@ -281,6 +285,8 @@ const requestFiles = (id: string) => `/api/soc-runner/requests/${id}`;
 // documents and the pinned Skill Package, each with the URL to fetch it.
 // `needsRunner`: the oldest runner version that can carry the request out
 // (null = any); a runner older than it reports the request as failed.
+// `imageRows`: the major item's Image Rows; a runner never runs an item that
+// has some on the old flow (no packet).
 // `socCheck`: whether the run must come with a SOC_Check document (false for
 // an Excel SOC). The runner takes it from here, not from the SOC's file name.
 async function runnerView(requestId: string) {
@@ -288,7 +294,7 @@ async function runnerView(requestId: string) {
     where: { id: requestId },
     include: {
       job: { select: { id: true, title: true, documents: { where: { type: { in: ["SOC", "EVIDENCE"] } }, orderBy: { createdAt: "asc" } } } },
-      majorItem: { select: { id: true, key: true, label: true, title: true } },
+      majorItem: { select: { id: true, key: true, label: true, title: true, imageRowCount: true } },
       skillPackage: true,
     },
   });
@@ -301,9 +307,10 @@ async function runnerView(requestId: string) {
     id: request.id,
     claimedAt: request.claimedAt?.toISOString() ?? null,
     job: { id: request.job.id, title: request.job.title },
-    majorItem: request.majorItem,
+    majorItem: { id: request.majorItem.id, key: request.majorItem.key, label: request.majorItem.label, title: request.majorItem.title },
     acknowledgedMissing: request.acknowledgedMissing,
-    needsRunner: excelSoc ? SOC_RUNNER_FOR_EXCEL_SOC : null,
+    needsRunner: request.majorItem.imageRowCount ? SOC_RUNNER_FOR_IMAGE_ROWS : excelSoc ? SOC_RUNNER_FOR_EXCEL_SOC : null,
+    imageRows: request.majorItem.imageRowCount,
     socCheck: !excelSoc,
     rows: picked.map((r) => ({ row: r.rowNumber, item: r.item })),
     skill: skill ? { version: skill.version, fileName: socSkillDownloadName(skill), sizeBytes: skill.sizeBytes, checksum: skill.checksum, url: `${requestFiles(request.id)}/skill` } : null,
@@ -314,11 +321,20 @@ async function runnerView(requestId: string) {
 }
 export type RunnerCheckRequest = Awaited<ReturnType<typeof runnerView>>;
 
-// `excelSoc` false: the runner is too old for an Excel SOC, so requests on
-// such jobs wait (the job page says to install the runner again).
-const CLAIMABLE = (userId: string, now: Date, excelSoc: boolean): Prisma.SocCheckRequestWhereInput => ({
+// What the requester's runner is too old for, if anything: an Excel SOC, or
+// a major item with Image Rows. Such requests wait (the job page says to
+// install the runner again).
+function runnerTooOldFor(runnerVersion: string, request: { excelSoc: boolean; imageRows: number }): SocRunnerNeed | null {
+  if (request.imageRows && !socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_IMAGE_ROWS)) return "image_rows";
+  if (request.excelSoc && !socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC)) return "excel_soc";
+  return null;
+}
+
+// A runner is handed only the requests its version can carry out (runnerTooOld).
+const CLAIMABLE = (userId: string, now: Date, runnerVersion: string | null): Prisma.SocCheckRequestWhereInput => ({
   requestedById: userId,
-  job: { deletedAt: null, ...(excelSoc ? {} : { documents: { none: { type: "SOC", mimeType: XLSX_MIME } } }) },
+  job: { deletedAt: null, ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC) ? {} : { documents: { none: { type: "SOC", mimeType: XLSX_MIME } } }) },
+  ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_IMAGE_ROWS) ? {} : { majorItem: { imageRowCount: 0 } }),
   OR: [{ state: { in: ["requested", "needs_login"] } }, { state: "paused_quota", resumeAt: { lte: now } }],
 });
 
@@ -326,7 +342,7 @@ const CLAIMABLE = (userId: string, now: Date, excelSoc: boolean): Prisma.SocChec
 // on this link with the current Skill Package pinned. A request this link
 // already runs (e.g. the runner restarted) comes back first. null when there
 // is nothing to do, or while the runner reports Claude as logged out. A
-// runner too old for an Excel SOC is handed no request of such a job.
+// runner too old for an Excel SOC or for Image Rows is handed no such request.
 // Throws NO_SKILL_PACKAGE when there is work but no current skill.
 export async function claimNextCheckRequest(link: RunnerLink): Promise<RunnerCheckRequest | null> {
   await releaseStaleCheckRequests();
@@ -338,7 +354,7 @@ export async function claimNextCheckRequest(link: RunnerLink): Promise<RunnerChe
   }
   if (link.claudeLogin === "logged_out") return null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const next = await prisma.socCheckRequest.findFirst({ where: CLAIMABLE(link.userId, now, socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC)), orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { majorItem: { select: { label: true } } } });
+    const next = await prisma.socCheckRequest.findFirst({ where: CLAIMABLE(link.userId, now, link.runnerVersion), orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { majorItem: { select: { label: true } } } });
     if (!next) return null;
     const skill = await currentSocSkillPackage();
     if (!skill) throw new Error("NO_SKILL_PACKAGE");

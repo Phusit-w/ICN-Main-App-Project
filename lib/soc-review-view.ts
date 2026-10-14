@@ -5,7 +5,7 @@
 // a re-check uses. Server-only.
 import { prisma } from "@/lib/prisma";
 import { jobSocDocument, readJobSoc } from "@/lib/soc-import";
-import { isExcelSoc } from "@/lib/soc-shared";
+import { isExcelSoc, isSocImageKind, MIXED_IMAGE_NOTE, SOC_IMAGE_KIND_LABELS, type SocImageKind } from "@/lib/soc-shared";
 import type { SocRowText } from "@/lib/soc-table";
 import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
@@ -26,6 +26,11 @@ export type SocReviewRow = {
   evidenceMissing: boolean; // Claude couldn't find or read the cited page or document
   torText: string; proposalText: string | null; reference: string; referencePages: number[];
   torImage: boolean; // an Image Row: the TOR cell of the SOC is an image, shown in place of the text
+  // What Claude made of an Image Row's image: its kind and label, the Image
+  // Reading (read-only), what it was unsure of, and for a mixed image the note
+  // that the drawing wasn't compared. Null for other rows and runs before Image Rows.
+  image: SocReviewImage | null;
+  referenceNote: string | null; // the row took its numbered row's reference ("ใช้อ้างอิงของข้อ X")
   // Each document the reference cites, with its pages and the evidence PDF it names (null when none fits).
   citations: EvidenceCitation[];
   declaredSelection: string | null; // declared_status: Comply/Better as ticked in the SOC; null when it has no tick box
@@ -34,6 +39,12 @@ export type SocReviewRow = {
   detail: string; keyIssue: string | null; confidence: string;
   finalDecision: SocFinalDecision | null; finalNote: string | null; reviewedByName: string | null; reviewedAt: string | null;
 };
+
+export type SocReviewImage = { kind: SocImageKind; label: string; reading: string | null; unsure: string | null; note: string | null };
+
+const reviewImage = (r: StoredRow): SocReviewImage | null => (isSocImageKind(r.imageKind)
+  ? { kind: r.imageKind, label: SOC_IMAGE_KIND_LABELS[r.imageKind], reading: r.imageReading, unsure: r.imageUnsure, note: r.imageKind === "mixed_image" ? MIXED_IMAGE_NOTE : null }
+  : null);
 
 const axisValues = (r: StoredRow): SocAxisValues => ({
   reference_check: r.aiReferenceCheck, item_label_check: r.itemLabelCheck, highlight_check: r.highlightCheck,
@@ -61,13 +72,13 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
   const rows: SocReviewRow[] = [];
   for (const r of stored) {
     const axes = axisValues(r);
-    const { status, reasons } = overallRowStatus(r.rowType, axes);
+    const { status, reasons } = overallRowStatus(r.rowType, axes, r.imageKind);
     if (status === "heading") continue;
     // An Image Row has no TOR text stored either, so it is found by the same read.
     const text: SocRowText = r.socText ? { tor: r.socText, proposal: r.proposalText } : soc?.rowText(r.rowNumber, r.item) ?? { tor: "", proposal: r.proposalText };
     rows.push({
       id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, sheet: soc?.sheetOfRow(r.rowNumber) ?? null, status, reasons, evidenceMissing: evidenceMissing(axes),
-      torText: text.tor, proposalText: text.proposal, torImage: !!text.image, reference: r.referenceText,
+      torText: text.tor, proposalText: text.proposal, torImage: !!text.image, image: reviewImage(r), referenceNote: r.referenceNote, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
       citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),
       declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,

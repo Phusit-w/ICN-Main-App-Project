@@ -96,7 +96,7 @@ function addItemSheet(book: ExcelJS.Workbook, name: string, rows: SocReviewRow[]
     const leading = majorItemLabels ? [majorItemLabels.get(row.majorItemId ?? "") ?? "", SOC_ROW_STATUS_LABELS[row.status]] : [];
     const added = sheet.addRow([
       ...leading,
-      row.sheet ? `${row.sheet} · ${row.rowNumber}` : row.rowNumber, row.item, row.torImage ? IMAGE_ROW_TOR : row.torText, row.reference, reference.text,
+      row.sheet ? `${row.sheet} · ${row.rowNumber}` : row.rowNumber, row.item, row.torImage ? [IMAGE_ROW_TOR, row.image?.reading].filter(Boolean).join("\n") : row.torText, row.reference, reference.text,
       socAxisValueLabel(axis(row, "item_label_check")), socAxisValueLabel(axis(row, "highlight_check")),
       socAxisValueLabel(axis(row, "evidence_support")), socAxisValueLabel(row.systemRecommendation),
       CONFIDENCE_LABELS[row.confidence] ?? row.confidence ?? "", row.keyIssue ?? "",

@@ -12,7 +12,7 @@ import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import { requestSocRowRechecks } from "@/actions/socCheckRequests";
-import { filterReviewRows, isSettledDecision, nextRowToReview, PENDING_FIX, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type EvidenceCitation, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
+import { filterReviewRows, isSettledDecision, nextRowToReview, PENDING_FIX, PICTURE_ROW_REASON, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type EvidenceCitation, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
 
 type ReviewItem = { id: string; label: string; state: string; missingDocuments: string[]; confirmed: boolean };
 type StatusFilter = SocReviewFilter["status"];
@@ -139,7 +139,7 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
                 <td className="py-3 pl-3" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`เลือกข้อ ${row.item}`} checked={picked.has(row.id)} onChange={(e) => togglePicked([row.id], e.target.checked)} /></td>
                 <td className="px-3 py-3 text-base" title={SOC_ROW_STATUS_LABELS[row.status]}>{SOC_ROW_STATUS_ICONS[row.status]}</td>
                 <td className="whitespace-nowrap px-3 py-3"><button type="button" onClick={(e) => { e.stopPropagation(); pick(row.id); }} className="ui-btn font-medium text-ink">{row.item}</button></td>
-                <td className="px-3 py-3"><span className="line-clamp-2 leading-relaxed">{row.torImage ? <span className="mr-1.5 rounded-full bg-chip px-2 py-0.5 text-[11px] text-label">รูป</span> : null}{row.torText ||<span className="text-muted">{row.keyIssue || row.detail}</span>}</span>{row.evidenceMissing ? <span className="mt-1 inline-block rounded-full border border-danger-border px-2 py-0.5 text-[11px] text-danger">หาเอกสารไม่เจอ</span> : null}</td>
+                <td className="px-3 py-3"><span className="line-clamp-2 leading-relaxed">{row.torImage ? <span className="mr-1.5 rounded-full bg-chip px-2 py-0.5 text-[11px] text-label">รูป</span> : null}{row.torText || row.image?.reading ||<span className="text-muted">{row.keyIssue || row.detail}</span>}</span>{row.evidenceMissing ? <span className="mt-1 inline-block rounded-full border border-danger-border px-2 py-0.5 text-[11px] text-danger">หาเอกสารไม่เจอ</span> : null}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-xs">{row.declaredSelection ? <>{socAxisValueLabel(row.declaredSelection)} → </> : null}<span className="font-medium">{socAxisValueLabel(row.systemRecommendation)}</span></td>
                 <td className="whitespace-nowrap px-3 py-3 text-xs">{row.finalDecision ? <DecisionChip decision={row.finalDecision} /> : <span className="text-muted">—</span>}</td>
               </tr>}
@@ -379,7 +379,8 @@ function RowInspector({ jobId, row, layout, decisionForm }: { jobId: string; row
     <ClampedText label="ข้อเสนอของผู้ยื่น" text={row.proposalText} empty="—" />
     <Verdict row={row} />
   </>;
-  const axes = <details className="rounded-input border border-line p-3"><summary className="cursor-pointer text-sm font-medium">รายละเอียดทุกแกน ({row.axes.length})</summary>
+  // A Picture Row has no axes: Claude gave it no verdict.
+  const axes = row.image?.kind === "picture" ? null : <details className="rounded-input border border-line p-3"><summary className="cursor-pointer text-sm font-medium">รายละเอียดทุกแกน ({row.axes.length})</summary>
     <table className="mt-2 w-full border-collapse text-sm"><tbody>{row.axes.map((axis) => <tr key={axis.key} className="border-t border-line align-top">
       <td className="w-40 py-1.5 pr-2 text-label">{axis.label}</td>
       <td className={`w-28 py-1.5 pr-2 font-medium ${axis.ok ? "" : "text-amber-700 dark:text-amber-400"}`}>{axis.ok ? "" : "• "}{socAxisValueLabel(axis.value ?? "not_applicable")}</td>
@@ -440,8 +441,9 @@ function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
     explained.current = true;
     setFailure(await imageFailureReason(src, "แสดงรูปนี้ไม่ได้ กรุณาลองใหม่"));
   }
+  const image = row.image;
   return <div className="rounded-input border border-line p-3 text-sm">
-    <div className="text-xs font-semibold text-label">ข้อกำหนด TOR <span className="ml-1 rounded-full bg-chip px-2 py-0.5 text-[11px] font-normal">รูปในไฟล์ SOC</span></div>
+    <div className="text-xs font-semibold text-label">ข้อกำหนด TOR <span className="ml-1 rounded-full bg-chip px-2 py-0.5 text-[11px] font-normal">{image?.label ?? "รูปในไฟล์ SOC"}</span></div>
     {failure ? <p role="alert" className="mt-2 rounded-input border border-danger-border bg-surface p-3 text-xs text-danger">{failure}</p>
       : <a href={src} target="_blank" rel="noreferrer" title="เปิดรูปขนาดเต็ม" className="mt-2 block overflow-auto rounded-input border border-line bg-white">
         {/* An image behind an access check; next/image adds nothing here. */}
@@ -450,6 +452,13 @@ function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
           // An image that failed before hydration never fires onError.
           ref={(img) => { if (img?.complete && img.naturalWidth === 0) explainFailure(); }} />
       </a>}
+    {/* What Claude read from the image: shown as read, not editable. */}
+    {image?.reading ? <section aria-label="ข้อความที่อ่านจากรูป" className="mt-2">
+      <div className="text-xs font-semibold text-label">{image.kind === "picture" ? "คำบรรยายในรูป" : "ข้อความที่อ่านจากรูป"}</div>
+      <p className="mt-1 whitespace-pre-wrap rounded-input bg-ground p-2 leading-relaxed">{image.reading}</p>
+    </section> : null}
+    {image?.unsure ? <p className="mt-2 text-xs text-amber-800 dark:text-amber-300"><span className="font-semibold">ไม่แน่ใจ:</span> {image.unsure}</p> : null}
+    {image?.note ? <p className="mt-1 text-xs text-muted">{image.note}</p> : null}
   </div>;
 }
 
@@ -457,6 +466,11 @@ function TorImage({ jobId, row }: { jobId: string; row: SocReviewRow }) {
 function Verdict({ row }: { row: SocReviewRow }) {
   const same = row.declaredSelection === row.systemRecommendation;
   const tone = row.status === "fail" ? "border-danger-border" : row.status === "review" ? "border-amber-300 dark:border-amber-700" : "border-line";
+  // A Picture Row: Claude sorted the image but gave no verdict.
+  if (row.image?.kind === "picture") return <div className={`rounded-input border-2 bg-ground p-3 text-sm ${tone}`}>
+    <p className="font-semibold">{PICTURE_ROW_REASON}</p>
+    <p className="mt-1 leading-relaxed text-label">ดูรูปในช่อง TOR เทียบกับเอกสารอ้างอิง แล้วตั้ง Final Decision เอง ข้อใหญ่นี้จะยืนยันครบได้เมื่อแถวนี้มี Final Decision</p>
+  </div>;
   return <div className={`rounded-input border-2 bg-ground p-3 text-sm ${tone}`}>
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {row.declaredSelection ? <>
@@ -523,6 +537,7 @@ function PdfEvidence({ jobId, row }: { jobId: string; row: SocReviewRow }) {
     {pages.length > 1 ? <div className="flex flex-wrap gap-1.5" role="group" aria-label="หน้าที่อ้าง">
       {pages.map((p, i) => <button key={`${p.document.id}:${p.page}`} type="button" onClick={() => setShownIndex(i)} aria-pressed={i === shownIndex} className={`ui-btn rounded-full px-3 py-1 text-xs transition-colors ${i === shownIndex ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{severalDocuments ? `${p.document.name} ` : ""}หน้า {p.page}</button>)}
     </div> : null}
+    {row.referenceNote ? note(`ช่องอ้างอิงของแถวนี้ว่าง ${row.referenceNote}`) : null}
     {!row.citations.length ? note("แถวนี้ไม่ได้อ้างเอกสาร") : null}
     {citations.map((c) => c.document && c.via ? note(c.via === "reference_file"
       ? `อ้างโฟลเดอร์ "${c.folder}" → ไฟล์ที่ Claude ใช้ตรวจ: ${fileName(c.document.name)}`

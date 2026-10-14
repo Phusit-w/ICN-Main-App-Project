@@ -231,6 +231,10 @@ model SocMajorItem {
   // requested. Guessed on import (the parts beside a split item), switched
   // by the user on the job page. Separate from `state`.
   skipped          Boolean           @default(false)
+  // Image Rows (TOR cell is an image, no text) among its rows, counted at
+  // upload. A runner older than SOC_RUNNER_FOR_IMAGE_ROWS isn't handed an item
+  // that has any. 0 on jobs uploaded before Image Rows were counted.
+  imageRowCount    Int               @default(0)
   // not_checked | requested | running | paused_quota | needs_login |
   // needs_documents | checked | failed. While a Check Request is open it
   // mirrors that request's state.
@@ -341,6 +345,14 @@ model SocCheckResult {
   finalDetail            String
   reviewedById           String?
   reviewedAt             DateTime?
+  // An Image Row (soc-image-rows): the kind Claude sorted the image into
+  // (text_image | mixed_image | picture), what it read from it, and what it
+  // was unsure of. A picture has no verdict fields. Null on other rows.
+  imageKind              String?
+  imageReading           String?
+  imageUnsure            String?
+  // The skill's note when the row took its numbered row's reference ("ใช้อ้างอิงของข้อ X").
+  referenceNote          String?
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
 
