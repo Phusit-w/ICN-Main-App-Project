@@ -10,7 +10,7 @@
 
 **Blocked by:** 08
 
-**Status:** ready-for-human
+**Status:** done (2026-10-14: ผนวก 9 and 7 checked on prod, the user accepted the result)
 
 - [x] Web: a SOC with two or more ผนวก gets one major item per ผนวก; a row is found by its row and its item under the ผนวก number (tests)
 - [x] Web: a numbered SOC with one row that mentions a ผนวก is read as before (test)
@@ -18,7 +18,7 @@
 - [x] Skill: the packet builder takes the rows of a ผนวก and numbers them under it (tests)
 - [x] Real MEA Y69 SOC: 15 major items (ผนวก 7 to 21, 369 rows, 19 Image Rows), packets built for ผนวก 9 and 13
 - [x] lint, typecheck, `npm test`, runner tests, skill tests and build pass
-- [ ] On prod: new Skill Package uploaded, deployed, the MEA job created again, one ผนวก checked
+- [x] On prod: new Skill Package uploaded, deployed, the MEA job created again, one ผนวก checked
 
 ## Comments
 
@@ -42,5 +42,11 @@ Known limits: the review page shows the item as `7.3` (ผนวก 7 ข้อ 
 - Fixed: a row was matched to an item by its own number only, so row 9 (ข้อ 1 of ผนวก 8) answered to `7.1`, and with one Word table per ผนวก `rowText(2, "8.1")` gave ผนวก 7's row. A row now answers only to an item of its own ผนวก (`annexKeysOfRows`, `findRow` in `lib/soc-table.ts`; two tests).
 - Glossary: "SOC divided into ผนวก" added under Major item.
 - Not changed, the user's call: (1) the import still accepts a result whose row isn't in the claimed ผนวก when its item says it is (it is stored without TOR text now, not with another ผนวก's text); a refusal was not added because no run of all 369 MEA rows has shown every row is found; (2) the Runner's progress line says "ตรวจข้อ 7" (the ticket says no Runner change); (3) headings the rule doesn't read: "ผนวก 7. …" with a dot after the number, the same ผนวก number twice ("ผนวก 7 (ต่อ)") as the only two headings, a heading typed in the first cell, and a Word ผนวก SOC whose tables have no dotted number at all (the table is not read as a SOC table). Changing the rule means changing the skill's `annex_heading` too and a new Skill Package.
+
+**2026-10-14: `6e49a09` pushed to origin/main and deployed by the user; the MEA job created again on prod.** Left: one ผนวก checked and its review page looked at.
+
+**2026-10-14: ผนวก 9 check started on prod** (34 rows, 2 Image Rows; also ticket 09's first quota run). Meter before: 40%, as the user reported it (read as the meter reading before the run). Done (import accepted, as the user reported "ตรวจเสร็จแล้ว"); meter after: 47% → **ผนวก 9 = 7 points** (34 rows, 2 Image Rows). Review page not yet reported. Next for ticket 09: ผนวก 7 (37 rows, no Image Rows) alone in the queue, meter before and after.
+
+**2026-10-14: ผนวก 7 check started on prod.** Meter before: 48% (47% after ผนวก 9; the extra point came between the runs, not from ผนวก 7). Done; meter after: 53% → **ผนวก 7 = 5 points**. Quota table in ticket 09.
 
 Local test databases: `test-db6` no longer starts either; `test-db7` (`-P 51288 --shadow-db-port 51289 -p 51287`) was used. `test-db3`, `test-db4` and `test-db5` no longer start after being stopped with a kill. Start a fresh one (`npx prisma dev --name test-db6 -P 51278 --shadow-db-port 51279 -p 51277`) and stop it with `npx prisma dev stop test-db6`.
