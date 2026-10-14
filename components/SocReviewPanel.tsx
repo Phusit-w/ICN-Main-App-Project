@@ -12,7 +12,7 @@ import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import { requestSocRowRechecks } from "@/actions/socCheckRequests";
-import { majorItemName } from "@/lib/soc-shared";
+import { majorItemName, SOC_EXCEL_PATH_TIP } from "@/lib/soc-shared";
 import { filterReviewRows, isSettledDecision, nextRowToReview, PENDING_FIX, PICTURE_ROW_REASON, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type EvidenceCitation, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
 
 type ReviewItem = { id: string; label: string; state: string; missingDocuments: string[]; confirmed: boolean };
@@ -349,6 +349,7 @@ function PickedActions({ jobId, picked, visible, onClear }: { jobId: string; pic
       link.download = name ? decodeURIComponent(name) : "SOC_Check.xlsx";
       link.click();
       URL.revokeObjectURL(url);
+      setMessage({ error: false, text: SOC_EXCEL_PATH_TIP });
     } catch {
       setMessage({ error: true, text: "ดาวน์โหลดไม่สำเร็จ กรุณาลองใหม่" });
     } finally {

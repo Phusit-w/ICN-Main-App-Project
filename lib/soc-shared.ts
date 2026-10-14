@@ -66,6 +66,11 @@ export const isAnnexLabel = (label: string) => label.startsWith("ผนวก");
 // A major item as the pages name it: "ข้อ ๕.๕" (or "ข้อใหญ่ ๕"), "ผนวก 7".
 export const majorItemName = (label: string, word = "ข้อ") => (isAnnexLabel(label) ? label : `${word} ${label}`);
 
+// Beside the results Excel downloads: Excel refuses a file whose path is over
+// 259 characters ("Cannot open the file because the file path is more than
+// 259 characters"), and the file name carries the job's title.
+export const SOC_EXCEL_PATH_TIP = "ถ้าเปิดไฟล์ Excel แล้วขึ้นว่า path ยาวเกิน 259 ตัวอักษร (ชื่อโฟลเดอร์ทุกชั้นรวมชื่อไฟล์) ให้เปลี่ยนชื่อไฟล์ให้สั้นลง หรือย้ายไฟล์ไปไว้ชั้นนอกสุด เช่น C:\\ แล้วเปิดใหม่";
+
 // "๑๓" → "13".
 export function toArabicDigits(value: string): string {
   return value.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));
