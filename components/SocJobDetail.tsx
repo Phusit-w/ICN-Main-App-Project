@@ -7,6 +7,7 @@ import { confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck, resumeSocCheckRequestNow, setSocMajorItemSkipped } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocReviewPanel from "@/components/SocReviewPanel";
 import SocFilePicker, { sendEvidenceBatches } from "@/components/SocFilePicker";
 import type { SocReviewRow } from "@/lib/soc-review-view";
@@ -144,10 +145,10 @@ function MajorItemRow({ jobId, excelSoc, item, viewerId, viewerIsAdmin, open, on
   const canSkip = !item.skipped && (item.state === "not_checked" || item.state === "failed");
   const problem = !item.skipped && isProblemItem(item);
   const request = item.request;
-  const canCancel = item.state === "requested" && request && (request.requestedById === viewerId || viewerIsAdmin);
+  const canCancel = isOpenCheckRequestState(item.state) && request && (request.requestedById === viewerId || viewerIsAdmin);
   const canResumeNow = item.state === "paused_quota" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
-    <tr className={`border-t border-line ${item.skipped ? "text-muted" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>{majorItemName(item.label)}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจ${majorItemName(item.label)} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" onClick={() => writeStoredFlag(OPEN_DOCUMENTS_KEY, true)} className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} requestId={request.id} /> : null}{canResumeNow ? <ResumeNowButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
+    <tr className={`border-t border-line ${item.skipped ? "text-muted" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>{majorItemName(item.label)}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจ${majorItemName(item.label)} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" onClick={() => writeStoredFlag(OPEN_DOCUMENTS_KEY, true)} className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} item={item} requestId={request.id} /> : null}{canResumeNow ? <ResumeNowButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} excelSoc={excelSoc} onDone={onDone} /></td></tr> : null}
   </>;
 }
@@ -177,63 +178,80 @@ function SkipButton({ jobId, item }: { jobId: string; item: MajorItem }) {
 // the request. With `continueWithoutMissing` it is [ตรวจต่อโดยไม่มีไฟล์นี้].
 function RequestCheckButton({ jobId, item, continueWithoutMissing = false }: { jobId: string; item: MajorItem; continueWithoutMissing?: boolean }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const [dialog, confirm] = useConfirmDialog();
+  const name = majorItemName(item.label);
   const ask = (replaceConfirmed?: number[]) => continueWithoutMissing ? continueSocCheckWithoutMissing(jobId, item.id, replaceConfirmed) : requestSocCheck(jobId, item.id, replaceConfirmed);
-  function request() {
-    if (continueWithoutMissing && !window.confirm(`ตรวจ${majorItemName(item.label)} ต่อโดยไม่มีไฟล์ ${item.missingDocuments.join(", ")}? แถวที่อ้างไฟล์นี้จะเป็น "ยืนยันไม่ได้"`)) return;
-    startTransition(async () => {
-      try {
-        let result = await ask();
-        if (!result.ok && result.confirmedRows?.length) {
-          const rows = result.confirmedRows;
-          if (!window.confirm(`${majorItemName(item.label)} มี ${rows.length} แถวที่ยืนยันผลแล้ว (${rows.map((r) => `ข้อ ${r.item}`).join(", ")}) ผลตรวจใหม่จะแทนที่แถวเหล่านี้ ต้องการขอตรวจซ้ำหรือไม่?`)) return;
-          result = await ask(rows.map((r) => r.rowNumber));
-        }
-        if (!result.ok) window.alert(result.error);
-        router.refresh();
-      } catch {
-        window.alert("ขอตรวจไม่สำเร็จ กรุณาลองใหม่");
-      }
-    });
-  }
   const label = continueWithoutMissing ? "ตรวจต่อโดยไม่มีไฟล์นี้" : item.state === "checked" ? "ตรวจซ้ำ" : item.state === "failed" ? "ลองใหม่" : item.state === "needs_documents" ? "ตรวจใหม่" : "ตรวจ";
+  async function request() {
+    const asked = continueWithoutMissing
+      ? await confirm({ title: `ตรวจ${name} ต่อโดยไม่มีไฟล์?`, message: `ไม่มีไฟล์ ${item.missingDocuments.join(", ")} แถวที่อ้างไฟล์นี้จะเป็น "ยืนยันไม่ได้" SOC Runner บนเครื่องของคุณจะตรวจด้วยโควตา Claude ของคุณ`, confirmLabel: "ตรวจต่อ" })
+      : await confirm({ title: `${label}${name}?`, message: `SOC Runner บนเครื่องของคุณจะตรวจ${name}${item.title ? ` (${item.title})` : ""} ด้วยโควตา Claude ของคุณ`, confirmLabel: label });
+    if (!asked) return;
+    setBusy(true);
+    try {
+      let result = await ask();
+      if (!result.ok && result.confirmedRows?.length) {
+        const rows = result.confirmedRows;
+        if (!(await confirm({ title: "แทนที่ผลที่ยืนยันแล้ว?", message: `${name} มี ${rows.length} แถวที่ยืนยันผลแล้ว (${rows.map((r) => `ข้อ ${r.item}`).join(", ")}) ผลตรวจใหม่จะแทนที่แถวเหล่านี้`, confirmLabel: "ตรวจซ้ำ", danger: true }))) return;
+        result = await ask(rows.map((r) => r.rowNumber));
+      }
+      if (!result.ok) window.alert(result.error);
+      router.refresh();
+    } catch {
+      window.alert("ขอตรวจไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setBusy(false);
+    }
+  }
   const title = continueWithoutMissing ? "ตรวจต่อ แถวที่อ้างไฟล์ที่ขาดจะเป็น ยืนยันไม่ได้" : item.state === "needs_documents" ? "หลังอัปโหลดไฟล์ที่ขาดแล้ว ตรวจด้วย SOC Runner บนเครื่องของคุณ" : "ตรวจด้วย SOC Runner บนเครื่องของคุณ";
-  return <Button size="sm" variant={continueWithoutMissing ? "outline" : undefined} disabled={pending} onClick={request} title={title}>{pending ? "กำลังขอตรวจ…" : label}</Button>;
+  return <>{dialog}<Button size="sm" variant={continueWithoutMissing ? "outline" : undefined} disabled={busy} onClick={request} title={title}>{busy ? "กำลังขอตรวจ…" : label}</Button></>;
 }
 
 function RequestAllButton({ jobId, count }: { jobId: string; count: number }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  function request() {
-    if (!window.confirm(`ขอตรวจข้อใหญ่ที่ยังไม่ได้ตรวจทั้ง ${count} ข้อ ด้วย SOC Runner บนเครื่องของคุณ?`)) return;
-    startTransition(async () => {
-      try {
-        const result = await requestAllSocChecks(jobId);
-        if (!result.ok) window.alert(result.error);
-        router.refresh();
-      } catch {
-        window.alert("ขอตรวจไม่สำเร็จ กรุณาลองใหม่");
-      }
-    });
+  const [busy, setBusy] = useState(false);
+  const [dialog, confirm] = useConfirmDialog();
+  async function request() {
+    if (!(await confirm({ title: `ตรวจทั้งชุด ${count} ข้อ?`, message: `SOC Runner บนเครื่องของคุณจะตรวจข้อใหญ่ที่ยังไม่ได้ตรวจทั้ง ${count} ข้อ ทีละข้อ ด้วยโควตา Claude ของคุณ ยกเลิกทีละข้อได้ภายหลัง`, confirmLabel: "ตรวจทั้งชุด" }))) return;
+    setBusy(true);
+    try {
+      const result = await requestAllSocChecks(jobId);
+      if (!result.ok) window.alert(result.error);
+      router.refresh();
+    } catch {
+      window.alert("ขอตรวจไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setBusy(false);
+    }
   }
-  return <Button size="sm" disabled={pending} onClick={request} title="ตรวจด้วย SOC Runner บนเครื่องของคุณ">{pending ? "กำลังขอตรวจ…" : `ตรวจทั้งชุด (${count} ข้อ)`}</Button>;
+  return <>{dialog}<Button size="sm" disabled={busy} onClick={request} title="ตรวจด้วย SOC Runner บนเครื่องของคุณ">{busy ? "กำลังขอตรวจ…" : `ตรวจทั้งชุด (${count} ข้อ)`}</Button></>;
 }
 
-function CancelRequestButton({ jobId, requestId }: { jobId: string; requestId: string }) {
+// ยกเลิกตรวจ: waiting, checking or paused. A running check stops on the
+// reviewer's PC at its runner's next heartbeat (Runner 0.7.0+).
+function CancelRequestButton({ jobId, item, requestId }: { jobId: string; item: MajorItem; requestId: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  function cancel() {
-    startTransition(async () => {
-      try {
-        const result = await cancelSocCheckRequest(jobId, requestId);
-        if (!result.ok) window.alert(result.error);
-        router.refresh();
-      } catch {
-        window.alert("ยกเลิกคำขอไม่สำเร็จ กรุณาลองใหม่");
-      }
-    });
+  const [busy, setBusy] = useState(false);
+  const [dialog, confirm] = useConfirmDialog();
+  const name = majorItemName(item.label);
+  async function cancel() {
+    const message = item.state === "requested"
+      ? `คำขอตรวจ${name} จะถูกยกเลิก ข้อนี้กลับเป็นสถานะเดิม`
+      : `SOC Runner จะหยุดตรวจ${name} ภายในประมาณ 30 วินาที ผลที่ตรวจไปบางส่วนจะถูกทิ้ง และโควตา Claude ที่ใช้ไปแล้วจะไม่ได้คืน ข้อนี้กลับเป็นสถานะเดิม`;
+    if (!(await confirm({ title: `ยกเลิกตรวจ${name}?`, message, confirmLabel: "ยืนยันยกเลิก", cancelLabel: "ไม่ยกเลิก", danger: true }))) return;
+    setBusy(true);
+    try {
+      const result = await cancelSocCheckRequest(jobId, requestId);
+      if (!result.ok) window.alert(result.error);
+      router.refresh();
+    } catch {
+      window.alert("ยกเลิกตรวจไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setBusy(false);
+    }
   }
-  return <Button size="sm" variant="outline" disabled={pending} onClick={cancel}>{pending ? "กำลังยกเลิก…" : "ยกเลิกคำขอ"}</Button>;
+  return <>{dialog}<Button size="sm" variant="outline" disabled={busy} onClick={cancel}>{busy ? "กำลังยกเลิก…" : "ยกเลิกตรวจ"}</Button></>;
 }
 
 // ตรวจต่อเลย on an item paused for the Claude quota: its runner resumes within about a minute.

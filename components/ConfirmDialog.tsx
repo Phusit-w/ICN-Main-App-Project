@@ -1,7 +1,24 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
+
+type ConfirmOptions = { title: string; message: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean };
+
+// ConfirmDialog as an awaitable question, for flows that confirm more than
+// once or decide after a server reply: `if (!(await confirm({...}))) return;`.
+// Render `dialog` once in the component.
+export function useConfirmDialog(): [dialog: ReactNode, confirm: (options: ConfirmOptions) => Promise<boolean>] {
+  const [asked, setAsked] = useState<(ConfirmOptions & { answer: (yes: boolean) => void }) | null>(null);
+  const confirm = (options: ConfirmOptions) => new Promise<boolean>((resolve) => setAsked({ ...options, answer: resolve }));
+  const close = (yes: boolean) => {
+    asked?.answer(yes);
+    setAsked(null);
+  };
+  const dialog = <ConfirmDialog open={!!asked} title={asked?.title ?? ""} message={asked?.message ?? ""} confirmLabel={asked?.confirmLabel} cancelLabel={asked?.cancelLabel} danger={asked?.danger} onConfirm={() => close(true)} onCancel={() => close(false)} />;
+  return [dialog, confirm];
+}
 
 // Generic yes/no modal — used in place of window.confirm() wherever a
 // destructive action needs an explicit confirmation step. See

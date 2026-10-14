@@ -31,10 +31,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
-from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
+from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCancelled, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.6.0"
+RUNNER_VERSION = "0.7.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -70,6 +70,8 @@ MAX_LOGIN_RECHECK_SECONDS = 30 * 60
 MAX_MISSING = 50  # the server's limits for needs_documents
 MAX_MISSING_NAME = 300
 DOCUMENT_EXTENSION = re.compile(r"\.(pdf|docx?|xlsx?|pptx?)$", re.I)
+# A request id from the server, before it names a folder under work/.
+SAFE_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 class RunFailed(Exception):
@@ -235,6 +237,11 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
                                   packet_fallback=saved.get("packetFallback") or "")
     except NotClaimed:
         log(f"[{request_id}] คำขอนี้ไม่ได้อยู่กับเครื่องนี้แล้ว (ยกเลิกหรือหมดเวลา) ข้ามไป")
+        _discard(work)
+        return "dropped"
+    except ClaudeCancelled:
+        # The server closed the request already; nothing to report.
+        log(f"[{request_id}] ยกเลิกตรวจแล้ว ทิ้งผลระหว่างทาง")
         _discard(work)
         return "dropped"
     except SubmitRejected as error:
@@ -714,6 +721,7 @@ class SocRunner:
         self.login_backoff = LOGIN_RECHECK_SECONDS
         self._login: tuple[float, str] | None = None
         self._lock = threading.Lock()  # the heartbeat thread reads the login too
+        self.current_request_id: str | None = None  # the request being carried out, for ยกเลิกตรวจ
 
     def claude_login(self) -> str:
         with self._lock:
@@ -736,7 +744,27 @@ class SocRunner:
         if (isinstance(reply, dict) and reply.get("quotaPaused") is False
                 and self.clock() < paused_until == self.paused_until):
             self.paused_until = 0.0
-            self.log("มีคำสั่งตรวจต่อเลยจากหน้าเว็บ เลิกรอโควตา")
+            self.log("ไม่มีคำขอที่รอโควตาแล้ว (ตรวจต่อเลยหรือยกเลิกจากหน้าเว็บ) เลิกรอโควตา")
+        cancelled = reply.get("cancelled") if isinstance(reply, dict) else None
+        for request_id in cancelled if isinstance(cancelled, list) else []:
+            self._forget_cancelled(request_id)
+
+    def _forget_cancelled(self, request_id) -> None:
+        """ยกเลิกตรวจ on the web: stop Claude if this is the request it checks, or drop the folder a
+        paused request kept. The server repeats the id for an hour, so a cancel that came just
+        before Claude started is caught at the next beat."""
+        if not isinstance(request_id, str) or not SAFE_REQUEST_ID.fullmatch(request_id) or request_id == CURRENT_DIR:
+            return
+        with self._lock:
+            current = self.current_request_id == request_id
+        if current:
+            if self.claude.cancel():
+                self.log(f"[{request_id}] ยกเลิกตรวจจากหน้าเว็บ หยุด Claude แล้ว")
+            return
+        folder = self.work_root / request_id
+        if folder.is_dir():
+            _discard(folder)
+            self.log(f"[{request_id}] ยกเลิกตรวจจากหน้าเว็บ ลบผลระหว่างทางที่เก็บไว้แล้ว")
 
     def poll_once(self) -> str | None:
         if self.clock() < self.paused_until or self.claude_login() == "logged_out":
@@ -745,7 +773,13 @@ class SocRunner:
         if not request:
             return None
         self.log(f"รับคำขอ {request['id']}: {request['job'].get('title', '')} ข้อ {request['majorItem']['label']}")
-        outcome = carry_out(request, self.server, self.claude, self.work_root, self.log, on_pause=self._pause, clock=self.clock)
+        with self._lock:
+            self.current_request_id = request["id"]
+        try:
+            outcome = carry_out(request, self.server, self.claude, self.work_root, self.log, on_pause=self._pause, clock=self.clock)
+        finally:
+            with self._lock:
+                self.current_request_id = None
         with self._lock:
             if outcome == "needs_login":
                 self.logged_out_until = self.clock() + self.login_backoff

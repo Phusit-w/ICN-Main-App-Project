@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from datetime import datetime, timedelta, timezone
 
-from claude_cli import ClaudeBusy, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, pick_model
+from claude_cli import ClaudeBusy, ClaudeCancelled, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeRun, ClaudeSessionMissing, ClaudeTask, pick_model
 from runner import (RUNNER_VERSION, SocRunner, _version_at_least, build_evidence_packet, carry_out, load_config, open_log, parse_args,
                     restore_current, single_instance)
 from server_client import NotClaimed, ServerError, SubmitRejected
@@ -114,6 +114,14 @@ class FakeClaude:
         self.seen_system: list[bytes | None] = []  # the appended system prompt file, as Claude got it
         self.seen_request: list[str | None] = []  # out/request.md
         self.seen_marker: list[str | None] = []
+        self.during_run = None  # called inside a run, e.g. a heartbeat arriving while Claude checks
+        self.cancels = 0
+        self._cancelled = False
+
+    def cancel(self) -> bool:
+        self.cancels += 1
+        self._cancelled = True
+        return True
 
     def login_state(self) -> str:
         self.login_checks += 1
@@ -132,6 +140,11 @@ class FakeClaude:
         self.seen_request.append(request.read_text(encoding="utf-8") if request.is_file() else None)
         marker = task.cwd / "soc-runner-request.txt"
         self.seen_marker.append(marker.read_text(encoding="utf-8") if marker.is_file() else None)
+        if self.during_run:
+            self.during_run()
+        if self._cancelled:
+            self._cancelled = False
+            raise ClaudeCancelled("ยกเลิกตรวจจากหน้าเว็บ")
         if self.script:
             step = self.script.pop(0)
             if step is not None:
@@ -1079,6 +1092,34 @@ class AutomaticResumeTest(unittest.TestCase):
         self.assertEqual(self.runner.poll_once(), "submitted")
         self.assertTrue(self.claude.tasks[-1].resume)
 
+    def test_cancel_on_the_web_stops_claude_at_the_next_heartbeat(self):
+        request_id = self.server.original["id"]
+        self.server.heartbeat_reply = {"ok": True, "quotaPaused": False, "cancelled": ["other-request", request_id]}
+        self.claude.during_run = self.runner.heartbeat
+        self.assertEqual(self.runner.poll_once(), "dropped")
+        self.assertEqual(self.claude.cancels, 1)
+        self.assertEqual(self.server.submits, [])
+        self.assertNotIn("failed", [payload["state"] for _, payload in self.server.reports], "the server closed it already")
+        self.assertEqual(list(self.work_root.iterdir()), [])
+        self.assertIsNone(self.runner.current_request_id)
+
+        # Once the run is over, the same id in later beats stops nothing.
+        self.claude.during_run = None
+        self.runner.heartbeat()
+        self.assertEqual(self.claude.cancels, 1)
+
+    def test_cancel_of_a_paused_request_drops_its_folder_and_the_wait(self):
+        request_id = self.server.original["id"]
+        self.claude.script = [ClaudeQuotaExhausted(datetime.fromtimestamp(T0 + 3600, timezone.utc), "s")]
+        self.assertEqual(self.runner.poll_once(), "paused")
+        self.assertTrue((self.work_root / request_id).is_dir())
+
+        self.server.heartbeat_reply = {"ok": True, "quotaPaused": False, "cancelled": [request_id, "../x", "current", 7]}
+        self.runner.heartbeat()
+        self.assertFalse((self.work_root / request_id).exists())
+        self.assertEqual(self.runner.paused_until, 0.0)
+        self.assertEqual(self.claude.cancels, 0)
+
     def test_an_expired_login_holds_claims_and_tells_the_server_until_rechecked(self):
         self.claude.script = [ClaudeLoggedOut("Login expired · Please run /login")]
         self.assertEqual(self.runner.poll_once(), "needs_login")
@@ -1175,6 +1216,39 @@ class ProcessTest(unittest.TestCase):
         config, log = parse_args(["runner.py"])
         self.assertEqual(config.name, "soc-runner.json")
         self.assertIsNone(log)
+
+
+class ClaudeCancelTest(unittest.TestCase):
+    """ยกเลิกตรวจ kills the real `claude` process tree and the run says it was cancelled."""
+
+    def test_cancel_kills_the_running_process(self):
+        import threading
+        from unittest import mock
+        cli = ClaudeCli(executable=sys.executable)
+        self.assertFalse(cli.cancel(), "no run, nothing to stop")
+        work = Path(tempfile.mkdtemp(prefix="soc-runner-cancel-"))
+        self.addCleanup(shutil.rmtree, work, True)
+        task = ClaudeTask(prompt="", cwd=work, out_dir=work, session_id="s")
+        outcome: list = []
+
+        def run():
+            try:
+                outcome.append(cli.run(task))
+            except Exception as error:
+                outcome.append(error)
+
+        with mock.patch("claude_cli.run_arguments", return_value=[sys.executable, "-c", "import time; time.sleep(60)"]):
+            thread = threading.Thread(target=run)
+            thread.start()
+            for _ in range(100):
+                if cli._process is not None:
+                    break
+                thread.join(0.05)
+            self.assertTrue(cli.cancel())
+            thread.join(30)
+        self.assertFalse(thread.is_alive())
+        self.assertIsInstance(outcome[0], ClaudeCancelled)
+        self.assertIsNone(cli._process)
 
 
 class PickModelTest(unittest.TestCase):

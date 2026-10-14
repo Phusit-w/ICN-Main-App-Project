@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { socErrorStatus } from "@/lib/soc";
-import { hasQuotaPausedCheckRequest } from "@/lib/soc-check-requests";
+import { cancelledCheckRequestIds, hasQuotaPausedCheckRequest } from "@/lib/soc-check-requests";
 import { authenticateSocRunner, parseSocRunnerHeartbeat, recordSocRunnerHeartbeat } from "@/lib/soc-runner";
 
 export const runtime = "nodejs";
 
 // SOC Runner heartbeat (docs/SOC-RUNNER.md). Bearer token from the runner
 // config; body { runnerVersion, claudeLogin }. 200 { ok, username,
-// serverTime, quotaPaused }, 401 for a missing/unknown/revoked token, 403 when the user
+// serverTime, quotaPaused, cancelled }, 401 for a missing/unknown/revoked token, 403 when the user
 // lost `soc` access, 400 for a bad body. proxy.ts lets /api/soc-runner/*
 // through without a session: the token is checked here.
 export async function POST(request: Request) {
@@ -24,7 +24,9 @@ export async function POST(request: Request) {
     const { lastSeenAt } = await recordSocRunnerHeartbeat(link.id, heartbeat);
     // false tells a runner waiting for the quota to stop waiting (ตรวจต่อเลย).
     const quotaPaused = await hasQuotaPausedCheckRequest(link.userId, lastSeenAt);
-    return NextResponse.json({ ok: true, username: link.user.username, serverTime: lastSeenAt.toISOString(), quotaPaused });
+    // ยกเลิกตรวจ: requests the runner must stop or forget (Runner 0.7.0).
+    const cancelled = await cancelledCheckRequestIds(link.userId, lastSeenAt);
+    return NextResponse.json({ ok: true, username: link.user.username, serverTime: lastSeenAt.toISOString(), quotaPaused, cancelled });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     const status = socErrorStatus(message);

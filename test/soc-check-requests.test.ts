@@ -225,7 +225,7 @@ test("claims are oldest first across jobs", { skip }, async () => {
   assert.equal(first.body.request?.majorItem.id, otherItem.id);
 });
 
-test("a request can be cancelled before it is claimed, by its requester or ADMIN only", { skip }, async () => {
+test("a request can be cancelled, by its requester or ADMIN only", { skip }, async () => {
   const { alice, bob, jobId, item1 } = await setup();
   const token = await linkRunner(alice);
   signedIn = alice;
@@ -241,14 +241,30 @@ test("a request can be cancelled before it is claimed, by its requester or ADMIN
   assert.equal(await prisma.auditLog.count({ where: { action: "SOC_CHECK_REQUEST_CANCELLED" } }), 1);
   assert.equal((await claim(token)).body.request, null, "a cancelled request is never claimed");
 
-  // Once claimed, it can't be cancelled.
+  // While its runner checks it: the heartbeat names it so the runner stops Claude, and the runner's
+  // later report and submit are refused, so nothing it finds lands.
+  const cancelledIds = async () => ((await (await heartbeat(token)).json()) as { cancelled: string[] }).cancelled;
   await requestSocCheck(jobId, item1.id);
   const second = (await claim(token)).body.request!;
+  assert.equal(await itemState(item1.id), "running");
+  assert.deepEqual(await cancelledIds(), [request.id]);
   const admin = await user("boss", "ADMIN");
   signedIn = admin;
-  const refused = await cancelSocCheckRequest(jobId, second.id);
-  assert.equal(refused.ok, false);
-  assert.equal(await itemState(item1.id), "running");
+  assert.deepEqual(await cancelSocCheckRequest(jobId, second.id), { ok: true });
+  assert.equal(await itemState(item1.id), "not_checked");
+  assert.deepEqual((await cancelledIds()).sort(), [request.id, second.id].sort());
+  assert.equal((await report(token, second.id, { state: "running", progress: "x" })).status, 409);
+  assert.equal((await submit(token, second.id, SONNET_RUN)).status, 409);
+  assert.equal(await prisma.socCheckRun.count(), 0);
+
+  // A paused one too; a closed one can't be.
+  signedIn = alice;
+  await requestSocCheck(jobId, item1.id);
+  const third = (await claim(token)).body.request!;
+  assert.equal((await report(token, third.id, { state: "paused_quota", resumeAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() })).status, 200);
+  assert.deepEqual(await cancelSocCheckRequest(jobId, third.id), { ok: true });
+  assert.equal(await itemState(item1.id), "not_checked");
+  assert.equal((await cancelSocCheckRequest(jobId, third.id)).ok, false);
 });
 
 test("a re-check over rows with a Final Decision warns, and the agreed rows are replaced by the runner's import", { skip }, async () => {
@@ -594,7 +610,7 @@ test("a manual import is refused while a Check Request is open on the item", { s
   await requestSocCheck(jobId, item1.id);
   const manual = await importLocalCheckRun(alice, { jobId, majorItemId: item1.id, results: runFor("1"), socCheck: { name: "x.docx", bytes: SOC_CHECK }, run: { skillVersion: "v1", model: "m", source: "manual" } });
   assert.equal(manual.ok, false);
-  assert.match(!manual.ok ? manual.errors.join() : "", /ยกเลิกคำขอก่อนนำเข้าผลด้วยมือ/);
+  assert.match(!manual.ok ? manual.errors.join() : "", /กดยกเลิกตรวจก่อนนำเข้าผลด้วยมือ/);
   assert.equal(await itemState(item1.id), "requested");
 });
 

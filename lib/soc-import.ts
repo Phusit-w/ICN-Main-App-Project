@@ -233,7 +233,7 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   if (job.kind !== "IMPORTED") errors.push("นำเข้าผลได้เฉพาะงานตรวจแบบนำเข้าผล");
   const openStates: readonly string[] = SOC_CHECK_REQUEST_OPEN_STATES;
   if (!input.checkRequest && openStates.includes(item.state)) {
-    errors.push(`${majorItemName(item.label)} มีคำขอตรวจด้วย SOC Runner ที่ยังไม่เสร็จ ยกเลิกคำขอก่อนนำเข้าผลด้วยมือ`);
+    errors.push(`${majorItemName(item.label)} มีคำขอตรวจด้วย SOC Runner ที่ยังไม่เสร็จ กดยกเลิกตรวจก่อนนำเข้าผลด้วยมือ`);
   }
   if (item.skipped) errors.push(`${majorItemName(item.label)} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อนนำเข้าผล`);
   const skillVersion = input.run.skillVersion.trim().slice(0, 200);

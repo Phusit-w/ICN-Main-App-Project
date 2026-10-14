@@ -168,24 +168,35 @@ export async function setMajorItemSkipped(actor: Actor, job: Job, majorItemId: s
   return { ok: false, error: `${majorItemName(item.label)} ตรวจแล้วหรือมีคำขอตรวจอยู่ ตั้งเป็นไม่ต้องตรวจไม่ได้` };
 }
 
-// Cancels a request its runner hasn't claimed yet. The requester or ADMIN.
-// The item goes back to the state it had before the request.
+// ยกเลิกตรวจ: cancels an open request, claimed or not. The requester or ADMIN.
+// The item goes back to the state it had before the request. A runner
+// carrying it learns at its next heartbeat (`cancelledCheckRequestIds`) and
+// stops Claude; until then its reports and submit are NOT_CLAIMED.
 export async function cancelCheckRequest(actor: Actor, job: Job, requestId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const request = await prisma.socCheckRequest.findFirst({ where: { id: requestId, jobId: job.id }, include: { majorItem: { select: { label: true } } } });
   if (!request) throw new Error("NOT_FOUND");
   if (request.requestedById !== actor.id && actor.role !== "ADMIN") throw new Error("FORBIDDEN");
+  const open = [...SOC_CHECK_REQUEST_OPEN_STATES];
   const cancelled = await prisma.$transaction(async (tx) => {
-    const { count } = await tx.socCheckRequest.updateMany({ where: { id: request.id, state: "requested" }, data: { state: "cancelled", finishedAt: new Date() } });
+    const { count } = await tx.socCheckRequest.updateMany({ where: { id: request.id, state: { in: open } }, data: { state: "cancelled", finishedAt: new Date(), progressNote: null } });
     if (!count) return false;
-    await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: "requested" }, data: { state: request.priorState } });
+    await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: { in: open } }, data: { state: request.priorState } });
     await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_CANCELLED", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label } } });
     await writeAudit({
       actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_CANCELLED", entityType: "SOC_JOB", entityId: job.id,
-      summary: `ยกเลิกคำขอตรวจ${majorItemName(request.majorItem.label)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
+      summary: `ยกเลิกตรวจ${majorItemName(request.majorItem.label)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
     }, tx);
     return true;
   });
-  return cancelled ? { ok: true } : { ok: false, error: "คำขอนี้เริ่มตรวจแล้วหรือปิดไปแล้ว ยกเลิกไม่ได้" };
+  return cancelled ? { ok: true } : { ok: false, error: "คำขอนี้ตรวจเสร็จหรือปิดไปแล้ว ยกเลิกไม่ได้ กรุณาโหลดหน้าใหม่" };
+}
+
+// The user's requests cancelled within the last hour, for the heartbeat: a
+// runner stops the one Claude is checking and clears a paused one's folder.
+export async function cancelledCheckRequestIds(userId: string, now = new Date()) {
+  const since = new Date(now.getTime() - 60 * 60 * 1000);
+  const requests = await prisma.socCheckRequest.findMany({ where: { requestedById: userId, state: "cancelled", finishedAt: { gte: since } }, select: { id: true } });
+  return requests.map((request) => request.id);
 }
 
 // ตรวจต่อเลย: a request paused for the Claude quota becomes due now, instead

@@ -198,11 +198,28 @@ def child_env(base: dict, python_dir: Path) -> dict:
     return env
 
 
+class ClaudeCancelled(Exception):
+    """The run was stopped because its request was cancelled on the web (ยกเลิกตรวจ)."""
+
+
 class ClaudeCli:
     def __init__(self, model: str = "sonnet", timeout_seconds: float = 3 * 3600, executable: str | None = None):
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.executable = executable or find_claude()
+        self._lock = threading.Lock()  # cancel() comes from the heartbeat thread
+        self._process: subprocess.Popen | None = None
+        self._cancelled = False
+
+    def cancel(self) -> bool:
+        """Stops the run in progress, if any: its `run` raises ClaudeCancelled. True when one was stopped."""
+        with self._lock:
+            process = self._process
+            if process is None or self._cancelled:
+                return False
+            self._cancelled = True
+        _kill_tree(process)
+        return True
 
     def run(self, task: ClaudeTask) -> ClaudeRun:
         env = child_env(dict(os.environ), Path(sys.executable).parent)
@@ -212,6 +229,25 @@ class ClaudeCli:
                                        text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
         except FileNotFoundError:
             raise ClaudeFailed("ไม่พบโปรแกรม Claude Code (claude) บนเครื่องนี้") from None
+        with self._lock:
+            self._process, self._cancelled = process, False
+        try:
+            run = self._finish(process, task)
+        except Exception:
+            if self._end_run():  # the kill made it fail; that is not the reason
+                raise ClaudeCancelled("ยกเลิกตรวจจากหน้าเว็บ") from None
+            raise
+        if self._end_run():
+            raise ClaudeCancelled("ยกเลิกตรวจจากหน้าเว็บ")
+        return run
+
+    def _end_run(self) -> bool:
+        """Whether the run that just ended was cancelled."""
+        with self._lock:
+            cancelled, self._process = self._cancelled, None
+        return cancelled
+
+    def _finish(self, process: subprocess.Popen, task: ClaudeTask) -> ClaudeRun:
         timed_out = threading.Event()
 
         def stop():
