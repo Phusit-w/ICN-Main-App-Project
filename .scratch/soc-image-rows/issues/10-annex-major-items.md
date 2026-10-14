@@ -28,6 +28,8 @@
 - Skill (outside git): `annex_number`, `annex_rows` and the `relative` option of `item_numbers` / `row_items` in `scripts/build_evidence_packet.py`; one sentence on `item` in `SKILL.md`. Package `tor-word-compliance-check-2026-10-14-annex.skill` (79,107 bytes, sha256 `583d5543129a…`), not uploaded.
 - Real MEA Y69 SOC through the web reader: ผนวก 7 to 21, rows 37, 37, 34, 34, 21, 22, 19, 21, 18, 22, 22, 51, 9, 14, 8; Image Rows 0, 0, 2, 2, 0, 0, 1, 2, 2, 2, 2, 4, 1, 0, 1. Packets built for ผนวก 9 (34 rows, 2 images) and 13 (19 rows, 1 image) from `C:/Phusit/MEA-Y69`.
 
+**RESUME (2026-10-14, end of session):** the user deployed `1c119f0` and uploaded package `2026-10-14-annex` on prod. Left: (1) the user deletes the MEA job made before the deploy and creates it again (upload from `C:/Phusit/MEA-Y69`, short paths), then checks one ผนวก and looks at the review page; (2) ticket 09's quota runs, now on whole ผนวก: suggested ผนวก 9 (34 rows, 2 Image Rows) against ผนวก 7 (37 rows, none), meter read before and after each, nothing else in the queue; Surat Thani (Excel) run; the user's quota decision; (3) `/code-review` on this ticket's change if wanted. Unexplained: "Failed to fetch" on creating the MEA job twice on prod (also from the short-path copy), then it worked; the user hasn't said what differed.
+
 Not done: no `/code-review` on this change, no Claude run on a ผนวก packet, and the pages were not opened in a browser.
 
 For the user, in order: upload the package and make it current; deploy (`git pull`, `update.ps1`; nothing to migrate); delete the MEA job made today and create it again (major items are read at upload, the old job keeps "ข้อ 1.1 …"); check one ผนวก.
