@@ -8,7 +8,7 @@
 // lib/soc-table-excel.ts.
 import path from "node:path";
 import { annexKeysOfRows, majorItemKey, majorItemsOfRows, normalItem, sameItem, type SocMajorItemSpec } from "@/lib/soc-major-items";
-import { DOCX_MIME, magicIsDocx, NOT_A_SOC_FILE, SOC_FILE_IS_PDF, socFileNameProblem, toArabicDigits as toArabic, XLSX_MIME } from "@/lib/soc-shared";
+import { DOCX_MIME, magicIsDocx, NOT_A_SOC_FILE, socFileNameProblem, toArabicDigits as toArabic, XLSX_MIME } from "@/lib/soc-shared";
 import { isExcelSocPart, readExcelSoc } from "@/lib/soc-table-excel";
 import { decodeXml } from "@/lib/xml";
 import { readZip, type ZipEntry } from "@/lib/zip";
@@ -52,14 +52,18 @@ const startsWith = (bytes: Uint8Array, magic: number[]) => magic.every((byte, i)
 
 // Upload validation: throws, with a message for the reviewer, when the file
 // isn't a kind of SOC file this reader takes. A file's content counts as
-// well as its name: an old .doc renamed .docx is still refused as old.
+// well as its name: an old .doc renamed .docx is still refused as old. A PDF
+// is known by its content, whatever its name; job creation turns it into an
+// Excel SOC (lib/soc-pdf-soc.ts) before this reader sees it.
 export function assertSocFile(soc: { name: string; bytes: Uint8Array }): void {
+  if (isPdfFile(soc.bytes)) return;
   const byName = socFileNameProblem(soc.name);
   if (byName) throw new Error(byName);
   if (startsWith(soc.bytes, OLD_OFFICE_FILE)) throw new Error(OLD_OR_LOCKED);
-  if (startsWith(soc.bytes, PDF)) throw new Error(SOC_FILE_IS_PDF);
   if (!magicIsDocx(soc.bytes)) throw new Error(NOT_A_SOC_FILE);
 }
+
+export const isPdfFile = (bytes: Uint8Array) => startsWith(bytes, PDF);
 
 // Reads by content, whatever the file is called (a stored SOC is read again
 // for the review page). Throws, with a message for the reviewer, when the

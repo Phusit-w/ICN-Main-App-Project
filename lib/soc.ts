@@ -3,7 +3,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
-import { assertSocFile, readSocTable } from "@/lib/soc-table";
+import { convertPdfSoc } from "@/lib/soc-pdf-soc";
+import { assertSocFile, isPdfFile, readSocTable } from "@/lib/soc-table";
 import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
 import { evidencePath, UPLOAD_BATCH_BYTES, UPLOAD_BATCH_FILES } from "@/lib/soc-upload";
 export * from "@/lib/soc-shared";
@@ -73,15 +74,22 @@ export function socErrorStatus(message: string): number {
 // Creates an Imported SOC Check (ADR 0008) from an upload that
 // validateUpload() has already checked: stores the files and creates one
 // not_checked major item per ข้อใหญ่ of the SOC. It starts in NEEDS_REVIEW;
-// soc-worker never claims it. Nothing is kept if any step fails.
+// soc-worker never claims it. Nothing is kept if any step fails. A PDF SOC
+// becomes an Excel SOC here (ADR 0009): the job's SOC is the .xlsx made from
+// it, and the PDF is kept beside it as the job's SOC_SOURCE_PDF.
 export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }) {
-  const { file: socFile, majorItems, warnings } = readSocTable(input.soc.bytes);
+  const pdfSoc = isPdfFile(input.soc.bytes) ? await convertPdfSoc(input.soc.bytes) : null;
+  const withExtension = (extension: string) => input.soc.name.replace(/(\.[^.\/]*)?$/, extension);
+  const soc = pdfSoc ? { name: withExtension(".xlsx"), bytes: pdfSoc.xlsx } : input.soc;
+  const { file: socFile, majorItems, warnings: tableWarnings } = readSocTable(soc.bytes);
   if (!majorItems.length) throw new Error("ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์ลำดับของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1");
+  const warnings = [...(pdfSoc?.warnings ?? []), ...tableWarnings];
   const jobId = randomUUID();
   try {
-    const storedSoc = await storeSocFile(jobId, input.soc.name, socFile.extension, input.soc.bytes);
+    const storedSoc = await storeSocFile(jobId, soc.name, socFile.extension, soc.bytes);
+    const storedSource = pdfSoc ? await storeSocFile(jobId, withExtension(".pdf"), ".pdf", input.soc.bytes) : null;
     const storedEvidence = await Promise.all(input.evidence.map((file) => storeSocFile(jobId, file.name, ".pdf", file.bytes)));
-    const detail = { kind: "IMPORTED", evidenceCount: input.evidence.length, majorItemCount: majorItems.length };
+    const detail = { kind: "IMPORTED", evidenceCount: input.evidence.length, majorItemCount: majorItems.length, ...(pdfSoc ? { pdfSoc: true } : {}) };
     await prisma.$transaction([
       prisma.socJob.create({
         data: {
@@ -89,9 +97,11 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
           status: "NEEDS_REVIEW", stage: "รอตรวจข้อใหญ่", progress: 0,
           expiresAt: new Date(Date.now() + RETENTION_MS),
           socWarnings: warnings.length ? warnings : undefined,
+          socRowPages: pdfSoc ? pdfSoc.rowPages : undefined,
         },
       }),
       prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: socFile.mimeType, ...storedSoc } }),
+      ...(storedSource ? [prisma.socDocument.create({ data: { jobId, type: "SOC_SOURCE_PDF", mimeType: "application/pdf", ...storedSource } })] : []),
       ...storedEvidence.map((stored) => prisma.socDocument.create({ data: { jobId, type: "EVIDENCE", mimeType: "application/pdf", ...stored } })),
       prisma.socMajorItem.createMany({ data: majorItems.map((item, i) => ({ jobId, ...item, position: i + 1 })) }),
       prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "JOB_CREATED", detail } }),
@@ -151,10 +161,6 @@ export async function removeSocEvidence(actor: SocActor, documentId: string) {
   await writeAudit({ actorId: actor.id, action: "SOC_EVIDENCE_REMOVED", entityType: "SOC_JOB", entityId: job.id, summary: `ลบเอกสารหลักฐาน ${document.originalName} จากงาน ${job.title}`, metadata: detail });
 }
 
-function magicIsPdf(bytes: Uint8Array): boolean {
-  return new TextDecoder("ascii").decode(bytes.slice(0, 5)) === "%PDF-";
-}
-
 export async function validateUpload(file: File, kind: "SOC" | "EVIDENCE") {
   const maxBytes = kind === "SOC" ? MAX_SOC_FILE_BYTES : MAX_EVIDENCE_FILE_BYTES;
   const maxLabel = kind === "SOC" ? "25 MB" : "120 MB";
@@ -163,7 +169,7 @@ export async function validateUpload(file: File, kind: "SOC" | "EVIDENCE") {
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (kind === "SOC") assertSocFile({ name: file.name, bytes });
-  else if (path.extname(file.name).toLowerCase() !== ".pdf" || !magicIsPdf(bytes)) throw new Error(`ไฟล์ ${file.name} ต้องเป็น PDF ที่ถูกต้อง`);
+  else if (path.extname(file.name).toLowerCase() !== ".pdf" || !isPdfFile(bytes)) throw new Error(`ไฟล์ ${file.name} ต้องเป็น PDF ที่ถูกต้อง`);
   return bytes;
 }
 

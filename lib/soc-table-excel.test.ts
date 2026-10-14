@@ -192,13 +192,14 @@ test("the kind of SOC file is told by its content, not its name", async () => {
   assert.equal(readSocTable(buildSocDocx([["1.1", "กล้อง", "CASRI"]])).file.extension, ".docx");
 });
 
-test("old Office formats and PDF are refused with what to do", () => {
+test("old Office formats are refused with what to do; a PDF is taken whatever its name", () => {
   const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
   const pdf = new TextEncoder().encode("%PDF-1.4");
   const docx = buildSocDocx([["1.1", "กล้อง", "CASRI"]]);
   assert.throws(() => assertSocFile({ name: "SOC.doc", bytes: ole }), /Save As เป็น \.docx หรือ \.xlsx/);
   assert.throws(() => assertSocFile({ name: "SOC.xls", bytes: ole }), /Save As เป็น \.docx หรือ \.xlsx/);
   assert.throws(() => assertSocFile({ name: "SOC.docx", bytes: ole }), /รุ่นเก่าหรือใส่รหัสผ่าน.*Save As เป็น \.docx หรือ \.xlsx/); // an old file renamed, or one with a password
-  assert.throws(() => assertSocFile({ name: "SOC.pdf", bytes: pdf }), /ยังไม่รองรับ SOC ที่เป็น PDF/);
-  assert.throws(() => assertSocFile({ name: "SOC.txt", bytes: docx }), /ไฟล์ SOC ต้องเป็น Word \(\.docx\) หรือ Excel \(\.xlsx\)/);
+  assert.doesNotThrow(() => assertSocFile({ name: "SOC.pdf", bytes: pdf }));
+  assert.doesNotThrow(() => assertSocFile({ name: "SOC.docx", bytes: pdf })); // a PDF is known by its content
+  assert.throws(() => assertSocFile({ name: "SOC.txt", bytes: docx }), /ไฟล์ SOC ต้องเป็น Word \(\.docx\), Excel \(\.xlsx\) หรือ PDF/);
 });

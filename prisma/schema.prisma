@@ -168,6 +168,9 @@ model SocJob {
   // What the reviewer was told when the SOC was uploaded (strings): sheets
   // of an Excel SOC left out, pictures not read. Null = nothing to tell.
   socWarnings   Json?
+  // A PDF SOC's job (ADR 0009): the 1-based PDF page of each SOC row of the
+  // .xlsx made from it, in row order. Null for a Word or Excel SOC.
+  socRowPages   Json?
   expiresAt     DateTime
   confirmedAt   DateTime?
   completedAt   DateTime?
@@ -196,7 +199,8 @@ model SocDocument {
   jobId        String
   job          SocJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
   // "SOC" | "EVIDENCE" | "OUTPUT" | "PREVIEW" | "RUN_OUTPUT" (the SOC_Check
-  // document of one Local Check Run)
+  // document of one Local Check Run) | "SOC_SOURCE_PDF" (the PDF a PDF SOC's
+  // job was made from; its "SOC" is the .xlsx made from it, ADR 0009)
   type         String
   originalName String
   storageKey   String        @unique

@@ -15,7 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const bytes = await readFile(resolveStorageKey(document.storageKey));
     await prisma.socAuditEvent.create({ data: { jobId: document.jobId, actorId: actor.id, action: "DOCUMENT_DOWNLOADED", detail: { documentId: id, type: document.type } } });
     await writeAudit({ actorId: actor.id, action: "SOC_DOCUMENT_DOWNLOADED", entityType: "SOC_JOB", entityId: document.jobId, summary: `ดาวน์โหลดไฟล์ ${document.originalName}`, metadata: { documentId: id, type: document.type } });
-    const disposition = document.type === "EVIDENCE" ? "inline" : "attachment";
+    const disposition = document.type === "EVIDENCE" || document.type === "SOC_SOURCE_PDF" ? "inline" : "attachment";
     // A PDF picked with its folder is named "folder/file.pdf"; the browser gets the file name only.
     const safeName = (document.originalName.split("/").pop() || "file").replace(/[\r\n"]/g, "_");
     return new NextResponse(bytes, {

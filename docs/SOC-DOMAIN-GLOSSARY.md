@@ -91,6 +91,14 @@ _Avoid_: skipped row, heading row
 A SOC whose comparison table is a worksheet instead of a Word table. Every visible sheet with a recognised header row is part of the SOC; other sheets are left out and named at upload. It is checked by the same rules as a Word SOC, and its major items follow the same rule, with item numbers shown as typed in the file. Only cell text is read: images in the workbook are counted and reported at upload, not read. Its check has no SOC_Check copy; the results are on the review page and in the results Excel.
 _Avoid_: spreadsheet job, Excel check
 
+**PDF SOC**:
+A SOC uploaded as a PDF. On upload its comparison table is turned into an Excel SOC that the job keeps beside the original PDF, and from then on the job is an Excel SOC: same major items, same check, same review page and results Excel. Each row remembers the PDF page it came from, and the review page can open that page. A **text PDF SOC** has a text layer on its table pages. Table pages that are scans are left out and named at upload. Images in the TOR cells are counted and reported at upload, not read. A row cut across a page break stays two rows: the part on the next page is an unnumbered row. When the table has no item-number column, a row's item number is the number at the start of its TOR text (`๔.๓.๑ การเริ่ม…`).
+_Avoid_: PDF check, converted SOC
+
+**Scanned PDF SOC**:
+A PDF SOC whose table pages are images with no text layer. Not supported yet: it is refused at upload.
+_Avoid_: OCR SOC
+
 ## Core objects
 
 | Term | Meaning |

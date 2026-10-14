@@ -305,7 +305,9 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
   const [pending, startTransition] = useTransition();
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState("");
-  const inputs = documents.filter((d) => d.type === "SOC" || d.type === "EVIDENCE");
+  // A PDF SOC's job lists the PDF it was made from, not the .xlsx made from it (ADR 0009).
+  const socPdf = documents.some((d) => d.type === "SOC_SOURCE_PDF");
+  const inputs = documents.filter((d) => d.type === (socPdf ? "SOC_SOURCE_PDF" : "SOC") || d.type === "EVIDENCE");
   const evidenceCount = inputs.filter((d) => d.type === "EVIDENCE").length;
   // Folded by default: a job can hold up to 200 PDFs.
   const [open, setOpen] = useStoredFlag(OPEN_DOCUMENTS_KEY, false);
@@ -338,7 +340,7 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
   return <section id="soc-documents" className="scroll-mt-6 rounded-card bg-surface p-5 shadow-card">
     <h2><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-documents-body"><span className="font-display font-semibold">เอกสารในงาน</span><span className="text-xs font-normal text-muted">SOC {inputs.length - evidenceCount} · PDF หลักฐาน {evidenceCount} ไฟล์</span></CollapseButton></h2>
     <div id="soc-documents-body" hidden={!open}>
-    <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "EVIDENCE" ? "_blank" : undefined} rel="noreferrer" className="min-w-0 break-all text-ink">{doc.name}</a>{doc.type === "EVIDENCE" ? <button type="button" onClick={() => remove(doc)} disabled={pending} className="ml-auto shrink-0 text-xs text-danger hover:underline disabled:opacity-50">ลบ</button> : null}</li>)}</ul>
+    <ul className="mt-3 flex flex-col gap-1.5 text-sm">{inputs.map((doc) => <li key={doc.id} className="flex items-center gap-2"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">{doc.type === "SOC" ? "SOC" : doc.type === "SOC_SOURCE_PDF" ? "SOC PDF" : "PDF"}</span><a href={`/api/soc/documents/${doc.id}`} target={doc.type === "SOC" ? undefined : "_blank"} rel="noreferrer" className="min-w-0 break-all text-ink">{doc.name}</a>{doc.type === "EVIDENCE" ? <button type="button" onClick={() => remove(doc)} disabled={pending} className="ml-auto shrink-0 text-xs text-danger hover:underline disabled:opacity-50">ลบ</button> : null}</li>)}</ul>
     <form action={submit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
       <SocFilePicker files={files} onChange={setFiles} disabled={pending} multiple folders label="เลือกไฟล์ PDF ที่จะเพิ่ม" accept=".pdf,application/pdf" />
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : `เพิ่ม PDF หลักฐาน (${files.length} ไฟล์)`}</Button></div> : null}

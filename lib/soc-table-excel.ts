@@ -44,8 +44,11 @@ const HEADER_SEARCH_ROWS = 200;
 const MAX_STACKED_HEADER_ROWS = 6;
 
 type Merge = { top: number; left: number; bottom: number; right: number };
-type Sheet = { name: string; hidden: boolean; rows: string[][]; merges: Merge[] }; // rows and cells may have holes
-type Columns = { item: number; tor: number; proposal: number; reference: number; remark: number; comply: number; better: number }; // -1: no such column
+// A sheet's cells, or a PDF SOC page's table (lib/soc-pdf-soc.ts). Rows and
+// cells may have holes; a merged cell's text is at its top left.
+export type SocGrid = { rows: string[][]; merges: Merge[] };
+type Sheet = SocGrid & { name: string; hidden: boolean };
+export type SocColumns = { item: number; tor: number; proposal: number; reference: number; remark: number; comply: number; better: number }; // -1: no such column
 
 // `parts`: the workbook's entries that isExcelSocPart names. Throws, with a
 // message for the reviewer, when no sheet holds a SOC table.
@@ -70,6 +73,23 @@ export function readExcelSoc(parts: ZipEntry[]): ExcelSoc {
 }
 
 function socRowsOfSheet(sheet: Sheet): string[][] | null {
+  const header = findSocHeader(sheet);
+  if (!header) return null;
+  const { columns, last } = header;
+  const own = (row: number, column: number) => sheet.rows[row]?.[column] ?? "";
+  const tracked = [columns.item, columns.tor, columns.proposal, columns.reference, columns.remark, columns.comply, columns.better].filter((column) => column >= 0);
+  const rows: string[][] = [];
+  for (let row = last + 1; row < sheet.rows.length; row++) {
+    if (tracked.some((column) => own(row, column))) rows.push([own(row, columns.item), own(row, columns.tor), own(row, columns.proposal)]);
+  }
+  return rows;
+}
+
+// The SOC header of a grid, by the rules at the top of this file: which
+// column is which, and the last header row. Null when the grid has none.
+// `nameKey` is applied to each column name before it is matched (a PDF SOC's
+// header text keeps the spaces of its line breaks: "ตรง ข้อกำหนด").
+export function findSocHeader(sheet: SocGrid, nameKey = (name: string) => name): { columns: SocColumns; last: number } | null {
   const own = (row: number, column: number) => sheet.rows[row]?.[column] ?? "";
   const mergeAt = (row: number, column: number) => sheet.merges.find((m) => row >= m.top && row <= m.bottom && column >= m.left && column <= m.right);
   // A cell's text as the reader of the sheet sees it: a merged cell shows its text over every cell it covers.
@@ -91,7 +111,7 @@ function socRowsOfSheet(sheet: Sheet): string[][] | null {
     return false;
   };
   for (let first = 0; first < Math.min(sheet.rows.length, HEADER_SEARCH_ROWS); first++) {
-    const item = allColumns.findIndex((column) => ITEM_NAME.test(own(first, column)));
+    const item = allColumns.findIndex((column) => ITEM_NAME.test(nameKey(own(first, column))));
     if (item < 0) continue;
     let last = first;
     while (last - first + 1 < MAX_STACKED_HEADER_ROWS && last + 1 < sheet.rows.length) {
@@ -99,21 +119,16 @@ function socRowsOfSheet(sheet: Sheet): string[][] | null {
       if (own(row, item) || !allColumns.every((column) => !own(row, column) || underGroupName(first, row, column))) break;
       last = row;
     }
-    const columns = namedColumns(columnNames(first, last), item);
+    const columns = namedColumns(columnNames(first, last).map(nameKey), item);
     if (columns.tor < 0 || columns.proposal < 0) continue;
-    const tracked = [columns.item, columns.tor, columns.proposal, columns.reference, columns.remark, columns.comply, columns.better].filter((column) => column >= 0);
-    const rows: string[][] = [];
-    for (let row = last + 1; row < sheet.rows.length; row++) {
-      if (tracked.some((column) => own(row, column))) rows.push([own(row, columns.item), own(row, columns.tor), own(row, columns.proposal)]);
-    }
-    return rows;
+    return { columns, last };
   }
   return null;
 }
 
 // Which column is which, from the columns' names. The tick, reference and
 // remarks columns are named first: "ตรงข้อกำหนด" must not be taken for the TOR.
-function namedColumns(names: string[], item: number): Columns {
+function namedColumns(names: string[], item: number): SocColumns {
   const taken = new Set([item]);
   const take = (pattern: RegExp) => {
     const column = names.findIndex((name, index) => !taken.has(index) && pattern.test(name));

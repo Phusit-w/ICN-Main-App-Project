@@ -15,9 +15,10 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
 import { buildDocx, buildZip } from "@/test/docx-fixture";
+import { buildTablePdf } from "@/test/pdf-table-fixture";
 import { buildXlsx, type SheetSpec } from "@/test/xlsx-fixture";
 import { newSocRunnerToken } from "@/lib/soc-runner-token";
-import { majorItemStateText, SOC_RUNNER_FOR_EXCEL_SOC } from "@/lib/soc-shared";
+import { majorItemStateText, SOC_RUNNER_FOR_EXCEL_SOC, XLSX_MIME } from "@/lib/soc-shared";
 
 const skip = setupTestDatabase();
 
@@ -32,7 +33,7 @@ const { POST: claimRoute } = await import("@/app/api/soc-runner/claim/route");
 const { POST: submitRoute } = await import("@/app/api/soc-runner/requests/[id]/submit/route");
 const { POST: heartbeatRoute } = await import("@/app/api/soc-runner/heartbeat/route");
 const { requestSocCheck, requestSocRowRechecks, setSocMajorItemSkipped } = await import("@/actions/socCheckRequests");
-const { createImportedSocJob } = await import("@/lib/soc");
+const { createImportedSocJob, validateUpload } = await import("@/lib/soc");
 const { importLocalCheckRun } = await import("@/lib/soc-import");
 const { socReviewView } = await import("@/lib/soc-review-view");
 const { majorItemRequestViews } = await import("@/lib/soc-check-requests");
@@ -224,6 +225,40 @@ test("a runner too old for an Excel SOC is handed nothing and the job page says 
   assert.equal(done.state, "done");
   const stored = await prisma.socCheckRun.findUniqueOrThrow({ where: { id: done.runId! } });
   assert.deepEqual([stored.source, stored.documentId, stored.rowCount], ["runner", null, 2]);
+});
+
+test("a PDF SOC upload becomes an Excel SOC job: the major items of that table, the runner gets the .xlsx, and the PDF and each row's page are kept", { skip }, async () => {
+  const owner = await user("pdf-owner");
+  signedIn = owner;
+  const pdf = buildTablePdf([
+    { columns: [50, 200, 150, 150], rows: [HEADER, SHEET_A.rows[1].map((cell) => String(cell ?? ""))] },
+    { columns: [50, 200, 150, 150], rows: [HEADER, SHEET_A.rows[2].map((cell) => String(cell ?? ""))] },
+  ]);
+  // Known by its content, whatever it is called.
+  assert.deepEqual(await validateUpload(new File([pdf], "Compliance Table.pdf"), "SOC"), pdf);
+  assert.deepEqual(await validateUpload(new File([pdf], "Compliance Table.docx"), "SOC"), pdf);
+  const jobId = await createImportedSocJob(owner, { title: "Surat", soc: { name: "Compliance Table.pdf", bytes: pdf }, evidence: [{ name: "Brochure.pdf", bytes: PDF }] });
+  const { jobId: excelJobId } = await excelJob([SHEET_A]);
+  const majorItems = (id: string) => prisma.socMajorItem.findMany({ where: { jobId: id }, orderBy: { position: "asc" }, omit: { id: true, jobId: true, createdAt: true, updatedAt: true } });
+  assert.deepEqual(await majorItems(jobId), await majorItems(excelJobId));
+
+  const job = await prisma.socJob.findUniqueOrThrow({ where: { id: jobId }, include: { documents: { orderBy: { type: "asc" } } } });
+  assert.deepEqual(job.socRowPages, [1, 2]);
+  assert.deepEqual(job.documents.map((d) => [d.type, d.originalName, d.mimeType]), [
+    ["EVIDENCE", "Brochure.pdf", "application/pdf"],
+    ["SOC", "Compliance Table.xlsx", XLSX_MIME],
+    ["SOC_SOURCE_PDF", "Compliance Table.pdf", "application/pdf"],
+  ]);
+
+  await uploadSkill();
+  const token = await linkRunner(owner);
+  assert.equal((await heartbeat(token, SOC_RUNNER_FOR_EXCEL_SOC)).status, 200);
+  const item = await prisma.socMajorItem.findFirstOrThrow({ where: { jobId, key: "1" } });
+  assert.deepEqual(await requestSocCheck(jobId, item.id), { ok: true, requested: 1 });
+  const request = await claim(token);
+  assert.ok(request);
+  assert.equal(request.socCheck, false);
+  assert.deepEqual(request.documents.map((d) => [d.type, d.name]), [["SOC", "Compliance Table.xlsx"], ["EVIDENCE", "Brochure.pdf"]]);
 });
 
 test("an old runner still takes a Word SOC's request, which names no runner version, and its submit still needs the SOC_Check", { skip }, async () => {

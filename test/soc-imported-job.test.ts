@@ -135,12 +135,12 @@ test("a SOC with no item numbers is rejected and nothing is kept", { skip }, asy
   assert.deepEqual(await readdir(storageRoot), storedBefore);
 });
 
-test("a SOC file that is really a PDF is rejected with its own message and nothing is kept", { skip }, async () => {
+test("a PDF SOC that can't be opened is rejected with its own message and nothing is kept", { skip }, async () => {
   signedIn = await user("owner");
   const storedBefore = await readdir(storageRoot);
   const response = await createJob(upload({ title: "x", soc: PDF, evidence: [{ name: "a.pdf", bytes: PDF }] }));
   assert.equal(response.status, 400);
-  assert.match(((await response.json()) as { error: string }).error, /ยังไม่รองรับ SOC ที่เป็น PDF/);
+  assert.match(((await response.json()) as { error: string }).error, /ไม่สามารถเปิดไฟล์ PDF ของ SOC ได้/);
   assert.equal(await prisma.socJob.count(), 0);
   assert.deepEqual(await readdir(storageRoot), storedBefore);
 });
