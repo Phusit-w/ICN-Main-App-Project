@@ -4,7 +4,7 @@
 
 **Blocked by:** – (04 done; user chose option B 2026-10-09)
 
-**Status:** done (code + gate 2026-10-09; push/deploy left for the user)
+**Status:** done (code + gate 2026-10-09; pushed and deployed 2026-10-09)
 
 ## What to change (Runner, `soc-runner/`)
 
