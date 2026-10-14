@@ -24,6 +24,7 @@ Spec: `spec.md` (grilled, prototyped and accepted 2026-10-12). Glossary terms: I
 | 07 | The skill reads Image Rows | 02 | done (2026-10-12): live MEA runs 2.5 (mixed), 1.7 (picture), 1.12 OK; skill outside git, no package |
 | 08 | Image Rows end to end on the review page | 06, 07 | done (2026-10-14), Runner 0.6.0 |
 | 09 | Live acceptance and quota | 05, 08 | ready-for-human: pushed to origin/main 2026-10-14, package `2026-10-14-images` built; upload, deploy, re-install and the live runs are the user's |
+| 10 | A SOC divided into ผนวก: each ผนวก is a major item | 08 | ready-for-human: code done 2026-10-14, package `2026-10-14-annex` built; upload, deploy, re-create the MEA job |
 
 The Excel lane (01 to 05) is complete and can be deployed on its own if the user asks: upload the Skill Package first, then deploy (one migration), then reviewers re-install the Runner (0.5.0). See the end of ticket 05.
 
@@ -37,5 +38,5 @@ The Excel lane (01 to 05) is complete and can be deployed on its own if the user
 ## Found on the way (2026-10-12)
 
 - **MEA Y69 SOC is a `.doc`**, not `.docx`: it must be saved as `.docx` before upload (the web now says so).
-- **MEA major items come out wrong today.** Its table has no header row inside the table and restarts item numbers in every ผนวก (7 to 21): each ผนวก starts with an unnumbered row "ผนวก N" and then 1., 2., 1.1 … again. The web reads that as one ข้อ 1 split into 1.1, 1.2 … mixing all ผนวก. Needs a decision before ticket 09 (for example: an unnumbered "ผนวก N" row starts a major item). Not covered by any ticket yet.
+- **MEA major items come out wrong today.** Its table has no header row inside the table and restarts item numbers in every ผนวก (7 to 21): each ผนวก starts with an unnumbered row "ผนวก N" and then 1., 2., 1.1 … again. The web reads that as one ข้อ 1 split into 1.1, 1.2 … mixing all ผนวก. Decided by the user 2026-10-14: each ผนวก is a major item (ticket 10).
 - **MEA rows have 6, 7 or 8 cells**; the reference (the "หมายเหตุ (คำอธิบายเพิ่มเติม)" column) is always at grid column 9 but at cell 5, 6 or 7 of the row. The skill's `reference_columns` picks one cell position per table, so it would miss the reference on 86 of 296 cited rows. Fix with ticket 07 (use the grid column, which `SocCell.column` has).

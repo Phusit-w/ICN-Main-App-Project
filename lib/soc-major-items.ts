@@ -9,7 +9,7 @@ import { SPLIT_MAJOR_ITEM_ROWS, toArabicDigits as toArabic } from "@/lib/soc-sha
 
 export type SocMajorItemSpec = {
   key: string; // the number in Arabic digits, e.g. "1" for both "๑" and "1.", or "5.5" for a sub-section of a split item
-  label: string; // the number as the SOC writes it, e.g. "๑" or "๕.๕"
+  label: string; // the number as the SOC writes it, e.g. "๑" or "๕.๕"; "ผนวก 7" when the SOC is divided into ผนวก
   title: string | null; // text of the item's own heading row, when the SOC has one
   rowCount: number; // SOC table rows the item covers, its heading row and unnumbered rows included
   imageRowCount: number; // of those, the Image Rows (TOR cell is an image, no text)
@@ -59,9 +59,43 @@ type ItemTally = { key: string; label: string; title: string | null; rowCount: n
 // rowsBeforeSubs (imagesBeforeSubs): its heading row and any row before its first sub-section (the Image Rows among them).
 type MajorItemTally = ItemTally & { rowsBeforeSubs: number; imagesBeforeSubs: number; subs: Map<string, ItemTally> };
 
+// The heading row of a ผนวก: no item number, and the TOR cell starts with
+// "ผนวก 7 …" or "ภาคผนวกที่ ๘ …". The skill reads the same rule
+// (build_evidence_packet.py annex_heading).
+const ANNEX_HEADING = /^(?:ภาค)?ผนวก\s*(?:ที่)?\s*([0-9๐-๙]+)(?![0-9๐-๙.])[\s:.-]*(.*)$/;
+
+function annexHeading(cells: string[]): { key: string; label: string; title: string | null } | null {
+  if (/[0-9๐-๙]/.test(cells[0] || "")) return null;
+  const match = ANNEX_HEADING.exec((cells[1] || "").trim());
+  return match ? { key: String(Number(toArabic(match[1]))), label: `ผนวก ${match[1]}`, title: match[2].slice(0, MAX_TITLE) || null } : null;
+}
+
+// A SOC divided into ผนวก (MEA Y69): at least two ผนวก heading rows. Its rows
+// number from 1 again in every ผนวก, so each ผนวก is a major item: key = the
+// ผนวก number, and a row's item is that number, then the row's own ("7.1").
+// Never split. Rows above the first ผนวก belong to no major item.
+function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean): SocMajorItemSpec[] | null {
+  const headings = rows.map(annexHeading);
+  if (new Set(headings.flatMap((heading) => heading?.key ?? [])).size < 2) return null;
+  const items = new Map<string, SocMajorItemSpec>();
+  let item: SocMajorItemSpec | null = null;
+  for (const [index, heading] of headings.entries()) {
+    if (heading) {
+      item = items.get(heading.key) ?? { ...heading, rowCount: 0, imageRowCount: 0, groupLabel: null, groupTitle: null, skipped: false };
+      items.set(heading.key, item);
+    }
+    if (!item) continue;
+    item.rowCount += 1;
+    item.imageRowCount += isImageRow(index) ? 1 : 0;
+  }
+  return [...items.values()];
+}
+
 // The major items of a SOC, from every row of its tables in order (first cell
 // = item number). `isImageRow(i)`: whether row i is an Image Row.
 export function majorItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean = () => false): SocMajorItemSpec[] {
+  const annexes = annexItemsOfRows(rows, isImageRow);
+  if (annexes) return annexes;
   // Each row counts towards the item number above it, until the next one.
   const majors = new Map<string, MajorItemTally>();
   let major: MajorItemTally | null = null;

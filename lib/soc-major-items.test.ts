@@ -31,6 +31,51 @@ test("lists the top-level item numbers in SOC order, with the heading row's text
   ]);
 });
 
+// The shape of MEA Y69: one table, every ผนวก starts with an unnumbered row
+// and numbers its rows from 1 again (also under each sub-heading).
+const ANNEX_SOC = () => buildSocDocx([
+  ["", "ผนวก 7 รายละเอียดของ Indoor FDF", "", "เอกสารส่วนที่ 2 5.1"],
+  ["", "ความต้องการ", "", ""],
+  ["1.", "ใช้รองรับสายใยแก้ว", "", "5.1 หน้า 2"],
+  ["7.", "มี Splice tray", "", "5.1 หน้า 3"],
+  ["", "คุณสมบัติทางกายภาพ", "", ""],
+  ["1.", "ทำจากเหล็กแผ่น", "", "5.1 หน้า 4"],
+  ["", { image: PNG }, "", ""],
+  ["", "ภาคผนวกที่ ๘ รายละเอียดของ Outdoor FDF", "", "เอกสารส่วนที่ 2 5.2"],
+  ["1.", "รายละเอียดตู้", "", ""],
+  ["1.1", "ตู้ทำจากสแตนเลส", "", "5.2 หน้า 1"],
+]);
+
+test("a SOC divided into ผนวก has one major item per ผนวก, whatever numbers its rows restart from", () => {
+  assert.deepEqual(readSocMajorItems(ANNEX_SOC()).map(({ key, label, title, rowCount, imageRowCount, groupLabel, skipped }) => ({ key, label, title, rowCount, imageRowCount, groupLabel, skipped })), [
+    { key: "7", label: "ผนวก 7", title: "รายละเอียดของ Indoor FDF", rowCount: 7, imageRowCount: 1, groupLabel: null, skipped: false },
+    { key: "8", label: "ผนวก ๘", title: "รายละเอียดของ Outdoor FDF", rowCount: 3, imageRowCount: 0, groupLabel: null, skipped: false },
+  ]);
+});
+
+test("a row of a ผนวก is found by its row and its item under the ผนวก number", () => {
+  const rowText = socRowTexts(ANNEX_SOC());
+  // The skill numbers a row under its ผนวก: ข้อ 7 of ผนวก 7 is 7.7, a row without a number takes the one above.
+  assert.equal(rowText(4, "7.7")?.tor, "มี Splice tray");
+  assert.equal(rowText(6, "7.1")?.tor, "ทำจากเหล็กแผ่น");
+  assert.equal(rowText(3, "7.1")?.tor, "ใช้รองรับสายใยแก้ว");
+  assert.equal(rowText(7, "7.1")?.image, true);
+  assert.equal(rowText(1, "7")?.tor, "ผนวก 7 รายละเอียดของ Indoor FDF");
+  assert.equal(rowText(10, "8.1.1")?.tor, "ตู้ทำจากสแตนเลส");
+  assert.ok(isItemInMajorItem("7.7", { key: "7" }) && isItemInMajorItem("7", { key: "7" }) && !isItemInMajorItem("8.1", { key: "7" }));
+});
+
+test("one row that mentions a ผนวก doesn't turn a numbered SOC into ผนวก items", () => {
+  const soc = buildSocDocx([
+    HEADER,
+    ["", "ผนวก 1 ข้อกำหนดทั่วไป", "", ""],
+    ["๑.", "ระบบ", "", ""],
+    ["๑.๑", "อุปกรณ์", "X", "หน้า 3"],
+    ["๒.๑", "ซอฟต์แวร์", "Y", "หน้า 9"],
+  ]);
+  assert.deepEqual(brief(soc).map((m) => m.key), ["1", "2"]);
+});
+
 test("reads Arabic item numbers with trailing dots", () => {
   const soc = buildSocDocx([
     ["", "Specification of DWDM", ""],

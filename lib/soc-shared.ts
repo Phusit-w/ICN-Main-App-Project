@@ -60,6 +60,12 @@ export type SocCheckRequestView = {
   runnerTooOld?: SocRunnerNeed;
 };
 
+// A major item that is a ผนวก of a SOC divided into ผนวก, by its label
+// ("ผนวก 7"; any other label is the item's number, "๗" or "๕.๕").
+export const isAnnexLabel = (label: string) => label.startsWith("ผนวก");
+// A major item as the pages name it: "ข้อ ๕.๕" (or "ข้อใหญ่ ๕"), "ผนวก 7".
+export const majorItemName = (label: string, word = "ข้อ") => (isAnnexLabel(label) ? label : `${word} ${label}`);
+
 // "๑๓" → "13".
 export function toArabicDigits(value: string): string {
   return value.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));

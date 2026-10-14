@@ -15,7 +15,7 @@ import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSoc
 import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
 import { readSocTable, type SocTable } from "@/lib/soc-table";
 import { parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
-import { isExcelSoc, isSocImageKind, SOC_CHECK_REQUEST_OPEN_STATES, SOC_IMAGE_KINDS } from "@/lib/soc-shared";
+import { isExcelSoc, isSocImageKind, majorItemName, SOC_CHECK_REQUEST_OPEN_STATES, SOC_IMAGE_KINDS } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
 
@@ -144,7 +144,7 @@ export function validateLocalCheckRun(
     }
     if (!isBlank(row.item)) {
       if (!majorItemKey(String(row.item))) errors.push(`${where}: item ไม่ใช่เลขข้อ`);
-      else if (!isItemInMajorItem(String(row.item), majorItem, { takesGroupHeading })) errors.push(`${where} ไม่ได้อยู่ในข้อใหญ่ ${majorItem.label}`);
+      else if (!isItemInMajorItem(String(row.item), majorItem, { takesGroupHeading })) errors.push(`${where} ไม่ได้อยู่ใน${majorItemName(majorItem.label, "ข้อใหญ่")}`);
     }
   });
 
@@ -233,9 +233,9 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
   if (job.kind !== "IMPORTED") errors.push("นำเข้าผลได้เฉพาะงานตรวจแบบนำเข้าผล");
   const openStates: readonly string[] = SOC_CHECK_REQUEST_OPEN_STATES;
   if (!input.checkRequest && openStates.includes(item.state)) {
-    errors.push(`ข้อ ${item.label} มีคำขอตรวจด้วย SOC Runner ที่ยังไม่เสร็จ ยกเลิกคำขอก่อนนำเข้าผลด้วยมือ`);
+    errors.push(`${majorItemName(item.label)} มีคำขอตรวจด้วย SOC Runner ที่ยังไม่เสร็จ ยกเลิกคำขอก่อนนำเข้าผลด้วยมือ`);
   }
-  if (item.skipped) errors.push(`ข้อ ${item.label} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อนนำเข้าผล`);
+  if (item.skipped) errors.push(`${majorItemName(item.label)} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อนนำเข้าผล`);
   const skillVersion = input.run.skillVersion.trim().slice(0, 200);
   const model = input.run.model.trim().slice(0, 200);
   if (!skillVersion) errors.push("กรุณาระบุเวอร์ชันของ skill ที่ใช้ตรวจ");
@@ -305,16 +305,16 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
     if (stored) await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
     if (error instanceof ConfirmationRequired) {
       const listed = error.rows.map((r) => `ข้อ ${r.item}`).join(", ");
-      return { ok: false, confirmedRows: error.rows, errors: [`ข้อ ${item.label} มี ${error.rows.length} แถวที่ยืนยันผลแล้ว (${listed}) การตรวจซ้ำจะแทนที่แถวเหล่านี้ ต้องเลือก "แทนที่แถวที่ยืนยันแล้ว" ก่อนนำเข้า`] };
+      return { ok: false, confirmedRows: error.rows, errors: [`${majorItemName(item.label)} มี ${error.rows.length} แถวที่ยืนยันผลแล้ว (${listed}) การตรวจซ้ำจะแทนที่แถวเหล่านี้ ต้องเลือก "แทนที่แถวที่ยืนยันแล้ว" ก่อนนำเข้า`] };
     }
-    if (error instanceof Error && error.message === RACED) return { ok: false, errors: [`ข้อ ${item.label} เพิ่งมีการนำเข้าผลพร้อมกัน กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง`] };
+    if (error instanceof Error && error.message === RACED) return { ok: false, errors: [`${majorItemName(item.label)} เพิ่งมีการนำเข้าผลพร้อมกัน กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง`] };
     throw error;
   }
   await writeAudit({
     actorId: actor.id, action: "SOC_RUN_IMPORTED", entityType: "SOC_JOB", entityId: job.id,
     summary: replacedRowCount
-      ? `ตรวจซ้ำข้อ ${item.label} (${runRows.length} แถว แทนที่ ${replacedRowCount} แถวเดิม) ในงาน ${job.title}`
-      : `นำเข้าผลตรวจข้อ ${item.label} (${runRows.length} แถว) ในงาน ${job.title}`,
+      ? `ตรวจซ้ำ${majorItemName(item.label)} (${runRows.length} แถว แทนที่ ${replacedRowCount} แถวเดิม) ในงาน ${job.title}`
+      : `นำเข้าผลตรวจ${majorItemName(item.label)} (${runRows.length} แถว) ในงาน ${job.title}`,
     metadata: replacedRowCount ? { ...detail, replacedRowCount } : detail,
   });
   return { ok: true, runId, rowCount: runRows.length };

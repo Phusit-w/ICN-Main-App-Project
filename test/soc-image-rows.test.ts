@@ -348,3 +348,42 @@ test("a picked Image Row is re-checked alone through the runner", { skip }, asyn
   assert.deepEqual(rows.map((r) => [r.rowNumber, r.imageKind]), [[3, null], [4, "mixed_image"], [5, null], [6, "text_image"]]);
   assert.ok(rows[3].torDecision);
 });
+
+// ---- A SOC divided into ผนวก (MEA Y69): each ผนวก is a major item ----
+
+test("a ผนวก is checked as one major item: the runner gets its number, and its rows come back numbered under it", { skip }, async () => {
+  const owner = await user("owner");
+  signedIn = owner;
+  const soc = buildSocDocx([
+    ["", "ผนวก 7 รายละเอียดของ Indoor FDF", "", "Datasheet"],
+    ["1.", "ใช้รองรับสายใยแก้ว", "", "Datasheet หน้า 2"],
+    ["7.", "มี Splice tray", "", "Datasheet หน้า 3"],
+    ["", { image: PNG }, "", ""],
+    ["", "ผนวก 8 รายละเอียดของ Outdoor FDF", "", "Datasheet"],
+    ["1.", "รายละเอียดตู้", "", ""],
+    ["1.1", "ตู้ทำจากสแตนเลส", "", "Datasheet หน้า 5"],
+  ]);
+  const jobId = await createImportedSocJob(owner, { title: "MEA", soc: { name: "SOC.docx", bytes: soc }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
+  const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+  assert.deepEqual(items.map((m) => [m.key, m.label, m.rowCount, m.imageRowCount]), [["7", "ผนวก 7", 4, 1], ["8", "ผนวก 8", 3, 0]]);
+
+  await uploadSkill();
+  const token = await linkRunner(owner, SOC_RUNNER_FOR_IMAGE_ROWS);
+  assert.deepEqual(await requestSocCheck(jobId, items[0].id), { ok: true, requested: 1 });
+  const request = await claim(token) as Claimed & { majorItem: { key: string; label: string; title: string } };
+  assert.deepEqual([request.majorItem.key, request.majorItem.label, request.majorItem.title], ["7", "7", "ผนวก 7 รายละเอียดของ Indoor FDF"]);
+
+  // ข้อ 1 of ผนวก 8 is not a row of ผนวก 7.
+  const outside = await submit(token, request.id, run([[1, "7"], [2, "7.1"], [3, "7.7"], [4, "7.7"], [6, "8.1"]], { 4: MIXED }));
+  assert.equal(outside.status, 422);
+  assert.match(JSON.stringify(await outside.json()), /ข้อ 8\.1\) ไม่ได้อยู่ในผนวก 7/);
+  // A refused run ends its request; the reviewer asks again.
+  assert.deepEqual(await requestSocCheck(jobId, items[0].id), { ok: true, requested: 1 });
+  const again = await claim(token);
+  const response = await submit(token, again!.id, run([[1, "7"], [2, "7.1"], [3, "7.7"], [4, "7.7"]], { 4: MIXED }));
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const view = (await socReviewView(jobId)).rows.sort((a, b) => a.rowNumber - b.rowNumber);
+  assert.deepEqual(view.map((r) => [r.rowNumber, r.item, r.torText, r.torImage]), [
+    [1, "7", "ผนวก 7 รายละเอียดของ Indoor FDF", false], [2, "7.1", "ใช้รองรับสายใยแก้ว", false], [3, "7.7", "มี Splice tray", false], [4, "7.7", "", true],
+  ]);
+});

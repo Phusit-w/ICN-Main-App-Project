@@ -15,7 +15,7 @@ import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
 import {
   SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, XLSX_MIME, isExcelSoc, isRequestableItemState,
-  socRunnerAtLeast, socRunnerState,
+  isAnnexLabel, majorItemName, socRunnerAtLeast, socRunnerState,
   type SocCheckRequestView, type SocRunnerNeed,
 } from "@/lib/soc-shared";
 
@@ -53,12 +53,12 @@ export async function requestMajorItemCheck(
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const item = await prisma.socMajorItem.findFirst({ where: { id: majorItemId, jobId: job.id } });
   if (!item) throw new Error("NOT_FOUND");
-  if (item.skipped) return { ok: false, error: `ข้อ ${item.label} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อน` };
-  if (!isRequestableItemState(item.state)) return { ok: false, error: `ข้อ ${item.label} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
+  if (item.skipped) return { ok: false, error: `${majorItemName(item.label)} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อน` };
+  if (!isRequestableItemState(item.state)) return { ok: false, error: `${majorItemName(item.label)} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
   let acknowledgedMissing: string[] = [];
   if (continueWithoutMissing) {
     const reported = item.state === "needs_documents" && Array.isArray(item.missingDocuments) ? item.missingDocuments.filter((n): n is string => typeof n === "string") : [];
-    if (!reported.length) return { ok: false, error: `ข้อ ${item.label} ไม่ได้รอเอกสารอยู่ กรุณาโหลดหน้าใหม่` };
+    if (!reported.length) return { ok: false, error: `${majorItemName(item.label)} ไม่ได้รอเอกสารอยู่ กรุณาโหลดหน้าใหม่` };
     const stopped = await prisma.socCheckRequest.findFirst({ where: { majorItemId: item.id, state: "needs_documents" }, orderBy: { finishedAt: "desc" } });
     acknowledgedMissing = [...new Set([...(stopped?.acknowledgedMissing ?? []), ...reported])];
   }
@@ -67,10 +67,10 @@ export async function requestMajorItemCheck(
     where: { majorItemId: item.id, reviewedAt: { not: null }, OR: [{ finalDecision: null }, { finalDecision: { not: PENDING_FIX } }] }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true },
   });
   if (confirmed.some((r) => !replaceConfirmed.includes(r.rowNumber))) {
-    return { ok: false, confirmedRows: confirmed, error: `ข้อ ${item.label} มี ${confirmed.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้` };
+    return { ok: false, confirmedRows: confirmed, error: `${majorItemName(item.label)} มี ${confirmed.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้` };
   }
   const created = await createRequests(actor, job, [{ ...item, replaceConfirmed: confirmed.map((r) => r.rowNumber), acknowledgedMissing }]);
-  return created ? { ok: true, requested: created } : { ok: false, error: `ข้อ ${item.label} เพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่` };
+  return created ? { ok: true, requested: created } : { ok: false, error: `${majorItemName(item.label)} เพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่` };
 }
 
 // ตรวจทั้งชุด: a request for every major item that hasn't been checked yet,
@@ -97,8 +97,8 @@ export async function requestRowRechecks(actor: Actor, job: Job, resultIds: stri
   if (!rows.length) return { ok: false, error: "ไม่มีแถวที่เลือก หรือแถวที่เลือกถูกตรวจซ้ำไปแล้ว กรุณาโหลดหน้าใหม่" };
   const items = await prisma.socMajorItem.findMany({ where: { jobId: job.id, id: { in: [...new Set(rows.map((r) => r.majorItemId!))] } }, orderBy: { position: "asc" } });
   for (const item of items) {
-    if (item.skipped) return { ok: false, error: `ข้อ ${item.label} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อน` };
-    if (!isRequestableItemState(item.state)) return { ok: false, error: `ข้อ ${item.label} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
+    if (item.skipped) return { ok: false, error: `${majorItemName(item.label)} ตั้งเป็นไม่ต้องตรวจอยู่ กด "ตรวจข้อนี้" ก่อน` };
+    if (!isRequestableItemState(item.state)) return { ok: false, error: `${majorItemName(item.label)} มีคำขอตรวจที่ยังไม่เสร็จอยู่แล้ว` };
   }
   const created = await createRequests(actor, job, items.map((item) => {
     const picked = rows.filter((r) => r.majorItemId === item.id);
@@ -163,7 +163,7 @@ export async function setMajorItemSkipped(actor: Actor, job: Job, majorItemId: s
     return true;
   });
   if (changed) return { ok: true };
-  return { ok: false, error: `ข้อ ${item.label} ตรวจแล้วหรือมีคำขอตรวจอยู่ ตั้งเป็นไม่ต้องตรวจไม่ได้` };
+  return { ok: false, error: `${majorItemName(item.label)} ตรวจแล้วหรือมีคำขอตรวจอยู่ ตั้งเป็นไม่ต้องตรวจไม่ได้` };
 }
 
 // Cancels a request its runner hasn't claimed yet. The requester or ADMIN.
@@ -179,7 +179,7 @@ export async function cancelCheckRequest(actor: Actor, job: Job, requestId: stri
     await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_CANCELLED", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label } } });
     await writeAudit({
       actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_CANCELLED", entityType: "SOC_JOB", entityId: job.id,
-      summary: `ยกเลิกคำขอตรวจข้อ ${request.majorItem.label} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
+      summary: `ยกเลิกคำขอตรวจ${majorItemName(request.majorItem.label)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
     }, tx);
     return true;
   });
@@ -201,7 +201,7 @@ export async function resumeCheckRequestNow(actor: Actor, job: Job, requestId: s
     await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_RESUME_NOW", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label, resumeAt: request.resumeAt?.toISOString() ?? null } } });
     await writeAudit({
       actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_RESUME_NOW", entityType: "SOC_JOB", entityId: job.id,
-      summary: `สั่งตรวจต่อเลยข้อ ${request.majorItem.label} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
+      summary: `สั่งตรวจต่อเลย${majorItemName(request.majorItem.label)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
     }, tx);
     return true;
   });
@@ -307,7 +307,7 @@ async function runnerView(requestId: string) {
     id: request.id,
     claimedAt: request.claimedAt?.toISOString() ?? null,
     job: { id: request.job.id, title: request.job.title },
-    majorItem: { id: request.majorItem.id, key: request.majorItem.key, label: request.majorItem.label, title: request.majorItem.title },
+    majorItem: runnerMajorItem(request.majorItem),
     acknowledgedMissing: request.acknowledgedMissing,
     needsRunner: request.majorItem.imageRowCount ? SOC_RUNNER_FOR_IMAGE_ROWS : excelSoc ? SOC_RUNNER_FOR_EXCEL_SOC : null,
     imageRows: request.majorItem.imageRowCount,
@@ -320,6 +320,14 @@ async function runnerView(requestId: string) {
   };
 }
 export type RunnerCheckRequest = Awaited<ReturnType<typeof runnerView>>;
+
+// The major item as the runner and the skill name it: by its number. A ผนวก
+// goes as its number ("7") with "ผนวก 7 …" as the title: the skill sees in the
+// SOC that the number is a ผนวก, and items come back as "7.1".
+function runnerMajorItem(item: { id: string; key: string; label: string; title: string | null }) {
+  const annex = isAnnexLabel(item.label);
+  return { id: item.id, key: item.key, label: annex ? item.key : item.label, title: annex ? [item.label, item.title].filter(Boolean).join(" ") : item.title };
+}
 
 // What the requester's runner is too old for, if anything: an Excel SOC, or
 // a major item with Image Rows. Such requests wait (the job page says to
@@ -489,7 +497,7 @@ export async function reportCheckRequest(link: RunnerLink, requestId: string, re
     });
     await writeAudit({
       actorId: link.userId, action: "SOC_CHECK_REQUEST_REPORTED", entityType: "SOC_JOB", entityId: request.jobId,
-      summary: `ข้อ ${request.majorItem.label} ในงาน ${request.job.title}: ${REPORT_SUMMARY[report.state]}`,
+      summary: `${majorItemName(request.majorItem.label)} ในงาน ${request.job.title}: ${REPORT_SUMMARY[report.state]}`,
       metadata: { checkRequestId: request.id, state: report.state },
     }, tx);
   });

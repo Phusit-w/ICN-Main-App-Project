@@ -12,6 +12,7 @@ import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import { requestSocRowRechecks } from "@/actions/socCheckRequests";
+import { majorItemName } from "@/lib/soc-shared";
 import { filterReviewRows, isSettledDecision, nextRowToReview, PENDING_FIX, PICTURE_ROW_REASON, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type EvidenceCitation, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
 
 type ReviewItem = { id: string; label: string; state: string; missingDocuments: string[]; confirmed: boolean };
@@ -104,7 +105,7 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
       <div><h2 className="font-display text-lg font-semibold">ตรวจทานผล</h2><p className="mt-1 text-xs text-muted">ผลจาก Claude เป็นเพียงคำแนะนำ ผู้ตรวจต้องยืนยัน Final Decision ทีละข้อ</p></div>
       <div className="w-full max-w-xs text-sm"><div className="flex justify-between gap-3"><span>ยืนยันแล้ว <span className="font-medium tabular-nums">{decided}/{rows.length}</span> ข้อ</span>{pendingFix ? <span className="text-muted">{SOC_FINAL_DECISION_LABELS[PENDING_FIX]} <span className="font-medium tabular-nums text-ink">{pendingFix}</span></span> : null}</div><div className="mt-1.5 h-2 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>
     </div>
-    {banners.map((m) => <div key={m.id} role="alert" className="rounded-input border border-danger-border bg-surface p-3 text-xs text-danger"><span className="font-medium">ข้อ {m.label} ตรวจโดยไม่มีไฟล์ {m.missingDocuments.join(", ")}</span> แถวที่อ้างไฟล์เหล่านี้จึงยืนยันไม่ได้ อัปโหลดไฟล์แล้วกดตรวจซ้ำได้</div>)}
+    {banners.map((m) => <div key={m.id} role="alert" className="rounded-input border border-danger-border bg-surface p-3 text-xs text-danger"><span className="font-medium">{majorItemName(m.label)} ตรวจโดยไม่มีไฟล์ {m.missingDocuments.join(", ")}</span> แถวที่อ้างไฟล์เหล่านี้จึงยืนยันไม่ได้ อัปโหลดไฟล์แล้วกดตรวจซ้ำได้</div>)}
     {missingEvidence ? <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-input border border-danger-border bg-surface p-3 text-xs text-danger">
       <span><span className="font-medium">{missingEvidence} แถวที่ Claude หาเอกสารหรือเลขหน้าที่อ้างไม่เจอ หรือเปิดอ่านไม่ได้</span> ตรวจว่าอัปโหลดไฟล์/โฟลเดอร์ครบหรือไม่ แล้วเลือกแถวเหล่านี้ส่งให้ Claude ตรวจใหม่</span>
       <button type="button" onClick={() => setFilter({ ...filter, evidenceMissing: !filter.evidenceMissing })} className="ui-btn rounded-full border border-danger-border px-3 py-1 font-medium">{filter.evidenceMissing ? "แสดงทุกแถว" : "ดูเฉพาะแถวเหล่านี้"}</button>
@@ -113,7 +114,7 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="สถานะ">{STATUS_FILTERS.map((status) => <button key={status} type="button" aria-pressed={filter.status === status} onClick={() => setFilter({ ...filter, status })} className={`ui-btn rounded-full px-3 py-1.5 text-xs tabular-nums transition-colors ${filter.status === status ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`}>{status === "all" ? "ทั้งหมด" : `${SOC_ROW_STATUS_ICONS[status]} ${SOC_ROW_STATUS_LABELS[status]}`} ({counts(status)})</button>)}</div>
       <FilterMenu filter={filter} items={checkedItems} onChange={setFilter} sort={sort} onSort={setSort} />
       {sort !== "status" ? <FilterChip onRemove={() => setSort("status")}>ตามข้อใน SOC</FilterChip> : null}
-      {filter.majorItemId !== "all" ? <FilterChip onRemove={() => setFilter({ ...filter, majorItemId: "all" })}>ข้อใหญ่ {label.get(filter.majorItemId) ?? "—"}</FilterChip> : null}
+      {filter.majorItemId !== "all" ? <FilterChip onRemove={() => setFilter({ ...filter, majorItemId: "all" })}>{majorItemName(label.get(filter.majorItemId) ?? "—", "ข้อใหญ่")}</FilterChip> : null}
       {(filter.decision ?? "all") !== "all" ? <FilterChip onRemove={() => setFilter({ ...filter, decision: "all" })}>{filter.decision === "undecided" ? "ยังไม่ตัดสิน" : SOC_FINAL_DECISION_LABELS[filter.decision as SocFinalDecision]}</FilterChip> : null}
       {filter.evidenceMissing ? <FilterChip onRemove={() => setFilter({ ...filter, evidenceMissing: false })}>หาเอกสารไม่เจอ</FilterChip> : null}
       {changed ? <button type="button" onClick={reset} title="กลับไปแสดงทุกแถว เรียงปัญหาก่อน" className="ui-btn rounded-full px-2.5 py-1.5 text-xs text-label hover:bg-hover hover:text-ink">↺ ล้าง</button> : null}
@@ -131,7 +132,7 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
             return <Fragment key={row.id}>
               {groupStart ? <tr className="border-t border-line bg-ground"><td colSpan={6} className="p-0"><button type="button" onClick={() => toggleFolded(groupId)} aria-expanded={!folded.has(groupId)} className="ui-btn flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-hover">
                 <span aria-hidden className={`text-[10px] text-muted transition-transform ${folded.has(groupId) ? "" : "rotate-90"}`}>▶</span>
-                <span className="font-semibold">ข้อใหญ่ {label.get(groupId) ?? "—"}</span>
+                <span className="font-semibold">{majorItemName(label.get(groupId) ?? "—", "ข้อใหญ่")}</span>
                 <span className="text-muted">ยืนยันแล้ว {groupRows.filter((r) => isSettledDecision(r.finalDecision)).length}/{groupRows.length}</span>
                 <span className="ml-auto text-muted">{(["fail", "review"] as const).map((status) => { const n = groupRows.filter((r) => r.status === status).length; return n ? `${SOC_ROW_STATUS_ICONS[status]} ${n} ` : ""; })}</span>
               </button></td></tr> : null}
@@ -176,7 +177,7 @@ function FilterMenu({ filter, items, onChange, sort, onSort }: { filter: SocRevi
       <label className="flex flex-col gap-1 text-xs text-label">ข้อใหญ่
         <select value={filter.majorItemId} onChange={(e) => onChange({ ...filter, majorItemId: e.target.value })} className={field}>
           <option value="all">ทุกข้อใหญ่</option>
-          {items.map((m) => <option key={m.id} value={m.id}>ข้อใหญ่ {m.label}{m.confirmed ? " · ยืนยันแล้ว" : ""}</option>)}
+          {items.map((m) => <option key={m.id} value={m.id}>{majorItemName(m.label, "ข้อใหญ่")}{m.confirmed ? " · ยืนยันแล้ว" : ""}</option>)}
         </select>
       </label>
       <label className="flex flex-col gap-1 text-xs text-label">Final Decision
@@ -270,7 +271,7 @@ function ReviewWorkspace({ jobId, row, rows, majorItemLabel, expanded, onExpand,
   const header = <header className={`relative flex items-center gap-2 border-b border-line bg-surface ${expanded ? "px-3 py-2 sm:gap-3 sm:px-5" : "px-4 py-2.5"}`}>
     <h2 className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-base font-bold sm:text-lg">
       <span className="whitespace-nowrap">{SOC_ROW_STATUS_ICONS[row.status]} ข้อ {row.item}</span>
-      <span className="truncate font-sans text-xs font-normal text-muted sm:text-sm">{SOC_ROW_STATUS_LABELS[row.status]}{majorItemLabel ? ` · ข้อใหญ่ ${majorItemLabel}` : ""}{row.sheet ? ` · ชีต ${row.sheet}` : ""} · แถว {row.rowNumber}</span>
+      <span className="truncate font-sans text-xs font-normal text-muted sm:text-sm">{SOC_ROW_STATUS_LABELS[row.status]}{majorItemLabel ? ` · ${majorItemName(majorItemLabel, "ข้อใหญ่")}` : ""}{row.sheet ? ` · ชีต ${row.sheet}` : ""} · แถว {row.rowNumber}</span>
     </h2>
     {expanded ? <span className="hidden whitespace-nowrap text-[11px] text-muted xl:inline">คีย์ลัด: ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก · Esc ย่อ</span> : null}
     <span className="whitespace-nowrap text-xs tabular-nums text-label" title={`ยืนยันแล้ว ${settled} จาก ${rows.length} ข้อที่แสดง · คีย์ลัด ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก`}>{at + 1}/{rows.length}</span>

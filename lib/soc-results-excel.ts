@@ -11,6 +11,7 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { socReviewView, type SocReviewRow } from "@/lib/soc-review-view";
+import { majorItemName } from "@/lib/soc-shared";
 import { isSettledDecision, PENDING_FIX, SOC_FINAL_DECISION_LABELS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, type SocAxisKey } from "@/lib/soc-review";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -76,7 +77,7 @@ function styleHeader(row: ExcelJS.Row) {
 
 // Excel sheet names: at most 31 characters, none of []:*?/\ and unique.
 function sheetName(label: string, used: Set<string>): string {
-  const base = `ข้อ ${label}`.replace(/[[\]:*?/\\]/g, "_").slice(0, 31);
+  const base = majorItemName(label).replace(/[[\]:*?/\\]/g, "_").slice(0, 31);
   let name = base;
   for (let n = 2; used.has(name); n++) name = `${base.slice(0, 31 - `(${n})`.length)}(${n})`;
   used.add(name);
@@ -119,7 +120,7 @@ function addSummarySheet(book: ExcelJS.Workbook, jobTitle: string, checked: Item
   REFERENCE_STATUSES.forEach((s, i) => { sheet.getRow(1).getCell(4 + i).fill = fill(s.fill); });
   for (const item of checked) {
     const counts = REFERENCE_STATUSES.map((s) => item.rows.filter((r) => referenceStatus(r).text === s.text).length);
-    const row = sheet.addRow([`ข้อ ${item.label}`, item.title ?? "", item.rows.length, ...counts, item.rows.filter((r) => isSettledDecision(r.finalDecision)).length, item.rows.filter((r) => r.finalDecision === PENDING_FIX).length]);
+    const row = sheet.addRow([majorItemName(item.label),item.title ?? "", item.rows.length, ...counts, item.rows.filter((r) => isSettledDecision(r.finalDecision)).length, item.rows.filter((r) => r.finalDecision === PENDING_FIX).length]);
     row.eachCell({ includeEmpty: true }, (cell) => { cell.border = BORDER; });
   }
   const first = 2;
@@ -137,7 +138,7 @@ function addSummarySheet(book: ExcelJS.Workbook, jobTitle: string, checked: Item
     `งาน: ${jobTitle}`,
     "นับตามสถานะย่อยของช่อง \"ผลอ้างอิง\" (ตามกติกา skill) ไม่รวมแถวหัวข้อ",
     "ผล TOR ในชีตรายข้อเป็นคำแนะนำของระบบ ผลที่ใช้คือคอลัมน์ Final Decision ของผู้ตรวจ",
-    unchecked.length ? `ยังไม่ได้ตรวจ ${unchecked.length} ข้อใหญ่: ${unchecked.map((u) => `ข้อ ${u.label}${u.title ? ` ${u.title}` : ""}`).join(", ")}` : "ตรวจครบทุกข้อใหญ่แล้ว",
+    unchecked.length ? `ยังไม่ได้ตรวจ ${unchecked.length} ข้อใหญ่: ${unchecked.map((u) => `${majorItemName(u.label)}${u.title ? ` ${u.title}` : ""}`).join(", ")}` : "ตรวจครบทุกข้อใหญ่แล้ว",
   ];
   for (const note of notes) sheet.addRow([note]);
   sheet.views = [{ state: "frozen", ySplit: 1 }];
@@ -194,7 +195,7 @@ export async function downloadSocResultsExcel(actor: { id: string }, jobId: stri
   }));
   const checked = items.filter((i) => i.rows.length);
   const unchecked = items.filter((i) => !i.rows.length);
-  if (!checked.length) return { ok: false, error: only ? `ข้อ ${only.label} ยังไม่มีผลตรวจ` : "ยังไม่มีข้อใหญ่ที่ตรวจแล้ว ตรวจอย่างน้อยหนึ่งข้อใหญ่ก่อนดาวน์โหลด" };
+  if (!checked.length) return { ok: false, error: only ? `${majorItemName(only.label)} ยังไม่มีผลตรวจ` : "ยังไม่มีข้อใหญ่ที่ตรวจแล้ว ตรวจอย่างน้อยหนึ่งข้อใหญ่ก่อนดาวน์โหลด" };
 
   const book = new ExcelJS.Workbook();
   book.creator = "ICN Apps";
@@ -209,7 +210,7 @@ export async function downloadSocResultsExcel(actor: { id: string }, jobId: stri
   await writeAudit({
     actorId: actor.id, action: "SOC_RESULTS_DOWNLOADED", entityType: "SOC_JOB", entityId: jobId,
     summary: only
-      ? `ดาวน์โหลดผลตรวจ Excel ข้อ ${only.label} ของงาน ${job.title}`
+      ? `ดาวน์โหลดผลตรวจ Excel ${majorItemName(only.label)} ของงาน ${job.title}`
       : `ดาวน์โหลดผลตรวจ Excel (ตรวจแล้ว ${checked.length}/${job.majorItems.length} ข้อใหญ่) ของงาน ${job.title}`,
     metadata: detail,
   });
