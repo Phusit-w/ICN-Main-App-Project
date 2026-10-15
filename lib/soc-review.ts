@@ -7,11 +7,12 @@ import { SOC_AXIS_VALUE_LABELS, toArabicDigits } from "@/lib/soc-shared";
 // counts as not_applicable.
 export type SocAxisKey =
   | "reference_check" | "item_label_check" | "highlight_check" | "heading_title_check" | "product_identity"
-  | "content_relevance" | "evidence_support" | "tor_decision" | "declared_status_check";
+  | "content_relevance" | "evidence_support" | "tor_decision" | "declared_status_check" | "bidder_remark_check";
 export type SocAxisValues = Partial<Record<SocAxisKey, string | null>>;
 
 // The axes in reading order, with their Thai labels and the values that are OK.
-export const SOC_REVIEW_AXES: readonly { key: SocAxisKey; label: string; ok: readonly string[] }[] = [
+// An axis may word its reasons itself (`reasons`, by value) instead of "label: value".
+export const SOC_REVIEW_AXES: readonly { key: SocAxisKey; label: string; ok: readonly string[]; reasons?: Readonly<Record<string, string>> }[] = [
   { key: "reference_check", label: "เลขหน้าที่อ้างอิง", ok: ["match", "not_applicable"] },
   { key: "item_label_check", label: "เลขข้อกำกับในเอกสาร", ok: ["match", "not_applicable"] },
   // partial_visible (evidence plainly visible on the cited page, some words
@@ -23,7 +24,15 @@ export const SOC_REVIEW_AXES: readonly { key: SocAxisKey; label: string; ok: rea
   { key: "evidence_support", label: "หลักฐานรองรับ TOR", ok: ["fully_supported", "not_applicable"] },
   { key: "tor_decision", label: "ผลเทียบเกณฑ์ TOR", ok: ["compliant", "better", "not_applicable"] },
   { key: "declared_status_check", label: "ช่องที่ผู้ยื่นติ๊ก ตรงกับผล", ok: ["match", "not_applicable"] },
+  // The Bidder Remark checked as part of the offer: not_supported / conflict
+  // make the row ⚠️, never ❌ on their own. Runs before remarks lack it (not_applicable).
+  {
+    key: "bidder_remark_check", label: "หมายเหตุผู้เสนอ", ok: ["supported", "no_value", "not_applicable"],
+    reasons: { not_supported: "หมายเหตุผู้เสนอไม่มีหลักฐานรองรับ", conflict: "ข้อเสนอกับหมายเหตุผู้เสนอขัดกัน" },
+  },
 ];
+// The values results.json may give bidder_remark_check; import rejects any other.
+export const BIDDER_REMARK_CHECKS = ["supported", "not_supported", "conflict", "no_value", "not_applicable"] as const;
 
 export type SocRowStatus = "fail" | "review" | "ok" | "heading";
 export const SOC_ROW_STATUS_ICONS: Record<SocRowStatus, string> = { fail: "❌", review: "⚠️", ok: "✅", heading: "" };
@@ -48,7 +57,8 @@ export const PICTURE_ROW_REASON = "รูปที่ต้องดูเอง
 export function overallRowStatus(rowType: string, axes: SocAxisValues, imageKind?: string | null): { status: SocRowStatus; reasons: string[] } {
   if (isHeadingRow(rowType)) return { status: "heading", reasons: [] };
   if (imageKind === "picture") return { status: "review", reasons: [PICTURE_ROW_REASON] };
-  const reasons = SOC_REVIEW_AXES.filter((axis) => !isAxisOk(axes, axis)).map((axis) => `${axis.label}: ${socAxisValueLabel(axes[axis.key])}`);
+  const reasons = SOC_REVIEW_AXES.filter((axis) => !isAxisOk(axes, axis))
+    .map((axis) => axis.reasons?.[axisValue(axes, axis.key)] ?? `${axis.label}: ${socAxisValueLabel(axes[axis.key])}`);
   const fail = axes.tor_decision === "non_compliant"
     || axes.evidence_support === "not_supported" || axes.evidence_support === "wording_conflict"
     || axes.product_identity === "mismatch";

@@ -53,6 +53,19 @@ test("a partial_visible highlight passes, with its Thai label", () => {
   assert.equal(socAxisValueLabel("partial_visible"), "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)");
 });
 
+test("a Bidder Remark without evidence or against the offer is ⚠️ with its own reason, never ❌ alone", () => {
+  const ok: SocAxisValues = { reference_check: "match", evidence_support: "fully_supported", tor_decision: "compliant" };
+  assert.deepEqual(overallRowStatus("content_row", { ...ok, bidder_remark_check: "not_supported" }), { status: "review", reasons: ["หมายเหตุผู้เสนอไม่มีหลักฐานรองรับ"] });
+  assert.deepEqual(overallRowStatus("content_row", { ...ok, bidder_remark_check: "conflict" }), { status: "review", reasons: ["ข้อเสนอกับหมายเหตุผู้เสนอขัดกัน"] });
+  for (const value of ["supported", "no_value", "not_applicable", null, undefined]) {
+    assert.deepEqual(overallRowStatus("content_row", { ...ok, bidder_remark_check: value }), { status: "ok", reasons: [] }, String(value));
+  }
+  const failing = overallRowStatus("content_row", { ...ok, tor_decision: "non_compliant", bidder_remark_check: "conflict" });
+  assert.equal(failing.status, "fail");
+  assert.ok(failing.reasons.includes("ข้อเสนอกับหมายเหตุผู้เสนอขัดกัน"));
+  assert.deepEqual(["supported", "not_supported", "conflict", "no_value"].map(socAxisValueLabel), ["มีหลักฐานรองรับ", "ไม่รองรับ", "ขัดกับข้อเสนอ", "ไม่ระบุค่า"]);
+});
+
 test("a missing or blank axis counts as not applicable", () => {
   assert.deepEqual(overallRowStatus("content_row", {}), { status: "ok", reasons: [] });
   assert.deepEqual(overallRowStatus("content_row", { heading_title_check: "", item_label_check: null }), { status: "ok", reasons: [] });

@@ -318,6 +318,21 @@ test("a confidence other than high, medium or low is rejected, naming the row", 
   await assertNothingWritten(jobId, item.id);
 });
 
+// bidder_remark_check is optional (older Skill Packages don't write it; the
+// fixture run has none), but a value outside its five is rejected.
+test("a bidder_remark_check outside its values is rejected; a known one imports", { skip }, async () => {
+  const { owner, jobId, item } = await setup();
+  const bad = await importRun(owner, jobId, item.id, withRow(runFor("1"), 2, { bidder_remark_check: "ok" }));
+  assert.equal(bad.ok, false);
+  const errors = bad.ok ? [] : bad.errors;
+  assert.equal(errors.length, 1, JSON.stringify(errors));
+  assert.match(errors[0], /ผลรายการที่ 2 .*bidder_remark_check ต้องเป็น supported, not_supported, conflict, no_value, not_applicable/);
+  await assertNothingWritten(jobId, item.id);
+
+  const good = await importRun(owner, jobId, item.id, withRow(runFor("1"), 2, { bidder_remark_check: "conflict" }));
+  assert.ok(good.ok, JSON.stringify(good));
+});
+
 test("a run without a skill version or model is rejected", { skip }, async () => {
   const { owner, jobId, item } = await setup();
   const result = await importRun(owner, jobId, item.id, runFor("1"), { run: { skillVersion: " ", model: "" } });

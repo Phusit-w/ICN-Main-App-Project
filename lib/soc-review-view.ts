@@ -49,14 +49,15 @@ const reviewImage = (r: StoredRow): SocReviewImage | null => (isSocImageKind(r.i
   : null);
 
 const axisValues = (r: StoredRow): SocAxisValues => ({
+  bidder_remark_check: rawText(r.rawResult, "bidder_remark_check"),
   reference_check: r.aiReferenceCheck, item_label_check: r.itemLabelCheck, highlight_check: r.highlightCheck,
   heading_title_check: r.aiHeadingTitleCheck, product_identity: r.aiProductIdentity, content_relevance: r.aiContentRelevance,
   evidence_support: r.evidenceSupport, tor_decision: r.torDecision, declared_status_check: r.declaredStatusCheck,
 });
 
-// The evidence file the skill checked the row against (results.json `reference_file`).
-const referenceFile = (raw: unknown): string | null => {
-  const value = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>).reference_file : null;
+// A results.json field kept only in the stored raw result (no column of its own).
+const rawText = (raw: unknown, field: string): string | null => {
+  const value = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>)[field] : null;
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
@@ -86,7 +87,7 @@ export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow
       id: r.id, rowNumber: r.rowNumber, item: r.item, majorItemId: r.majorItemId, sheet: soc?.sheetOfRow(r.rowNumber) ?? null, status, reasons, evidenceMissing: evidenceMissing(axes),
       torText: text.tor, proposalText: text.proposal, bidderRemark: socRow?.remark ?? null, torImage: !!text.image, socPdfPage: socRowPage(soc, rowPages, r.rowNumber, r.item), image: reviewImage(r), referenceNote: r.referenceNote, reference: r.referenceText,
       referencePages: Array.isArray(r.referencePages) ? r.referencePages.filter((p): p is number => typeof p === "number") : [],
-      citations: citedEvidence(r.referenceText, evidenceDocuments, referenceFile(r.rawResult)),
+      citations: citedEvidence(r.referenceText, evidenceDocuments, rawText(r.rawResult, "reference_file")),
       declaredSelection: declaredSelection(r.declaredStatus, r.declaredStatusCheck), systemRecommendation: r.torDecision,
       axes: SOC_REVIEW_AXES.map((axis) => ({ key: axis.key, label: axis.label, value: axes[axis.key] || null, ok: isAxisOk(axes, axis), detail: AXIS_DETAIL[axis.key]?.(r) ?? null })),
       detail: r.aiDetail, keyIssue: r.keyIssue, confidence: r.aiConfidence,

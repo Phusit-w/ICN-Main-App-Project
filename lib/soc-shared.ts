@@ -180,6 +180,7 @@ export const SOC_AXIS_VALUE_LABELS: Record<string, string> = {
   fully_supported: "รองรับครบ", partially_supported: "รองรับบางส่วน", not_supported: "ไม่รองรับ", wording_conflict: "ถ้อยคำขัดกัน",
   compliant: "ผ่าน", better: "ดีกว่า", non_compliant: "ไม่ผ่าน", mixed: "ผสม",
   not_selected: "ไม่ได้เลือก", ambiguous: "กำกวม", both: "เลือกทั้งสอง",
+  supported: "มีหลักฐานรองรับ", conflict: "ขัดกับข้อเสนอ", no_value: "ไม่ระบุค่า",
 };
 
 // How a major item's skill version compares with the current hosted one, by

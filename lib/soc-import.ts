@@ -14,7 +14,7 @@ import { writeAudit } from "@/lib/authorization";
 import { DOCX_MIME, MAX_SOC_FILE_BYTES, magicIsDocx, resolveStorageKey, storeSocFile } from "@/lib/soc";
 import { isItemInMajorItem, majorItemKey } from "@/lib/soc-major-items";
 import { readSocTable, type SocTable } from "@/lib/soc-table";
-import { parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
+import { BIDDER_REMARK_CHECKS, parseReferencePages, PENDING_FIX } from "@/lib/soc-review";
 import { isExcelSoc, isSocImageKind, majorItemName, SOC_CHECK_REQUEST_OPEN_STATES, SOC_IMAGE_KINDS } from "@/lib/soc-shared";
 
 export type LocalCheckRunSource = "manual" | "runner";
@@ -129,6 +129,9 @@ export function validateLocalCheckRun(
     }
     if (!isBlank(row.confidence) && !CONFIDENCES.has(String(row.confidence))) {
       errors.push(`${where}: confidence ต้องเป็น high, medium หรือ low คำเดียว (ในไฟล์เป็น ${JSON.stringify(String(row.confidence).slice(0, 40))}) เหตุผลให้อยู่ใน detail`);
+    }
+    if (!isBlank(row.bidder_remark_check) && !(BIDDER_REMARK_CHECKS as readonly string[]).includes(String(row.bidder_remark_check))) {
+      errors.push(`${where}: bidder_remark_check ต้องเป็น ${BIDDER_REMARK_CHECKS.join(", ")} (ในไฟล์เป็น ${JSON.stringify(String(row.bidder_remark_check).slice(0, 40))})`);
     }
     if (!isBlank(row.tor_claim_results) && !Array.isArray(row.tor_claim_results)) {
       errors.push(`${where}: tor_claim_results ต้องเป็นรายการ`);
