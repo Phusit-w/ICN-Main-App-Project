@@ -380,6 +380,7 @@ function RowInspector({ jobId, row, layout, decisionForm }: { jobId: string; row
     {row.torImage ? <TorImage jobId={jobId} row={row} /> : <ClampedText label="ข้อกำหนด TOR" text={row.torText} empty="ไม่พบข้อความในไฟล์ SOC" />}
     {row.socPdfPage ? <SocPdfPage key={row.id} jobId={jobId} row={row} page={row.socPdfPage} /> : null}
     <ClampedText label="ข้อเสนอของผู้ยื่น" text={row.proposalText} empty="—" />
+    {row.bidderRemark ? <ClampedText label="หมายเหตุผู้เสนอ" text={row.bidderRemark} empty="" /> : null}
     <Verdict row={row} />
   </>;
   // A Picture Row has no axes: Claude gave it no verdict.

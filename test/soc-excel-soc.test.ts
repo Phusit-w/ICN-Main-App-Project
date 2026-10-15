@@ -159,6 +159,16 @@ test("an Excel SOC with one sheet shows no sheet name", { skip }, async () => {
   assert.deepEqual((await socReviewView(jobId)).rows.map((r) => r.sheet), [null, null]);
 });
 
+test("the review view reads each row's Bidder Remark from the SOC, which the import doesn't store", { skip }, async () => {
+  const { owner, jobId, item } = await excelJob([{ name: "SOC", rows: [
+    [...HEADER, "หมายเหตุ"], ["1", "ระบบ A", null, null, null], ["1.1", "สายใยแก้ว", "FOC", "Brochure หน้า 3", "max. 96 fibers"], ["1.2", "ข้อต่อ", "ตามแบบ", "Brochure หน้า 4", null],
+  ] }]);
+  const imported = await importLocalCheckRun(owner, { jobId, majorItemId: item("1").id, results: run([[1, "1"], [2, "1.1"], [3, "1.2"]]), run: MANUAL });
+  assert.ok(imported.ok, JSON.stringify(imported));
+  const view = (await socReviewView(jobId)).rows.sort((a, b) => a.rowNumber - b.rowNumber);
+  assert.deepEqual(view.map((r) => [r.item, r.proposalText, r.bidderRemark]), [["1", "", null], ["1.1", "FOC", "max. 96 fibers"], ["1.2", "ตามแบบ", null]]);
+});
+
 // ---- The runner API ---------------------------------------------------------------
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });

@@ -21,7 +21,7 @@ import { decodeXml } from "@/lib/xml";
 import type { ZipEntry } from "@/lib/zip";
 
 export type ExcelSoc = {
-  rows: string[][]; // per SOC row: item number, TOR text, proposal text
+  rows: { cells: string[]; remark: string }[]; // per SOC row: item number, TOR text, proposal text; the remarks column's text
   sheets: { name: string; rowCount: number }[]; // the sheets the rows come from, in order
   skippedSheets: string[]; // visible sheets with text but no header row
   imageCount: number; // floating pictures, which are not read
@@ -32,11 +32,11 @@ export const isExcelSocPart = (name: string) => /^xl\/(?:workbook\.xml|_rels\/wo
 
 const NO_SOC_TABLE = "ไม่พบตาราง SOC ในไฟล์ Excel: ต้องมีแถวหัวตารางที่มีคอลัมน์ ลำดับ, ข้อกำหนด TOR และ ข้อเสนอ";
 
-const ITEM_NAME = /^(?:ลำดับ(?:\s*ที่)?|ข้อ(?:\s*ที่)?|หัวข้อ|รายการ(?:\s*ที่)?|item(?:\s*no\.?)?|no\.?|clause|#)$/i;
+export const ITEM_NAME = /^(?:ลำดับ(?:\s*ที่)?|ข้อ(?:\s*ที่)?|หัวข้อ|รายการ(?:\s*ที่)?|item(?:\s*no\.?)?|no\.?|clause|#)$/i;
 const COMPLY_NAME = /ตรง(?:ตาม)?(?:ข้อ)?กำหนด|\bcomply\b|\bcompliant\b/i;
 const BETTER_NAME = /ดีกว่า|\bbetter\b|\bexceeds?\b/i;
 const REFERENCE_NAME = /อ้างอิง|เลขหน้า|ชื่อไฟล์|reference|\bpage\b|\bdocument\b/i;
-const REMARK_NAME = /หมายเหตุ|remark|(?<![a-z])notes?(?![a-z])/i;
+export const REMARK_NAME = /หมายเหตุ|remark|(?<![a-z])notes?(?![a-z])/i;
 const TOR_NAME = /(?<![a-z])TOR(?![a-z])|กำหนด|requirement/i;
 const PROPOSAL_NAME = /เสนอ|propos|offer|bidder|vendor/i;
 const SPECIFICATION_NAME = /คุณสมบัติ|คุณลักษณะ|รายละเอียด|specification|description/i; // a TOR column not called TOR
@@ -57,7 +57,7 @@ export function readExcelSoc(parts: ZipEntry[]): ExcelSoc {
   const text = (name: string) => parts.find((part) => part.name === name)?.data.toString("utf8").replace(/<(\/?)[A-Za-z]\w*:(?=[A-Za-z])/g, "<$1");
   const shared = elements(text("xl/sharedStrings.xml") ?? "", "si").map((si) => richText(si.body));
   const decimals = numberDecimals(text("xl/styles.xml") ?? "");
-  const rows: string[][] = [];
+  const rows: ExcelSoc["rows"] = [];
   const sheets: ExcelSoc["sheets"] = [];
   const skippedSheets: string[] = [];
   for (const sheet of readSheets(text, shared, decimals)) {
@@ -72,15 +72,15 @@ export function readExcelSoc(parts: ZipEntry[]): ExcelSoc {
   return { rows, sheets, skippedSheets, imageCount };
 }
 
-function socRowsOfSheet(sheet: Sheet): string[][] | null {
+function socRowsOfSheet(sheet: Sheet): ExcelSoc["rows"] | null {
   const header = findSocHeader(sheet);
   if (!header) return null;
   const { columns, last } = header;
   const own = (row: number, column: number) => sheet.rows[row]?.[column] ?? "";
   const tracked = [columns.item, columns.tor, columns.proposal, columns.reference, columns.remark, columns.comply, columns.better].filter((column) => column >= 0);
-  const rows: string[][] = [];
+  const rows: ExcelSoc["rows"] = [];
   for (let row = last + 1; row < sheet.rows.length; row++) {
-    if (tracked.some((column) => own(row, column))) rows.push([own(row, columns.item), own(row, columns.tor), own(row, columns.proposal)]);
+    if (tracked.some((column) => own(row, column))) rows.push({ cells: [own(row, columns.item), own(row, columns.tor), own(row, columns.proposal)], remark: own(row, columns.remark) });
   }
   return rows;
 }

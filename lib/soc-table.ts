@@ -9,13 +9,14 @@
 import path from "node:path";
 import { annexKeysOfRows, majorItemKey, majorItemsOfRows, normalItem, sameItem, type SocMajorItemSpec } from "@/lib/soc-major-items";
 import { DOCX_MIME, magicIsDocx, NOT_A_SOC_FILE, socFileNameProblem, toArabicDigits as toArabic, XLSX_MIME } from "@/lib/soc-shared";
-import { isExcelSocPart, readExcelSoc } from "@/lib/soc-table-excel";
+import { isExcelSocPart, ITEM_NAME, readExcelSoc, REMARK_NAME } from "@/lib/soc-table-excel";
 import { decodeXml } from "@/lib/xml";
 import { readZip, type ZipEntry } from "@/lib/zip";
 
 export type SocRowText = {
   tor: string; // the TOR text
-  proposal: string | null; // the bidder's text
+  proposal: string | null; // the bidder's text; null when the SOC has no offer column
+  remark?: string; // the Bidder Remark: what the bidder wrote in the row's หมายเหตุ / Remark column, when anything
   image?: true; // an Image Row: the TOR cell is an image and has no text
 };
 
@@ -88,7 +89,7 @@ export function readSocTable(soc: Uint8Array): SocTable {
     let last = 0;
     return excel.sheets.find((sheet) => row <= (last += sheet.rowCount))?.name ?? null;
   };
-  return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows.map((cells) => ({ cells }))], [
+  return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows.map(({ cells, remark }) => ({ cells, proposal: cells[2] ?? null, remark: moreThanTicks(remark) ? remark : "" }))], [
     ...(quoted ? [`ไม่ได้รวมชีต ${quoted} เพราะไม่พบหัวตาราง SOC (ลำดับ, ข้อกำหนด TOR, ข้อเสนอ) ชีตนี้จะไม่ถูกตรวจ`] : []),
     ...(excel.imageCount ? [`มีรูป ${excel.imageCount} รูปในไฟล์ Excel ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
   ], sheetOfRow, () => null);
@@ -97,9 +98,10 @@ export function readSocTable(soc: Uint8Array): SocTable {
 const WORD_DOCUMENT = "word/document.xml";
 const WORD_RELATIONSHIPS = "word/_rels/document.xml.rels";
 
-// A SOC table row: [item number, TOR text, proposal text, …], and for an
-// Image Row the id its image has in the SOC file (Word: a relationship id).
-type SocRow = { cells: string[]; imageId?: string };
+// A SOC table row: [item number, TOR text, proposal text, …], the row's
+// proposal and Bidder Remark ("" when none), and for an Image Row the id its
+// image has in the SOC file (Word: a relationship id).
+type SocRow = { cells: string[]; proposal: string | null; remark: string; imageId?: string };
 
 const hasNumber = (cell: string) => /\d/.test(toArabic(cell));
 
@@ -134,7 +136,7 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
     majorItems: majorItemsOfRows(allRows.map((row) => row.cells), (index) => !!allRows[index].imageId),
     rowText: (rowNumber, itemNumber) => {
       const row = findRow(rowNumber, itemNumber);
-      return row ? { tor: row.cells[1] ?? "", proposal: row.cells[2] ?? null, ...(row.imageId ? { image: true } : {}) } : null;
+      return row ? { tor: row.cells[1] ?? "", proposal: row.proposal, ...(row.remark ? { remark: row.remark } : {}), ...(row.imageId ? { image: true } : {}) } : null;
     },
     rowImage: (rowNumber, itemNumber) => {
       const imageId = findRow(rowNumber, itemNumber)?.imageId;
@@ -187,7 +189,61 @@ function rowMatches(cell: string, item: string, onlyTable: boolean): boolean {
 // A cover or signature table numbered 1, 2, 3 adds no major items.
 function readWordSocTables(documentXml: string): SocRow[][] {
   return readTables(documentXml)
-    .filter((rows) => rows.some((row) => /[0-9๐-๙]\.[0-9๐-๙]/.test((row.cells[0] || "").replace(/\s+/g, ""))));
+    .filter((rows) => rows.some((row) => /[0-9๐-๙]\.[0-9๐-๙]/.test((row.cells[0]?.text || "").replace(/\s+/g, ""))))
+    .map(wordSocRows);
+}
+
+// A Word table cell: its text and the grid column it starts at, with how many
+// it covers (w:gridSpan), so a row whose TOR cell spans several columns or is
+// split in two (MEA Y69) still lines up with the other rows.
+type WordCell = { text: string; column: number; span: number };
+type WordRow = { cells: WordCell[]; imageId?: string };
+
+// A tick box typed as text (Wingdings ü/þ, ☑ …); one Word draws as a symbol has no text.
+const TICK_ONLY = /^[\s☒☑☐✓✔■□●√üþ]*$/;
+const moreThanTicks =(text: string) => !TICK_ONLY.test(text);
+const REFERENCE_LIKE = /(?:หน้า(?:ที่)?|\bpages?\b\.?|\bpp?\.)\s*\d|\.pdf\b|เอกสาร|ส่วนที่|ภาคผนวก|\bsection\b|appendix|attachment/i;
+
+// A Word SOC table's rows. The proposal is the third cell, unless the table has
+// no offer column: the third cells of its numbered rows mostly start at one grid
+// column, and that column holds nothing but tick boxes (MEA Y69: the Comply box
+// comes right after the TOR). The Bidder Remark is the column a header row (one
+// naming the item column, above the first numbered row) calls หมายเหตุ / Remark;
+// with no header row, the first column after the reference column that holds text.
+function wordSocRows(rows: WordRow[]): SocRow[] {
+  // An item cell starts with its number ("๑.๑", "(1)"); a title above the header ("ผนวก 7 …") does not.
+  const numbered = rows.filter((row) => /^\(?[0-9๐-๙]/.test(row.cells[0]?.text ?? ""));
+  const textAt = (row: WordRow, columns: number[]) => row.cells.find((cell, position) => position >= 2 && columns.includes(cell.column))?.text ?? "";
+  const offerColumn = mostCommon(numbered.flatMap((row) => row.cells[2] ? [row.cells[2].column] : []));
+  const noOffer = offerColumn !== null && !numbered.some((row) => moreThanTicks(textAt(row, [offerColumn])));
+
+  const aboveNumbered = rows.slice(0, Math.max(0, rows.indexOf(numbered[0])));
+  let remarkColumns: number[] = [];
+  if (aboveNumbered.some((row) => ITEM_NAME.test(row.cells[0]?.text ?? ""))) {
+    const named = aboveNumbered.flatMap((row) => row.cells.slice(2)).find((cell) => REMARK_NAME.test(cell.text));
+    if (named) remarkColumns = Array.from({ length: named.span }, (_, i) => named.column + i);
+  } else {
+    const later = numbered.flatMap((row) => row.cells.slice(2));
+    const reference = mostCommon(later.filter((cell) => REFERENCE_LIKE.test(toArabic(cell.text))).map((cell) => cell.column));
+    const after = later.filter((cell) => reference !== null && cell.column > reference && moreThanTicks(cell.text)).map((cell) => cell.column);
+    if (after.length) remarkColumns = [Math.min(...after)];
+  }
+  return rows.map((row) => {
+    const remark = textAt(row, remarkColumns);
+    return { cells: row.cells.map((cell) => cell.text), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", ...(row.imageId ? { imageId: row.imageId } : {}) };
+  });
+}
+
+// The value found most often; the smallest of a tie. Null for none.
+function mostCommon(values: number[]): number | null {
+  const counts = new Map<number, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  let best: number | null = null;
+  for (const [value, count] of counts) {
+    const bestCount = best === null ? 0 : counts.get(best)!;
+    if (count > bestCount || (count === bestCount && value < best!)) best = value;
+  }
+  return best;
 }
 
 // Every top-level table as rows of cells (whitespace collapsed). Tables
@@ -195,22 +251,29 @@ function readWordSocTables(documentXml: string): SocRow[][] {
 // A row whose TOR cell (the second) has an image and no text is an Image
 // Row: `imageId` is the relationship id of the cell's first image, as a drawing
 // (a:blip) or as the VML of a .doc saved as .docx (v:imagedata).
-function readTables(xml: string): SocRow[][] {
-  const tables: SocRow[][] = [];
-  let rows: SocRow[] = [];
-  const token = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:tab|br|cr)\b[^>]*\/>|<(\/?)w:(tbl|tr|tc|p)\b[^>]*?(\/?)>|<(?:a:blip|v:imagedata)\b[^>]*?\sr:(?:embed|id)="([^"]*)"/g;
+function readTables(xml: string): WordRow[][] {
+  const tables: WordRow[][] = [];
+  let rows: WordRow[] = [];
+  const token = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:tab|br|cr)\b[^>]*\/>|<w:(gridSpan|gridBefore)\b[^>]*?\sw:val="(\d+)"[^>]*\/>|<(\/?)w:(tbl|tr|tc|p)\b[^>]*?(\/?)>|<(?:a:blip|v:imagedata)\b[^>]*?\sr:(?:embed|id)="([^"]*)"/g;
   let depth = 0;
-  let row: SocRow | null = null;
+  let row: WordRow | null = null;
   let cell: string[] | null = null;
+  let column = 0; // the grid column the row's next cell starts at
+  let span = 1; // the grid columns the cell being read covers
   let cellImageId: string | null = null; // the first image of the cell being read
   for (const match of xml.matchAll(token)) {
-    const [, text, closing, tag, selfClosing, imageId] = match;
+    const [, text, gridTag, gridValue, closing, tag, selfClosing, imageId] = match;
     if (text !== undefined) {
       if (depth === 1 && cell) cell.push(decodeXml(text));
       continue;
     }
     if (imageId !== undefined) {
       if (depth === 1 && cell) cellImageId ??= decodeXml(imageId);
+      continue;
+    }
+    if (gridTag) {
+      if (depth === 1 && gridTag === "gridSpan" && cell) span = Number(gridValue) || 1;
+      else if (depth === 1 && gridTag === "gridBefore" && row && !cell) column = Number(gridValue);
       continue;
     }
     if (!tag) {
@@ -226,12 +289,15 @@ function readTables(xml: string): SocRow[][] {
     } else if (tag === "tr") {
       if (closing && row) rows.push(row);
       row = closing ? null : { cells: [] };
+      column = 0;
     } else if (tag === "tc") {
       if (closing && row && cell) {
         const cellText = cell.join("").replace(/\s+/g, " ").trim();
-        if (row.cells.push(cellText) === 2 && !cellText && cellImageId) row.imageId = cellImageId;
+        if (row.cells.push({ text: cellText, column, span }) === 2 && !cellText && cellImageId) row.imageId = cellImageId;
+        column += span;
       }
       cell = closing ? null : [];
+      span = 1;
       cellImageId = null;
     } else if (tag === "p" && closing && cell) {
       cell.push(" ");

@@ -25,7 +25,7 @@ function installDom() {
 
 const row = (id: string, item: string, page: number): SocReviewRow => ({
   id, item, rowNumber: page, majorItemId: "major-1", sheet: null, status: "review", reasons: ["ควรตรวจหลักฐาน"], evidenceMissing: false,
-  torText: `ข้อกำหนด ${item}`, torImage: false, image: null, socPdfPage: null, referenceNote: null, proposalText: `ข้อเสนอ ${item}`, reference: `Datasheet, page ${page}`, referencePages: [page],
+  torText: `ข้อกำหนด ${item}`, torImage: false, image: null, socPdfPage: null, referenceNote: null, proposalText: `ข้อเสนอ ${item}`, bidderRemark: null, reference: `Datasheet, page ${page}`, referencePages: [page],
   citations: [{ cited: "Datasheet", document: { id: "pdf-1", name: "Datasheet.pdf" }, pages: [page] }],
   declaredSelection: "comply", systemRecommendation: "compliant",
   axes: [{ key: "reference_check", label: "หน้าอ้างอิง", value: "match", ok: true, detail: "ตรง" }],
@@ -62,6 +62,20 @@ test("clicking a SOC row shows its comparison and cited page beside the table", 
   assert.ok(within(detail).getByText("ข้อเสนอ ๑.๒"));
   assert.equal(within(detail).getByRole("img", { name: "Datasheet.pdf หน้า 5" }).getAttribute("src"), "/api/soc/jobs/job-1/evidence/pdf-1/pages/5");
   assert.equal(screen.queryByRole("dialog"), null);
+});
+
+test("a row's Bidder Remark shows under the offer as หมายเหตุผู้เสนอ; a row without one shows nothing extra", async () => {
+  const withRemark: SocReviewRow = { ...row("row-3", "๑.๓", 6), bidderRemark: "max. 96 fibers" };
+  const { screen, within, user } = await setup("job-1", [...rows, withRemark]);
+
+  assert.equal(within(screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๑" })).queryByText("หมายเหตุผู้เสนอ"), null);
+
+  await user.click(screen.getByRole("button", { name: "๑.๓" }));
+  const detail = screen.getByRole("complementary", { name: "รายละเอียดข้อ ๑.๓" });
+  const remark = within(detail).getByText("หมายเหตุผู้เสนอ").parentElement!;
+  assert.ok(within(remark).getByText("max. 96 fibers"));
+  const offer = within(detail).getByText("ข้อเสนอของผู้ยื่น").parentElement!;
+  assert.ok(offer.compareDocumentPosition(remark) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, "the remark comes after the offer");
 });
 
 test("an Image Row shows the image of its TOR cell in place of the text, beside the table and full screen", async () => {

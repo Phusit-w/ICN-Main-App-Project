@@ -81,8 +81,19 @@ test("a หมายเหตุ column, with or without a reference column besi
   for (const header of [["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "หมายเหตุ (คำอธิบายเพิ่มเติม)"], ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "หมายเหตุ", "เอกสารอ้างอิง"]]) {
     const table = readSocTable(await buildXlsx([{ name: "SOC", rows: rows(header) }]));
     assert.deepEqual(table.majorItems.map((m) => [m.key, m.rowCount]), [["1", 3]]);
-    assert.deepEqual(table.rowText(3, "1.2"), { tor: "เรดาร์", proposal: "X" });
+    assert.equal(table.rowText(3, "1.2")?.tor, "เรดาร์");
+    assert.equal(table.rowText(3, "1.2")?.proposal, "X");
   }
+});
+
+test("the หมายเหตุ column is the row's Bidder Remark; a row with nothing there has none", async () => {
+  const table = readSocTable(await buildXlsx([{ name: "SOC", rows: [
+    ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เอกสารอ้างอิง", "หมายเหตุ"],
+    ["1.1", "สายใยแก้ว", "FOC-96", "Brochure หน้า 3", "max. 96 fibers"],
+    ["1.2", "เรดาร์", "X", "Brochure หน้า 5", null],
+  ] }]));
+  assert.deepEqual(table.rowText(2, "1.1"), { tor: "สายใยแก้ว", proposal: "FOC-96", remark: "max. 96 fibers" });
+  assert.deepEqual(table.rowText(3, "1.2"), { tor: "เรดาร์", proposal: "X" });
 });
 
 // A hand-written sheet, as Excel itself saves one: empty rows are left out

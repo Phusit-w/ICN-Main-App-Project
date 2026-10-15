@@ -355,7 +355,7 @@ export async function readJobSoc(soc: { jobId: string; storageKey: string } | nu
   try {
     if (soc) return readSocTable(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey))));
   } catch (error) {
-    console.error(`SOC ${soc?.jobId}: TOR text not read from the SOC`, error);
+    console.error(`SOC ${soc?.jobId}: SOC not read (TOR text, sheets and Bidder Remarks)`, error);
   }
   return null;
 }

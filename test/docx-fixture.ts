@@ -9,7 +9,9 @@ function escapeXml(value: string): string {
 // A TOR cell that is an image instead of text (an Image Row): `vml` writes it
 // the way a .doc saved as .docx has it (w:pict), otherwise as a w:drawing.
 export type ImageCell = { image: Uint8Array; name?: string; vml?: boolean };
-export type Cell = string | ImageCell;
+// A text cell spanning `span` grid columns (w:gridSpan), as MEA Y69's TOR cell does.
+export type SpanCell = { text: string; span: number };
+export type Cell = string | ImageCell | SpanCell;
 
 // 1 x 1 pixel.
 export const PNG = new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
@@ -21,9 +23,10 @@ const imageRun = (id: string, vml: boolean) => vml
 
 // `imageId` names the relationship of each image cell, in order.
 export function tableXml(rows: Cell[][], imageId: (cell: ImageCell) => string = () => "rId1"): string {
-  const body = rows
-    .map((cells) => `<w:tr>${cells.map((cell) => `<w:tc><w:p>${typeof cell === "string" ? textRun(cell) : imageRun(imageId(cell), !!cell.vml)}</w:p></w:tc>`).join("")}</w:tr>`)
-    .join("");
+  const cellXml = (cell: Cell) => typeof cell === "string" ? `<w:tc><w:p>${textRun(cell)}</w:p></w:tc>`
+    : "span" in cell ? `<w:tc><w:tcPr><w:gridSpan w:val="${cell.span}"/></w:tcPr><w:p>${textRun(cell.text)}</w:p></w:tc>`
+    : `<w:tc><w:p>${imageRun(imageId(cell), !!cell.vml)}</w:p></w:tc>`;
+  const body = rows.map((cells) => `<w:tr>${cells.map(cellXml).join("")}</w:tr>`).join("");
   return `<w:tbl><w:tblPr/>${body}</w:tbl>`;
 }
 
