@@ -18,33 +18,32 @@ export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsh
 
 export type SocResultsExcel = { ok: true; bytes: Uint8Array; fileName: string } | { ok: false; error: string };
 
-const COLUMNS: { header: string; width: number }[] = [
-  { header: "แถวใน SOC", width: 9 }, { header: "ข้อ", width: 11 }, { header: "ข้อกำหนด TOR", width: 50 },
-  { header: "หน้าอ้างอิง", width: 28 }, { header: "ผลอ้างอิง", width: 24 }, { header: "เลขข้อกำกับ", width: 12 },
-  { header: "Highlight", width: 12 }, { header: "หลักฐานรองรับ", width: 16 }, { header: "ผล TOR (แนะนำ)", width: 14 },
-  { header: "ความเชื่อมั่น", width: 11 }, { header: "ประเด็นหลัก", width: 60 }, { header: "Final Decision", width: 16 },
-  { header: "หมายเหตุผู้ตรวจ", width: 40 },
-];
 const CONFIDENCE_LABELS: Record<string, string> = { high: "สูง", medium: "กลาง", low: "ต่ำ" };
-const RED = "FFC7CE";
 // The TOR cell of an Image Row: images aren't put in the workbook.
 const IMAGE_ROW_TOR = "[รูป]";
 
 // The ผลอ้างอิง cell with the skill's sub-status: a matching page whose
 // evidence isn't complete is not shown as a plain green "ตรง". Same texts and
-// colours as the skill's append_results_to_docx.py reference_status().
-const REFERENCE_STATUSES = [
-  { text: "ตรง", fill: "C6EFCE" },
-  { text: "ตรง – ควรตรวจซ้ำ", fill: "FFEB9C" },
-  { text: "ตรง – DS ไม่ครบ ควรตรวจซ้ำ", fill: "FFEB9C" },
-  { text: "ตรง – ไม่ระบุใน DS", fill: "F4B183" },
-  { text: "ตรง – ถ้อยคำขัดกับ DS", fill: "F4B183" },
-  { text: "ตรง – ยืนยันไม่ได้ (ดูภาพ)", fill: "F4B183" },
-  { text: "ไม่ตรง", fill: RED },
-  { text: "ไม่พบ", fill: RED },
-  { text: "ยืนยันไม่ได้", fill: "FFEB9C" },
-  { text: "ไม่เกี่ยวข้อง", fill: "D9EAD3" },
+// colours as the skill's append_results_to_docx.py reference_status(). Each
+// sub-status has its ระดับผลอ้างอิง (docs/SOC-DOMAIN-GLOSSARY.md), which the
+// summary sheet counts by.
+const REFERENCE_LEVELS = [
+  { text: "ไม่มีประเด็น", fill: "C6EFCE" },
+  { text: "ควรตรวจซ้ำ", fill: "FFEB9C" },
+  { text: "มีปัญหา", fill: "FFC7CE" },
 ] as const;
+const REFERENCE_STATUSES = [
+  { text: "ตรง", fill: "C6EFCE", level: "ไม่มีประเด็น" },
+  { text: "ตรง – ควรตรวจซ้ำ", fill: "FFEB9C", level: "ควรตรวจซ้ำ" },
+  { text: "ตรง – DS ไม่ครบ ควรตรวจซ้ำ", fill: "FFEB9C", level: "ควรตรวจซ้ำ" },
+  { text: "ตรง – ไม่ระบุใน DS", fill: "F4B183", level: "มีปัญหา" },
+  { text: "ตรง – ถ้อยคำขัดกับ DS", fill: "F4B183", level: "มีปัญหา" },
+  { text: "ตรง – ยืนยันไม่ได้ (ดูภาพ)", fill: "F4B183", level: "มีปัญหา" },
+  { text: "ไม่ตรง", fill: "FFC7CE", level: "มีปัญหา" },
+  { text: "ไม่พบ", fill: "FFC7CE", level: "มีปัญหา" },
+  { text: "ยืนยันไม่ได้", fill: "FFEB9C", level: "ควรตรวจซ้ำ" },
+  { text: "ไม่เกี่ยวข้อง", fill: "D9EAD3", level: "ไม่มีประเด็น" },
+] as const satisfies readonly { text: string; fill: string; level: (typeof REFERENCE_LEVELS)[number]["text"] }[];
 type ReferenceStatus = (typeof REFERENCE_STATUSES)[number];
 const status = (text: ReferenceStatus["text"]) => REFERENCE_STATUSES.find((s) => s.text === text)!;
 
@@ -68,11 +67,22 @@ export function referenceStatus(row: SocReviewRow): ReferenceStatus {
 }
 
 const fill = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb: `FF${argb}` } });
-const BORDER: Partial<ExcelJS.Borders> = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+// Tahoma has Thai glyphs on every Windows and Mac.
+const FONT: Partial<ExcelJS.Font> = { name: "Tahoma", size: 10 };
+const GREY_LINE: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FFBFBFBF" } };
+const BORDER: Partial<ExcelJS.Borders> = { top: GREY_LINE, left: GREY_LINE, bottom: GREY_LINE, right: GREY_LINE };
 
 function styleHeader(row: ExcelJS.Row) {
-  row.font = { bold: true };
-  row.eachCell((cell) => { cell.fill = fill("D9E1F2"); cell.border = BORDER; cell.alignment = { vertical: "middle", wrapText: true }; });
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { ...FONT, bold: true }; cell.fill = fill("E7E6E6"); cell.border = BORDER;
+    cell.alignment = { vertical: "middle", wrapText: true };
+  });
+}
+
+function styleBody(row: ExcelJS.Row, bold = false) {
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { ...FONT, bold }; cell.border = BORDER; cell.alignment = { vertical: "top", wrapText: true };
+  });
 }
 
 // Excel sheet names: at most 31 characters, none of []:*?/\ and unique.
@@ -84,64 +94,103 @@ function sheetName(label: string, used: Set<string>): string {
   return name;
 }
 
+type Column = { header: string; width: number; value: (row: SocReviewRow) => string | number };
+
+// The columns the reviewer reads, in order; ผลอ้างอิง is the only coloured cell.
+const VISIBLE_COLUMNS: Column[] = [
+  { header: "ข้อ", width: 11, value: (r) => r.item },
+  { header: "ข้อกำหนด TOR", width: 60, value: (r) => (r.torImage ? [IMAGE_ROW_TOR, r.image?.reading].filter(Boolean).join("\n") : r.torText) },
+  { header: "ผลอ้างอิง", width: 24, value: (r) => referenceStatus(r).text },
+  { header: "ประเด็นหลัก", width: 70, value: (r) => r.keyIssue ?? "" },
+  { header: "หน้าอ้างอิง", width: 28, value: (r) => r.reference },
+  { header: "Final Decision", width: 16, value: (r) => (r.finalDecision ? SOC_FINAL_DECISION_LABELS[r.finalDecision] : "ยังไม่ตัดสิน") },
+  { header: "หมายเหตุผู้ตรวจ", width: 40, value: (r) => r.finalNote ?? "" },
+];
+const REFERENCE_COLUMN = VISIBLE_COLUMNS.findIndex((c) => c.header === "ผลอ้างอิง");
+// The details behind ผลอ้างอิง, in a collapsed column group (expand with +).
+const GROUPED_COLUMNS: Column[] = [
+  { header: "แถวใน SOC", width: 9, value: (r) => (r.sheet ? `${r.sheet} · ${r.rowNumber}` : r.rowNumber) },
+  { header: "เลขข้อกำกับ", width: 12, value: (r) => socAxisValueLabel(axis(r, "item_label_check")) },
+  { header: "Highlight", width: 12, value: (r) => socAxisValueLabel(axis(r, "highlight_check")) },
+  { header: "หลักฐานรองรับ", width: 16, value: (r) => socAxisValueLabel(axis(r, "evidence_support")) },
+  { header: "ผล TOR (แนะนำ)", width: 14, value: (r) => socAxisValueLabel(r.systemRecommendation) },
+  { header: "ความเชื่อมั่น", width: 11, value: (r) => CONFIDENCE_LABELS[r.confidence] ?? r.confidence ?? "" },
+];
+
 // The sheet of picked rows leads with each row's major item and status.
-const PICKED_COLUMNS: { header: string; width: number }[] = [{ header: "ข้อใหญ่", width: 9 }, { header: "สถานะ", width: 10 }];
+const pickedColumns = (majorItemLabels: Map<string, string>): Column[] => [
+  { header: "ข้อใหญ่", width: 9, value: (r) => majorItemLabels.get(r.majorItemId ?? "") ?? "" },
+  { header: "สถานะ", width: 10, value: (r) => SOC_ROW_STATUS_LABELS[r.status] },
+];
 
 function addItemSheet(book: ExcelJS.Workbook, name: string, rows: SocReviewRow[], majorItemLabels?: Map<string, string>) {
-  const lead = majorItemLabels ? PICKED_COLUMNS : [];
+  const lead = majorItemLabels ? pickedColumns(majorItemLabels) : [];
+  const columns = [...lead, ...VISIBLE_COLUMNS, ...GROUPED_COLUMNS];
+  // The header row, ข้อ and ข้อกำหนด TOR stay in view while scrolling.
   const sheet = book.addWorksheet(name, { views: [{ state: "frozen", xSplit: lead.length + 2, ySplit: 1 }] });
-  sheet.columns = [...lead, ...COLUMNS].map((c) => ({ header: c.header, width: c.width }));
+  sheet.columns = columns.map((c) => ({ header: c.header, width: c.width }));
+  GROUPED_COLUMNS.forEach((_, i) => {
+    const column = sheet.getColumn(lead.length + VISIBLE_COLUMNS.length + 1 + i);
+    column.outlineLevel = 1;
+    column.hidden = true;
+  });
   styleHeader(sheet.getRow(1));
   for (const row of rows) {
-    const reference = referenceStatus(row);
-    const leading = majorItemLabels ? [majorItemLabels.get(row.majorItemId ?? "") ?? "", SOC_ROW_STATUS_LABELS[row.status]] : [];
-    const added = sheet.addRow([
-      ...leading,
-      row.sheet ? `${row.sheet} · ${row.rowNumber}` : row.rowNumber, row.item, row.torImage ? [IMAGE_ROW_TOR, row.image?.reading].filter(Boolean).join("\n") : row.torText, row.reference, reference.text,
-      socAxisValueLabel(axis(row, "item_label_check")), socAxisValueLabel(axis(row, "highlight_check")),
-      socAxisValueLabel(axis(row, "evidence_support")), socAxisValueLabel(row.systemRecommendation),
-      CONFIDENCE_LABELS[row.confidence] ?? row.confidence ?? "", row.keyIssue ?? "",
-      row.finalDecision ? SOC_FINAL_DECISION_LABELS[row.finalDecision] : "ยังไม่ตัดสิน", row.finalNote ?? "",
-    ]);
-    added.eachCell({ includeEmpty: true }, (cell) => { cell.border = BORDER; cell.alignment = { vertical: "top", wrapText: true }; });
-    added.getCell(lead.length + 5).fill = fill(reference.fill);
-    if (reference.fill === RED) added.getCell(lead.length + 4).fill = fill(RED);
+    const added = sheet.addRow(columns.map((c) => c.value(row)));
+    styleBody(added);
+    added.getCell(lead.length + REFERENCE_COLUMN + 1).fill = fill(referenceStatus(row).fill);
   }
-  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: lead.length + COLUMNS.length } };
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
 }
 
 type ItemRows = { label: string; title: string | null; rows: SocReviewRow[] };
 
-function addSummarySheet(book: ExcelJS.Workbook, jobTitle: string, checked: ItemRows[], unchecked: { label: string; title: string | null }[]) {
-  const sheet = book.addWorksheet("สรุป");
-  const headers = ["ข้อใหญ่", "หัวข้อ", "จำนวนแถว", ...REFERENCE_STATUSES.map((s) => s.text), "ตัดสินแล้ว (Final Decision)", SOC_FINAL_DECISION_LABELS[PENDING_FIX]];
-  sheet.columns = headers.map((header, i) => ({ header, width: i === 1 ? 40 : i < 3 ? 11 : 14 }));
-  styleHeader(sheet.getRow(1));
-  REFERENCE_STATUSES.forEach((s, i) => { sheet.getRow(1).getCell(4 + i).fill = fill(s.fill); });
-  for (const item of checked) {
-    const counts = REFERENCE_STATUSES.map((s) => item.rows.filter((r) => referenceStatus(r).text === s.text).length);
-    const row = sheet.addRow([majorItemName(item.label),item.title ?? "", item.rows.length, ...counts, item.rows.filter((r) => isSettledDecision(r.finalDecision)).length, item.rows.filter((r) => r.finalDecision === PENDING_FIX).length]);
-    row.eachCell({ includeEmpty: true }, (cell) => { cell.border = BORDER; });
-  }
-  const first = 2;
+// A count table: a header (cells coloured by headerFills), one row per checked
+// major item, and a total row of SUM formulas.
+function addCountTable(sheet: ExcelJS.Worksheet, headers: string[], body: (string | number)[][], headerFills: (string | null)[]) {
+  const head = sheet.addRow(headers);
+  styleHeader(head);
+  headerFills.forEach((argb, i) => { if (argb) head.getCell(i + 1).fill = fill(argb); });
+  const first = sheet.rowCount + 1;
+  for (const row of body) styleBody(sheet.addRow(row));
   const last = sheet.rowCount;
   const total = sheet.addRow(["รวม", "", ...headers.slice(2).map((_, i) => {
     const col = sheet.getColumn(3 + i).letter;
-    const result = checked.reduce((sum, _item, n) => sum + Number(sheet.getRow(first + n).getCell(3 + i).value), 0);
-    return { formula: `SUM(${col}${first}:${col}${last})`, result };
+    return { formula: `SUM(${col}${first}:${col}${last})`, result: body.reduce((sum, row) => sum + Number(row[2 + i]), 0) };
   })]);
-  total.font = { bold: true };
-  total.eachCell({ includeEmpty: true }, (cell) => { cell.border = BORDER; });
+  styleBody(total, true);
+}
+
+// Counts by ระดับผลอ้างอิง and Final Decision, then by ผลอ้างอิง sub-status.
+function addSummarySheet(book: ExcelJS.Workbook, jobTitle: string, checked: ItemRows[], unchecked: { label: string; title: string | null }[]) {
+  const sheet = book.addWorksheet("สรุป", { views: [{ state: "frozen", ySplit: 1 }] });
+  sheet.columns = Array.from({ length: 3 + REFERENCE_STATUSES.length }, (_, i) => ({ width: i === 1 ? 44 : i < 3 ? 11 : 14 }));
+  const count = (rows: SocReviewRow[], match: (s: ReferenceStatus) => boolean) => rows.filter((r) => match(referenceStatus(r))).length;
+  const lead = (item: ItemRows) => [majorItemName(item.label), item.title ?? "", item.rows.length];
+
+  addCountTable(sheet,
+    ["ข้อใหญ่", "หัวข้อ", "จำนวนแถว", ...REFERENCE_LEVELS.map((l) => l.text), "ตัดสินแล้ว", SOC_FINAL_DECISION_LABELS[PENDING_FIX]],
+    checked.map((item) => [
+      ...lead(item), ...REFERENCE_LEVELS.map((l) => count(item.rows, (s) => s.level === l.text)),
+      item.rows.filter((r) => isSettledDecision(r.finalDecision)).length, item.rows.filter((r) => r.finalDecision === PENDING_FIX).length,
+    ]),
+    [null, null, null, ...REFERENCE_LEVELS.map((l) => l.fill)]);
+
+  sheet.addRow([]);
+  sheet.addRow(["จำนวนแถวตามผลอ้างอิงย่อย"]).getCell(1).font = { ...FONT, bold: true };
+  addCountTable(sheet,
+    ["ข้อใหญ่", "หัวข้อ", "จำนวนแถว", ...REFERENCE_STATUSES.map((s) => s.text)],
+    checked.map((item) => [...lead(item), ...REFERENCE_STATUSES.map((s) => count(item.rows, (status) => status.text === s.text))]),
+    [null, null, null, ...REFERENCE_STATUSES.map((s) => s.fill)]);
 
   sheet.addRow([]);
   const notes = [
     `งาน: ${jobTitle}`,
-    "นับตามสถานะย่อยของช่อง \"ผลอ้างอิง\" (ตามกติกา skill) ไม่รวมแถวหัวข้อ",
-    "ผล TOR ในชีตรายข้อเป็นคำแนะนำของระบบ ผลที่ใช้คือคอลัมน์ Final Decision ของผู้ตรวจ",
+    "ระดับผลอ้างอิง: ไม่มีประเด็น = ตรง, ไม่เกี่ยวข้อง · ควรตรวจซ้ำ = ตรง – ควรตรวจซ้ำ, ตรง – DS ไม่ครบ ควรตรวจซ้ำ, ยืนยันไม่ได้ · มีปัญหา = ไม่ตรง, ไม่พบ, ตรง – ไม่ระบุใน DS, ตรง – ถ้อยคำขัดกับ DS, ตรง – ยืนยันไม่ได้ (ดูภาพ) ไม่รวมแถวหัวข้อ",
+    "ระดับผลอ้างอิงเป็นมุมมองของระบบต่อหลักฐาน ไม่ใช่ผลตัดสิน ผลที่ใช้คือคอลัมน์ Final Decision ของผู้ตรวจ",
     unchecked.length ? `ยังไม่ได้ตรวจ ${unchecked.length} ข้อใหญ่: ${unchecked.map((u) => `${majorItemName(u.label)}${u.title ? ` ${u.title}` : ""}`).join(", ")}` : "ตรวจครบทุกข้อใหญ่แล้ว",
   ];
-  for (const note of notes) sheet.addRow([note]);
-  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  for (const note of notes) sheet.addRow([note]).getCell(1).font = FONT;
 }
 
 export const MAX_PICKED_ROWS = 5000;

@@ -38,6 +38,9 @@ A **SOC divided into ผนวก** (annex in code) is the exception: when the S
 
 A row's **Final Decision** is ผ่าน (Comply), ดีกว่า (Better), ไม่ผ่าน, or **รอแก้ไข** (pending_fix): waiting for the bidder's fix. รอแก้ไข is saved with its note but doesn't settle the row: the major item isn't confirmed while a row is รอแก้ไข, and a re-check replaces such a row without asking.
 
+A row's **ระดับผลอ้างอิง** is the system's three-way reading of its ผลอ้างอิง sub-status, used to count rows in the results Excel's summary: **ไม่มีประเด็น** (ตรง, ไม่เกี่ยวข้อง), **ควรตรวจซ้ำ** (ตรง – ควรตรวจซ้ำ, ตรง – DS ไม่ครบ ควรตรวจซ้ำ, ยืนยันไม่ได้), or **มีปัญหา** (ไม่ตรง, ไม่พบ, ตรง – ไม่ระบุใน DS, ตรง – ถ้อยคำขัดกับ DS, ตรง – ยืนยันไม่ได้ (ดูภาพ)). It is the system's view of the evidence, never a decision: whether a row passes is its Final Decision.
+_Avoid_: ผ่าน / ไม่ผ่าน for these levels (those are Final Decision values)
+
 A **re-check of picked rows** (ส่งให้ Claude ตรวจใหม่ on the review page) re-checks only the rows the reviewer ticked; the major item's other results stay.
 
 A major item can be set to **ไม่ต้องตรวจ** (skipped): ตรวจทั้งชุด leaves it out, the progress count doesn't count it, and it can't be requested or imported until someone presses "ตรวจข้อนี้". When an item was split on import, every other major item starts as ไม่ต้องตรวจ (the split item is taken to be the specification part; ๑ หลักการ, ๔ คุณสมบัติผู้ยื่น … aren't checked against datasheets). Without a split nothing is guessed. Only an item with nothing open or done on it (not_checked, failed) can be set aside. It is a flag beside the major item state, not a state.

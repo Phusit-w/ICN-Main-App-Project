@@ -167,7 +167,7 @@ test("the results Excel writes [รูป] in the TOR column of an Image Row", {
   assert.equal(response.status, 200, await response.clone().text());
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(await response.arrayBuffer());
-  const cells = book.getWorksheet("ข้อ ๑")!.getSheetValues().slice(2).map((row) => (row as unknown[]).slice(1, 4).map(String));
+  const cells = book.getWorksheet("ข้อ ๑")!.getSheetValues().slice(2).map((row) => [8, 1, 2].map((i) => String((row as unknown[])[i])));
   assert.deepEqual(cells, [
     ["3", "๑.๑", "ขนาดท่อตามตาราง"], ["4", "๑.๑", "[รูป]\nขนาดท่อ: 110 มม.\nความหนา: [?] มม."],
     ["5", "๑.๒", "ข้อต่อ"], ["6", "๑.๒", "[รูป]\nรูปข้อต่อ"],

@@ -148,7 +148,7 @@ test("the review page and the results Excel show the workbook's rows, with the s
   assert.equal(response.status, 200, await response.clone().text());
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(await response.arrayBuffer());
-  const cells = (name: string) => book.getWorksheet(name)!.getSheetValues().slice(2).map((row) => (row as unknown[]).slice(1, 4).map(String));
+  const cells = (name: string) => book.getWorksheet(name)!.getSheetValues().slice(2).map((row) => [8, 1, 2].map((i) => String((row as unknown[])[i])));
   assert.deepEqual(cells("ข้อ 2"), [["ระบบ B · 3", "2", "ระบบ B"], ["ระบบ B · 4", "2.1", "เรดาร์"]]);
 });
 
