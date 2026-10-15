@@ -76,6 +76,12 @@ test("a Word SOC with no offer column gives no offer text, not the tick box or t
   assert.equal(table.rowText(6, "3.3")?.proposal, null);
 });
 
+test("a Word SOC with no offer column joins a TOR split over two cells", () => {
+  const table = readSocTable(MEA_SOC);
+  assert.equal(table.rowText(5, "2.4")?.tor, "ความยาว : ≤ 580 มิลลิเมตร");
+  assert.equal(table.rowText(6, "3.3")?.tor, "มี Heat shrink splice protector");
+});
+
 // Rows 4 and 6 have an image in the TOR cell and no text: Image Rows.
 const OTHER_PNG = new Uint8Array([...PNG, 0]);
 const SOC_WITH_IMAGES = buildSocDocx([

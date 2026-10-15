@@ -100,8 +100,9 @@ const WORD_RELATIONSHIPS = "word/_rels/document.xml.rels";
 
 // A SOC table row: [item number, TOR text, proposal text, …], the row's
 // proposal and Bidder Remark ("" when none), and for an Image Row the id its
-// image has in the SOC file (Word: a relationship id).
-type SocRow = { cells: string[]; proposal: string | null; remark: string; imageId?: string };
+// image has in the SOC file (Word: a relationship id). `tor` when the TOR is
+// not just cells[1] (a Word SOC with no offer column: the TOR may run over cells).
+type SocRow = { cells: string[]; tor?: string; proposal: string | null; remark: string; imageId?: string };
 
 const hasNumber = (cell: string) => /\d/.test(toArabic(cell));
 
@@ -136,7 +137,7 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
     majorItems: majorItemsOfRows(allRows.map((row) => row.cells), (index) => !!allRows[index].imageId),
     rowText: (rowNumber, itemNumber) => {
       const row = findRow(rowNumber, itemNumber);
-      return row ? { tor: row.cells[1] ?? "", proposal: row.proposal, ...(row.remark ? { remark: row.remark } : {}), ...(row.imageId ? { image: true } : {}) } : null;
+      return row ? { tor: row.tor ?? row.cells[1] ?? "", proposal: row.proposal, ...(row.remark ? { remark: row.remark } : {}), ...(row.imageId ? { image: true } : {}) } : null;
     },
     rowImage: (rowNumber, itemNumber) => {
       const imageId = findRow(rowNumber, itemNumber)?.imageId;
@@ -230,7 +231,9 @@ function wordSocRows(rows: WordRow[]): SocRow[] {
   }
   return rows.map((row) => {
     const remark = textAt(row, remarkColumns);
-    return { cells: row.cells.map((cell) => cell.text), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", ...(row.imageId ? { imageId: row.imageId } : {}) };
+    // No offer column: every cell before the tick box is the TOR ("ความยาว" | ": ≤ 580 มิลลิเมตร").
+    const tor = noOffer ? row.cells.slice(1).filter((cell) => cell.column < offerColumn && cell.text).map((cell) => cell.text).join(" ") : undefined;
+    return { cells: row.cells.map((cell) => cell.text), ...(tor !== undefined ? { tor } : {}), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", ...(row.imageId ? { imageId: row.imageId } : {}) };
   });
 }
 
