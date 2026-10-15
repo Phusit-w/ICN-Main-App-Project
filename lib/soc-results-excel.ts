@@ -97,9 +97,11 @@ function sheetName(label: string, used: Set<string>): string {
 type Column = { header: string; width: number; value: (row: SocReviewRow) => string | number };
 
 // The columns the reviewer reads, in order; ผลอ้างอิง is the only coloured cell.
+// หมายเหตุผู้เสนอ is the row's Bidder Remark, read from the SOC.
 const VISIBLE_COLUMNS: Column[] = [
   { header: "ข้อ", width: 11, value: (r) => r.item },
   { header: "ข้อกำหนด TOR", width: 60, value: (r) => (r.torImage ? [IMAGE_ROW_TOR, r.image?.reading].filter(Boolean).join("\n") : r.torText) },
+  { header: "หมายเหตุผู้เสนอ", width: 30, value: (r) => r.bidderRemark ?? "" },
   { header: "ผลอ้างอิง", width: 24, value: (r) => referenceStatus(r).text },
   { header: "ประเด็นหลัก", width: 70, value: (r) => r.keyIssue ?? "" },
   { header: "หน้าอ้างอิง", width: 28, value: (r) => r.reference },

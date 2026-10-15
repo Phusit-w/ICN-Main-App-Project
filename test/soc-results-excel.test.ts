@@ -109,22 +109,22 @@ test("the whole job: a summary sheet, then one sheet per checked major item with
   assert.deepEqual(book.worksheets.map((s) => s.name), ["สรุป", "ข้อ ๑", "ข้อ ๒"]);
 
   const one = book.getWorksheet("ข้อ ๑")!;
-  assert.deepEqual(header(one), ["ข้อ", "ข้อกำหนด TOR", "ผลอ้างอิง", "ประเด็นหลัก", "หน้าอ้างอิง", "Final Decision", "หมายเหตุผู้ตรวจ", "แถวใน SOC", "เลขข้อกำกับ", "Highlight", "หลักฐานรองรับ", "ผล TOR (แนะนำ)", "ความเชื่อมั่น"]);
+  assert.deepEqual(header(one), ["ข้อ", "ข้อกำหนด TOR", "หมายเหตุผู้เสนอ", "ผลอ้างอิง", "ประเด็นหลัก", "หน้าอ้างอิง", "Final Decision", "หมายเหตุผู้ตรวจ", "แถวใน SOC", "เลขข้อกำกับ", "Highlight", "หลักฐานรองรับ", "ผล TOR (แนะนำ)", "ความเชื่อมั่น"]);
   const grouped = one.columns.map((c) => (c.hidden ? c.outlineLevel : 0));
-  assert.deepEqual(grouped, [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1], "แถวใน SOC … ความเชื่อมั่น in a collapsed column group");
+  assert.deepEqual(grouped, [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1], "แถวใน SOC … ความเชื่อมั่น in a collapsed column group");
   assert.equal(one.getRow(2).getCell(2).font?.name, "Tahoma");
   const expectedOne = runFor("1", "RECHECKED").results.filter((row) => !headingRow(row));
   const rowsOne = bodyText(one);
   assert.equal(rowsOne.length, expectedOne.length, "every row but headings");
-  assert.deepEqual(rowsOne.map((r) => Number(r[7])), expectedOne.map((row) => Number(row.row)), "in SOC order");
-  assert.ok(rowsOne.every((r) => r[3].startsWith("RECHECKED ")), "only the latest run");
+  assert.deepEqual(rowsOne.map((r) => Number(r[8])), expectedOne.map((row) => Number(row.row)), "in SOC order");
+  assert.ok(rowsOne.every((r) => r[4].startsWith("RECHECKED ")), "only the latest run");
   const view = one.views[0] as { state?: string; xSplit?: number; ySplit?: number };
   assert.deepEqual([view.state, view.xSplit, view.ySplit], ["frozen", 2, 1], "header row, ข้อ and ข้อกำหนด TOR stay in view");
 
   const rowsTwo = bodyText(book.getWorksheet("ข้อ ๒")!);
-  const decidedRow = rowsTwo.find((r) => Number(r[7]) === decided.rowNumber)!;
-  assert.equal(decidedRow[5], "ดีกว่า (Better)");
-  assert.equal(decidedRow[6], "NOTE-FROM-REVIEWER");
+  const decidedRow = rowsTwo.find((r) => Number(r[8]) === decided.rowNumber)!;
+  assert.equal(decidedRow[6], "ดีกว่า (Better)");
+  assert.equal(decidedRow[7], "NOTE-FROM-REVIEWER");
 
   const summarySheet = book.getWorksheet("สรุป")!;
   assert.deepEqual(header(summarySheet), ["ข้อใหญ่", "หัวข้อ", "จำนวนแถว", "ไม่มีประเด็น", "ควรตรวจซ้ำ", "มีปัญหา", "ตัดสินแล้ว", "รอแก้ไข"]);
@@ -154,9 +154,9 @@ test("a partial_visible highlight shows its Thai label and leaves ผลอ้�
   const sheet = (await workbook(await download(jobId, byKey("1").id))).worksheets[0];
   const n = bodyText(sheet).findIndex((r) => r[0] === "๑.๒.๓");
   const row = sheet.getRow(n + 2);
-  assert.equal(row.getCell(10).value, "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)");
-  assert.equal(row.getCell(3).value, "ตรง");
-  assert.equal((row.getCell(3).fill as ExcelJS.FillPattern).fgColor?.argb, "FFC6EFCE");
+  assert.equal(row.getCell(11).value, "ครบตามที่เห็นในหน้า (บางคำไม่ได้ highlight)");
+  assert.equal(row.getCell(4).value, "ตรง");
+  assert.equal((row.getCell(4).fill as ExcelJS.FillPattern).fgColor?.argb, "FFC6EFCE");
 });
 
 test("ผลอ้างอิง uses the skill's sub-status texts and colours (append_results_to_docx.py)", { skip }, async () => {
@@ -180,11 +180,11 @@ test("ผลอ้างอิง uses the skill's sub-status texts and colours 
   signedIn = owner;
   // Every item sheet row by its SOC row number.
   const byRowNumber = new Map((await workbook(await download(jobId))).worksheets.slice(1)
-    .flatMap((sheet) => bodyText(sheet).map((r, n) => [Number(r[7]), sheet.getRow(n + 2)] as const)));
+    .flatMap((sheet) => bodyText(sheet).map((r, n) => [Number(r[8]), sheet.getRow(n + 2)] as const)));
   cases.forEach(([, text, colour], i) => {
     const row = byRowNumber.get(Number(rows[i].row))!;
-    assert.equal(row.getCell(3).value, text, `row ${rows[i].row}`);
-    assert.equal((row.getCell(3).fill as ExcelJS.FillPattern).fgColor?.argb, `FF${colour}`, `row ${rows[i].row}`);
+    assert.equal(row.getCell(4).value, text, `row ${rows[i].row}`);
+    assert.equal((row.getCell(4).fill as ExcelJS.FillPattern).fgColor?.argb, `FF${colour}`, `row ${rows[i].row}`);
   });
 });
 
@@ -195,7 +195,7 @@ test("one major item: a single sheet, no summary", { skip }, async () => {
   signedIn = owner;
   const book = await workbook(await download(jobId, byKey("2").id));
   assert.deepEqual(book.worksheets.map((s) => s.name), ["ข้อ ๒"]);
-  assert.ok(bodyText(book.worksheets[0]).every((r) => r[3].startsWith("TWO ")));
+  assert.ok(bodyText(book.worksheets[0]).every((r) => r[4].startsWith("TWO ")));
 });
 
 test("a major item with no results, or of another job, is refused", { skip }, async () => {
@@ -243,8 +243,8 @@ test("the rows picked on the review page download as one sheet, in the page's or
   assert.deepEqual(header(sheet).slice(0, 4), ["ข้อใหญ่", "สถานะ", "ข้อ", "ข้อกำหนด TOR"]);
   assert.equal((sheet.views[0] as { xSplit?: number }).xSplit, 4, "ข้อใหญ่ … ข้อกำหนด TOR stay in view");
   const body = bodyText(sheet);
-  assert.deepEqual(body.map((r) => [r[0], Number(r[9])]), [["๓", picked[0].rowNumber], ["๑", picked[1].rowNumber]]);
-  assert.equal(body[1][7], "รอแก้ไข");
+  assert.deepEqual(body.map((r) => [r[0], Number(r[10])]), [["๓", picked[0].rowNumber], ["๑", picked[1].rowNumber]]);
+  assert.equal(body[1][8], "รอแก้ไข");
   assert.equal((await send({ resultIds: [] })).status, 400);
   assert.equal((await send({ resultIds: ["not-a-row"] })).status, 409);
 });

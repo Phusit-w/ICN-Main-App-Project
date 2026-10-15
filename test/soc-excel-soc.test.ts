@@ -148,7 +148,7 @@ test("the review page and the results Excel show the workbook's rows, with the s
   assert.equal(response.status, 200, await response.clone().text());
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(await response.arrayBuffer());
-  const cells = (name: string) => book.getWorksheet(name)!.getSheetValues().slice(2).map((row) => [8, 1, 2].map((i) => String((row as unknown[])[i])));
+  const cells = (name: string) => book.getWorksheet(name)!.getSheetValues().slice(2).map((row) => [9, 1, 2].map((i) => String((row as unknown[])[i])));
   assert.deepEqual(cells("ข้อ 2"), [["ระบบ B · 3", "2", "ระบบ B"], ["ระบบ B · 4", "2.1", "เรดาร์"]]);
 });
 
@@ -167,6 +167,16 @@ test("the review view reads each row's Bidder Remark from the SOC, which the imp
   assert.ok(imported.ok, JSON.stringify(imported));
   const view = (await socReviewView(jobId)).rows.sort((a, b) => a.rowNumber - b.rowNumber);
   assert.deepEqual(view.map((r) => [r.item, r.proposalText, r.bidderRemark]), [["1", "", null], ["1.1", "FOC", "max. 96 fibers"], ["1.2", "ตามแบบ", null]]);
+
+  // The results Excel carries it as its third column, empty for rows without one.
+  signedIn = owner;
+  const response = await excelRoute(new Request(`http://localhost/api/soc/jobs/${jobId}/results-excel?item=${item("1").id}`), { params: Promise.resolve({ id: jobId }) });
+  assert.equal(response.status, 200, await response.clone().text());
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await response.arrayBuffer());
+  const sheet = book.worksheets[0];
+  assert.equal(sheet.getRow(1).getCell(3).value, "หมายเหตุผู้เสนอ");
+  assert.deepEqual(sheet.getSheetValues().slice(2).map((row) => [1, 3].map((i) => String((row as unknown[])[i] ?? ""))), [["1", ""], ["1.1", "max. 96 fibers"], ["1.2", ""]]);
 });
 
 // ---- The runner API ---------------------------------------------------------------
