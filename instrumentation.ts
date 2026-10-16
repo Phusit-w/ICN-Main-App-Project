@@ -6,5 +6,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.NEXT_PHASE !== "phase-production-build") {
     const { startSocTrashPurge } = await import("@/lib/soc-trash");
     startSocTrashPurge();
+    // A scanned PDF SOC that was being read when the server stopped goes on from its saved cells.
+    const { resumeScanReads } = await import("@/lib/soc");
+    resumeScanReads().catch((error) => console.error("Resuming scanned PDF SOC reads failed", error));
   }
 }

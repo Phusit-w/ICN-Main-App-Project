@@ -24,7 +24,7 @@ type ResultItem = {
 type MajorItem = { id: string; label: string; title: string | null; groupLabel: string | null; groupTitle: string | null; large: boolean; skipped: boolean; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
 type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; majorItems: MajorItem[]; currentSkillVersion: string | null; socWarnings: string[]; excelSoc: boolean };
 
-const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING"]);
+const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING", "READING"]);
 const FILTERS = ["all", "match", "mismatch", "review", "not_found", "unverifiable", "not_applicable"];
 
 export default function SocJobDetail({ job }: { job: Job }) {
@@ -45,10 +45,11 @@ export default function SocJobDetail({ job }: { job: Job }) {
   const outputs = job.documents.filter((d) => d.type === "OUTPUT" || d.type === "PREVIEW");
   const unreviewed = job.results.filter((r) => !r.reviewed).length;
   const imported = job.kind === "IMPORTED";
+  const notRead = job.status === "READING" || job.status === "READ_FAILED"; // a scanned PDF SOC with no rows yet
 
   return <div className="flex flex-col gap-6">
     <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <SocTrashJobButton jobId={job.id} title={job.title} goToList /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
-    {imported ? <>{job.socWarnings.length ? <SocWarnings warnings={job.socWarnings} /> : null}<MajorItemsPanel jobId={job.id} excelSoc={job.excelSoc} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
+    {imported && !notRead ? <>{job.socWarnings.length ? <SocWarnings warnings={job.socWarnings} /> : null}<MajorItemsPanel jobId={job.id} excelSoc={job.excelSoc} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
     {job.status === "FAILED" ? <FailurePanel job={job} /> : null}
     {outputs.length ? <section className="rounded-card bg-surface p-5 shadow-card"><h2 className="font-display font-semibold">ไฟล์ผลลัพธ์</h2><div className="mt-3 flex flex-wrap gap-3">{outputs.map((doc) => <a key={doc.id} href={`/api/soc/documents/${doc.id}`} target={doc.type === "PREVIEW" ? "_blank" : undefined} className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">{doc.type === "PREVIEW" ? "เปิดตัวอย่าง PDF" : "ดาวน์โหลด DOCX"}</a>)}</div></section> : null}
     {job.status === "NEEDS_REVIEW" && !imported ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-5 shadow-card"><div><div className="font-medium">ตรวจทานแล้ว {job.results.length - unreviewed}/{job.results.length} รายการ</div><p className="mt-1 text-xs text-muted">ผลจากระบบเป็นเพียงคำแนะนำ ต้องยืนยันทุกข้อก่อนสร้าง DOCX</p></div><ReviewActions jobId={job.id} unreviewed={unreviewed} /></div> : null}
@@ -369,7 +370,7 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
 }
 
 function JobProgress({ job }: { job: Job }) {
-  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}</section>;
+  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}</section>;
 }
 
 function StatusPill({ status }: { status: string }) {

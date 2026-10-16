@@ -19,12 +19,19 @@
 // text starts with, and a row without one is unnumbered. An item column, when
 // there is one, is always used.
 //
-// A page with no text is a scan: it is skipped and named in a warning, and a
-// PDF with scans and no table on its text pages is refused as a scanned PDF SOC. A text
+// A page with no text is a scan. Without a cell reader it is skipped and named
+// in a warning, and a PDF with scans and no table on its text pages is refused
+// as a scanned PDF SOC. With one (ADR 0010) the scan's ruled table is cut into
+// cells (lib/soc-scan-grid.ts), each cell with ink is read by the cell reader,
+// and the page then goes through the same header and row rules as a text page.
+// A scan whose grid can't be cut is skipped and named; when more than half of
+// the table pages can't be cut the file is refused. A cell the reader answers
+// with only a figure is a picture: it is put in the .xlsx in that cell. A text
 // page with no SOC table (a signature page) is skipped silently. Pictures in
-// TOR cells are counted into a warning, not read.
+// TOR cells of text pages are counted into a warning, not read.
 import ExcelJS from "exceljs";
 import * as mupdf from "mupdf";
+import { cutScannedPage, type ScannedTable } from "@/lib/soc-scan-grid";
 import { findSocHeader, type SocColumns, type SocGrid } from "@/lib/soc-table-excel";
 
 export type PdfSoc = {
@@ -36,6 +43,7 @@ export type PdfSoc = {
 const UNREADABLE_PDF = "ไม่สามารถเปิดไฟล์ PDF ของ SOC ได้ ไฟล์อาจเสีย กรุณาตรวจไฟล์แล้วอัปโหลดใหม่";
 const LOCKED_PDF = "ไฟล์ PDF ของ SOC ใส่รหัสผ่านไว้ กรุณาเอารหัสผ่านออกแล้วอัปโหลดใหม่";
 const SCANNED_PDF = "SOC นี้เป็น PDF แบบสแกน ระบบยังไม่รองรับ กรุณาอัปโหลดไฟล์ Word หรือ Excel ถ้ามี";
+const SCAN_NOT_CUT = "ตัดตารางจาก PDF แบบสแกนไม่ได้ ตารางต้องมีเส้นตารางที่ชัดเจน กรุณาอัปโหลดไฟล์ Word หรือ Excel ถ้ามี";
 const NO_SOC_TABLE = "ไม่พบตาราง SOC ในไฟล์ PDF: ต้องมีแถวหัวตารางที่มีคอลัมน์ ข้อกำหนด TOR และ ข้อเสนอ";
 
 type Role = keyof SocColumns;
@@ -55,17 +63,28 @@ const TICK = "✓"; // a check mark the skill reads as a tick
 const LINE_THICKNESS = 2.5; // a filled rectangle at most this thin is a ruling line
 const SAME_LINE = 1.5; // ruling lines this close are one grid line
 const TOUCH = 2; // a line ends this close to another still meets it
+const SCAN_DRIFT = 15; // a scan's column line this close (points) to a known column's is that column's
 
-export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
+// Reads one cell of a scanned page (a PNG): its text, or null when the cell
+// holds only a figure. `at` is the cell's 1-based page and 0-based row and
+// column in the page's table, header row first.
+export type CellReader = (image: Uint8Array, at: { page: number; row: number; column: number }) => Promise<string | null>;
+
+// Without `readCell` a scanned page is skipped. The reader's own errors pass through unchanged.
+// `onPage(done, total)` is called before each page is read, for progress.
+export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { readCell?: CellReader; onPage?: (done: number, total: number) => void | Promise<void> } = {}): Promise<PdfSoc> {
   let document: mupdf.Document;
   try {
     document = mupdf.Document.openDocument(pdf, "application/pdf");
   } catch {
     throw new Error(UNREADABLE_PDF);
   }
-  const rows: { cells: Partial<Record<Role, string>>; page: number }[] = [];
+  const rows: { cells: Partial<Record<Role, string>>; page: number; figure?: Uint8Array }[] = [];
   const named = new Set<Role>();
-  const scannedPages: number[] = [];
+  const scannedPages: number[] = []; // scans that are skipped
+  const uncutPages: number[] = []; // scans whose grid can't be cut
+  let tablePages = 0; // scans read with the cell reader, and text pages with a table
+  let readerError: unknown = null;
   let torImages = 0;
   try {
     if (document.needsPassword()) throw new Error(LOCKED_PDF);
@@ -73,16 +92,37 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
     let itemlessHeader: string | null = null; // the last header's key when it has no item column; null: none yet, or it has one
     const pageCount = document.countPages();
     for (let index = 0; index < pageCount; index++) {
+      try {
+        await onPage?.(index, pageCount);
+      } catch (error) {
+        readerError = error; // the caller's own error passes through, like the reader's
+        throw error;
+      }
       const page = document.loadPage(index);
       let read: PageRead;
+      let scan: ScannedTable | null = null;
       try {
         read = readPage(page);
+        if (read === "scanned" && readCell) scan = cutScannedPage(page);
       } finally {
         page.destroy();
       }
-      if (read === "scanned") scannedPages.push(index + 1);
-      if (read === "scanned" || read === "blank") continue;
-      const table = read.table;
+      let table: PageTable | null;
+      if (read === "scanned" && readCell) {
+        tablePages++;
+        if (!scan) { uncutPages.push(index + 1); continue; }
+        try {
+          table = await readScan(scan, index + 1, readCell);
+        } catch (error) {
+          readerError = error;
+          throw error;
+        }
+      } else {
+        if (read === "scanned") scannedPages.push(index + 1);
+        if (read === "scanned" || read === "blank") continue;
+        table = read.table;
+        if (table) tablePages++;
+      }
       if (!table) continue;
       let header = findSocHeader(table.grid, nameKey);
       // A header with no item column is looked for only while no header with
@@ -103,6 +143,9 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
         first = header.last + 1;
       } else if (!columns) continue;
       const known = columns;
+      // A scan's column lines drift a little from page to page: without a
+      // header of its own, a scan's column lines are those of the known columns they sit at.
+      if (!header && scan) table.columnEdges = table.columnEdges.map((x) => known.find((column) => Math.abs(column.left - x) <= SCAN_DRIFT)?.left ?? x);
       const roleAt = (x: number) => known.findLast((column) => column.left <= x + TOUCH)?.role;
       for (let row = first; row < table.grid.rows.length; row++) {
         const cells: Partial<Record<Role, string>> = {};
@@ -110,12 +153,15 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
           const role = text ? roleAt(table.columnEdges[column]) : undefined;
           if (role) cells[role] = cells[role] ? `${cells[role]} ${text}` : text;
         });
-        if (Object.keys(cells).length) rows.push({ cells, page: index + 1 });
+        if (Object.keys(cells).length) {
+          const figure = table.figures?.find((cell) => cell.row === row && roleAt(table.columnEdges[cell.column]) === "tor");
+          rows.push({ cells, page: index + 1, ...(figure ? { figure: figure.image } : {}) });
+        }
       }
       torImages += table.images.filter((image) => image.row >= first && roleAt(table.columnEdges[image.column]) === "tor").length;
     }
   } catch (error) {
-    if (error instanceof Error && error.message === LOCKED_PDF) throw error;
+    if (error === readerError || (error instanceof Error && error.message === LOCKED_PDF)) throw error;
     // mupdf can't parse a page. Logged, so that a fault of this converter
     // isn't only ever seen as a damaged file.
     console.error("PDF SOC conversion failed", error);
@@ -123,10 +169,12 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
   } finally {
     document.destroy();
   }
+  if (uncutPages.length * 2 > tablePages) throw new Error(SCAN_NOT_CUT);
   // No table in the text pages, but some pages are scans: the table is in the scans.
   if (!rows.length) throw new Error(scannedPages.length ? SCANNED_PDF : NO_SOC_TABLE);
   const warnings = [
     ...(scannedPages.length ? [`หน้า ${pageRanges(scannedPages)} เป็นภาพสแกน ไม่ได้ตรวจ`] : []),
+    ...(uncutPages.length ? [`หน้า ${pageRanges(uncutPages)} เป็นภาพสแกนที่ตัดตารางไม่ได้ ไม่ได้ตรวจ`] : []),
     ...(torImages ? [`มีรูป ${torImages} รูปในช่องข้อกำหนด TOR ของ PDF SOC ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
   ];
 
@@ -144,12 +192,16 @@ export async function convertPdfSoc(pdf: Uint8Array): Promise<PdfSoc> {
   const sheet = workbook.addWorksheet("SOC");
   const written = COLUMN_NAMES.filter(([role]) => named.has(role));
   sheet.addRow(written.map(([, name]) => name));
-  for (const { cells } of rows) {
-    sheet.addRow(written.map(([role]) => {
+  for (const { cells, figure } of rows) {
+    const added = sheet.addRow(written.map(([role]) => {
       const text = cells[role];
       if (!text) return null;
       return (role === "comply" || role === "better") && CHECK_MARK.test(text) ? TICK : text;
     }));
+    if (figure) {
+      const image = workbook.addImage({ buffer: Buffer.from(figure) as unknown as ExcelJS.Buffer, extension: "png" });
+      sheet.addImage(image, { tl: { col: written.findIndex(([role]) => role === "tor"), row: added.number - 1 }, ext: { width: 120, height: 40 } });
+    }
   }
   return { xlsx: new Uint8Array(await workbook.xlsx.writeBuffer()), rowPages: rows.map((row) => row.page), warnings };
 }
@@ -175,7 +227,51 @@ function pageRanges(pages: number[]): string {
 // a sheet), the x of each grid column's left edge, and the cell (top left) of
 // each picture inside the table.
 type PageRead = "scanned" | "blank" | { table: PageTable | null };
-type PageTable = { grid: SocGrid; columnEdges: number[]; images: { row: number; column: number }[] };
+type PageTable = { grid: SocGrid; columnEdges: number[]; images: { row: number; column: number }[]; figures?: { row: number; column: number; image: Uint8Array }[] };
+
+// A cut scan as a page table: the reader's text in each cell with ink; a
+// figure-only cell is kept as its image.
+async function readScan(scan: ScannedTable, page: number, readCell: CellReader): Promise<PageTable> {
+  const grid: SocGrid = { rows: [], merges: [] };
+  const figures: NonNullable<PageTable["figures"]> = [];
+  for (let row = 0; row < scan.rows.length; row++) {
+    for (let column = 0; column < scan.rows[row].length; column++) {
+      const image = scan.rows[row][column];
+      if (!image) continue;
+      const text = await readCell(image, { page, row, column });
+      if (text === null) figures.push({ row, column, image });
+      else if (text.trim()) (grid.rows[row] ??= [])[column] = text.trim();
+    }
+  }
+  return { grid, columnEdges: scan.columnEdges, images: [], figures };
+}
+
+// Whether the PDF has a scanned page with a table the cell reader would be
+// given, so the upload must go through OCR. Looks at the pages only, no OCR.
+export function hasScannedTable(pdf: Uint8Array): boolean {
+  let document: mupdf.Document;
+  try {
+    document = mupdf.Document.openDocument(pdf, "application/pdf");
+  } catch {
+    return false;
+  }
+  try {
+    if (document.needsPassword()) return false;
+    for (let index = 0; index < document.countPages(); index++) {
+      const page = document.loadPage(index);
+      try {
+        if (readPage(page) === "scanned" && cutScannedPage(page)) return true;
+      } finally {
+        page.destroy();
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    document.destroy();
+  }
+}
 
 type Segment = { at: number; from: number; to: number }; // horizontal: y and x range; vertical: x and y range
 type Char = { char: string; x: number; lineY: number; line: number };

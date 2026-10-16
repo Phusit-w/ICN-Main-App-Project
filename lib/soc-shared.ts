@@ -1,6 +1,9 @@
 export const SOC_STATUSES = [
   "DRAFT", "QUEUED", "PROCESSING", "NEEDS_REVIEW", "CONFIRMED",
   "EXPORTING", "COMPLETED", "FAILED", "EXPIRED",
+  // An Imported SOC Check whose scanned PDF SOC is being read by OCR (ADR
+  // 0010), or whose read failed: it has no SOC or major items yet.
+  "READING", "READ_FAILED",
 ] as const;
 
 export const SOC_CHECK_STATUSES = [
@@ -18,6 +21,7 @@ export const SOC_STATUS_LABELS: Record<string, string> = {
   DRAFT: "แบบร่าง", QUEUED: "รอประมวลผล", PROCESSING: "กำลังตรวจสอบ",
   NEEDS_REVIEW: "รอตรวจทาน", CONFIRMED: "ยืนยันแล้ว", EXPORTING: "กำลังสร้างเอกสาร",
   COMPLETED: "เสร็จสิ้น", FAILED: "เกิดข้อผิดพลาด", EXPIRED: "หมดอายุ",
+  READING: "กำลังอ่านตาราง", READ_FAILED: "อ่านตารางไม่สำเร็จ",
 };
 
 export const CHECK_LABELS: Record<string, string> = {

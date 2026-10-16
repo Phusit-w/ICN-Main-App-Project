@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
-import { convertPdfSoc } from "@/lib/soc-pdf-soc";
+import { convertPdfSoc, hasScannedTable, type CellReader } from "@/lib/soc-pdf-soc";
+import { readScannedSoc } from "@/lib/soc-scan-read";
+import { typhoonCellReader, typhoonConfigured } from "@/lib/soc-typhoon";
 import { assertSocFile, isPdfFile, readSocTable } from "@/lib/soc-table";
 import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
 import { evidencePath, UPLOAD_BATCH_BYTES, UPLOAD_BATCH_FILES } from "@/lib/soc-upload";
@@ -12,6 +14,7 @@ export * from "@/lib/soc-shared";
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 type Upload = { name: string; bytes: Uint8Array };
 
+const NO_MAJOR_ITEMS = "ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์ลำดับของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1";
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 export function socStorageRoot(): string {
@@ -77,12 +80,19 @@ export function socErrorStatus(message: string): number {
 // soc-worker never claims it. Nothing is kept if any step fails. A PDF SOC
 // becomes an Excel SOC here (ADR 0009): the job's SOC is the .xlsx made from
 // it, and the PDF is kept beside it as the job's SOC_SOURCE_PDF.
-export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }) {
-  const pdfSoc = isPdfFile(input.soc.bytes) ? await convertPdfSoc(input.soc.bytes) : null;
+//
+// A PDF SOC with a scanned table page (ADR 0010) is read by OCR in the
+// background: its job is made at once in READING, without a SOC or major
+// items, and finishScanRead() completes it. `readCell` is the OCR; with none
+// (the key is not set up) such a PDF is handled as before.
+export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, { readCell = defaultCellReader() }: { readCell?: CellReader } = {}) {
+  const isPdf = isPdfFile(input.soc.bytes);
+  if (readCell && isPdf && hasScannedTable(input.soc.bytes)) return createReadingSocJob(actor, input, readCell);
+  const pdfSoc = isPdf ? await convertPdfSoc(input.soc.bytes) : null;
   const withExtension = (extension: string) => input.soc.name.replace(/(\.[^.\/]*)?$/, extension);
   const soc = pdfSoc ? { name: withExtension(".xlsx"), bytes: pdfSoc.xlsx } : input.soc;
   const { file: socFile, majorItems, warnings: tableWarnings } = readSocTable(soc.bytes);
-  if (!majorItems.length) throw new Error("ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์ลำดับของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1");
+  if (!majorItems.length) throw new Error(NO_MAJOR_ITEMS);
   const warnings = [...(pdfSoc?.warnings ?? []), ...tableWarnings];
   const jobId = randomUUID();
   try {
@@ -113,6 +123,105 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
     throw error;
   }
   return jobId;
+}
+
+const defaultCellReader = () => (typhoonConfigured() ? typhoonCellReader : undefined);
+
+async function createReadingSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, readCell: CellReader) {
+  const jobId = randomUUID();
+  try {
+    const storedSource = await storeSocFile(jobId, input.soc.name, ".pdf", input.soc.bytes);
+    const storedEvidence = await Promise.all(input.evidence.map((file) => storeSocFile(jobId, file.name, ".pdf", file.bytes)));
+    const detail = { kind: "IMPORTED", evidenceCount: input.evidence.length, pdfSoc: true, scanned: true };
+    await prisma.$transaction([
+      prisma.socJob.create({
+        data: {
+          id: jobId, kind: "IMPORTED", title: input.title, ownerId: actor.id,
+          status: "READING", stage: READING_STAGE, progress: 0,
+          expiresAt: new Date(Date.now() + RETENTION_MS),
+        },
+      }),
+      prisma.socDocument.create({ data: { jobId, type: "SOC_SOURCE_PDF", mimeType: "application/pdf", ...storedSource } }),
+      ...storedEvidence.map((stored) => prisma.socDocument.create({ data: { jobId, type: "EVIDENCE", mimeType: "application/pdf", ...stored } })),
+      prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "JOB_CREATED", detail } }),
+    ]);
+    await writeAudit({ actorId: actor.id, action: "SOC_CREATED", entityType: "SOC_JOB", entityId: jobId, summary: `สร้างงาน SOC ${input.title} (PDF สแกน อ่านด้วย OCR)`, metadata: detail });
+  } catch (error) {
+    await prisma.socJob.delete({ where: { id: jobId } }).catch(() => undefined);
+    await rm(path.join(socStorageRoot(), jobId), { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+  void startScanRead(jobId, readCell);
+  return jobId;
+}
+
+const READING_STAGE = "กำลังอ่านตาราง";
+const STOP_READING = new Error("the job is no longer being read");
+
+// Scanned jobs are read one at a time, in the order they were started: the
+// OCR's rate limit is shared, so reading two at once would be no faster.
+// Kept on globalThis: the server's startup hook and its routes may load this module separately.
+const scanReads = ((globalThis as { socScanReads?: { queue: Promise<unknown>; running: Map<string, Promise<void>> } }).socScanReads ??= { queue: Promise.resolve(), running: new Map() });
+
+// Reads the job's scanned PDF in the background (the work of a READING job).
+// Resolves when the job has been completed or failed; never rejects.
+export function startScanRead(jobId: string, readCell: CellReader): Promise<void> {
+  const running = scanReads.running.get(jobId);
+  if (running) return running;
+  const run = scanReads.queue.then(() => finishScanRead(jobId, readCell));
+  scanReads.queue = run;
+  scanReads.running.set(jobId, run);
+  void run.finally(() => scanReads.running.delete(jobId));
+  return run;
+}
+
+// Picks up the jobs a restart left in READING; their saved cells are not read again.
+export async function resumeScanReads(readCell = defaultCellReader()) {
+  if (!readCell) return;
+  const jobs = await prisma.socJob.findMany({ where: { status: "READING", deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  for (const { id } of jobs) void startScanRead(id, readCell);
+}
+
+// Turns a READING job into an ordinary Excel SOC job: the .xlsx made from the
+// scanned PDF becomes its SOC, the major items are made, checks come on.
+async function finishScanRead(jobId: string, readCell: CellReader) {
+  let stored: Awaited<ReturnType<typeof storeSocFile>> | undefined;
+  try {
+    const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { documents: { where: { type: "SOC_SOURCE_PDF" } } } });
+    const source = job?.documents[0];
+    if (!job || job.status !== "READING" || !source) return;
+    const pdfSoc = await readScannedSoc(
+      new Uint8Array(await readFile(resolveStorageKey(source.storageKey))),
+      path.join(socStorageRoot(), jobId, "cells.jsonl"),
+      readCell,
+      // Progress is best effort; a job that is no longer READING (moved to the trash) stops the read.
+      async (done, total) => {
+        const data = { progress: Math.min(99, Math.floor((done / total) * 100)), stage: `${READING_STAGE} หน้า ${done}/${total}` };
+        const updated = await prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data }).catch(() => ({ count: 1 }));
+        if (!updated.count) throw STOP_READING;
+      },
+    );
+    const { file, majorItems, warnings: tableWarnings } = readSocTable(pdfSoc.xlsx);
+    if (!majorItems.length) throw new Error(NO_MAJOR_ITEMS);
+    const warnings = [...pdfSoc.warnings, ...tableWarnings];
+    const name = source.originalName.replace(/(\.[^.\/]*)?$/, ".xlsx");
+    stored = await storeSocFile(jobId, name, file.extension, pdfSoc.xlsx);
+    await prisma.$transaction([
+      prisma.socJob.update({
+        where: { id: jobId },
+        data: { status: "NEEDS_REVIEW", stage: "รอตรวจข้อใหญ่", progress: 0, errorMessage: null, socWarnings: warnings.length ? warnings : undefined, socRowPages: pdfSoc.rowPages },
+      }),
+      prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: file.mimeType, ...stored } }),
+      prisma.socMajorItem.createMany({ data: majorItems.map((item, i) => ({ jobId, ...item, position: i + 1 })) }),
+      prisma.socAuditEvent.create({ data: { jobId, actorId: job.ownerId, action: "READ_COMPLETED", detail: { majorItemCount: majorItems.length } } }),
+    ]);
+  } catch (error) {
+    if (stored) await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
+    if (error === STOP_READING) return;
+    const message = error instanceof Error ? error.message : "อ่านตารางไม่สำเร็จ";
+    console.error("Scanned PDF SOC read failed", jobId, error);
+    await prisma.socJob.update({ where: { id: jobId }, data: { status: "READ_FAILED", stage: "อ่านตารางไม่สำเร็จ", errorMessage: message } }).catch(() => undefined);
+  }
 }
 
 // Adds evidence PDFs (already checked by validateUpload) to an Imported SOC
