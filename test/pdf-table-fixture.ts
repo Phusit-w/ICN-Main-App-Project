@@ -2,8 +2,9 @@
 // cell's borders as thin filled rectangles, or stroked lines), with text in
 // any script. mupdf has no Thai font built in, so the text uses Helvetica
 // with a ToUnicode map: it doesn't look right, but it extracts exactly. A page
-// can be a scan (one image, no text), a cell can hold a picture, and the PDF
-// can be locked with a password.
+// can be a scan (one image, no text), a scanned table (a ruled table drawn as
+// pixels, with a dark mark in each cell that has text), a cell can hold a
+// picture, and the PDF can be locked with a password.
 import * as mupdf from "mupdf";
 
 // A cell's text ("\n" between lines), with how many columns and rows it
@@ -11,7 +12,11 @@ import * as mupdf from "mupdf";
 export type TableCell = string | { text: string; span?: number; rowSpan?: number; image?: boolean };
 // One page: the column widths and the rows; `textAbove` is a title outside the
 // table. A `scanned` page is one image covering the page and no text.
-export type TablePage = { columns: number[]; rows: TableCell[][]; stroked?: boolean; textAbove?: string; scanned?: boolean };
+export type TablePage = { columns: number[]; rows: TableCell[][]; stroked?: boolean; textAbove?: string; scanned?: boolean; raster?: RasterTable };
+// A scanned page's table: column widths in pixels (100 per inch, as the cutter
+// reads it); one string per cell, "" for no ink; the first row is the header.
+// `innerTable` draws a 2 × 2 table inside that cell.
+export type RasterTable = { columns: number[]; rows: string[][]; innerTable?: { row: number; column: number } };
 
 const PAGE: [number, number] = [842, 595];
 const LEFT = 40;
@@ -35,7 +40,7 @@ export function buildTablePdf(pages: TablePage[], options: { password?: string }
     `BT /F1 ${FONT_SIZE} Tf ${x} ${PAGE[1] - top - FONT_SIZE} Td <${[...text].map((char) => code(char).toString(16).padStart(2, "0")).join("")}> Tj ET\n`;
 
   const contents = pages.map((page) => {
-    if (page.scanned) return `q ${PAGE[0]} 0 0 ${PAGE[1]} 0 0 cm /Im1 Do Q\n`;
+    if (page.scanned || page.raster) return `q ${PAGE[0]} 0 0 ${PAGE[1]} 0 0 cm /Im1 Do Q\n`;
     let content = "0 0 0 rg 0 0 0 RG 0.5 w\n";
     if (page.textAbove) content += show(page.textAbove, LEFT, TOP - 30);
     const edges = [LEFT];
@@ -78,7 +83,42 @@ export function buildTablePdf(pages: TablePage[], options: { password?: string }
   const pixmap = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, [0, 0, 4, 4], false);
   pixmap.clear(128);
   const picture = doc.addImage(new mupdf.Image(pixmap));
-  for (const content of contents) doc.insertPage(-1, doc.addPage([0, 0, ...PAGE], 0, { Font: { F1: font }, XObject: { Im1: picture } }, content));
+  pages.forEach((page, i) => {
+    const raster = page.raster ? doc.addImage(new mupdf.Image(drawRaster(page.raster))) : picture;
+    doc.insertPage(-1, doc.addPage([0, 0, ...PAGE], 0, { Font: { F1: font }, XObject: { Im1: raster } }, contents[i]));
+  });
   const locked = options.password ? `encrypt=aes-256,user-password=${options.password},owner-password=${options.password}` : "";
   return new Uint8Array(doc.saveToBuffer(locked).asUint8Array());
+}
+
+const RASTER_SIZE: [number, number] = [Math.round((PAGE[0] * 100) / 72), Math.round((PAGE[1] * 100) / 72)];
+const RASTER_LEFT = 60;
+const RASTER_TOP = 60;
+const RASTER_ROW = 70;
+const RASTER_LINE = 4;
+
+function drawRaster({ columns, rows, innerTable }: RasterTable): mupdf.Pixmap {
+  const [width, height] = RASTER_SIZE;
+  const pixmap = new mupdf.Pixmap(mupdf.ColorSpace.DeviceGray, [0, 0, width, height], false);
+  pixmap.clear(255);
+  const pixels = pixmap.getPixels();
+  const fill = (x: number, y: number, w: number, h: number) => {
+    for (let dy = 0; dy < h; dy++) pixels.fill(0, (y + dy) * width + x, (y + dy) * width + x + w);
+  };
+  const edges = [RASTER_LEFT];
+  for (const column of columns) edges.push(edges[edges.length - 1] + column);
+  const bottom = RASTER_TOP + rows.length * RASTER_ROW;
+  for (let r = 0; r <= rows.length; r++) fill(RASTER_LEFT, RASTER_TOP + r * RASTER_ROW, edges[edges.length - 1] - RASTER_LEFT + RASTER_LINE, RASTER_LINE);
+  for (const x of edges) fill(x, RASTER_TOP, RASTER_LINE, bottom - RASTER_TOP + RASTER_LINE);
+  rows.forEach((cells, r) => cells.forEach((text, c) => {
+    if (text) fill(edges[c] + 14, RASTER_TOP + r * RASTER_ROW + 28, 24, 8); // a dark mark that is not a line
+  }));
+  if (innerTable) {
+    const { row, column } = innerTable;
+    const [x0, x1] = [edges[column] + 12, edges[column + 1] - 12];
+    const [y0, y1] = [RASTER_TOP + row * RASTER_ROW + 12, RASTER_TOP + (row + 1) * RASTER_ROW - 12];
+    for (const y of [y0, (y0 + y1) / 2, y1]) fill(x0, Math.round(y), x1 - x0, RASTER_LINE);
+    for (const x of [x0, (x0 + x1) / 2, x1]) fill(Math.round(x), y0, RASTER_LINE, y1 - y0 + RASTER_LINE);
+  }
+  return pixmap;
 }

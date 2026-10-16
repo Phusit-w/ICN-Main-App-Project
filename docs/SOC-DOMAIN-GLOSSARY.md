@@ -90,6 +90,10 @@ _Avoid_: OCR text (OCR is the server-side fidelity of evidence pages), transcrip
 An Image Row whose image is a picture. Claude gives no verdict on it. The reviewer must give its Final Decision before the major item can be confirmed.
 _Avoid_: skipped row, heading row
 
+**Bidder Remark (หมายเหตุผู้เสนอ)**:
+What the bidder wrote in a SOC row's remarks column (หมายเหตุ / Remark), e.g. "max. 96 fibers". It is part of the row's offer: the value it states must be shown by the cited evidence and meet the TOR. A remark that claims compliance without evidence makes the row ต้องตรวจ, not ไม่ผ่าน. A SOC with no offer column (MEA Y69) states its offer only here.
+_Avoid_: หมายเหตุ alone (the reviewer's own note is **หมายเหตุของผู้ตรวจ**), remark as part of the reference
+
 **Excel SOC**:
 A SOC whose comparison table is a worksheet instead of a Word table. Every visible sheet with a recognised header row is part of the SOC; other sheets are left out and named at upload. It is checked by the same rules as a Word SOC, and its major items follow the same rule, with item numbers shown as typed in the file. Only cell text is read: images in the workbook are counted and reported at upload, not read. Its check has no SOC_Check copy; the results are on the review page and in the results Excel.
 _Avoid_: spreadsheet job, Excel check
@@ -99,7 +103,7 @@ A SOC uploaded as a PDF. On upload its comparison table is turned into an Excel 
 _Avoid_: PDF check, converted SOC
 
 **Scanned PDF SOC**:
-A PDF SOC whose table pages are images with no text layer. Not supported yet: it is refused at upload.
+A PDF SOC whose table pages are images with no text layer. On upload the user must confirm that the file is sent to an external OCR service. The job exists at once in the status "กำลังอ่านตาราง" and shows progress; its check buttons stay off until the read finishes, then it becomes an Excel SOC like any PDF SOC. Scanned jobs are read one at a time ("รอคิวที่ N"). Cancel or delete stops the read. A failed read is "อ่านตารางไม่สำเร็จ" with a resume button. A table drawn inside a TOR cell is kept as multi-line text in that cell. A page whose grid cannot be cut is skipped and named; if more than half of the table pages fail, the file is refused. A PDF with both text and scanned table pages is read per page. See ADR 0010.
 _Avoid_: OCR SOC
 
 ## Core objects
