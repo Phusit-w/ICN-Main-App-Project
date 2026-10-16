@@ -66,8 +66,12 @@ export async function listSocJobs(actor: SocActor) {
   }));
 }
 
+// Thrown for a scanned PDF SOC uploaded without the reviewer's OCR confirm.
+export const OCR_CONFIRM_REQUIRED = "OCR_CONFIRM_REQUIRED";
+
 // HTTP status for an error thrown by the SOC helpers.
 export function socErrorStatus(message: string): number {
+  if (message === OCR_CONFIRM_REQUIRED) return 409;
   if (message === "UNAUTHORIZED") return 401;
   if (message === "FORBIDDEN") return 403;
   if (message === "NOT_FOUND") return 404;
@@ -83,11 +87,19 @@ export function socErrorStatus(message: string): number {
 //
 // A PDF SOC with a scanned table page (ADR 0010) is read by OCR in the
 // background: its job is made at once in READING, without a SOC or major
-// items, and finishScanRead() completes it. `readCell` is the OCR; with none
-// (the key is not set up) such a PDF is handled as before.
-export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, { readCell = defaultCellReader() }: { readCell?: CellReader } = {}) {
+// items, and finishScanRead() completes it. `readCell` is the OCR.
+//
+// The PDF goes to an outside OCR service, so the reviewer must confirm that on
+// every upload (`ocrConfirmed`); without it a scanned PDF is refused with
+// OCR_CONFIRM_REQUIRED and nothing is stored or sent. Without the key it is
+// refused with a message to ask the admin.
+export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, { readCell = defaultCellReader(), ocrConfirmed = false }: { readCell?: CellReader; ocrConfirmed?: boolean } = {}) {
   const isPdf = isPdfFile(input.soc.bytes);
-  if (readCell && isPdf && hasScannedTable(input.soc.bytes)) return createReadingSocJob(actor, input, readCell);
+  if (isPdf && hasScannedTable(input.soc.bytes)) {
+    if (!readCell) throw new Error(NO_OCR_KEY);
+    if (!ocrConfirmed) throw new Error(OCR_CONFIRM_REQUIRED);
+    return createReadingSocJob(actor, input, readCell);
+  }
   const pdfSoc = isPdf ? await convertPdfSoc(input.soc.bytes) : null;
   const withExtension = (extension: string) => input.soc.name.replace(/(\.[^.\/]*)?$/, extension);
   const soc = pdfSoc ? { name: withExtension(".xlsx"), bytes: pdfSoc.xlsx } : input.soc;

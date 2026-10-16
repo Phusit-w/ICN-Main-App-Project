@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker, { appendEvidence, readUploadResponse, sendEvidenceBatches } from "@/components/SocFilePicker";
 import { evidenceSelectionProblem, MAX_SOC_FILE_BYTES, SOC_FILE_ACCEPT, socFileNameProblem } from "@/lib/soc-shared";
 import { uploadBatches } from "@/lib/soc-upload";
@@ -12,6 +13,7 @@ export default function SocUploadForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [confirmDialog, confirm] = useConfirmDialog();
   const [soc, setSoc] = useState<File[]>([]);
   const [evidence, setEvidence] = useState<File[]>([]);
   const [progress, setProgress] = useState("");
@@ -36,8 +38,16 @@ export default function SocUploadForm() {
       let jobId = "";
       try {
         setProgress(rest.length ? `กำลังอัปโหลดชุดที่ 1/${rest.length + 1}…` : "กำลังอัปโหลด…");
-        const response = await fetch("/api/soc/jobs", { method: "POST", body: formData });
-        const body = await readUploadResponse<{ id?: string; error?: string }>(response);
+        let response = await fetch("/api/soc/jobs", { method: "POST", body: formData });
+        let body = await readUploadResponse<{ id?: string; error?: string; needsOcrConfirm?: boolean }>(response);
+        if (body.needsOcrConfirm) {
+          // A scanned PDF goes to an outside OCR service: ask every time; cancel stores and sends nothing.
+          const yes = await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก", message: "SOC นี้เป็น PDF แบบสแกน ระบบจะส่งภาพของตารางไปอ่านที่บริการ OCR ภายนอก (Typhoon) และใช้เวลาอ่านนาน (ประมาณ 100 นาทีสำหรับ 85 หน้า) ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" });
+          if (!yes) return;
+          formData.set("ocrConfirmed", "1");
+          response = await fetch("/api/soc/jobs", { method: "POST", body: formData });
+          body = await readUploadResponse<{ id?: string; error?: string }>(response);
+        }
         if (!response.ok || !body.id) throw new Error(body.error || "ไม่สามารถสร้างงานตรวจได้");
         jobId = body.id;
         await sendEvidenceBatches(jobId, rest.flat(), (done, total) => setProgress(`กำลังอัปโหลดชุดที่ ${Math.min(done + 2, total + 1)}/${total + 1}…`));
@@ -73,6 +83,7 @@ export default function SocUploadForm() {
         <Button variant="outline" onClick={() => router.push("/soc")} disabled={pending}>ยกเลิก</Button>
         <Button type="submit" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : "สร้างงานตรวจ"}</Button>
       </div>
+      {confirmDialog}
     </form>
   );
 }

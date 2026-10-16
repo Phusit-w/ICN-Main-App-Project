@@ -17,7 +17,7 @@ const skip = setupTestDatabase();
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => null } });
 
-const { createImportedSocJob, resumeScanReads, startScanRead, listSocJobs, cancelScanRead, stopScanRead, resumeFailedScanRead } = await import("@/lib/soc");
+const { createImportedSocJob, OCR_CONFIRM_REQUIRED, resumeScanReads, startScanRead, listSocJobs, cancelScanRead, stopScanRead, resumeFailedScanRead } = await import("@/lib/soc");
 const { deleteTrashedSocJob } = await import("@/lib/soc-trash");
 const { convertPdfSoc } = await import("@/lib/soc-pdf-soc");
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
@@ -62,7 +62,7 @@ test("a scanned PDF SOC makes its job at once as READING with no rows; when the 
   const owner = await user("owner");
   const reader = fakeReader();
   const release = reader.holdUntil();
-  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [{ name: "Brochure.pdf", bytes: PDF }] }, { readCell: reader.readCell });
+  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [{ name: "Brochure.pdf", bytes: PDF }] }, { readCell: reader.readCell, ocrConfirmed: true });
 
   const reading = await job(jobId);
   assert.equal(reading.status, "READING");
@@ -89,7 +89,7 @@ test("a scanned PDF SOC makes its job at once as READING with no rows; when the 
 test("every cell is saved as it is read: a read that stopped goes on from the saved cells and reads none twice", { skip }, async () => {
   const owner = await user("owner2");
   const first = fakeReader({ failAfter: 5 });
-  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: first.readCell });
+  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: first.readCell, ocrConfirmed: true });
   await startScanRead(jobId, first.readCell);
   const failed = await job(jobId);
   assert.equal(failed.status, "READ_FAILED");
@@ -108,16 +108,20 @@ test("every cell is saved as it is read: a read that stopped goes on from the sa
   assert.equal(first.calls.length + second.calls.length, 17); // all cells with ink (4 + 1 + 4, 4 + 1 + 3), each read once
 });
 
-test("a PDF with no scanned table page never calls the cell reader; a scanned one without OCR set up is handled as before", { skip }, async () => {
+test("a PDF with no scanned table page never calls the cell reader; a scanned one needs the OCR key and the reviewer's confirm", { skip }, async () => {
   const owner = await user("owner3");
   const reader = fakeReader();
   const text = buildTablePdf([{ columns: [60, 200, 150, 150], rows: [["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เอกสารอ้างอิง"], ["1.1", "กล้อง", "CASRI", "หน้า 3"]] }]);
   const jobId = await createImportedSocJob(owner, { title: "Text", soc: { name: "SOC.pdf", bytes: text }, evidence: [] }, { readCell: reader.readCell });
   assert.equal((await job(jobId)).status, "NEEDS_REVIEW");
   assert.equal(reader.calls.length, 0);
-  // No TYPHOON_API_KEY and no reader given: the scan is refused, no job is left.
   const before = await prisma.socJob.count();
-  await assert.rejects(createImportedSocJob(owner, { title: "Scan", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }));
+  const scanUpload = { title: "Scan", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] };
+  // No TYPHOON_API_KEY and no reader given: refused with the "ask the admin" message, even if confirmed.
+  await assert.rejects(createImportedSocJob(owner, scanUpload, { ocrConfirmed: true }), /แจ้งผู้ดูแลระบบ/);
+  // A reader but no confirm: refused, nothing stored, nothing read.
+  await assert.rejects(createImportedSocJob(owner, scanUpload, { readCell: reader.readCell }), { message: OCR_CONFIRM_REQUIRED });
+  assert.equal(reader.calls.length, 0);
   assert.equal(await prisma.socJob.count(), before);
 });
 
@@ -125,7 +129,7 @@ test("a job moved to the trash while it is read stops being read and is left as 
   const owner = await user("owner4");
   const reader = fakeReader();
   const release = reader.holdUntil();
-  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: reader.readCell });
+  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: reader.readCell, ocrConfirmed: true });
   await prisma.socJob.update({ where: { id: jobId }, data: { deletedAt: new Date() } });
   release();
   await startScanRead(jobId, reader.readCell);
@@ -148,7 +152,7 @@ test("scanned jobs are read one at a time in upload order; a waiting job shows �
     peak = Math.max(peak, active);
     try { return await reader(image, at); } finally { active--; }
   };
-  const make = (title: string, readCell: CellReader) => createImportedSocJob(owner, { title, soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: watch(readCell) });
+  const make = (title: string, readCell: CellReader) => createImportedSocJob(owner, { title, soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: watch(readCell), ocrConfirmed: true });
   const a = await make("A", first.readCell);
   const b = await make("B", second.readCell);
   const c = await make("C", third.readCell);
@@ -176,8 +180,8 @@ test("a failed job does not block the queue, and a restart picks the job up agai
   const owner = await user("owner6");
   const broken = fakeReader({ failAfter: 0 });
   const fine = fakeReader();
-  const a = await createImportedSocJob(owner, { title: "A", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: broken.readCell });
-  const b = await createImportedSocJob(owner, { title: "B", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: fine.readCell });
+  const a = await createImportedSocJob(owner, { title: "A", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: broken.readCell, ocrConfirmed: true });
+  const b = await createImportedSocJob(owner, { title: "B", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: fine.readCell, ocrConfirmed: true });
   await startScanRead(a, broken.readCell);
   await startScanRead(b, fine.readCell);
   assert.equal((await job(a)).status, "READ_FAILED");
@@ -207,7 +211,7 @@ function gatedReader() {
   return { readCell, calls: base.calls, entered, go };
 }
 
-const make = (owner: Awaited<ReturnType<typeof user>>, title: string, readCell: CellReader) => createImportedSocJob(owner, { title, soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell });
+const make = (owner: Awaited<ReturnType<typeof user>>, title: string, readCell: CellReader) => createImportedSocJob(owner, { title, soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell, ocrConfirmed: true });
 
 test("cancel while reading: no cell is read after it returns, saved cells stay, and the job can be read again", { skip }, async () => {
   const owner = await user("owner7");

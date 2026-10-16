@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createImportedSocJob, evidenceUploads, requireSocActor, socErrorStatus, validateEvidenceBatch, validateUpload } from "@/lib/soc";
+import { createImportedSocJob, evidenceUploads, OCR_CONFIRM_REQUIRED, requireSocActor, socErrorStatus, validateEvidenceBatch, validateUpload } from "@/lib/soc";
 
 export const runtime = "nodejs";
 
@@ -22,10 +22,12 @@ export async function POST(request: Request) {
       title,
       soc: { name: soc.name, bytes: socBytes },
       evidence: evidence.map((e, i) => ({ name: e.name, bytes: evidenceBytes[i] })),
-    });
+    }, { ocrConfirmed: form.get("ocrConfirmed") === "1" });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "ไม่สามารถสร้างงานตรวจได้";
+    // The client shows the external-OCR notice and sends the file again with ocrConfirmed=1.
+    if (message === OCR_CONFIRM_REQUIRED) return NextResponse.json({ error: "ไฟล์นี้ต้องยืนยันการส่งไป OCR ภายนอกก่อน", needsOcrConfirm: true }, { status: 409 });
     return NextResponse.json({ error: message }, { status: socErrorStatus(message) });
   }
 }
