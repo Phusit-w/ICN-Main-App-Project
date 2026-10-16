@@ -31,7 +31,7 @@
 // TOR cells of text pages are counted into a warning, not read.
 import ExcelJS from "exceljs";
 import * as mupdf from "mupdf";
-import { scanQualityWarnings } from "@/lib/soc-scan-quality";
+import { ANNEX_START, scanQualityWarnings } from "@/lib/soc-scan-quality";
 import { cutScannedPage, type ScannedTable } from "@/lib/soc-scan-grid";
 import { findSocHeader, type SocColumns, type SocGrid } from "@/lib/soc-table-excel";
 
@@ -206,9 +206,6 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage, onParti
 
   return { ...(await sheetOfRows(rows, named)), warnings };
 }
-
-// A ผนวก heading at the start of a TOR text (soc-major-items has the full rule).
-const ANNEX_START = /^(?:ภาค)?ผนวก\s*(?:ที่)?\s*[0-9๐-๙]/;
 
 // No item column: each row's item number is the one its TOR text starts with,
 // written into the item column and left in the text. Works on copies, so it

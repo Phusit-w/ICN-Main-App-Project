@@ -8,6 +8,10 @@ export type ScannedRow = { item?: string; tor?: string; text: string[]; page: nu
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 const toNumber = (digits: string) => Number([...digits].map((c) => (THAI_DIGITS.includes(c) ? THAI_DIGITS.indexOf(c) : c)).join(""));
 const toThai = (n: number) => [...String(n)].map((c) => THAI_DIGITS[Number(c)]).join("");
+// A ผนวก heading at the start of a TOR text (soc-major-items has the full rule).
+// Each ผนวก numbers its items from ๑ again, so item numbers are compared
+// within one ผนวก only.
+export const ANNEX_START = /^(?:ภาค)?ผนวก\s*(?:ที่)?\s*[0-9๐-๙]/;
 const MAX_LISTED = 10;
 const listed = (names: string[]) => names.slice(0, MAX_LISTED).join(", ") + (names.length > MAX_LISTED ? ` และอีก ${names.length - MAX_LISTED}` : "");
 // A word of 3+ letters said twice in a row, with or without a space between.
@@ -18,21 +22,24 @@ export function scanQualityWarnings(rows: ScannedRow[]): string[] {
 
   // Item numbers, siblings under one parent ("๕.๓" and "๕.๔" under "๕"): a
   // number seen twice is a repeat, a number between the first and last seen
-  // and never seen is a gap.
-  const siblings = new Map<string, { seen: Map<number, number>; thai: boolean }>();
-  for (const { item } of rows) {
+  // and never seen is a gap. A ผนวก heading row starts a new scope.
+  const siblings = new Map<string, { parent: string; seen: Map<number, number>; thai: boolean }>();
+  let scope = 0;
+  for (const { item, tor } of rows) {
+    if (ANNEX_START.test(tor ?? "")) scope++;
     const parts = item?.replace(/\.$/, "").split(".");
     if (!parts?.length || !/^[0-9๐-๙]+$/.test(parts[parts.length - 1])) continue;
     const parent = parts.slice(0, -1).join(".");
-    const group = siblings.get(parent) ?? { seen: new Map(), thai: false };
+    const key = `${scope}|${parent}`;
+    const group = siblings.get(key) ?? { parent, seen: new Map(), thai: false };
     const n = toNumber(parts[parts.length - 1]);
     group.seen.set(n, (group.seen.get(n) ?? 0) + 1);
     group.thai ||= /[๐-๙]/.test(parts[parts.length - 1]);
-    siblings.set(parent, group);
+    siblings.set(key, group);
   }
   const repeated: string[] = [];
   const missing: string[] = [];
-  for (const [parent, { seen, thai }] of siblings) {
+  for (const { parent, seen, thai } of siblings.values()) {
     const name = (n: number) => `${parent ? `${parent}.` : ""}${thai ? toThai(n) : n}`;
     const numbers = [...seen.keys()];
     for (const [n, count] of seen) if (count > 1) repeated.push(name(n));

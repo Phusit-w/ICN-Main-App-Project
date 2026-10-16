@@ -156,6 +156,15 @@ test("a missing item number and a repeated one are named", async () => {
   assert.match(warnings[1], /ซ้ำ.*๑\.๓/);
 });
 
+test("each ผนวก numbers its items from ๑ again without a repeat warning; a repeat inside one ผนวก is still named", async () => {
+  const annex = (n: string) => ["ภาคผนวก " + n, "", "", ""];
+  const clean = await warningsOf([scan([["๑. ก", "x", "", ""], ["๒. ข", "x", "", ""], annex("๑"), ["๑. ค", "x", "", ""], ["๒. ง", "x", "", ""], annex("๒"), ["๑. จ", "x", "", ""], ["๒. ฉ", "x", "", ""]])]);
+  assert.deepEqual(clean, []);
+  const repeated = await warningsOf([scan([annex("๒"), ["๑. ก", "x", "", ""], ["๒. ข", "x", "", ""], ["๒. ค", "x", "", ""]])]);
+  assert.equal(repeated.length, 1);
+  assert.match(repeated[0], /ซ้ำ.*๒/);
+});
+
 test("a row whose TOR cell came out empty is named with its page", async () => {
   const warnings = await warningsOf([scan([["๑.๑ ก", "x", "", ""]]), scan([["", "CASRI", "หน้า 3", ""]])]);
   assert.equal(warnings.length, 1);
