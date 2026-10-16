@@ -7,7 +7,7 @@ import { convertPdfSoc, hasScannedTable, type CellReader, type PartialPdfSoc } f
 import { readScannedSoc } from "@/lib/soc-scan-read";
 import { typhoonCellReader, typhoonConfigured } from "@/lib/soc-typhoon";
 import { assertSocFile, isPdfFile, readSocTable } from "@/lib/soc-table";
-import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES } from "@/lib/soc-shared";
+import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES, normalizeSocTitle, SOC_TITLE_INVALID, SOC_TITLE_MAX, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 import { evidencePath, UPLOAD_BATCH_BYTES, UPLOAD_BATCH_FILES } from "@/lib/soc-upload";
 export * from "@/lib/soc-shared";
 
@@ -46,6 +46,51 @@ export async function authorizeSocJobOwner(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
   if (job.ownerId !== actor.id && actor.role !== "ADMIN") throw new Error("FORBIDDEN");
   return { actor, job };
+}
+
+// A Job Title as typed: trimmed, 1..160 characters. Throws the message the
+// form shows.
+export function cleanSocTitle(raw: unknown): string {
+  const title = String(raw ?? "").trim();
+  if (!title || title.length > SOC_TITLE_MAX) throw new Error(SOC_TITLE_INVALID);
+  return title;
+}
+
+// Jobs in the trash do not hold their title. `exceptJobId` is the job being
+// renamed, so keeping or re-casing its own title is not a clash.
+async function socTitleTaken(title: string, exceptJobId?: string): Promise<boolean> {
+  const key = normalizeSocTitle(title);
+  const jobs = await prisma.socJob.findMany({ where: { deletedAt: null, ...(exceptJobId ? { id: { not: exceptJobId } } : {}) }, select: { title: true } });
+  return jobs.some((job) => normalizeSocTitle(job.title) === key);
+}
+
+export async function assertSocTitleFree(title: string, exceptJobId?: string): Promise<void> {
+  if (await socTitleTaken(title, exceptJobId)) throw new Error(SOC_TITLE_TAKEN);
+}
+
+// The title a job gets back from the trash: its own, or with " (กู้คืน)" and
+// then " (กู้คืน 2)"… when a live job took it meanwhile.
+export async function restoredSocTitle(title: string, jobId: string): Promise<string> {
+  if (!(await socTitleTaken(title, jobId))) return title;
+  for (let n = 1; ; n += 1) {
+    const suffix = n === 1 ? " (กู้คืน)" : ` (กู้คืน ${n})`;
+    const candidate = `${title.slice(0, SOC_TITLE_MAX - suffix.length)}${suffix}`;
+    if (!(await socTitleTaken(candidate, jobId))) return candidate;
+  }
+}
+
+export async function renameSocJob(jobId: string, rawTitle: unknown) {
+  const { actor, job } = await authorizeSocJobOwner(jobId);
+  const title = cleanSocTitle(rawTitle);
+  if (title === job.title) return title;
+  await assertSocTitleFree(title, jobId);
+  const detail = { from: job.title, to: title };
+  await prisma.$transaction([
+    prisma.socJob.update({ where: { id: jobId }, data: { title } }),
+    prisma.socAuditEvent.create({ data: { jobId, actorId: actor.id, action: "JOB_RENAMED", detail } }),
+  ]);
+  await writeAudit({ actorId: actor.id, action: "SOC_RENAMED", entityType: "SOC_JOB", entityId: jobId, summary: `เปลี่ยนชื่องาน SOC ${job.title} เป็น ${title}`, metadata: detail });
+  return title;
 }
 
 // The /soc list: every job the actor may open, with major-item progress for
@@ -94,6 +139,7 @@ export function socErrorStatus(message: string): number {
 // OCR_CONFIRM_REQUIRED and nothing is stored or sent. Without the key it is
 // refused with a message to ask the admin.
 export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, { readCell = defaultCellReader(), ocrConfirmed = false }: { readCell?: CellReader; ocrConfirmed?: boolean } = {}) {
+  await assertSocTitleFree(input.title);
   const isPdf = isPdfFile(input.soc.bytes);
   if (isPdf && hasScannedTable(input.soc.bytes)) {
     if (!readCell) throw new Error(NO_OCR_KEY);

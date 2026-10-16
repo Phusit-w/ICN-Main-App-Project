@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker, { appendEvidence, readUploadResponse, sendEvidenceBatches } from "@/components/SocFilePicker";
-import { evidenceSelectionProblem, MAX_SOC_FILE_BYTES, SOC_FILE_ACCEPT, socFileNameProblem } from "@/lib/soc-shared";
+import { evidenceSelectionProblem, MAX_SOC_FILE_BYTES, SOC_FILE_ACCEPT, SOC_TITLE_MAX, socFileNameProblem } from "@/lib/soc-shared";
 import { uploadBatches } from "@/lib/soc-upload";
 
 export default function SocUploadForm() {
@@ -68,7 +68,7 @@ export default function SocUploadForm() {
       <UploadSection number="1" title="รายละเอียดงาน" description="ใช้สำหรับค้นหาและตั้งชื่อไฟล์ผลลัพธ์">
         <label className="flex max-w-2xl flex-col gap-2 text-sm font-medium">
           ชื่อโครงการ
-          <input name="title" required maxLength={160} placeholder="เช่น Udon CASRI-H3C" className="h-[46px] rounded-input border border-line bg-surface px-4 text-ink outline-none focus:border-ink" />
+          <input name="title" required maxLength={SOC_TITLE_MAX} placeholder="เช่น Udon CASRI-H3C" className="h-[46px] rounded-input border border-line bg-surface px-4 text-ink outline-none focus:border-ink" />
         </label>
       </UploadSection>
       <UploadSection number="2" title="เอกสาร SOC" description="รองรับ Word (.docx), Excel (.xlsx) และ PDF ขนาดไม่เกิน 25 MB">

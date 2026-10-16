@@ -52,9 +52,10 @@ function user(username: string, appAccess: string[] = ["soc"], role = "USER") {
   return prisma.user.create({ data: { username, displayName: username, passwordHash: "x", role, appAccess } });
 }
 
+let jobCount = 0;
 async function importedJob(ownerName = "owner") {
   const owner = await user(ownerName);
-  const jobId = await createImportedSocJob(owner, { title: "SOC Demo", soc: { name: "SOC_Demo.docx", bytes: SOC_DEMO }, evidence: [{ name: "Datasheet_Demo.pdf", bytes: PDF }] });
+  const jobId = await createImportedSocJob(owner, { title: `SOC Demo ${++jobCount}`, soc: { name: "SOC_Demo.docx", bytes: SOC_DEMO }, evidence: [{ name: "Datasheet_Demo.pdf", bytes: PDF }] });
   const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
   return { owner, jobId, items, item: (key: string) => items.find((m) => m.key === key)! };
 }

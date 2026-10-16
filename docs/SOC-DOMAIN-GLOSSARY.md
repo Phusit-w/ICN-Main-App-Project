@@ -66,6 +66,10 @@ _Avoid_: worker, agent, bot
 A reviewer's click to check one major item, or a whole SOC, in an Imported SOC Check. It belongs to that reviewer, and only that reviewer's SOC Runner may carry it out. A whole-SOC click makes one Check Request per unchecked major item, and a major item has at most one open Check Request at a time (see `docs/SOC-RUNNER.md`).
 _Avoid_: job (a job is the whole SOC)
 
+**Job Title**:
+The name a SOC job is listed under ("โครงการ" on /soc), set at upload and renamable by the job's owner or an ADMIN. It is unique among all jobs that are not in the trash: two titles are the same when they match after trimming, collapsing runs of spaces and ignoring letter case. The same rule applies at upload and at rename. Jobs made before the rule may share a title; that is left alone, and renaming a job to its own title is not a clash.
+_Avoid_: project name, job name
+
 **Imported SOC Check**:
 A SOC job made from the uploaded outputs of one or more Local Check Runs for the same SOC. It starts in review and is never processed on the server.
 _Avoid_: auto check, queued check

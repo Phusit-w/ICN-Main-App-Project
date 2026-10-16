@@ -83,9 +83,10 @@ function user(username: string, appAccess: string[] = ["soc"]) {
   return prisma.user.create({ data: { username, displayName: username, passwordHash: "x", role: "USER", appAccess } });
 }
 
+let jobCount = 0;
 async function checkedJob(ownerName = "owner") {
   const owner = await user(ownerName);
-  const jobId = await createImportedSocJob(owner, { title: "MEA", soc: { name: "SOC.docx", bytes: SOC }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
+  const jobId = await createImportedSocJob(owner, { title: `MEA ${++jobCount}`, soc: { name: "SOC.docx", bytes: SOC }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
   const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
   const results = run([[3, "๑.๑"], [4, "๑.๑"], [5, "๑.๒"]]);
   results.results.push(pictureRow(6, "๑.๒"));
@@ -180,7 +181,7 @@ const MANUAL = { skillVersion: "v1", model: "claude-cli:sonnet", source: "manual
 
 async function uncheckedJob(ownerName = "owner") {
   const owner = await user(ownerName);
-  const jobId = await createImportedSocJob(owner, { title: "MEA", soc: { name: "SOC.docx", bytes: SOC }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
+  const jobId = await createImportedSocJob(owner, { title: `MEA ${++jobCount}`, soc: { name: "SOC.docx", bytes: SOC }, evidence: [{ name: "Datasheet.pdf", bytes: PDF }] });
   const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
   return { owner, jobId, items };
 }

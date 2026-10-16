@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, writeAudit } from "@/lib/authorization";
 import { cleanAppAccess, describeAppAccess } from "@/lib/access";
 import { deleteTrashedSocJob } from "@/lib/soc-trash";
+import { restoredSocTitle } from "@/lib/soc";
 
 function temporaryPassword() {
   return `Icn-${randomBytes(9).toString("base64url")}7`;
@@ -139,7 +140,11 @@ export async function purgeSocJob(id: string) {
 
 export async function restoreSocJob(id: string) {
   const actor = await requireRole("ADMIN");
-  const row = await prisma.socJob.update({ where: { id }, data: { deletedAt: null, deletedById: null, purgeAfter: null, restoredAt: new Date() } });
-  await writeAudit({ actorId: actor.id, action: "SOC_RESTORED", entityType: "SOC_JOB", entityId: id, summary: `กู้คืนงาน SOC ${row.title}` });
+  const trashed = await prisma.socJob.findUnique({ where: { id }, select: { title: true } });
+  if (!trashed) throw new Error("NOT_FOUND");
+  // A live job may have taken the title meanwhile: the restored job gets a suffix.
+  const title = await restoredSocTitle(trashed.title, id);
+  const row = await prisma.socJob.update({ where: { id }, data: { title, deletedAt: null, deletedById: null, purgeAfter: null, restoredAt: new Date() } });
+  await writeAudit({ actorId: actor.id, action: "SOC_RESTORED", entityType: "SOC_JOB", entityId: id, summary: `กู้คืนงาน SOC ${row.title}`, metadata: title === trashed.title ? undefined : { renamedFrom: trashed.title } });
   revalidatePath("/admin/trash"); revalidatePath("/soc");
 }

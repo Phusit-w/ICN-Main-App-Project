@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { authorizeSocJob, authorizeSocJobOwner, cancelScanRead, resumeFailedScanRead, stopScanRead, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
+import { authorizeSocJob, authorizeSocJobOwner, cancelScanRead, renameSocJob, resumeFailedScanRead, stopScanRead, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES, SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc";
 import { writeAudit } from "@/lib/authorization";
 import { isHeadingRow, isSocFinalDecision, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX } from "@/lib/soc-review";
 
@@ -104,6 +104,20 @@ export async function retrySocJob(jobId: string) {
   ]);
   revalidatePath(`/soc/${jobId}`);
   revalidatePath("/soc");
+}
+
+// Owner or ADMIN. A refused title comes back as { ok: false, error } for the
+// form (a thrown message is hidden from the browser in production).
+export async function renameSocJobAction(jobId: string, title: string): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
+  try {
+    const renamed = await renameSocJob(jobId, title);
+    revalidatePath(`/soc/${jobId}`); revalidatePath("/soc");
+    return { ok: true, title: renamed };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === SOC_TITLE_TAKEN || message === SOC_TITLE_INVALID) return { ok: false, error: message };
+    throw error;
+  }
 }
 
 export async function trashSocJob(jobId: string) {

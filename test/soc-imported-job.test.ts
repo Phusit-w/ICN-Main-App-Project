@@ -56,9 +56,10 @@ function upload(fields: { title?: string; soc?: Uint8Array<ArrayBuffer>; socName
   return new Request("http://localhost/api/soc/jobs", { method: "POST", body: form });
 }
 
+let importedCount = 0;
 async function createImported(owner: Actor) {
   signedIn = owner;
-  const response = await createJob(upload({ title: "Udon CASRI", soc: SOC, evidence: [{ name: "CASRI.pdf", bytes: PDF }] }));
+  const response = await createJob(upload({ title: `Udon CASRI ${++importedCount}`, soc: SOC, evidence: [{ name: "CASRI.pdf", bytes: PDF }] }));
   assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
   return ((await response.json()) as { id: string }).id;
 }

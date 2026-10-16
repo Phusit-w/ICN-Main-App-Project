@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { cancelSocRead, resumeSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
+import { cancelSocRead, renameSocJobAction, resumeSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck, resumeSocCheckRequestNow, setSocMajorItemSkipped } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
@@ -12,7 +12,7 @@ import SocReviewPanel from "@/components/SocReviewPanel";
 import SocFilePicker, { sendEvidenceBatches } from "@/components/SocFilePicker";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import type { ConfirmedRow } from "@/lib/soc-import";
-import { CHECK_LABELS, evidenceSelectionProblem, isOpenCheckRequestState, isRequestableItemState, majorItemName, majorItemProgress, majorItemStateText, SOC_EXCEL_PATH_TIP, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, SPLIT_MAJOR_ITEM_ROWS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
+import { CHECK_LABELS, evidenceSelectionProblem, isOpenCheckRequestState, isRequestableItemState, majorItemName, majorItemProgress, majorItemStateText, SOC_EXCEL_PATH_TIP, SOC_RUN_SOURCE_LABELS, SOC_STATUS_LABELS, SOC_TITLE_MAX, SPLIT_MAJOR_ITEM_ROWS, type SkillVersionStatus, type SocCheckRequestView } from "@/lib/soc-shared";
 
 type DocumentItem = { id: string; type: string; name: string };
 type ResultItem = {
@@ -50,7 +50,7 @@ export default function SocJobDetail({ job }: { job: Job }) {
   const notRead = stillReading && !job.majorItems.length;
 
   return <div className="flex flex-col gap-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><h1 className="mt-2 font-display text-[28px] font-bold">{job.title}</h1><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <SocTrashJobButton jobId={job.id} title={job.title} goToList /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href="/soc" className="text-xs text-muted no-underline hover:underline">← งานตรวจ SOC</Link><JobTitle jobId={job.id} title={job.title} canRename={job.canTrash} /><p className="mt-1 text-sm text-muted">เจ้าของงาน: {job.ownerName}</p></div><div className="flex items-center gap-2">{job.canTrash ? <SocTrashJobButton jobId={job.id} title={job.title} goToList /> : null}<span className="rounded-full bg-chip px-4 py-2 text-sm font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></div></div>
     {imported && !notRead ? <>{stillReading ? <JobProgress job={job} /> : null}{job.socWarnings.length ? <SocWarnings warnings={job.socWarnings} /> : null}<MajorItemsPanel jobId={job.id} excelSoc={job.excelSoc} items={job.majorItems} currentSkillVersion={job.currentSkillVersion} viewerId={job.viewerId} viewerIsAdmin={job.viewerIsAdmin} reading={stillReading} /><DocumentsPanel jobId={job.id} documents={job.documents} /><SocReviewPanel jobId={job.id} items={job.majorItems} rows={job.reviewRows} /></> : <JobProgress job={job} />}
     {job.status === "FAILED" ? <FailurePanel job={job} /> : null}
     {outputs.length ? <section className="rounded-card bg-surface p-5 shadow-card"><h2 className="font-display font-semibold">ไฟล์ผลลัพธ์</h2><div className="mt-3 flex flex-wrap gap-3">{outputs.map((doc) => <a key={doc.id} href={`/api/soc/documents/${doc.id}`} target={doc.type === "PREVIEW" ? "_blank" : undefined} className="rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">{doc.type === "PREVIEW" ? "เปิดตัวอย่าง PDF" : "ดาวน์โหลด DOCX"}</a>)}</div></section> : null}
@@ -155,6 +155,40 @@ function MajorItemRow({ jobId, excelSoc, item, viewerId, viewerIsAdmin, open, on
     <tr className={`border-t border-line ${item.skipped ? "text-muted" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>{majorItemName(item.label)}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจ${majorItemName(item.label)} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" onClick={() => writeStoredFlag(OPEN_DOCUMENTS_KEY, true)} className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} item={item} requestId={request.id} /> : null}{canResumeNow ? <ResumeNowButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} excelSoc={excelSoc} onDone={onDone} /></td></tr> : null}
   </>;
+}
+
+// The Job Title, with a pencil for the owner or an ADMIN to rename it. A title
+// another live job already has is refused with the message from the server.
+function JobTitle({ jobId, title, canRename }: { jobId: string; title: string; canRename: boolean }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+  function start() { setDraft(title); setError(""); setEditing(true); }
+  function save() {
+    startTransition(async () => {
+      try {
+        const result = await renameSocJobAction(jobId, draft);
+        if (!result.ok) { setError(result.error); return; }
+        setEditing(false);
+        router.refresh();
+      } catch {
+        setError("บันทึกไม่สำเร็จ กรุณาลองใหม่");
+      }
+    });
+  }
+  if (!editing) {
+    return <div className="mt-2 flex items-center gap-2"><h1 className="font-display text-[28px] font-bold">{title}</h1>{canRename ? <button type="button" onClick={start} className="ui-btn rounded-input px-2 py-1 text-sm text-muted hover:bg-hover" title="แก้ชื่อโครงการ" aria-label="แก้ชื่อโครงการ">✎</button> : null}</div>;
+  }
+  return <form className="mt-2" onSubmit={(event) => { event.preventDefault(); save(); }}>
+    <div className="flex flex-wrap items-center gap-2">
+      <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={SOC_TITLE_MAX} autoFocus aria-label="ชื่อโครงการ" aria-invalid={Boolean(error)} className="min-w-[260px] rounded-input border border-line bg-surface px-3 py-2 text-lg font-semibold" />
+      <Button size="sm" type="submit" disabled={pending}>{pending ? "กำลังบันทึก…" : "บันทึก"}</Button>
+      <Button size="sm" variant="outline" type="button" disabled={pending} onClick={() => setEditing(false)}>ยกเลิก</Button>
+    </div>
+    {error ? <p role="alert" className="mt-1.5 text-xs text-danger">{error}</p> : null}
+  </form>;
 }
 
 // ไม่ต้องตรวจ / ตรวจข้อนี้: sets the item aside from ตรวจทั้งชุด and the

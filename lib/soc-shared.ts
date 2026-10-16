@@ -297,3 +297,13 @@ export const SPLIT_MAJOR_ITEM_ROWS = 60;
 // = imported before splitting, no warning.
 export const isLargeUnsplitMajorItem = (item: { groupLabel: string | null; rowCount: number | null }) =>
   !item.groupLabel && (item.rowCount ?? 0) > SPLIT_MAJOR_ITEM_ROWS;
+
+// Job Title (docs/SOC-DOMAIN-GLOSSARY.md): two titles are the same when they
+// match after trimming, collapsing runs of spaces and ignoring letter case.
+export const SOC_TITLE_MAX = 160;
+export const SOC_TITLE_INVALID = `กรุณาระบุชื่อโครงการไม่เกิน ${SOC_TITLE_MAX} ตัวอักษร`;
+export const SOC_TITLE_TAKEN = "ชื่อนี้ถูกใช้แล้ว กรุณาตั้งชื่ออื่น";
+
+export function normalizeSocTitle(title: string): string {
+  return title.replace(/\s+/g, " ").trim().toLowerCase();
+}
