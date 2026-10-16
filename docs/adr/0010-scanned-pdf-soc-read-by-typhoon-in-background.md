@@ -22,6 +22,20 @@ Decided 2026-10-16. A scanned PDF SOC is accepted at upload. The server cuts the
 - There is no per-row human confirmation. The job warns on item-number gaps or duplicates, empty TOR cells and doubled words. The review page opens the source page.
 - Before upload the user must confirm each time that the file goes to an external OCR service ("ไฟล์นี้จะส่งไป OCR ภายนอก").
 
+## Amendment 2026-10-16: pace, and checking while the read is still running
+
+The user asked for a read of 30 minutes or less (5-10 minutes would be very good) with very high accuracy, with no payment possible, no way to get a higher Typhoon limit, no GPU on the server, and no willingness to spend Claude quota on reading. Measured the same day on the 237-cell prototype set:
+
+- Typhoon accepts about 32 cells per minute (456 s with 2 parallel calls, 440 s with 4, identical text), more than the 20 per minute it documents. USO (about 1,991 non-empty cells) therefore takes about 62 minutes, not 99. Parallel calls do not help. 30 minutes would need at most about 960 calls.
+- Rejected after measuring against the Typhoon cells (which are 171 of 181 identical to Sonnet): RapidOCR and EasyOCR on CPU (55% and 48% lenient match; they agree on only 33% of cells, all short boilerplate), Gemini 3.8 Flash on whole pages (90%; rewrote one TOR sentence, dropped a tick box; free tier is 20 requests per day and Google may train on unpaid input), Haiku 5.5 on the Runner (93%; swapped "ผู้ว่าจ้าง" for "ผู้รับจ้าง" in one sentence; about 34% cheaper than Sonnet, so about 50 points per file). Details: `.scratch/soc-scanned-pdf/RESEARCH-thai-ocr-options.md`.
+
+Decisions:
+
+- The call pace is a setting (default 30 per minute) instead of a fixed 20. A rate-limit answer already backs off and retries, so if Typhoon starts enforcing 20 the read slows to about 99 minutes and does not fail.
+- The rule "check buttons stay off until the whole file is read" is replaced: a major item can be checked once all of its rows are read, while later pages are still being read. The reviewer starts within minutes; the whole file still finishes in about 62 minutes. An item that may continue on a page not yet read is not ready.
+- Not done, for now: a local OCR engine that skips Typhoon calls for repeated boilerplate offer cells (would save about 20 minutes, needs Python and onnxruntime on the production server). Revisit if the live run shows the read is much longer than 40 minutes.
+- Accuracy stays as measured (about 1% real errors), with the source page one click away on the review page and the quality warnings. TOR and offer cells are the ones where a doubtful reading matters most, so a later change may re-read only cells that trigger a warning.
+
 ## Consequences
 
 - Bid documents leave the company network for Typhoon (SCB 10X). The user confirmed on 2026-10-15 that this is allowed. Typhoon's data retention terms were NOT found in its public docs; ask contact@opentyphoon.ai before relying on them. No daily or monthly cap is documented.

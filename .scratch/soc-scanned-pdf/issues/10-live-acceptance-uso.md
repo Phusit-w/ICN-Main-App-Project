@@ -7,7 +7,7 @@
 **Status:** ready-for-human
 
 - [ ] Upload `uso.pdf` (85 pages); the OCR notice appears and the job shows "กำลังอ่านตาราง" with progress
-- [ ] The read finishes in about 100 minutes with about 838 rows and the check buttons turn on
+- [ ] The read finishes with about 838 rows and the check buttons turn on. Expected about 99 minutes at the old fixed 20 per minute, about 62 minutes after ticket 11. Record the real time, the number of cells sent, and how many calls were rate-limited: this decides whether the local-OCR shortcut (ADR 0010 amendment) is worth doing
 - [ ] Pages 7 and 30 keep their inner table as multi-line text in one cell
 - [ ] A sample of rows matches the Sonnet read from the prototype (prototype baseline: 171 of 181 cells identical)
 - [ ] Warnings (item gaps, empty TOR, doubled words) are sensible, not noisy
