@@ -110,3 +110,29 @@ test("a failure of the cell reader reaches the caller as it is, not as a damaged
   const pages = [scan([["๑.๑ กล้อง", "CASRI", "หน้า 3", ""]])];
   await assert.rejects(convertPdfSoc(buildTablePdf(pages), { readCell: async () => { throw new Error("Typhoon down"); } }), { message: "Typhoon down" });
 });
+
+const warningsOf = async (pages: TablePage[]) => (await convertPdfSoc(buildTablePdf(pages), { readCell: fakeReader(pages).readCell })).warnings;
+
+test("a clean scanned read has no quality warnings", async () => {
+  assert.deepEqual(await warningsOf([scan([["๑.๑ กล้อง", "CASRI", "หน้า 3", ""], ["๑.๒ เซนเซอร์", "IMX585", "หน้า 9", ""], ["๒.๑ ตู้", "ตามที่กำหนด", "หน้า 4", ""]])]), []);
+});
+
+test("a missing item number and a repeated one are named", async () => {
+  const warnings = await warningsOf([scan([["๑.๑ ก", "x", "", ""], ["๑.๓ ข", "x", "", ""]]), scan([["๑.๓ ค", "x", "", ""], ["๑.๔ ง", "x", "", ""]])]);
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /ขาด.*๑\.๒/);
+  assert.match(warnings[1], /ซ้ำ.*๑\.๓/);
+});
+
+test("a row whose TOR cell came out empty is named with its page", async () => {
+  const warnings = await warningsOf([scan([["๑.๑ ก", "x", "", ""]]), scan([["", "CASRI", "หน้า 3", ""]])]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /TOR ว่าง.*หน้า 2/);
+});
+
+test("a word said twice in a row in a cell is named", async () => {
+  const warnings = await warningsOf([scan([["๑.๑ กล้องกล้อง PTZ", "x", "", ""], ["๑.๒ camera camera", "x", "", ""], ["๑.๓ ปกติ", "x", "", ""]])]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /คำซ้ำ.*ข้อ ๑\.๑.*ข้อ ๑\.๒/);
+  assert.doesNotMatch(warnings[0], /๑\.๓/);
+});

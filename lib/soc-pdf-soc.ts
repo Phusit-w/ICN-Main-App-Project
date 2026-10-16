@@ -31,6 +31,7 @@
 // TOR cells of text pages are counted into a warning, not read.
 import ExcelJS from "exceljs";
 import * as mupdf from "mupdf";
+import { scanQualityWarnings } from "@/lib/soc-scan-quality";
 import { cutScannedPage, type ScannedTable } from "@/lib/soc-scan-grid";
 import { findSocHeader, type SocColumns, type SocGrid } from "@/lib/soc-table-excel";
 
@@ -79,7 +80,7 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { rea
   } catch {
     throw new Error(UNREADABLE_PDF);
   }
-  const rows: { cells: Partial<Record<Role, string>>; page: number; figure?: Uint8Array }[] = [];
+  const rows: { cells: Partial<Record<Role, string>>; page: number; scanned: boolean; figure?: Uint8Array }[] = [];
   const named = new Set<Role>();
   const scannedPages: number[] = []; // scans that are skipped
   const uncutPages: number[] = []; // scans whose grid can't be cut
@@ -155,7 +156,7 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { rea
         });
         if (Object.keys(cells).length) {
           const figure = table.figures?.find((cell) => cell.row === row && roleAt(table.columnEdges[cell.column]) === "tor");
-          rows.push({ cells, page: index + 1, ...(figure ? { figure: figure.image } : {}) });
+          rows.push({ cells, page: index + 1, scanned: Boolean(scan), ...(figure ? { figure: figure.image } : {}) });
         }
       }
       torImages += table.images.filter((image) => image.row >= first && roleAt(table.columnEdges[image.column]) === "tor").length;
@@ -187,6 +188,10 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { rea
       if (item) cells.item = item;
     }
   }
+
+  warnings.push(...scanQualityWarnings(rows.filter((row) => row.scanned).map(({ cells, page, figure }) => ({
+    item: cells.item, tor: cells.tor, page, figure: Boolean(figure), text: [cells.tor, cells.proposal, cells.reference, cells.remark].filter((t): t is string => Boolean(t)),
+  }))));
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("SOC");

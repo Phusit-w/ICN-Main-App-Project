@@ -4,10 +4,14 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-16)
 
-- [ ] A missing item number in a sequence and a repeated item number each produce a warning that names them
-- [ ] A row whose TOR cell is empty produces a warning that names the row and page
-- [ ] A cell with a word repeated twice in a row produces a warning
-- [ ] A clean read produces none of these warnings
-- [ ] Tests use the fake cell reader with crafted answers
+- [x] A missing item number in a sequence and a repeated item number each produce a warning that names them
+- [x] A row whose TOR cell is empty produces a warning that names the row and page
+- [x] A cell with a word repeated twice in a row produces a warning
+- [x] A clean read produces none of these warnings
+- [x] Tests use the fake cell reader with crafted answers
+
+## Comments
+
+- 2026-10-16: Done. lib/soc-scan-quality.ts (pure), called at the end of convertPdfSoc for rows of scanned pages only; warnings join the upload warnings. Item gaps/repeats are checked per parent (siblings between first and last seen). Tests in lib/soc-pdf-soc-scan.test.ts (4 new). Full suite 323 pass.
