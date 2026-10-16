@@ -15,9 +15,11 @@ import type { CellReader } from "@/lib/soc-pdf-soc";
 const skip = setupTestDatabase();
 
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
-mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => null } });
+let signedIn: Awaited<ReturnType<typeof user>> | null = null;
+mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signedIn } });
 
 const { createImportedSocJob, OCR_CONFIRM_REQUIRED, resumeScanReads, startScanRead, listSocJobs, cancelScanRead, stopScanRead, resumeFailedScanRead } = await import("@/lib/soc");
+const { GET: socPdfPageRoute } = await import("@/app/api/soc/jobs/[id]/soc-rows/[row]/pdf-page/route");
 const { deleteTrashedSocJob } = await import("@/lib/soc-trash");
 const { convertPdfSoc } = await import("@/lib/soc-pdf-soc");
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
@@ -311,4 +313,28 @@ test("resuming needs the OCR key", { skip }, async () => {
   assert.equal((await job(id)).status, "READ_FAILED");
   await assert.rejects(resumeFailedScanRead(id), /TYPHOON_API_KEY/);
   assert.equal((await job(id)).status, "READ_FAILED");
+});
+
+test("the review page's ดูหน้า PDF SOC shows the scanned page a row was read from, to whoever may open the job", { skip }, async () => {
+  const owner = await user("page-owner");
+  signedIn = owner;
+  const reader = fakeReader();
+  const jobId = await createImportedSocJob(owner, { title: "USO", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [{ name: "Brochure.pdf", bytes: PDF }] }, { readCell: reader.readCell, ocrConfirmed: true });
+  await startScanRead(jobId, reader.readCell);
+  assert.equal((await job(jobId)).status, "NEEDS_REVIEW");
+
+  const page = (row: string, item: string) => socPdfPageRoute(new Request(`http://test/api/soc/jobs/${jobId}/soc-rows/${row}/pdf-page?item=${encodeURIComponent(item)}`), { params: Promise.resolve({ id: jobId, row }) });
+  const bytes = async (response: Response) => new Uint8Array(await response.arrayBuffer());
+  const first = await page("2", "๑.๑");
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get("content-type"), "image/png");
+  const firstBytes = await bytes(first);
+  assert.deepEqual([...firstBytes.slice(1, 4)], [0x50, 0x4e, 0x47]);
+  assert.notDeepEqual(await bytes(await page("4", "๒.๑")), firstBytes, "a row of page 2 shows page 2");
+  assert.equal((await page("3", "9.9")).status, 404, "a row the SOC doesn't have");
+
+  signedIn = await prisma.user.create({ data: { username: "no-soc-scan", displayName: "no-soc-scan", passwordHash: "x", role: "USER", appAccess: [] } });
+  assert.equal((await page("2", "๑.๑")).status, 403);
+  signedIn = null;
+  assert.equal((await page("2", "๑.๑")).status, 401);
 });
