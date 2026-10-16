@@ -369,10 +369,28 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
   </section>;
 }
 
-function JobProgress({ job }: { job: Job }) {
+// ยกเลิกการอ่าน of a scanned PDF SOC: stops the OCR; the cells read so far are kept.
+function CancelReadButton({ jobId }: { jobId: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}{job.status === "READING" && job.canTrash ? <Button className="mt-4" variant="outline" size="sm" disabled={pending} onClick={() => startTransition(async () => { await cancelSocRead(job.id); router.refresh(); })}>ยกเลิกการอ่าน</Button> : null}</section>;
+  const [busy, setBusy] = useState(false);
+  const [dialog, confirm] = useConfirmDialog();
+  async function cancel() {
+    if (!(await confirm({ title: "ยกเลิกการอ่านตาราง?", message: "การอ่านจะหยุดทันที เซลล์ที่อ่านไปแล้วยังเก็บไว้ อ่านต่อภายหลังได้", confirmLabel: "ยืนยันยกเลิก", cancelLabel: "ไม่ยกเลิก", danger: true }))) return;
+    setBusy(true);
+    try {
+      await cancelSocRead(jobId);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "ยกเลิกการอ่านไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      router.refresh();
+      setBusy(false);
+    }
+  }
+  return <>{dialog}<Button className="mt-4" variant="outline" size="sm" disabled={busy} onClick={cancel}>{busy ? "กำลังยกเลิก…" : "ยกเลิกการอ่าน"}</Button></>;
+}
+
+function JobProgress({ job }: { job: Job }) {
+  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}{job.status === "READING" && job.canTrash ? <CancelReadButton jobId={job.id} /> : null}</section>;
 }
 
 function StatusPill({ status }: { status: string }) {
