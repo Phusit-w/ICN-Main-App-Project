@@ -25,6 +25,8 @@ export async function continueSocCheckWithoutMissing(jobId: string, majorItemId:
 
 export async function requestAllSocChecks(jobId: string) {
   const { actor, job } = await authorizeSocJob(jobId);
+  // A scanned PDF SOC still being read has only its first items; ตรวจทั้งชุด waits for the whole table.
+  if (job.status === "READING" || job.status === "READ_FAILED") return { ok: false as const, error: "ตรวจทั้งชุดได้เมื่ออ่านตารางครบทั้งไฟล์ ตอนนี้ตรวจรายข้อที่อ่านแล้วได้" };
   const result = await requestAllUncheckedChecks(actor, job);
   revalidatePath(`/soc/${jobId}`);
   return result;

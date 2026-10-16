@@ -52,7 +52,8 @@ export async function updateSocResult(input: {
 export async function decideSocRow(input: { jobId: string; resultId: string; decision: string; note: string }) {
   const { actor, job } = await authorizeSocJob(input.jobId);
   if (job.kind !== "IMPORTED") throw new Error("ตั้ง Final Decision ได้เฉพาะงานนำเข้าผล");
-  if (job.status !== "NEEDS_REVIEW") throw new Error("งานนี้ไม่ได้อยู่ในขั้นตรวจทาน");
+  // A scanned PDF SOC still being read (or stopped half way) has results on the items already read.
+  if (job.status !== "NEEDS_REVIEW" && job.status !== "READING" && job.status !== "READ_FAILED") throw new Error("งานนี้ไม่ได้อยู่ในขั้นตรวจทาน");
   if (!isSocFinalDecision(input.decision)) throw new Error(`Final Decision ต้องเป็น ${Object.values(SOC_FINAL_DECISION_LABELS).join(", ")}`);
   const note = input.note.trim();
   if (note.length > SOC_REVIEW_NOTE_MAX) throw new Error(`หมายเหตุต้องไม่เกิน ${SOC_REVIEW_NOTE_MAX.toLocaleString("en-US")} ตัวอักษร`);

@@ -111,6 +111,38 @@ test("a failure of the cell reader reaches the caller as it is, not as a damaged
   await assert.rejects(convertPdfSoc(buildTablePdf(pages), { readCell: async () => { throw new Error("Typhoon down"); } }), { message: "Typhoon down" });
 });
 
+test("rows read so far are offered every few pages: each is the beginning of the final sheet, with the item numbers filled in", async () => {
+  const pages = [1, 2, 3, 4, 5, 6, 7].map((p) => scan([[`๑.${p} กล้อง ${p}`, "CASRI", `หน้า ${p}`, ""], [`๑.${p}.๑ เลนส์`, "ตามที่กำหนด", "", ""]]));
+  const partials: { rows: (string | null)[][]; rowPages: number[]; annex: boolean }[] = [];
+  const converted = await convertPdfSoc(buildTablePdf(pages), {
+    readCell: fakeReader(pages).readCell,
+    partialEvery: 3,
+    onPartial: async (p) => { partials.push({ rows: (await sheetOf(p.xlsx)).rows, rowPages: p.rowPages, annex: p.annex }); },
+  });
+  const final = (await sheetOf(converted.xlsx)).rows;
+  assert.equal(partials.length, 2); // before page 4 and before page 7, not at the end
+  assert.deepEqual(partials.map((p) => p.rowPages.length), [6, 12]);
+  for (const p of partials) {
+    assert.deepEqual(p.rows, final.slice(0, p.rows.length));
+    assert.ok(p.rows.slice(1).every((row) => row[0]), "every row has its item number, also before the last page is read");
+    assert.equal(p.annex, false);
+  }
+  assert.equal(final.length, 15);
+  assert.equal(final[14][0], "๑.7.๑");
+});
+
+test("a ผนวก heading among the rows so far is reported, because the major items then depend on rows not read yet", async () => {
+  const pages = [1, 2, 3, 4].map((p) => scan([[p === 2 ? "ผนวก 7 ข้อกำหนด" : `๑.${p} กล้อง`, "CASRI", "", ""]]));
+  const flags: boolean[] = [];
+  await convertPdfSoc(buildTablePdf(pages), { readCell: fakeReader(pages).readCell, partialEvery: 1, onPartial: async (p) => { flags.push(p.annex); } });
+  assert.deepEqual(flags, [false, true, true]);
+});
+
+test("a failure of onPartial reaches the caller as it is", async () => {
+  const pages = [1, 2, 3].map((p) => scan([[`๑.${p} กล้อง`, "CASRI", "", ""]]));
+  await assert.rejects(convertPdfSoc(buildTablePdf(pages), { readCell: fakeReader(pages).readCell, partialEvery: 1, onPartial: async () => { throw new Error("stop"); } }), { message: "stop" });
+});
+
 const warningsOf = async (pages: TablePage[]) => (await convertPdfSoc(buildTablePdf(pages), { readCell: fakeReader(pages).readCell })).warnings;
 
 test("a clean scanned read has no quality warnings", async () => {

@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
-import { convertPdfSoc, hasScannedTable, type CellReader } from "@/lib/soc-pdf-soc";
+import { convertPdfSoc, hasScannedTable, type CellReader, type PartialPdfSoc } from "@/lib/soc-pdf-soc";
 import { readScannedSoc } from "@/lib/soc-scan-read";
 import { typhoonCellReader, typhoonConfigured } from "@/lib/soc-typhoon";
 import { assertSocFile, isPdfFile, readSocTable } from "@/lib/soc-table";
@@ -253,10 +253,48 @@ export async function resumeScanReads(readCell = defaultCellReader()) {
   for (const { id } of jobs) void startScanRead(id, readCell);
 }
 
+// While a scanned PDF is still being read (ADR 0010 amendment), the major items
+// whose rows are all read can already be checked: the sheet of the rows read so
+// far is stored as the job's SOC (its rows are the beginning of the final
+// sheet, same row numbers) and those items are made. Every major item but the
+// last is complete, because the last may go on in pages not read yet. A SOC
+// divided into ผนวก waits for the full read: its items depend on all of it.
+// Returns the storage key of the SOC file it replaced, for the caller to delete when the read is done.
+async function publishReadSoFar(jobId: string, sourceName: string, partial: PartialPdfSoc): Promise<string | null> {
+  if (partial.annex) return null;
+  let table: ReturnType<typeof readSocTable>;
+  try {
+    table = readSocTable(partial.xlsx);
+  } catch {
+    return null; // nothing that reads as a SOC table yet
+  }
+  const ready = table.majorItems.slice(0, -1);
+  const have = await prisma.socMajorItem.count({ where: { jobId } });
+  if (ready.length <= have) return null;
+  const stored = await storeSocFile(jobId, sourceName.replace(/(\.[^.\/]*)?$/, ".xlsx"), table.file.extension, partial.xlsx);
+  try {
+    const current = await prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
+    const written = await prisma.$transaction([
+      current
+        ? prisma.socDocument.updateMany({ where: { id: current.id }, data: { mimeType: table.file.mimeType, ...stored } })
+        : prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: table.file.mimeType, ...stored } }),
+      prisma.socMajorItem.createMany({ data: ready.slice(have).map((item, i) => ({ jobId, ...item, position: have + i + 1 })) }),
+      prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data: { socRowPages: partial.rowPages } }),
+    ]);
+    if (!(written[2] as { count: number }).count) throw STOP_READING; // the job is no longer being read
+    return current?.storageKey ?? null;
+  } catch (error) {
+    await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
 // Turns a READING job into an ordinary Excel SOC job: the .xlsx made from the
 // scanned PDF becomes its SOC, the major items are made, checks come on.
+// Major items made on the way (publishReadSoFar) and what was checked on them are kept.
 async function finishScanRead(jobId: string, readCell: CellReader, run: ScanRun) {
   let stored: Awaited<ReturnType<typeof storeSocFile>> | undefined;
+  const replaced: string[] = []; // SOC files of the rows-so-far, deleted once the full one is in
   try {
     const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { documents: { where: { type: "SOC_SOURCE_PDF" } } } });
     const source = job?.documents[0];
@@ -274,6 +312,11 @@ async function finishScanRead(jobId: string, readCell: CellReader, run: ScanRun)
         const updated = await prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data }).catch(() => ({ count: 1 }));
         if (!updated.count) throw STOP_READING;
       },
+      async (partial) => {
+        if (run.stopped) throw STOP_READING;
+        const previous = await publishReadSoFar(jobId, source.originalName, partial);
+        if (previous) replaced.push(previous);
+      },
     );
     if (run.stopped) throw STOP_READING; // a cancel that came with the last cell wins
     const { file, majorItems, warnings: tableWarnings } = readSocTable(pdfSoc.xlsx);
@@ -281,15 +324,32 @@ async function finishScanRead(jobId: string, readCell: CellReader, run: ScanRun)
     const warnings = [...pdfSoc.warnings, ...tableWarnings];
     const name = source.originalName.replace(/(\.[^.\/]*)?$/, ".xlsx");
     stored = await storeSocFile(jobId, name, file.extension, pdfSoc.xlsx);
+    const made = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+    const current = await prisma.socDocument.findFirst({ where: { jobId, type: "SOC" }, orderBy: { createdAt: "asc" } });
+    // An item made on the way is complete, so it should come out the same. If the full read says otherwise
+    // its numbers are brought up to date, and the reviewer is told when it was already checked.
+    const changed = made.flatMap((item, i) => {
+      const final = majorItems[i];
+      if (!final || (final.key === item.key && final.rowCount === item.rowCount)) return [];
+      return [{ item, final }];
+    });
+    for (const { item } of changed) if (item.state !== "not_checked") warnings.push(`ข้อ ${item.label} เปลี่ยนไปหลังอ่านตารางครบทั้งไฟล์ ผลตรวจที่มีอยู่อาจไม่ตรงกับแถวใหม่ กรุณาตรวจข้อนี้ซ้ำ`);
     await prisma.$transaction([
       prisma.socJob.update({
         where: { id: jobId },
         data: { status: "NEEDS_REVIEW", stage: "รอตรวจข้อใหญ่", progress: 0, errorMessage: null, socWarnings: warnings.length ? warnings : undefined, socRowPages: pdfSoc.rowPages },
       }),
-      prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: file.mimeType, ...stored } }),
-      prisma.socMajorItem.createMany({ data: majorItems.map((item, i) => ({ jobId, ...item, position: i + 1 })) }),
-      prisma.socAuditEvent.create({ data: { jobId, actorId: job.ownerId, action: "READ_COMPLETED", detail: { majorItemCount: majorItems.length } } }),
+      current
+        ? prisma.socDocument.update({ where: { id: current.id }, data: { mimeType: file.mimeType, ...stored } })
+        : prisma.socDocument.create({ data: { jobId, type: "SOC", mimeType: file.mimeType, ...stored } }),
+      ...changed.map(({ item, final }) => prisma.socMajorItem.update({
+        where: { id: item.id },
+        data: { key: final.key, label: final.label, title: final.title, rowCount: final.rowCount, imageRowCount: final.imageRowCount, groupLabel: final.groupLabel, groupTitle: final.groupTitle },
+      })),
+      prisma.socMajorItem.createMany({ data: majorItems.slice(made.length).map((item, i) => ({ jobId, ...item, position: made.length + i + 1 })) }),
+      prisma.socAuditEvent.create({ data: { jobId, actorId: job.ownerId, action: "READ_COMPLETED", detail: { majorItemCount: majorItems.length, madeWhileReading: made.length } } }),
     ]);
+    for (const key of [...replaced, ...(current ? [current.storageKey] : [])]) await rm(resolveStorageKey(key), { force: true }).catch(() => undefined);
   } catch (error) {
     if (stored) await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
     if (error === STOP_READING) return;

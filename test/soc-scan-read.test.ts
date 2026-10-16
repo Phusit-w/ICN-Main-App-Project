@@ -22,7 +22,7 @@ const { createImportedSocJob, OCR_CONFIRM_REQUIRED, resumeScanReads, startScanRe
 const { GET: socPdfPageRoute } = await import("@/app/api/soc/jobs/[id]/soc-rows/[row]/pdf-page/route");
 const { deleteTrashedSocJob } = await import("@/lib/soc-trash");
 const { convertPdfSoc } = await import("@/lib/soc-pdf-soc");
-const { requestSocCheck } = await import("@/actions/socCheckRequests");
+const { requestSocCheck, requestAllSocChecks } = await import("@/actions/socCheckRequests");
 
 let storageRoot = "";
 before(async () => {
@@ -108,6 +108,50 @@ test("every cell is saved as it is read: a read that stopped goes on from the sa
   assert.equal((await job(jobId)).status, "NEEDS_REVIEW");
   assert.deepEqual(second.calls.filter((c) => first.calls.includes(c)), []);
   assert.equal(first.calls.length + second.calls.length, 17); // all cells with ink (4 + 1 + 4, 4 + 1 + 3), each read once
+});
+
+test("while the read goes on, the major items whose rows are all read can be checked, and what was done on them survives the end of the read", { skip }, async () => {
+  const owner = await user("owner-early");
+  signedIn = owner;
+  const ITEM_OF_PAGE = [1, 1, 2, 2, 3, 3, 4];
+  const pages = ITEM_OF_PAGE.map((n, i) => scan([[`${n}.${i + 1} รายการ ${i + 1}`, "ตามที่กำหนด", `หน้า ${i + 1}`, ""]]));
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let reachedPage6!: () => void;
+  const atPage6 = new Promise<void>((resolve) => { reachedPage6 = resolve; });
+  const readCell: CellReader = async (_image, at) => {
+    if (at.page === 6) { reachedPage6(); await held; } // five pages are read; the sixth waits
+    return pages[at.page - 1].raster!.rows[at.row][at.column];
+  };
+  const jobId = await createImportedSocJob(owner, { title: "Early", soc: { name: "SOC.pdf", bytes: buildTablePdf(pages) }, evidence: [] }, { readCell, ocrConfirmed: true });
+  await atPage6;
+
+  const midway = await prisma.socJob.findUniqueOrThrow({ where: { id: jobId }, include: { documents: true, majorItems: { orderBy: { position: "asc" } } } });
+  assert.equal(midway.status, "READING");
+  // Pages 1-5 are read: items ๑ and ๒ are complete; item ๓ may go on in the next page, so it is not made yet.
+  assert.deepEqual(midway.majorItems.map((m) => [m.key, m.rowCount]), [["1", 2], ["2", 2]]);
+  assert.deepEqual(midway.socRowPages, [1, 2, 3, 4, 5]);
+  const midSoc = midway.documents.filter((d) => d.type === "SOC");
+  assert.equal(midSoc.length, 1);
+  await requestSocCheck(jobId, midway.majorItems[0].id); // it can be checked while the rest is read
+  assert.equal((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: midway.majorItems[0].id } })).state, "requested");
+  const all = await requestAllSocChecks(jobId); // ตรวจทั้งชุด waits for the whole table
+  assert.equal(all.ok, false);
+  assert.equal((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: midway.majorItems[1].id } })).state, "not_checked");
+
+  release();
+  await startScanRead(jobId, readCell);
+  const done = await prisma.socJob.findUniqueOrThrow({ where: { id: jobId }, include: { documents: true, majorItems: { orderBy: { position: "asc" } } } });
+  assert.equal(done.status, "NEEDS_REVIEW");
+  assert.deepEqual(done.majorItems.map((m) => [m.key, m.rowCount, m.position]), [["1", 2, 1], ["2", 2, 2], ["3", 2, 3], ["4", 1, 4]]);
+  assert.deepEqual(done.majorItems.slice(0, 2).map((m) => m.id), midway.majorItems.map((m) => m.id)); // the same records
+  assert.equal(done.majorItems[0].state, "requested"); // and what was done on them is kept
+  const soc = done.documents.filter((d) => d.type === "SOC");
+  assert.equal(soc.length, 1);
+  assert.equal(soc[0].id, midSoc[0].id); // the same document, now the whole sheet
+  assert.notEqual(soc[0].storageKey, midSoc[0].storageKey);
+  assert.equal(await readFile(path.join(storageRoot, midSoc[0].storageKey)).then(() => true, () => false), false); // the rows-so-far file is gone
+  assert.deepEqual(done.socRowPages, [1, 2, 3, 4, 5, 6, 7]);
 });
 
 test("a PDF with no scanned table page never calls the cell reader; a scanned one needs the OCR key and the reviewer's confirm", { skip }, async () => {

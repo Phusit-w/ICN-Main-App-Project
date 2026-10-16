@@ -1,5 +1,5 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { convertPdfSoc, type CellReader, type PdfSoc } from "@/lib/soc-pdf-soc";
+import { convertPdfSoc, type CellReader, type PartialPdfSoc, type PdfSoc } from "@/lib/soc-pdf-soc";
 
 // Reads a scanned PDF SOC (ADR 0010) with every cell the reader returns saved
 // to `cellsFile` as it arrives (one JSON line per cell), so a read that stops
@@ -10,6 +10,7 @@ export async function readScannedSoc(
   cellsFile: string,
   readCell: CellReader,
   onPage?: (done: number, total: number) => void | Promise<void>,
+  onPartial?: (partial: PartialPdfSoc) => void | Promise<void>,
 ): Promise<PdfSoc> {
   const saved = await loadCells(cellsFile);
   const cached: CellReader = async (image, at) => {
@@ -20,7 +21,7 @@ export async function readScannedSoc(
     saved.set(key, text);
     return text;
   };
-  return convertPdfSoc(pdf, { readCell: cached, onPage });
+  return convertPdfSoc(pdf, { readCell: cached, onPage, onPartial });
 }
 
 async function loadCells(cellsFile: string) {

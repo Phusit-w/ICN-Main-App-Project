@@ -71,16 +71,32 @@ const SCAN_DRIFT = 15; // a scan's column line this close (points) to a known co
 // column in the page's table, header row first.
 export type CellReader = (image: Uint8Array, at: { page: number; row: number; column: number }) => Promise<string | null>;
 
+// The rows read from the first pages of a PDF while the rest is still being
+// read (ADR 0010 amendment): the sheet of those rows, which is the beginning
+// of the final sheet with the same row numbers. `annex` says a row starts a
+// ผนวก, which makes the major items depend on rows not read yet.
+export type PartialPdfSoc = { xlsx: Uint8Array; rowPages: number[]; annex: boolean };
+
+type SocRow = { cells: Partial<Record<Role, string>>; page: number; scanned: boolean; figure?: Uint8Array };
+const PARTIAL_EVERY_PAGES = 5;
+
 // Without `readCell` a scanned page is skipped. The reader's own errors pass through unchanged.
 // `onPage(done, total)` is called before each page is read, for progress.
-export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { readCell?: CellReader; onPage?: (done: number, total: number) => void | Promise<void> } = {}): Promise<PdfSoc> {
+// `onPartial` is called with the rows read so far every `partialEvery` pages
+// (not at the end); like the reader, its errors pass through unchanged.
+export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage, onPartial, partialEvery = PARTIAL_EVERY_PAGES }: {
+  readCell?: CellReader;
+  onPage?: (done: number, total: number) => void | Promise<void>;
+  onPartial?: (partial: PartialPdfSoc) => void | Promise<void>;
+  partialEvery?: number;
+} = {}): Promise<PdfSoc> {
   let document: mupdf.Document;
   try {
     document = mupdf.Document.openDocument(pdf, "application/pdf");
   } catch {
     throw new Error(UNREADABLE_PDF);
   }
-  const rows: { cells: Partial<Record<Role, string>>; page: number; scanned: boolean; figure?: Uint8Array }[] = [];
+  const rows: SocRow[] = [];
   const named = new Set<Role>();
   const scannedPages: number[] = []; // scans that are skipped
   const uncutPages: number[] = []; // scans whose grid can't be cut
@@ -94,6 +110,10 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { rea
     const pageCount = document.countPages();
     for (let index = 0; index < pageCount; index++) {
       try {
+        if (onPartial && index > 0 && index % partialEvery === 0 && rows.length && named.has("tor")) {
+          const { xlsx, rowPages } = await sheetOfRows(rows, named);
+          await onPartial({ xlsx, rowPages, annex: rows.some((row) => ANNEX_START.test(row.cells.tor ?? "")) });
+        }
         await onPage?.(index, pageCount);
       } catch (error) {
         readerError = error; // the caller's own error passes through, like the reader's
@@ -179,20 +199,34 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { rea
     ...(torImages ? [`มีรูป ${torImages} รูปในช่องข้อกำหนด TOR ของ PDF SOC ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
   ];
 
-  // No item column: each row's item number is the one its TOR text starts with,
-  // written into the item column and left in the text.
-  if (!named.has("item")) {
-    named.add("item");
-    for (const { cells } of rows) {
-      const item = cells.tor?.match(LEADING_ITEM)?.[0];
-      if (item) cells.item = item;
-    }
-  }
-
-  warnings.push(...scanQualityWarnings(rows.filter((row) => row.scanned).map(({ cells, page, figure }) => ({
+  const filled = withItems(rows, named);
+  warnings.push(...scanQualityWarnings(filled.rows.filter((row) => row.scanned).map(({ cells, page, figure }) => ({
     item: cells.item, tor: cells.tor, page, figure: Boolean(figure), text: [cells.tor, cells.proposal, cells.reference, cells.remark].filter((t): t is string => Boolean(t)),
   }))));
 
+  return { ...(await sheetOfRows(rows, named)), warnings };
+}
+
+// A ผนวก heading at the start of a TOR text (soc-major-items has the full rule).
+const ANNEX_START = /^(?:ภาค)?ผนวก\s*(?:ที่)?\s*[0-9๐-๙]/;
+
+// No item column: each row's item number is the one its TOR text starts with,
+// written into the item column and left in the text. Works on copies, so it
+// can be done on the rows so far and again on all of them.
+function withItems(rows: SocRow[], named: Set<Role>): { rows: SocRow[]; named: Set<Role> } {
+  if (named.has("item")) return { rows, named };
+  return {
+    named: new Set<Role>([...named, "item"]),
+    rows: rows.map((row) => {
+      const item = row.cells.tor?.match(LEADING_ITEM)?.[0];
+      return item ? { ...row, cells: { ...row.cells, item } } : row;
+    }),
+  };
+}
+
+// The generated sheet: a header row, then one row per SOC row.
+async function sheetOfRows(socRows: SocRow[], columns: Set<Role>): Promise<{ xlsx: Uint8Array; rowPages: number[] }> {
+  const { rows, named } = withItems(socRows, columns);
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("SOC");
   const written = COLUMN_NAMES.filter(([role]) => named.has(role));
@@ -208,7 +242,7 @@ export async function convertPdfSoc(pdf: Uint8Array, { readCell, onPage }: { rea
       sheet.addImage(image, { tl: { col: written.findIndex(([role]) => role === "tor"), row: added.number - 1 }, ext: { width: 120, height: 40 } });
     }
   }
-  return { xlsx: new Uint8Array(await workbook.xlsx.writeBuffer()), rowPages: rows.map((row) => row.page), warnings };
+  return { xlsx: new Uint8Array(await workbook.xlsx.writeBuffer()), rowPages: rows.map((row) => row.page) };
 }
 
 // A header's column names are matched with the spaces of their line breaks left out.
