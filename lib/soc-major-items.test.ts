@@ -90,6 +90,41 @@ test("a SOC with one table per ผนวก: the row is the one in that ผน�
   assert.equal(rowText(1, "8")?.tor, "ผนวก 8 Outdoor FDF");
 });
 
+// ผนวก ๒ with ๓ own items of 40 rows each, beside a small ผนวก ๓.
+const bigAnnexSoc = () => buildSocDocx([
+  ["", "ผนวก ๒ ข้อกำหนดทางเทคนิค", "", ""],
+  ...[1, 2, 3].flatMap((n) => [
+    [`${n}.`, `หัวข้อ ${n}`, "", ""],
+    ...Array.from({ length: 39 }, (_, i) => [`${n}.${i + 1}`, `ข้อ ${n}.${i + 1}`, "x", ""]),
+  ]),
+  ["", "ภาคผนวก ๓ อื่นๆ", "", ""],
+  ["1.", "รายการ", "", ""],
+]);
+
+test("a ผนวก over the split size is split into one major item per own item; a small ผนวก stays one", () => {
+  const items = readSocMajorItems(bigAnnexSoc());
+  assert.deepEqual(items.map(({ key, label, title, rowCount, groupLabel, groupTitle, skipped }) => ({ key, label, title, rowCount, groupLabel, groupTitle, skipped })), [
+    { key: "2.1", label: "๒.1", title: "หัวข้อ 1", rowCount: 41, groupLabel: "ผนวก ๒", groupTitle: "ข้อกำหนดทางเทคนิค", skipped: false },
+    { key: "2.2", label: "๒.2", title: "หัวข้อ 2", rowCount: 39 + 1, groupLabel: "ผนวก ๒", groupTitle: "ข้อกำหนดทางเทคนิค", skipped: false },
+    { key: "2.3", label: "๒.3", title: "หัวข้อ 3", rowCount: 40, groupLabel: "ผนวก ๒", groupTitle: "ข้อกำหนดทางเทคนิค", skipped: false },
+    { key: "3", label: "ผนวก ๓", title: "อื่นๆ", rowCount: 2, groupLabel: null, groupTitle: null, skipped: false },
+  ]);
+  assert.equal(items.slice(0, 3).reduce((n, m) => n + m.rowCount, 0), 121); // every row of the ผนวก, once
+});
+
+test("an item of a part of a split ผนวก belongs to that part only, and the ผนวก's heading to the first", () => {
+  assert.ok(isItemInMajorItem("2.2.5", { key: "2.2" }));
+  assert.ok(!isItemInMajorItem("2.3.5", { key: "2.2" }));
+  assert.ok(isItemInMajorItem("2", { key: "2.1" }, { takesGroupHeading: true }));
+  assert.ok(!isItemInMajorItem("3.2", { key: "2.2" }));
+});
+
+test("a row of a split ผนวก is still found by its row and its item", () => {
+  const rowText = socRowTexts(bigAnnexSoc());
+  assert.equal(rowText(51, "2.2.9")?.tor, "ข้อ 2.9"); // row 51 is the 9th item of the second part
+  assert.equal(rowText(123, "3.1")?.tor, "รายการ");
+});
+
 test("one row that mentions a ผนวก doesn't turn a numbered SOC into ผนวก items", () => {
   const soc = buildSocDocx([
     HEADER,

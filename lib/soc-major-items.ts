@@ -87,22 +87,47 @@ export function annexKeysOfRows(rows: string[][]): (string | null)[] | null {
 // A SOC divided into ผนวก (MEA Y69): at least two ผนวก heading rows. Its rows
 // number from 1 again in every ผนวก, so each ผนวก is a major item: key = the
 // ผนวก number, and a row's item is that number, then the row's own ("7.1").
-// Never split. Rows above the first ผนวก belong to no major item.
+// A ผนวก over SPLIT_MAJOR_ITEM_ROWS with two or more own items ("1.", "2." …)
+// is split into one major item per own item (key "7.2": items "7.2", "7.2.1"
+// …). Rows above the first ผนวก belong to no major item.
 function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean): SocMajorItemSpec[] | null {
   const headings = annexHeadingsOfRows(rows);
   if (!headings) return null;
-  const items = new Map<string, SocMajorItemSpec>();
-  let item: SocMajorItemSpec | null = null;
+  const annexes = new Map<string, MajorItemTally>();
+  let annex: MajorItemTally | null = null;
+  let part: ItemTally | null = null;
   for (const [index, heading] of headings.entries()) {
     if (heading) {
-      item = items.get(heading.key) ?? { ...heading, rowCount: 0, imageRowCount: 0, groupLabel: null, groupTitle: null, skipped: false };
-      items.set(heading.key, item);
+      annex = annexes.get(heading.key) ?? { ...heading, rowCount: 0, imageRowCount: 0, rowsBeforeSubs: 0, imagesBeforeSubs: 0, subs: new Map() };
+      annexes.set(heading.key, annex);
+      part = null;
     }
-    if (!item) continue;
-    item.rowCount += 1;
-    item.imageRowCount += isImageRow(index) ? 1 : 0;
+    if (!annex) continue;
+    // A part is the ผนวก's own item "4" (and "4.1" under it): the first segment of the row's number.
+    const segments = itemSegments(rows[index][0] || "");
+    if (segments) {
+      const partKey = `${annex.key}.${segmentKey(segments.slice(0, 1))}`;
+      part = annex.subs.get(partKey) ?? { key: partKey, label: `${annex.label.replace(/^ผนวก\s*/, "")}.${segments[0]}`, title: null, rowCount: 0, imageRowCount: 0 };
+      annex.subs.set(partKey, part);
+      if (segments.length === 1 && !part.title) part.title = rows[index].slice(1).find((t) => t)?.slice(0, MAX_TITLE) || null;
+    }
+    const image = isImageRow(index) ? 1 : 0;
+    annex.rowCount += 1;
+    annex.imageRowCount += image;
+    if (part) {
+      part.rowCount += 1;
+      part.imageRowCount += image;
+    } else {
+      annex.rowsBeforeSubs += 1;
+      annex.imagesBeforeSubs += image;
+    }
   }
-  return [...items.values()];
+  // A big ผนวก is split into its own items, as a big major item is (SPLIT_MAJOR_ITEM_ROWS); none is guessed ไม่ต้องตรวจ.
+  return [...annexes.values()].flatMap(({ rowsBeforeSubs, imagesBeforeSubs, subs, ...item }): SocMajorItemSpec[] => {
+    if (item.rowCount <= SPLIT_MAJOR_ITEM_ROWS || subs.size < 2) return [{ ...item, groupLabel: null, groupTitle: null, skipped: false }];
+    // The ผนวก's heading row and any row before its first item join the first part.
+    return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), imageRowCount: s.imageRowCount + (i === 0 ? imagesBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title, skipped: false }));
+  });
 }
 
 // The major items of a SOC, from every row of its tables in order (first cell
