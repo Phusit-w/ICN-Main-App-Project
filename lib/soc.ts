@@ -160,15 +160,37 @@ const STOP_READING = new Error("the job is no longer being read");
 
 // Scanned jobs are read one at a time, in the order they were started: the
 // OCR's rate limit is shared, so reading two at once would be no faster.
-// Kept on globalThis: the server's startup hook and its routes may load this module separately.
-const scanReads = ((globalThis as { socScanReads?: { queue: Promise<unknown>; running: Map<string, Promise<void>> } }).socScanReads ??= { queue: Promise.resolve(), running: new Map() });
+// `order` holds the jobs not finished yet, the one being read first; the
+// others show "รอคิวที่ N". Kept on globalThis: the server's startup hook and
+// its routes may load this module separately.
+type ScanReads = { queue: Promise<unknown>; running: Map<string, Promise<void>>; order: string[]; labels: Promise<unknown> };
+const scanReads = ((globalThis as { socScanReads?: ScanReads }).socScanReads ??= { queue: Promise.resolve(), running: new Map(), order: [] as string[], labels: Promise.resolve() });
+
+// Writes "รอคิวที่ N" on the waiting jobs (writes are one after another, each from the order as it is then).
+function labelScanQueue() {
+  scanReads.labels = scanReads.labels.then(async () => {
+    for (const [i, id] of scanReads.order.entries()) {
+      if (i === 0) continue;
+      await prisma.socJob.updateMany({ where: { id, status: "READING", deletedAt: null }, data: { stage: `รอคิวที่ ${i}` } }).catch(() => undefined);
+    }
+  });
+  return scanReads.labels;
+}
 
 // Reads the job's scanned PDF in the background (the work of a READING job).
 // Resolves when the job has been completed or failed; never rejects.
 export function startScanRead(jobId: string, readCell: CellReader): Promise<void> {
   const running = scanReads.running.get(jobId);
   if (running) return running;
-  const run = scanReads.queue.then(() => finishScanRead(jobId, readCell));
+  scanReads.order.push(jobId);
+  void labelScanQueue();
+  const run = scanReads.queue.then(async () => {
+    await scanReads.labels;
+    await prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data: { stage: READING_STAGE } }).catch(() => undefined);
+    await finishScanRead(jobId, readCell);
+    scanReads.order = scanReads.order.filter((id) => id !== jobId);
+    await labelScanQueue();
+  });
   scanReads.queue = run;
   scanReads.running.set(jobId, run);
   void run.finally(() => scanReads.running.delete(jobId));

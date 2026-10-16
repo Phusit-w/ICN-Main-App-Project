@@ -133,3 +133,60 @@ test("a job moved to the trash while it is read stops being read and is left as 
   assert.equal(left.errorMessage, null);
   assert.deepEqual(left.majorItems, []);
 });
+
+test("scanned jobs are read one at a time in upload order; a waiting job shows รอคิวที่ N and positions move up", { skip }, async () => {
+  const owner = await user("owner5");
+  let active = 0;
+  let peak = 0;
+  const first = fakeReader();
+  const release = first.holdUntil();
+  const second = fakeReader();
+  const third = fakeReader();
+  const watch = (reader: CellReader): CellReader => async (image, at) => {
+    active++;
+    peak = Math.max(peak, active);
+    try { return await reader(image, at); } finally { active--; }
+  };
+  const make = (title: string, readCell: CellReader) => createImportedSocJob(owner, { title, soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: watch(readCell) });
+  const a = await make("A", first.readCell);
+  const b = await make("B", second.readCell);
+  const c = await make("C", third.readCell);
+  const stage = async (id: string) => (await job(id)).stage;
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
+
+  await settle();
+  assert.ok((await stage(a)).startsWith("กำลังอ่านตาราง"));
+  assert.equal(await stage(b), "รอคิวที่ 1");
+  assert.equal(await stage(c), "รอคิวที่ 2");
+  assert.equal(second.calls.length + third.calls.length, 0);
+
+  release();
+  await startScanRead(a, first.readCell);
+  await settle();
+  assert.equal((await job(a)).status, "NEEDS_REVIEW");
+  await startScanRead(b, second.readCell);
+  await startScanRead(c, third.readCell);
+  assert.equal((await job(b)).status, "NEEDS_REVIEW");
+  assert.equal((await job(c)).status, "NEEDS_REVIEW");
+  assert.equal(peak, 1);
+});
+
+test("a failed job does not block the queue, and a restart picks the job up again", { skip }, async () => {
+  const owner = await user("owner6");
+  const broken = fakeReader({ failAfter: 0 });
+  const fine = fakeReader();
+  const a = await createImportedSocJob(owner, { title: "A", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: broken.readCell });
+  const b = await createImportedSocJob(owner, { title: "B", soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell: fine.readCell });
+  await startScanRead(a, broken.readCell);
+  await startScanRead(b, fine.readCell);
+  assert.equal((await job(a)).status, "READ_FAILED");
+  assert.equal((await job(b)).status, "NEEDS_REVIEW");
+
+  // A restart finds the failed job in READING again and reads it from the start of the queue.
+  await prisma.socJob.update({ where: { id: a }, data: { status: "READING" } });
+  const again = fakeReader();
+  await resumeScanReads(again.readCell);
+  await startScanRead(a, again.readCell);
+  assert.equal(again.calls.length, 17);
+  assert.equal((await job(a)).status, "NEEDS_REVIEW");
+});
