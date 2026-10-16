@@ -117,7 +117,7 @@ export async function trashSocJob(jobId: string) {
 export async function cancelSocRead(jobId: string) {
   const { actor, job } = await authorizeSocJobOwner(jobId);
   if (job.status !== "READING") throw new Error("ยกเลิกได้เฉพาะงานที่กำลังอ่านตาราง");
-  await cancelScanRead(jobId);
+  if (!(await cancelScanRead(jobId))) throw new Error("งานนี้อ่านตารางเสร็จแล้ว");
   await writeAudit({ actorId: actor.id, action: "SOC_READ_CANCELLED", entityType: "SOC_JOB", entityId: jobId, summary: `ยกเลิกการอ่านตาราง SOC ${job.title}` });
   revalidatePath(`/soc/${jobId}`); revalidatePath("/soc");
 }

@@ -163,8 +163,10 @@ const STOP_READING = new Error("the job is no longer being read");
 // `order` holds the jobs not finished yet, the one being read first; the
 // others show "รอคิวที่ N". Kept on globalThis: the server's startup hook and
 // its routes may load this module separately.
-type ScanReads = { queue: Promise<unknown>; running: Map<string, Promise<void>>; order: string[]; labels: Promise<unknown>; stopped: Set<string> };
-const scanReads = ((globalThis as { socScanReads?: ScanReads }).socScanReads ??= { queue: Promise.resolve(), running: new Map(), order: [] as string[], labels: Promise.resolve(), stopped: new Set<string>() });
+// One scheduled read of a job; a stop sets `stopped`, and `started` says the read has begun.
+type ScanRun = { promise: Promise<void>; stopped: boolean; started: boolean };
+type ScanReads = { queue: Promise<unknown>; running: Map<string, ScanRun>; order: string[]; labels: Promise<unknown> };
+const scanReads = ((globalThis as { socScanReads?: ScanReads }).socScanReads ??= { queue: Promise.resolve(), running: new Map(), order: [] as string[], labels: Promise.resolve() });
 
 // Writes "รอคิวที่ N" on the waiting jobs (writes are one after another, each from the order as it is then).
 function labelScanQueue() {
@@ -180,38 +182,45 @@ function labelScanQueue() {
 // Reads the job's scanned PDF in the background (the work of a READING job).
 // Resolves when the job has been completed or failed; never rejects.
 export function startScanRead(jobId: string, readCell: CellReader): Promise<void> {
-  const running = scanReads.running.get(jobId);
-  if (running) return running;
-  scanReads.stopped.delete(jobId);
+  const current = scanReads.running.get(jobId);
+  if (current && !current.stopped) return current.promise;
   scanReads.order.push(jobId);
   void labelScanQueue();
-  const run = scanReads.queue.then(async () => {
+  const run: ScanRun = { stopped: false, started: false, promise: Promise.resolve() };
+  run.promise = scanReads.queue.then(async () => {
+    if (run.stopped) return; // stopped while waiting: already out of the line
+    run.started = true;
     await scanReads.labels;
     await prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data: { stage: READING_STAGE } }).catch(() => undefined);
-    await finishScanRead(jobId, readCell);
+    await finishScanRead(jobId, readCell, run);
     scanReads.order = scanReads.order.filter((id) => id !== jobId);
     await labelScanQueue();
   });
-  scanReads.queue = run;
+  scanReads.queue = run.promise;
   scanReads.running.set(jobId, run);
-  void run.finally(() => scanReads.running.delete(jobId));
-  return run;
+  void run.promise.finally(() => { if (scanReads.running.get(jobId) === run) scanReads.running.delete(jobId); });
+  return run.promise;
 }
 
 // Stops reading the job: no new cell is sent to the OCR once this returns
-// (a call already sent is waited for); a job still waiting leaves the queue.
-// The cells already read stay on disk.
+// (a call already sent is waited for). A job still waiting leaves the line at
+// once and the jobs behind it move up. The cells already read stay on disk.
 export async function stopScanRead(jobId: string) {
-  const running = scanReads.running.get(jobId);
-  if (!running) return;
-  scanReads.stopped.add(jobId);
-  await running;
+  const run = scanReads.running.get(jobId);
+  if (!run || run.stopped) return;
+  run.stopped = true;
+  if (run.started) return run.promise;
+  scanReads.order = scanReads.order.filter((id) => id !== jobId);
+  scanReads.running.delete(jobId);
+  await labelScanQueue();
 }
 
 // Cancel by the reviewer: the job stops and waits as "อ่านตารางไม่สำเร็จ" with its saved cells (resume is ticket 06).
+// Returns false when the job was no longer being read (it had just finished).
 export async function cancelScanRead(jobId: string) {
   await stopScanRead(jobId);
-  await prisma.socJob.updateMany({ where: { id: jobId, status: "READING" }, data: { status: "READ_FAILED", stage: "ยกเลิกการอ่านแล้ว", errorMessage: null } });
+  const { count } = await prisma.socJob.updateMany({ where: { id: jobId, status: "READING" }, data: { status: "READ_FAILED", stage: "ยกเลิกการอ่านแล้ว", errorMessage: null } });
+  return count > 0;
 }
 
 // Picks up the jobs a restart left in READING; their saved cells are not read again.
@@ -223,17 +232,17 @@ export async function resumeScanReads(readCell = defaultCellReader()) {
 
 // Turns a READING job into an ordinary Excel SOC job: the .xlsx made from the
 // scanned PDF becomes its SOC, the major items are made, checks come on.
-async function finishScanRead(jobId: string, readCell: CellReader) {
+async function finishScanRead(jobId: string, readCell: CellReader, run: ScanRun) {
   let stored: Awaited<ReturnType<typeof storeSocFile>> | undefined;
   try {
     const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { documents: { where: { type: "SOC_SOURCE_PDF" } } } });
     const source = job?.documents[0];
-    if (!job || job.status !== "READING" || job.deletedAt || !source || scanReads.stopped.has(jobId)) return;
+    if (!job || job.status !== "READING" || job.deletedAt || !source || run.stopped) return;
     const pdfSoc = await readScannedSoc(
       new Uint8Array(await readFile(resolveStorageKey(source.storageKey))),
       path.join(socStorageRoot(), jobId, "cells.jsonl"),
       (image, at) => {
-        if (scanReads.stopped.has(jobId)) throw STOP_READING;
+        if (run.stopped) throw STOP_READING;
         return readCell(image, at);
       },
       // Progress is best effort; a job that is no longer READING (moved to the trash) stops the read.
@@ -243,6 +252,7 @@ async function finishScanRead(jobId: string, readCell: CellReader) {
         if (!updated.count) throw STOP_READING;
       },
     );
+    if (run.stopped) throw STOP_READING; // a cancel that came with the last cell wins
     const { file, majorItems, warnings: tableWarnings } = readSocTable(pdfSoc.xlsx);
     if (!majorItems.length) throw new Error(NO_MAJOR_ITEMS);
     const warnings = [...pdfSoc.warnings, ...tableWarnings];

@@ -245,10 +245,10 @@ test("a queued job that is stopped leaves the queue, and later jobs move up", { 
   await a.entered;
   await new Promise((resolve) => setTimeout(resolve, 150));
   assert.equal((await job(idC)).stage, "รอคิวที่ 2");
-  const stopping = stopScanRead(idB);
+  await stopScanRead(idB); // returns at once although A is still held inside the OCR
+  assert.equal((await job(idC)).stage, "รอคิวที่ 1");
   a.go();
   await startScanRead(idA, a.readCell);
-  await stopping;
   await startScanRead(idC, c.readCell);
   assert.equal(b.calls.length, 0);
   assert.equal((await job(idB)).status, "READING");
