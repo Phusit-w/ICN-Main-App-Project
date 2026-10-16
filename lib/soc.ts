@@ -156,6 +156,7 @@ async function createReadingSocJob(actor: SocActor, input: { title: string; soc:
 }
 
 const READING_STAGE = "กำลังอ่านตาราง";
+const NO_OCR_KEY = "ยังไม่ได้ตั้งค่าบริการ OCR (TYPHOON_API_KEY) กรุณาแจ้งผู้ดูแลระบบ";
 const STOP_READING = new Error("the job is no longer being read");
 
 // Scanned jobs are read one at a time, in the order they were started: the
@@ -223,6 +224,16 @@ export async function cancelScanRead(jobId: string) {
   return count > 0;
 }
 
+// Resume by the reviewer: a READ_FAILED job (failed or cancelled) goes back to
+// READING and the read goes on from its saved cells. Returns false when the job
+// was not READ_FAILED (someone else resumed it first).
+export async function resumeFailedScanRead(jobId: string, readCell = defaultCellReader()) {
+  if (!readCell) throw new Error(NO_OCR_KEY);
+  const { count } = await prisma.socJob.updateMany({ where: { id: jobId, status: "READ_FAILED", deletedAt: null }, data: { status: "READING", stage: READING_STAGE, errorMessage: null } });
+  if (count) void startScanRead(jobId, readCell);
+  return count > 0;
+}
+
 // Picks up the jobs a restart left in READING; their saved cells are not read again.
 export async function resumeScanReads(readCell = defaultCellReader()) {
   if (!readCell) return;
@@ -270,7 +281,9 @@ async function finishScanRead(jobId: string, readCell: CellReader, run: ScanRun)
   } catch (error) {
     if (stored) await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
     if (error === STOP_READING) return;
-    const message = error instanceof Error ? error.message : "อ่านตารางไม่สำเร็จ";
+    // The reason is shown to the reviewer, so a message that is not Thai gets a plain one.
+    const reason = error instanceof Error && /[฀-๿]/.test(error.message) ? error.message : "เกิดข้อผิดพลาดระหว่างอ่านตาราง";
+    const message = `${reason} · เซลล์ที่อ่านแล้วยังเก็บไว้ กด "อ่านต่อ" เมื่อพร้อม`;
     console.error("Scanned PDF SOC read failed", jobId, error);
     await prisma.socJob.update({ where: { id: jobId }, data: { status: "READ_FAILED", stage: "อ่านตารางไม่สำเร็จ", errorMessage: message } }).catch(() => undefined);
   }

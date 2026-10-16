@@ -17,7 +17,7 @@ const skip = setupTestDatabase();
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => null } });
 
-const { createImportedSocJob, resumeScanReads, startScanRead, listSocJobs, cancelScanRead, stopScanRead } = await import("@/lib/soc");
+const { createImportedSocJob, resumeScanReads, startScanRead, listSocJobs, cancelScanRead, stopScanRead, resumeFailedScanRead } = await import("@/lib/soc");
 const { deleteTrashedSocJob } = await import("@/lib/soc-trash");
 const { convertPdfSoc } = await import("@/lib/soc-pdf-soc");
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
@@ -93,7 +93,7 @@ test("every cell is saved as it is read: a read that stopped goes on from the sa
   await startScanRead(jobId, first.readCell);
   const failed = await job(jobId);
   assert.equal(failed.status, "READ_FAILED");
-  assert.equal(failed.errorMessage, "OCR down");
+  assert.match(failed.errorMessage ?? "", /อ่านต่อ/);
   assert.equal(first.calls.length, 5);
   const saved = (await readFile(path.join(storageRoot, jobId, "cells.jsonl"), "utf8")).trim().split("\n");
   assert.equal(saved.length, 5);
@@ -269,4 +269,42 @@ test("deleting a trashed job for good stops its read and removes the saved cells
   assert.equal(a.calls.length, seen);
   await assert.rejects(readFile(path.join(storageRoot, id, "cells.jsonl")));
   assert.equal(await prisma.socJob.count({ where: { id } }), 0);
+});
+
+test("a read that keeps failing ends as อ่านตารางไม่สำเร็จ with a Thai reason and no rows; resume reads only the cells not saved", { skip }, async () => {
+  const owner = await user("owner10");
+  const broken = fakeReader({ failAfter: 5 });
+  const id = await make(owner, "A", broken.readCell);
+  await startScanRead(id, broken.readCell);
+
+  const failed = await job(id);
+  assert.equal(failed.status, "READ_FAILED");
+  assert.equal(failed.stage, "อ่านตารางไม่สำเร็จ");
+  assert.match(failed.errorMessage ?? "", /[ก-ฮ]/); // Thai, not the reader's English message
+  assert.doesNotMatch(failed.errorMessage ?? "", /OCR down/);
+  assert.deepEqual(failed.documents.map((d) => d.type), ["SOC_SOURCE_PDF"]); // no .xlsx
+  assert.deepEqual(failed.majorItems, []);
+  await assert.rejects(requestSocCheck(id, "no-such-item"), /./);
+  const saved = (await readFile(path.join(storageRoot, id, "cells.jsonl"), "utf8")).trim().split(/\r?\n/);
+  assert.equal(saved.length, 5);
+
+  const again = fakeReader();
+  assert.equal(await resumeFailedScanRead(id, again.readCell), true);
+  assert.equal((await job(id)).status, "READING");
+  assert.equal(await resumeFailedScanRead(id, again.readCell), false); // already resumed
+  await startScanRead(id, again.readCell);
+  assert.equal(again.calls.length, 17 - 5); // only the cells not yet saved
+  const done = await job(id);
+  assert.equal(done.status, "NEEDS_REVIEW");
+  assert.equal(done.errorMessage, null);
+});
+
+test("resuming needs the OCR key", { skip }, async () => {
+  const owner = await user("owner11");
+  const broken = fakeReader({ failAfter: 0 });
+  const id = await make(owner, "A", broken.readCell);
+  await startScanRead(id, broken.readCell);
+  assert.equal((await job(id)).status, "READ_FAILED");
+  await assert.rejects(resumeFailedScanRead(id), /TYPHOON_API_KEY/);
+  assert.equal((await job(id)).status, "READ_FAILED");
 });

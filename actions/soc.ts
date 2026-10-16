@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { authorizeSocJob, authorizeSocJobOwner, cancelScanRead, stopScanRead, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
+import { authorizeSocJob, authorizeSocJobOwner, cancelScanRead, resumeFailedScanRead, stopScanRead, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
 import { writeAudit } from "@/lib/authorization";
 import { isHeadingRow, isSocFinalDecision, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX } from "@/lib/soc-review";
 
@@ -119,5 +119,13 @@ export async function cancelSocRead(jobId: string) {
   if (job.status !== "READING") throw new Error("ยกเลิกได้เฉพาะงานที่กำลังอ่านตาราง");
   if (!(await cancelScanRead(jobId))) throw new Error("งานนี้อ่านตารางเสร็จแล้ว");
   await writeAudit({ actorId: actor.id, action: "SOC_READ_CANCELLED", entityType: "SOC_JOB", entityId: jobId, summary: `ยกเลิกการอ่านตาราง SOC ${job.title}` });
+  revalidatePath(`/soc/${jobId}`); revalidatePath("/soc");
+}
+
+export async function resumeSocRead(jobId: string) {
+  const { actor, job } = await authorizeSocJobOwner(jobId);
+  if (job.status !== "READ_FAILED") throw new Error("อ่านต่อได้เฉพาะงานที่อ่านตารางไม่สำเร็จ");
+  if (!(await resumeFailedScanRead(jobId))) throw new Error("งานนี้กำลังอ่านต่ออยู่แล้ว");
+  await writeAudit({ actorId: actor.id, action: "SOC_READ_RESUMED", entityType: "SOC_JOB", entityId: jobId, summary: `อ่านต่อตาราง SOC ${job.title}` });
   revalidatePath(`/soc/${jobId}`); revalidatePath("/soc");
 }

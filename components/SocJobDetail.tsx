@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { cancelSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
+import { cancelSocRead, resumeSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck, resumeSocCheckRequestNow, setSocMajorItemSkipped } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
@@ -389,8 +389,26 @@ function CancelReadButton({ jobId }: { jobId: string }) {
   return <>{dialog}<Button className="mt-4" variant="outline" size="sm" disabled={busy} onClick={cancel}>{busy ? "กำลังยกเลิก…" : "ยกเลิกการอ่าน"}</Button></>;
 }
 
+// อ่านต่อ of a failed or cancelled scanned PDF SOC: only the cells not saved yet are read.
+function ResumeReadButton({ jobId }: { jobId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  async function resume() {
+    setBusy(true);
+    try {
+      await resumeSocRead(jobId);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "อ่านต่อไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      router.refresh();
+      setBusy(false);
+    }
+  }
+  return <Button className="mt-4" size="sm" disabled={busy} onClick={resume}>{busy ? "กำลังเริ่ม…" : "อ่านต่อ"}</Button>;
+}
+
 function JobProgress({ job }: { job: Job }) {
-  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}{job.status === "READING" && job.canTrash ? <CancelReadButton jobId={job.id} /> : null}</section>;
+  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}{job.status === "READING" && job.canTrash ? <CancelReadButton jobId={job.id} /> : null}{job.status === "READ_FAILED" && job.canTrash ? <ResumeReadButton jobId={job.id} /> : null}</section>;
 }
 
 function StatusPill({ status }: { status: string }) {
