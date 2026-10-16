@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTyphoonReader, cleanCell, OcrNotSetUpError, TyphoonError } from "@/lib/soc-typhoon";
+import { createTyphoonReader, cleanCell, parseCallsPerMinute, DEFAULT_CALLS_PER_MINUTE, OcrNotSetUpError, TyphoonError } from "@/lib/soc-typhoon";
 
 const AT = { page: 1, row: 0, column: 0 };
 const IMAGE = new Uint8Array([1, 2, 3]);
@@ -22,10 +22,10 @@ test("returns the cell text, and null for a figure-only answer", async () => {
   assert.equal(await read(IMAGE, AT), "สวัสดี");
 });
 
-test("sends the image with the key and never more than 20 calls in 60 seconds, even from concurrent callers", async () => {
+test("sends the image with the key and never more than 20 calls in 60 seconds (pace 20), even from concurrent callers", async () => {
   const c = clock();
   const times: number[] = [];
-  const read = createTyphoonReader({ apiKey: "secret", ...c, fetch: async (_url, init) => {
+  const read = createTyphoonReader({ apiKey: "secret", callsPerMinute: 20, ...c, fetch: async (_url, init) => {
     times.push(c.now());
     const sent = JSON.parse(String(init?.body));
     assert.equal(sent.model, "typhoon-ocr");
@@ -36,6 +36,23 @@ test("sends the image with the key and never more than 20 calls in 60 seconds, e
   await Promise.all(Array.from({ length: 45 }, () => read(IMAGE, AT)));
   assert.equal(times.length, 45);
   for (const t of times) assert.ok(times.filter((u) => u > t - 60_000 && u <= t).length <= 20);
+});
+
+test("the pace is a setting: 30 per minute by default, 20 when asked, never over it", async () => {
+  for (const [options, cap] of [[{}, 30], [{ callsPerMinute: 20 }, 20]] as const) {
+    const c = clock();
+    const times: number[] = [];
+    const read = createTyphoonReader({ apiKey: "k", ...options, ...c, fetch: async () => { times.push(c.now()); return reply("x"); } });
+    await Promise.all(Array.from({ length: 70 }, () => read(IMAGE, AT)));
+    assert.equal(times.length, 70);
+    assert.equal(Math.max(...times.map((t) => times.filter((u) => u > t - 60_000 && u <= t).length)), cap);
+  }
+});
+
+test("parseCallsPerMinute takes a whole number from 1 to 120 and otherwise the default 30", () => {
+  assert.equal(parseCallsPerMinute("20"), 20);
+  assert.equal(parseCallsPerMinute(" 45 "), 45);
+  for (const bad of [undefined, "", "abc", "0", "-5", "1.5", "121", "NaN"]) assert.equal(parseCallsPerMinute(bad), DEFAULT_CALLS_PER_MINUTE);
 });
 
 test("a rate limit or outage is retried after a delay; Retry-After is obeyed", async () => {

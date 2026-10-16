@@ -1,12 +1,15 @@
 import type { CellReader } from "@/lib/soc-pdf-soc";
 
 // The Typhoon OCR API as the scanned-PDF cell reader (ADR 0010): one cell image
-// per call, at most 20 calls in any 60 seconds for the whole process (the
-// limit is per key and the key is shared), rate limits and outages retried.
+// per call, at most `callsPerMinute` calls in any 60 seconds for the whole
+// process (the limit is per key and the key is shared), rate limits and
+// outages retried. Typhoon documents 20 per minute but measured 2026-10-16 it
+// accepted about 32, so the default is 30 and TYPHOON_CALLS_PER_MINUTE sets it.
 
 const ENDPOINT = "https://api.opentyphoon.ai/v1/chat/completions";
 const MODEL = "typhoon-ocr";
-const CALLS_PER_WINDOW = 20;
+export const DEFAULT_CALLS_PER_MINUTE = 30;
+const MAX_CALLS_PER_MINUTE = 120; // above the documented 2 calls per second makes no sense
 const WINDOW_MS = 60_000;
 const ATTEMPTS = 6;
 const RETRY_DELAY_MS = 5_000; // grows with each attempt unless the answer says Retry-After
@@ -54,14 +57,21 @@ export class TyphoonError extends Error {
   }
 }
 
+// The pace from the setting: a whole number from 1 to 120, else the default.
+export function parseCallsPerMinute(value: string | undefined): number {
+  const n = Number(value?.trim());
+  return Number.isInteger(n) && n >= 1 && n <= MAX_CALLS_PER_MINUTE ? n : DEFAULT_CALLS_PER_MINUTE;
+}
+
 type Options = {
   apiKey?: string;
+  callsPerMinute?: number;
   fetch?: typeof fetch;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 };
 
-export function createTyphoonReader({ apiKey, fetch: send = fetch, now = Date.now, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) }: Options): CellReader {
+export function createTyphoonReader({ apiKey, callsPerMinute = DEFAULT_CALLS_PER_MINUTE, fetch: send = fetch, now = Date.now, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) }: Options): CellReader {
   const sent: number[] = []; // when the calls in the last window went out
 
   // Waits until a call fits in the window, then takes its place. Concurrent
@@ -70,7 +80,7 @@ export function createTyphoonReader({ apiKey, fetch: send = fetch, now = Date.no
     for (;;) {
       const t = now();
       while (sent.length && sent[0] <= t - WINDOW_MS) sent.shift();
-      if (sent.length < CALLS_PER_WINDOW) {
+      if (sent.length < callsPerMinute) {
         sent.push(t);
         return;
       }
@@ -123,12 +133,13 @@ export function createTyphoonReader({ apiKey, fetch: send = fetch, now = Date.no
   };
 }
 
-// The reader used by the server: the key is read from the environment on each
-// call, and every caller shares one rate window.
-let shared: { key: string; read: CellReader } | undefined;
+// The reader used by the server: the key and the pace are read from the
+// environment on each call, and every caller shares one rate window.
+let shared: { key: string; pace: number; read: CellReader } | undefined;
 export const typhoonCellReader: CellReader = (image, at) => {
   const key = process.env.TYPHOON_API_KEY?.trim() ?? "";
-  if (!shared || shared.key !== key) shared = { key, read: createTyphoonReader({ apiKey: key }) };
+  const pace = parseCallsPerMinute(process.env.TYPHOON_CALLS_PER_MINUTE);
+  if (!shared || shared.key !== key || shared.pace !== pace) shared = { key, pace, read: createTyphoonReader({ apiKey: key, callsPerMinute: pace }) };
   return shared.read(image, at);
 };
 
