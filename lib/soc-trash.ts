@@ -6,7 +6,7 @@
 import { rm } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
-import { resolveStorageKey } from "@/lib/soc";
+import { resolveStorageKey, stopScanRead } from "@/lib/soc";
 
 const PURGE_EVERY_MS = 6 * 3600 * 1000;
 const FIRST_PURGE_DELAY_MS = 60 * 1000; // after start, so the server is up first
@@ -17,6 +17,7 @@ const FIRST_PURGE_DELAY_MS = 60 * 1000; // after start, so the server is up firs
 export async function deleteTrashedSocJob(id: string, actorId: string | null): Promise<boolean> {
   const job = await prisma.socJob.findUnique({ where: { id }, include: { _count: { select: { documents: true, results: true } } } });
   if (!job || !job.deletedAt) return false;
+  await stopScanRead(id);
   await prisma.socJob.delete({ where: { id } });
   await rm(resolveStorageKey(id), { recursive: true, force: true });
   const automatic = actorId === null;

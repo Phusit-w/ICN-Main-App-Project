@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
+import { cancelSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
 import { cancelSocCheckRequest, continueSocCheckWithoutMissing, requestAllSocChecks, requestSocCheck, resumeSocCheckRequestNow, setSocMajorItemSkipped } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
@@ -370,7 +370,9 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
 }
 
 function JobProgress({ job }: { job: Job }) {
-  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}</section>;
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  return <section className="rounded-card bg-surface p-5 shadow-card"><div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium">{job.stage}</span><span className="tabular-nums text-muted">{job.progress}%</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-chip"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${job.progress}%` }} /></div>{ACTIVE.has(job.status) ? <p className="mt-3 text-xs text-muted">งานทำในเบื้องหลัง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</p> : null}{job.status === "READ_FAILED" && job.errorMessage ? <p className="mt-3 text-xs text-danger">{job.errorMessage}</p> : null}{job.status === "READING" && job.canTrash ? <Button className="mt-4" variant="outline" size="sm" disabled={pending} onClick={() => startTransition(async () => { await cancelSocRead(job.id); router.refresh(); })}>ยกเลิกการอ่าน</Button> : null}</section>;
 }
 
 function StatusPill({ status }: { status: string }) {

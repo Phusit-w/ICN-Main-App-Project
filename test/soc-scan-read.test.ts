@@ -17,7 +17,8 @@ const skip = setupTestDatabase();
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => null } });
 
-const { createImportedSocJob, resumeScanReads, startScanRead, listSocJobs } = await import("@/lib/soc");
+const { createImportedSocJob, resumeScanReads, startScanRead, listSocJobs, cancelScanRead, stopScanRead } = await import("@/lib/soc");
+const { deleteTrashedSocJob } = await import("@/lib/soc-trash");
 const { convertPdfSoc } = await import("@/lib/soc-pdf-soc");
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
 
@@ -189,4 +190,83 @@ test("a failed job does not block the queue, and a restart picks the job up agai
   await startScanRead(a, again.readCell);
   assert.equal(again.calls.length, 17);
   assert.equal((await job(a)).status, "NEEDS_REVIEW");
+});
+
+// A reader that stays inside its first call until `go`, so a stop can come while a job is read.
+function gatedReader() {
+  const base = fakeReader();
+  let enter!: () => void;
+  const entered = new Promise<void>((resolve) => { enter = resolve; });
+  let go!: () => void;
+  const gate = new Promise<void>((resolve) => { go = resolve; });
+  let first = true;
+  const readCell: CellReader = async (image, at) => {
+    if (first) { first = false; enter(); await gate; }
+    return base.readCell(image, at);
+  };
+  return { readCell, calls: base.calls, entered, go };
+}
+
+const make = (owner: Awaited<ReturnType<typeof user>>, title: string, readCell: CellReader) => createImportedSocJob(owner, { title, soc: { name: "SOC.pdf", bytes: SCANNED }, evidence: [] }, { readCell });
+
+test("cancel while reading: no cell is read after it returns, saved cells stay, and the job can be read again", { skip }, async () => {
+  const owner = await user("owner7");
+  const a = gatedReader();
+  const b = fakeReader();
+  const idA = await make(owner, "A", a.readCell);
+  const idB = await make(owner, "B", b.readCell);
+  await a.entered;
+  const cancelling = cancelScanRead(idA);
+  a.go();
+  await cancelling;
+  const seen = a.calls.length;
+  await startScanRead(idB, b.readCell); // B was waiting and now runs
+  assert.equal(a.calls.length, seen);
+  assert.equal((await job(idA)).status, "READ_FAILED");
+  assert.equal((await job(idA)).stage, "ยกเลิกการอ่านแล้ว");
+  assert.equal((await job(idB)).status, "NEEDS_REVIEW");
+  const saved = (await readFile(path.join(storageRoot, idA, "cells.jsonl"), "utf8")).trim().split(/\r?\n/);
+  assert.equal(saved.length, seen); // the cells read before the cancel are kept
+
+  await prisma.socJob.update({ where: { id: idA }, data: { status: "READING" } });
+  const again = fakeReader();
+  await startScanRead(idA, again.readCell);
+  assert.equal((await job(idA)).status, "NEEDS_REVIEW");
+});
+
+test("a queued job that is stopped leaves the queue, and later jobs move up", { skip }, async () => {
+  const owner = await user("owner8");
+  const a = gatedReader();
+  const b = fakeReader();
+  const c = fakeReader();
+  const idA = await make(owner, "A", a.readCell);
+  const idB = await make(owner, "B", b.readCell);
+  const idC = await make(owner, "C", c.readCell);
+  await a.entered;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal((await job(idC)).stage, "รอคิวที่ 2");
+  const stopping = stopScanRead(idB);
+  a.go();
+  await startScanRead(idA, a.readCell);
+  await stopping;
+  await startScanRead(idC, c.readCell);
+  assert.equal(b.calls.length, 0);
+  assert.equal((await job(idB)).status, "READING");
+  assert.equal((await job(idC)).status, "NEEDS_REVIEW");
+});
+
+test("deleting a trashed job for good stops its read and removes the saved cells", { skip }, async () => {
+  const owner = await user("owner9");
+  const a = gatedReader();
+  const id = await make(owner, "A", a.readCell);
+  await a.entered;
+  await prisma.socJob.update({ where: { id }, data: { deletedAt: new Date() } });
+  const deleting = deleteTrashedSocJob(id, null);
+  a.go();
+  assert.equal(await deleting, true);
+  const seen = a.calls.length;
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(a.calls.length, seen);
+  await assert.rejects(readFile(path.join(storageRoot, id, "cells.jsonl")));
+  assert.equal(await prisma.socJob.count({ where: { id } }), 0);
 });

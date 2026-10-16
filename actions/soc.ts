@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { authorizeSocJob, authorizeSocJobOwner, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
+import { authorizeSocJob, authorizeSocJobOwner, cancelScanRead, stopScanRead, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES } from "@/lib/soc";
 import { writeAudit } from "@/lib/authorization";
 import { isHeadingRow, isSocFinalDecision, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX } from "@/lib/soc-review";
 
@@ -109,6 +109,15 @@ export async function trashSocJob(jobId: string) {
   const { actor, job } = await authorizeSocJobOwner(jobId);
   const now = new Date();
   await prisma.socJob.update({ where: { id: jobId }, data: { deletedAt: now, deletedById: actor.id, purgeAfter: new Date(now.getTime() + 30 * 86400000) } });
+  await stopScanRead(jobId); // a job being read stops calling the OCR
   await writeAudit({ actorId: actor.id, action: "SOC_TRASHED", entityType: "SOC_JOB", entityId: jobId, summary: `ย้ายงาน SOC ${job.title} ไปถังขยะ` });
   revalidatePath("/soc"); revalidatePath(`/soc/${jobId}`);
+}
+
+export async function cancelSocRead(jobId: string) {
+  const { actor, job } = await authorizeSocJobOwner(jobId);
+  if (job.status !== "READING") throw new Error("ยกเลิกได้เฉพาะงานที่กำลังอ่านตาราง");
+  await cancelScanRead(jobId);
+  await writeAudit({ actorId: actor.id, action: "SOC_READ_CANCELLED", entityType: "SOC_JOB", entityId: jobId, summary: `ยกเลิกการอ่านตาราง SOC ${job.title}` });
+  revalidatePath(`/soc/${jobId}`); revalidatePath("/soc");
 }

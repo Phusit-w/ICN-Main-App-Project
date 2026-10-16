@@ -163,8 +163,8 @@ const STOP_READING = new Error("the job is no longer being read");
 // `order` holds the jobs not finished yet, the one being read first; the
 // others show "รอคิวที่ N". Kept on globalThis: the server's startup hook and
 // its routes may load this module separately.
-type ScanReads = { queue: Promise<unknown>; running: Map<string, Promise<void>>; order: string[]; labels: Promise<unknown> };
-const scanReads = ((globalThis as { socScanReads?: ScanReads }).socScanReads ??= { queue: Promise.resolve(), running: new Map(), order: [] as string[], labels: Promise.resolve() });
+type ScanReads = { queue: Promise<unknown>; running: Map<string, Promise<void>>; order: string[]; labels: Promise<unknown>; stopped: Set<string> };
+const scanReads = ((globalThis as { socScanReads?: ScanReads }).socScanReads ??= { queue: Promise.resolve(), running: new Map(), order: [] as string[], labels: Promise.resolve(), stopped: new Set<string>() });
 
 // Writes "รอคิวที่ N" on the waiting jobs (writes are one after another, each from the order as it is then).
 function labelScanQueue() {
@@ -182,6 +182,7 @@ function labelScanQueue() {
 export function startScanRead(jobId: string, readCell: CellReader): Promise<void> {
   const running = scanReads.running.get(jobId);
   if (running) return running;
+  scanReads.stopped.delete(jobId);
   scanReads.order.push(jobId);
   void labelScanQueue();
   const run = scanReads.queue.then(async () => {
@@ -195,6 +196,22 @@ export function startScanRead(jobId: string, readCell: CellReader): Promise<void
   scanReads.running.set(jobId, run);
   void run.finally(() => scanReads.running.delete(jobId));
   return run;
+}
+
+// Stops reading the job: no new cell is sent to the OCR once this returns
+// (a call already sent is waited for); a job still waiting leaves the queue.
+// The cells already read stay on disk.
+export async function stopScanRead(jobId: string) {
+  const running = scanReads.running.get(jobId);
+  if (!running) return;
+  scanReads.stopped.add(jobId);
+  await running;
+}
+
+// Cancel by the reviewer: the job stops and waits as "อ่านตารางไม่สำเร็จ" with its saved cells (resume is ticket 06).
+export async function cancelScanRead(jobId: string) {
+  await stopScanRead(jobId);
+  await prisma.socJob.updateMany({ where: { id: jobId, status: "READING" }, data: { status: "READ_FAILED", stage: "ยกเลิกการอ่านแล้ว", errorMessage: null } });
 }
 
 // Picks up the jobs a restart left in READING; their saved cells are not read again.
@@ -211,11 +228,14 @@ async function finishScanRead(jobId: string, readCell: CellReader) {
   try {
     const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { documents: { where: { type: "SOC_SOURCE_PDF" } } } });
     const source = job?.documents[0];
-    if (!job || job.status !== "READING" || !source) return;
+    if (!job || job.status !== "READING" || job.deletedAt || !source || scanReads.stopped.has(jobId)) return;
     const pdfSoc = await readScannedSoc(
       new Uint8Array(await readFile(resolveStorageKey(source.storageKey))),
       path.join(socStorageRoot(), jobId, "cells.jsonl"),
-      readCell,
+      (image, at) => {
+        if (scanReads.stopped.has(jobId)) throw STOP_READING;
+        return readCell(image, at);
+      },
       // Progress is best effort; a job that is no longer READING (moved to the trash) stops the read.
       async (done, total) => {
         const data = { progress: Math.min(99, Math.floor((done / total) * 100)), stage: `${READING_STAGE} หน้า ${done}/${total}` };
