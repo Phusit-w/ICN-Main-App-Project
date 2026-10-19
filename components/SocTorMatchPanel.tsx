@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition, type MouseEvent } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
+import { cancelSocTorRead, resumeSocTorRead } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker from "@/components/SocFilePicker";
@@ -29,28 +30,40 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [dialog, confirm] = useConfirmDialog();
+  // Not in a transition: a transition would hold the confirm dialogs back until it ended.
   async function submit() {
     const file = files[0];
     if (!file) return;
     if (torMatch && !(await confirm({ title: "แทนที่ TOR ต้นฉบับ?", message: `${torMatch.name} และผลเทียบ TOR ต้นฉบับเดิมจะถูกลบ แล้วเทียบ SOC กับ ${file.name} ใหม่`, confirmLabel: "แทนที่", danger: true }))) return;
     setError("");
-    startTransition(async () => {
-      try {
-        const form = new FormData();
-        form.set("tor", file);
+    setPending(true);
+    try {
+      const form = new FormData();
+      form.set("tor", file);
+      const send = async () => {
         const response = await fetch(`/api/soc/jobs/${jobId}/tor`, { method: "POST", body: form });
-        if (!response.ok) {
-          setError(((await response.json().catch(() => null)) as { error?: string } | null)?.error || "แนบ TOR ต้นฉบับไม่สำเร็จ");
-          return;
-        }
-        setFiles([]);
-        router.refresh();
-      } catch {
-        setError("แนบ TOR ต้นฉบับไม่สำเร็จ กรุณาลองใหม่");
+        return { ok: response.ok, body: ((await response.json().catch(() => null)) ?? {}) as { error?: string; needsOcrConfirm?: boolean } };
+      };
+      let answer = await send();
+      if (answer.body.needsOcrConfirm) {
+        // A scanned TOR goes to an outside OCR service: ask every time; cancel stores and sends nothing.
+        if (!(await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก", message: "TOR ต้นฉบับนี้เป็น PDF แบบสแกน ระบบจะส่งภาพของแต่ละหน้าไปอ่านที่บริการ OCR ภายนอก (Typhoon) อ่านในเบื้องหลังต่อคิวหลังงานอ่านอื่น (ประมาณ 2 วินาทีต่อหน้า) แล้วจึงเทียบกับ SOC ผลอ่านอาจคลาดเคลื่อน ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" }))) return;
+        form.set("ocrConfirmed", "1");
+        answer = await send();
       }
-    });
+      if (!answer.ok) {
+        setError(answer.body.error || "แนบ TOR ต้นฉบับไม่สำเร็จ");
+        return;
+      }
+      setFiles([]);
+      router.refresh();
+    } catch {
+      setError("แนบ TOR ต้นฉบับไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setPending(false);
+    }
   }
   const counts = torMatch?.counts;
   return <section id="soc-tor-match" className="rounded-card bg-surface p-5 shadow-card">
@@ -59,7 +72,8 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
     <p className="mt-1 text-xs text-muted">เทียบข้อความ TOR ในตาราง SOC กับ TOR ต้นฉบับทีละแถว เป็นรายงานเท่านั้น ไม่เปลี่ยนผลตรวจ Datasheet</p>
     {torMatch ? <div className="mt-4 flex flex-col gap-3">
       <p className="flex flex-wrap items-center gap-2 text-sm"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">TOR ต้นฉบับ</span><a href={`/api/soc/documents/${torMatch.documentId}`} target="_blank" rel="noreferrer" className="min-w-0 break-all text-ink">{torMatch.name}</a></p>
-      {torMatch.state === "failed" ? <p role="alert" className="text-sm text-danger">{torMatch.errorMessage || "เทียบ TOR ต้นฉบับไม่สำเร็จ"}</p> : null}
+      {torMatch.state === "reading" ? <ReadProgress jobId={jobId} stage={torMatch.stage} /> : null}
+      {torMatch.state === "failed" ? <ReadFailed jobId={jobId} message={torMatch.errorMessage} /> : null}
       {counts ? <ul className="flex flex-wrap gap-2" aria-label="จำนวนตามผลเทียบ TOR ต้นฉบับ">{TOR_MATCH_OUTCOMES.map((outcome) => <li key={outcome} title={OUTCOME_HINTS[outcome]} className={`rounded-full px-3 py-1 text-xs font-medium ${ISSUE[outcome] && counts[outcome] ? "border border-danger-border text-danger" : "bg-chip text-label"}`}>{outcome} <span className="tabular-nums">{counts[outcome]}</span></li>)}</ul> : null}
       {torMatch.warnings.length ? <ul role="status" className="list-disc rounded-input border border-danger-border p-3 pl-8 text-sm text-label">{torMatch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
       {torMatch.lines.length ? <IssueList jobId={jobId} lines={torMatch.lines} reviewRows={reviewRows} /> : null}
@@ -67,11 +81,63 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
     {/* onSubmit, not a form action: an action is a transition, which holds the replace confirm dialog back until the action ends, and the action waits on the dialog. */}
     {socReady ? <form onSubmit={(event) => { event.preventDefault(); void submit(); }} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
       <SocFilePicker files={files} onChange={setFiles} disabled={pending} label={torMatch ? "เลือก PDF TOR ต้นฉบับฉบับใหม่" : "เลือกไฟล์ PDF ของ TOR ต้นฉบับ"} accept=".pdf,application/pdf" />
-      <p className="text-xs text-muted">ตอนนี้รองรับ PDF ที่มีข้อความ (TOR ต้นฉบับแบบสแกนกำลังพัฒนา)</p>
+      <p className="text-xs text-muted">PDF แบบสแกนจะถามยืนยันก่อนส่งไปอ่านที่บริการ OCR ภายนอก</p>
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังเทียบกับ SOC…" : torMatch ? "แทนที่ TOR ต้นฉบับ" : "แนบ TOR ต้นฉบับ"}</Button></div> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </form> : <p className="mt-4 text-xs text-muted">แนบ TOR ต้นฉบับได้หลังอ่านตาราง SOC ครบแล้ว</p>}
   </section>;
+}
+
+// A scanned TOR being read: where the read is, and a cancel that keeps the pages read.
+function ReadProgress({ jobId, stage }: { jobId: string; stage: string | null }) {
+  const router = useRouter();
+  const [dialog, confirm] = useConfirmDialog();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function cancel() {
+    if (!(await confirm({ title: "ยกเลิกการอ่าน TOR ต้นฉบับ?", message: "การอ่านจะหยุดทันที หน้าที่อ่านไปแล้วยังเก็บไว้ อ่านต่อภายหลังได้", confirmLabel: "ยืนยันยกเลิก", cancelLabel: "ไม่ยกเลิก", danger: true }))) return;
+    setBusy(true);
+    setError("");
+    try {
+      await cancelSocTorRead(jobId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ยกเลิกการอ่านไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      router.refresh();
+      setBusy(false);
+    }
+  }
+  return <div role="status" className="flex flex-wrap items-center gap-3 rounded-input bg-ground p-3 text-sm">
+    {dialog}
+    <span className="font-medium">{stage || "กำลังอ่าน TOR ต้นฉบับ"}</span>
+    <span className="text-xs text-muted">อ่านด้วย OCR ในเบื้องหลัง อ่านเสร็จแล้วจะเทียบกับ SOC ให้เอง ปิดหน้านี้แล้วกลับมาดูภายหลังได้</span>
+    <Button className="ml-auto" variant="outline" size="sm" disabled={busy} onClick={cancel}>{busy ? "กำลังยกเลิก…" : "ยกเลิกการอ่าน"}</Button>
+    {error ? <p role="alert" className="w-full text-xs text-danger">{error}</p> : null}
+  </div>;
+}
+
+// A scanned TOR whose read failed or was cancelled: the reason, and a resume from the pages read.
+function ReadFailed({ jobId, message }: { jobId: string; message: string | null }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function resume() {
+    setBusy(true);
+    setError("");
+    try {
+      await resumeSocTorRead(jobId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "อ่านต่อไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      router.refresh();
+      setBusy(false);
+    }
+  }
+  return <div className="flex flex-wrap items-center gap-3">
+    <p role="alert" className="text-sm text-danger">{message || "อ่าน TOR ต้นฉบับไม่สำเร็จ"}</p>
+    <Button size="sm" disabled={busy} onClick={resume}>{busy ? "กำลังเริ่ม…" : "อ่านต่อ"}</Button>
+    {error ? <p role="alert" className="w-full text-xs text-danger">{error}</p> : null}
+  </div>;
 }
 
 type Line = TorMatchView["lines"][number];

@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { convertPdfSoc, hasScannedTable, type CellReader, type PartialPdfSoc } from "@/lib/soc-pdf-soc";
 import { readScannedSoc } from "@/lib/soc-scan-read";
-import { typhoonCellReader, typhoonConfigured } from "@/lib/soc-typhoon";
+import { configuredOcrReader, OCR_NOT_SET_UP } from "@/lib/soc-typhoon";
+import { queueOcrRead, stopOcrRead, type OcrRun } from "@/lib/soc-ocr-queue";
 import { assertSocFile, isPdfFile, readSocTable } from "@/lib/soc-table";
 import { evidenceSelectionProblem, majorItemProgress, MAX_EVIDENCE_FILE_BYTES, MAX_SOC_FILE_BYTES, normalizeSocTitle, SOC_TITLE_INVALID, SOC_TITLE_MAX, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 import { evidencePath, UPLOAD_BATCH_BYTES, UPLOAD_BATCH_FILES } from "@/lib/soc-upload";
@@ -138,11 +139,11 @@ export function socErrorStatus(message: string): number {
 // every upload (`ocrConfirmed`); without it a scanned PDF is refused with
 // OCR_CONFIRM_REQUIRED and nothing is stored or sent. Without the key it is
 // refused with a message to ask the admin.
-export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, { readCell = defaultCellReader(), ocrConfirmed = false }: { readCell?: CellReader; ocrConfirmed?: boolean } = {}) {
+export async function createImportedSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, { readCell = configuredOcrReader(), ocrConfirmed = false }: { readCell?: CellReader; ocrConfirmed?: boolean } = {}) {
   await assertSocTitleFree(input.title);
   const isPdf = isPdfFile(input.soc.bytes);
   if (isPdf && hasScannedTable(input.soc.bytes)) {
-    if (!readCell) throw new Error(NO_OCR_KEY);
+    if (!readCell) throw new Error(OCR_NOT_SET_UP);
     if (!ocrConfirmed) throw new Error(OCR_CONFIRM_REQUIRED);
     return createReadingSocJob(actor, input, readCell);
   }
@@ -183,8 +184,6 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
   return jobId;
 }
 
-const defaultCellReader = () => (typhoonConfigured() ? typhoonCellReader : undefined);
-
 async function createReadingSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, readCell: CellReader) {
   const jobId = randomUUID();
   try {
@@ -214,65 +213,24 @@ async function createReadingSocJob(actor: SocActor, input: { title: string; soc:
 }
 
 const READING_STAGE = "กำลังอ่านตาราง";
-const NO_OCR_KEY = "ยังไม่ได้ตั้งค่าบริการ OCR (TYPHOON_API_KEY) กรุณาแจ้งผู้ดูแลระบบ";
 const STOP_READING = new Error("the job is no longer being read");
 
-// Scanned jobs are read one at a time, in the order they were started: the
-// OCR's rate limit is shared, so reading two at once would be no faster.
-// `order` holds the jobs not finished yet, the one being read first; the
-// others show "รอคิวที่ N". Kept on globalThis: the server's startup hook and
-// its routes may load this module separately.
-// One scheduled read of a job; a stop sets `stopped`, and `started` says the read has begun.
-type ScanRun = { promise: Promise<void>; stopped: boolean; started: boolean };
-type ScanReads = { queue: Promise<unknown>; running: Map<string, ScanRun>; order: string[]; labels: Promise<unknown> };
-const scanReads = ((globalThis as { socScanReads?: ScanReads }).socScanReads ??= { queue: Promise.resolve(), running: new Map(), order: [] as string[], labels: Promise.resolve() });
-
-// Writes "รอคิวที่ N" on the waiting jobs (writes are one after another, each from the order as it is then).
-function labelScanQueue() {
-  scanReads.labels = scanReads.labels.then(async () => {
-    for (const [i, id] of scanReads.order.entries()) {
-      if (i === 0) continue;
-      await prisma.socJob.updateMany({ where: { id, status: "READING", deletedAt: null }, data: { stage: `รอคิวที่ ${i}` } }).catch(() => undefined);
-    }
-  });
-  return scanReads.labels;
-}
-
-// Reads the job's scanned PDF in the background (the work of a READING job).
+// A scanned job is read in the server's one line of OCR reads, under its id
+// (lib/soc-ocr-queue.ts); a job waiting there shows "รอคิวที่ N".
 // Resolves when the job has been completed or failed; never rejects.
 export function startScanRead(jobId: string, readCell: CellReader): Promise<void> {
-  const current = scanReads.running.get(jobId);
-  if (current && !current.stopped) return current.promise;
-  scanReads.order.push(jobId);
-  void labelScanQueue();
-  const run: ScanRun = { stopped: false, started: false, promise: Promise.resolve() };
-  run.promise = scanReads.queue.then(async () => {
-    if (run.stopped) return; // stopped while waiting: already out of the line
-    run.started = true;
-    await scanReads.labels;
-    await prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data: { stage: READING_STAGE } }).catch(() => undefined);
-    await finishScanRead(jobId, readCell, run);
-    scanReads.order = scanReads.order.filter((id) => id !== jobId);
-    await labelScanQueue();
+  return queueOcrRead(jobId, {
+    waiting: (place) => prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data: { stage: `รอคิวที่ ${place}` } }),
+    read: async (run) => {
+      await prisma.socJob.updateMany({ where: { id: jobId, status: "READING", deletedAt: null }, data: { stage: READING_STAGE } }).catch(() => undefined);
+      await finishScanRead(jobId, readCell, run);
+    },
   });
-  scanReads.queue = run.promise;
-  scanReads.running.set(jobId, run);
-  void run.promise.finally(() => { if (scanReads.running.get(jobId) === run) scanReads.running.delete(jobId); });
-  return run.promise;
 }
 
 // Stops reading the job: no new cell is sent to the OCR once this returns
-// (a call already sent is waited for). A job still waiting leaves the line at
-// once and the jobs behind it move up. The cells already read stay on disk.
-export async function stopScanRead(jobId: string) {
-  const run = scanReads.running.get(jobId);
-  if (!run || run.stopped) return;
-  run.stopped = true;
-  if (run.started) return run.promise;
-  scanReads.order = scanReads.order.filter((id) => id !== jobId);
-  scanReads.running.delete(jobId);
-  await labelScanQueue();
-}
+// (a call already sent is waited for). The cells already read stay on disk.
+export const stopScanRead = (jobId: string) => stopOcrRead(jobId);
 
 // Cancel by the reviewer: the job stops and waits as "อ่านตารางไม่สำเร็จ" with its saved cells (resume is ticket 06).
 // Returns false when the job was no longer being read (it had just finished).
@@ -285,15 +243,15 @@ export async function cancelScanRead(jobId: string) {
 // Resume by the reviewer: a READ_FAILED job (failed or cancelled) goes back to
 // READING and the read goes on from its saved cells. Returns false when the job
 // was not READ_FAILED (someone else resumed it first).
-export async function resumeFailedScanRead(jobId: string, readCell = defaultCellReader()) {
-  if (!readCell) throw new Error(NO_OCR_KEY);
+export async function resumeFailedScanRead(jobId: string, readCell = configuredOcrReader()) {
+  if (!readCell) throw new Error(OCR_NOT_SET_UP);
   const { count } = await prisma.socJob.updateMany({ where: { id: jobId, status: "READ_FAILED", deletedAt: null }, data: { status: "READING", stage: READING_STAGE, errorMessage: null } });
   if (count) void startScanRead(jobId, readCell);
   return count > 0;
 }
 
 // Picks up the jobs a restart left in READING; their saved cells are not read again.
-export async function resumeScanReads(readCell = defaultCellReader()) {
+export async function resumeScanReads(readCell = configuredOcrReader()) {
   if (!readCell) return;
   const jobs = await prisma.socJob.findMany({ where: { status: "READING", deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true } });
   for (const { id } of jobs) void startScanRead(id, readCell);
@@ -338,7 +296,7 @@ async function publishReadSoFar(jobId: string, sourceName: string, partial: Part
 // Turns a READING job into an ordinary Excel SOC job: the .xlsx made from the
 // scanned PDF becomes its SOC, the major items are made, checks come on.
 // Major items made on the way (publishReadSoFar) and what was checked on them are kept.
-async function finishScanRead(jobId: string, readCell: CellReader, run: ScanRun) {
+async function finishScanRead(jobId: string, readCell: CellReader, run: OcrRun) {
   let stored: Awaited<ReturnType<typeof storeSocFile>> | undefined;
   const replaced: string[] = []; // SOC files of the rows-so-far, deleted once the full one is in
   try {

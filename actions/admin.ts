@@ -7,7 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, writeAudit } from "@/lib/authorization";
 import { cleanAppAccess, describeAppAccess } from "@/lib/access";
 import { deleteTrashedSocJob } from "@/lib/soc-trash";
-import { restoredSocTitle } from "@/lib/soc";
+import { restoredSocTitle, startScanRead } from "@/lib/soc";
+import { startTorRead } from "@/lib/soc-tor";
+import { configuredOcrReader } from "@/lib/soc-typhoon";
 
 function temporaryPassword() {
   return `Icn-${randomBytes(9).toString("base64url")}7`;
@@ -145,6 +147,10 @@ export async function restoreSocJob(id: string) {
   // A live job may have taken the title meanwhile: the restored job gets a suffix.
   const title = await restoredSocTitle(trashed.title, id);
   const row = await prisma.socJob.update({ where: { id }, data: { title, deletedAt: null, deletedById: null, purgeAfter: null, restoredAt: new Date() } });
+  // Trashing stopped its OCR read (a scanned SOC or TOR ต้นฉบับ); it goes on from what was saved.
+  const readPage = configuredOcrReader();
+  if (readPage && row.status === "READING") void startScanRead(id, readPage);
+  if (readPage && (await prisma.socTorMatch.count({ where: { jobId: id, state: "reading" } }))) void startTorRead(id, readPage);
   await writeAudit({ actorId: actor.id, action: "SOC_RESTORED", entityType: "SOC_JOB", entityId: id, summary: `กู้คืนงาน SOC ${row.title}`, metadata: title === trashed.title ? undefined : { renamedFrom: trashed.title } });
   revalidatePath("/admin/trash"); revalidatePath("/soc");
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { authorizeSocJob, authorizeSocJobOwner, cancelScanRead, renameSocJob, resumeFailedScanRead, stopScanRead, SOC_CHECK_STATUSES, SOC_HEADING_STATUSES, SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc";
 import { writeAudit } from "@/lib/authorization";
+import { cancelTorRead, resumeTorRead, stopTorRead } from "@/lib/soc-tor";
 import { isHeadingRow, isSocFinalDecision, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX } from "@/lib/soc-review";
 
 function isCheckStatus(value: string): boolean {
@@ -125,6 +126,7 @@ export async function trashSocJob(jobId: string) {
   const now = new Date();
   await prisma.socJob.update({ where: { id: jobId }, data: { deletedAt: now, deletedById: actor.id, purgeAfter: new Date(now.getTime() + 30 * 86400000) } });
   await stopScanRead(jobId); // a job being read stops calling the OCR
+  await stopTorRead(jobId); // and so does its TOR ต้นฉบับ
   await writeAudit({ actorId: actor.id, action: "SOC_TRASHED", entityType: "SOC_JOB", entityId: jobId, summary: `ย้ายงาน SOC ${job.title} ไปถังขยะ` });
   revalidatePath("/soc"); revalidatePath(`/soc/${jobId}`);
 }
@@ -143,4 +145,20 @@ export async function resumeSocRead(jobId: string) {
   if (!(await resumeFailedScanRead(jobId))) throw new Error("งานนี้กำลังอ่านต่ออยู่แล้ว");
   await writeAudit({ actorId: actor.id, action: "SOC_READ_RESUMED", entityType: "SOC_JOB", entityId: jobId, summary: `อ่านต่อตาราง SOC ${job.title}` });
   revalidatePath(`/soc/${jobId}`); revalidatePath("/soc");
+}
+
+// A scanned TOR ต้นฉบับ being read (TOR Match): whoever may open the job may
+// stop or resume its read, as they may attach it.
+export async function cancelSocTorRead(jobId: string) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  if (!(await cancelTorRead(jobId))) throw new Error("TOR ต้นฉบับนี้อ่านเสร็จแล้ว");
+  await writeAudit({ actorId: actor.id, action: "SOC_TOR_READ_CANCELLED", entityType: "SOC_JOB", entityId: jobId, summary: `ยกเลิกการอ่าน TOR ต้นฉบับ งาน ${job.title}` });
+  revalidatePath(`/soc/${jobId}`);
+}
+
+export async function resumeSocTorRead(jobId: string) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  if (!(await resumeTorRead(jobId))) throw new Error("TOR ต้นฉบับนี้กำลังอ่านอยู่แล้ว");
+  await writeAudit({ actorId: actor.id, action: "SOC_TOR_READ_RESUMED", entityType: "SOC_JOB", entityId: jobId, summary: `อ่าน TOR ต้นฉบับต่อ งาน ${job.title}` });
+  revalidatePath(`/soc/${jobId}`);
 }

@@ -145,6 +145,9 @@ export const typhoonCellReader: CellReader = (image, at) => {
 
 export const typhoonConfigured = () => Boolean(process.env.TYPHOON_API_KEY?.trim());
 
+// The OCR to read a scanned PDF SOC or TOR with; none when the key is not set.
+export const configuredOcrReader = (): CellReader | undefined => (typhoonConfigured() ? typhoonCellReader : undefined);
+
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " };
 
 // What Typhoon sent back, as plain cell text: no figure descriptions, no lone

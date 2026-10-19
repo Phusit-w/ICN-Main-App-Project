@@ -27,7 +27,7 @@ const { POST: importRoute } = await import("@/app/api/soc/jobs/[id]/major-items/
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob } = await import("@/lib/soc");
 const { torMatchView } = await import("@/lib/soc-tor");
-const { TOR_IS_SCANNED } = await import("@/lib/soc-tor-read");
+const { OCR_NOT_SET_UP } = await import("@/lib/soc-typhoon");
 
 let storageRoot = "";
 before(async () => {
@@ -132,11 +132,21 @@ test("a TOR with no section for a major item warns and leaves its rows unconfirm
   assert.deepEqual((await lines(jobId)).filter(([row]) => row === 4 || row === 5).map(([, , outcome]) => outcome), ["ยืนยันไม่ได้", "ยืนยันไม่ได้"]);
 });
 
-test("a scanned TOR, or a job whose SOC is still being read, is refused and nothing is stored", { skip }, async () => {
+test("a scanned TOR needs the OCR key and the reviewer's confirm; a job whose SOC is still being read is refused; nothing is stored", { skip }, async () => {
   const { jobId } = await job("refused");
-  const scanned = await attach(jobId, buildTablePdf([{ columns: [], rows: [], scanned: true }]));
-  assert.equal(scanned.status, 400);
-  assert.equal(((await scanned.json()) as { error: string }).error, TOR_IS_SCANNED);
+  const scannedTor = buildTablePdf([{ columns: [], rows: [], scanned: true }]);
+  delete process.env.TYPHOON_API_KEY;
+  const noKey = await attach(jobId, scannedTor);
+  assert.equal(noKey.status, 400);
+  assert.equal(((await noKey.json()) as { error: string }).error, OCR_NOT_SET_UP);
+  process.env.TYPHOON_API_KEY = "test-key"; // never called: the confirm comes first
+  try {
+    const unconfirmed = await attach(jobId, scannedTor);
+    assert.equal(unconfirmed.status, 409);
+    assert.equal(((await unconfirmed.json()) as { needsOcrConfirm?: boolean }).needsOcrConfirm, true);
+  } finally {
+    delete process.env.TYPHOON_API_KEY;
+  }
   const notPdf = await attach(jobId, new TextEncoder().encode("not a pdf") as Uint8Array<ArrayBuffer>);
   assert.equal(notPdf.status, 400);
 

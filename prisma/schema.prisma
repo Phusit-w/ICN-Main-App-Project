@@ -227,6 +227,7 @@ model SocTorMatch {
   documentId   String            @unique
   document     SocDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
   state        String // "reading" | "ready" | "failed"
+  stage        String? // while a scanned TOR is read: "รอคิวที่ N" or the pages read so far
   pages        Json? // the TOR's pages as read, [{ text, picture }], so a re-compare reads nothing again
   counts       Json? // lines per outcome
   warnings     Json? // strings: e.g. a major item the TOR has no section for
