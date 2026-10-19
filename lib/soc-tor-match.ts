@@ -200,6 +200,19 @@ function locate(r: string, t: string, cursor: number): { span: Span; score: numb
 
 const rawOf = (section: Section, [a, b]: Span) => section.raw.slice(section.index[a], section.index[b - 1] + 1);
 
+// A near match's stretch, as shown: a shared run can start or end inside a
+// Latin word or number ("Wight" for "Weight" shares "ight"), so it runs on to
+// the whole word. Thai has no word ends to run to and is left as matched.
+const LATIN_OR_DIGIT = /[A-Za-z0-9]/;
+function shownRawOf(section: Section, [a, b]: Span): string {
+  const raw = section.raw;
+  let start = section.index[a];
+  let end = section.index[b - 1] + 1;
+  while (start > 0 && LATIN_OR_DIGIT.test(raw[start]) && LATIN_OR_DIGIT.test(raw[start - 1])) start--;
+  while (end < raw.length && LATIN_OR_DIGIT.test(raw[end - 1]) && LATIN_OR_DIGIT.test(raw[end])) end++;
+  return raw.slice(start, end);
+}
+
 function pageAt(section: Section, normIndex: number): number | null {
   if (!section.index.length) return null;
   const at = section.index[Math.min(normIndex, section.index.length - 1)];
@@ -247,7 +260,7 @@ function matchSection(rows: SocTableRow[], section: Section, label: string): { r
       covered.fill(1, span[0], span[1]);
       if (moves) cursor = Math.max(cursor, span[1]); // never back: a match behind is a repeat
     }
-    results.push({ ...base, outcome, torText: span && rawOf(section, span), torPage: span && pageAt(section, span[0]) });
+    results.push({ ...base, outcome, torText: span && shownRawOf(section, span), torPage: span && pageAt(section, span[0]) });
   }
   const missing: TorMatchMissing[] = [];
   for (let i = 0; i < covered.length; ) {

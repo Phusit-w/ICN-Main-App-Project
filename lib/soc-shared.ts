@@ -83,6 +83,14 @@ export function socRowOfHash(hash: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+// The job page's link to a major item in its major items panel (a TOR Match
+// line of a row with no check result links there): "#soc-major-item-<id>".
+export const socMajorItemHash = (majorItemId: string) => `#soc-major-item-${majorItemId}`;
+export function socMajorItemOfHash(hash: string): string | null {
+  const match = /^#soc-major-item-([A-Za-z0-9_-]+)$/.exec(hash);
+  return match ? match[1] : null;
+}
+
 // "๑๓" → "13".
 export function toArabicDigits(value: string): string {
   return value.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));

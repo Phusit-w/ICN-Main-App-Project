@@ -114,6 +114,16 @@ test("a changed number, sign or condition is ความหมายต่า�
   assert.equal(oneRow(SWITCH.replace("ไม่น้อยกว่า", "ไม่เกิน"), SWITCH).outcome, "ความหมายต่าง");
 });
 
+test("the TOR text of a near match starts and ends on whole words, not mid-word", () => {
+  // MEA page 128: the TOR misspells "Wight", the SOC types "Weight"; the shared run starts at "ight".
+  const result = matchTor(soc([
+    ["1.", "ตู้ขนาดดังนี้", "1"],
+    ["", "* Depth : ≥ 120 มิลลิเมตร", "1"],
+    ["", "* Weight : ≤ 12 กิโลกรัม", "1"],
+  ]), [page("1. ตู้ขนาดดังนี้\n*   Depth   :   ≥  120  มิลลิเมตร\n*   Wight   :   ≤  12 กิโลกรัม\n")]);
+  assert.deepEqual(result.rows.map((row) => [row.outcome, row.torText?.trim()]), [["ตรง", "ตู้ขนาดดังนี้"], ["ตรง", "Depth   :   ≥  120  มิลลิเมตร"], ["ความหมายต่าง", "Wight   :   ≤  12 กิโลกรัม"]]);
+});
+
 test("a dropped middle word is ความหมายต่าง; a dropped last word leaves it ไม่พบใน SOC", () => {
   assert.equal(oneRow(SWITCH.replace(" ความเร็ว 1 Gbps", ""), SWITCH).outcome, "ความหมายต่าง");
   assert.deepEqual(oneRow(SWITCH.replace(" IEEE 802.3at", ""), SWITCH), { outcome: "ตรง", missing: ["IEEE 802.3at\n1.2"] }); // the next row's number runs on

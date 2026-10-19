@@ -105,6 +105,9 @@ test("attaching a text TOR compares it at once; another TOR replaces it and its 
   assert.deepEqual(view?.lines.map((l) => [l.socRow, l.outcome]), [[1, "ตรง"], [2, "ตรง"], [3, "ความหมายต่าง"], [4, "ตรง"], [5, "ต่างแค่รูปแบบ"], [null, "ไม่พบใน SOC"]]);
   const changedLine = view?.lines[2];
   assert.ok(changedLine?.socText && changedLine.torText && changedLine.torPage === 1);
+  // Each SOC row's line names the job's major item it lies in, for the "go to the major item" link.
+  const items = new Map((await prisma.socMajorItem.findMany({ where: { jobId } })).map((m) => [m.id, m.label]));
+  assert.deepEqual(view?.lines.map((l) => (l.majorItemId ? [items.get(l.majorItemId), l.majorItemLabel] : null)), [["1", "1"], ["1", "1"], ["1", "1"], ["2", "2"], ["2", "2"], null]);
 
   const replaced = await attach(jobId, buildTablePdf([torPage(7)]), "TOR ใหม่.pdf");
   assert.equal(replaced.status, 201);

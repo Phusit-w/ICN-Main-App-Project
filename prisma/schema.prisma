@@ -246,6 +246,10 @@ model SocTorMatchLine {
   position      Int // order: the SOC rows, then the TOR text no row covers
   socRow        Int? // the SOC row's 1-based number, as SocCheckResult.rowNumber
   item          String?
+  // The key of the job's major item the SOC row lies in (SocMajorItem.key);
+  // null for TOR text no row covers, a job whose major items no longer match
+  // its SOC as read, and lines compared before TOR Match 04.
+  majorItem     String?
   outcome       String // one of TOR_MATCH_OUTCOMES (lib/soc-tor-match.ts)
   socText       String?
   torText       String?

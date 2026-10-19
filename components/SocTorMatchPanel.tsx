@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker from "@/components/SocFilePicker";
 import type { TorMatchView } from "@/lib/soc-tor";
-import { socRowHash } from "@/lib/soc-shared";
+import { majorItemName, socMajorItemHash, socRowHash } from "@/lib/soc-shared";
 import { torDiff, type DiffPart } from "@/lib/soc-tor-diff";
 import { TOR_MATCH_OUTCOMES, type TorMatchOutcome } from "@/lib/soc-tor-match";
 
@@ -106,7 +106,7 @@ function IssueLine({ jobId, line, reviewable }: { jobId: string; line: Line; rev
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
       <span title={OUTCOME_HINTS[line.outcome]} className={`rounded-full px-2 py-0.5 font-medium ${ISSUE[line.outcome] ? "border border-danger-border text-danger" : "bg-chip text-label"}`}>{line.outcome}</span>
       {line.item ? <span className="font-medium">ข้อ {line.item}</span> : null}
-      {soc ? reviewable ? <a href={socRowHash(line.socRow!)} onClick={refireSameHash} title="เปิดแถวนี้ในตรวจทานผลด้านล่าง" className="text-label underline hover:text-ink">SOC แถว {line.socRow}</a> : <span className="text-muted" title="แถวนี้ยังไม่มีผลตรวจ จึงยังไม่อยู่ในตรวจทานผล">SOC แถว {line.socRow}</span> : null}
+      {soc ? reviewable ? <a href={socRowHash(line.socRow!)} onClick={refireSameHash} title="เปิดแถวนี้ในตรวจทานผลด้านล่าง" className="text-label underline hover:text-ink">SOC แถว {line.socRow}</a> : line.majorItemId ? <a href={socMajorItemHash(line.majorItemId)} onClick={refireSameHash} title="แถวนี้ยังไม่มีผลตรวจ ไปที่ข้อใหญ่ของแถวนี้เพื่อกดตรวจ" className="text-label underline hover:text-ink">SOC แถว {line.socRow} · ไปที่{majorItemName(line.majorItemLabel ?? "", "ข้อใหญ่")}</a> : <span className="text-muted" title="แถวนี้ยังไม่มีผลตรวจ จึงยังไม่อยู่ในตรวจทานผล">SOC แถว {line.socRow}</span> : null}
       {line.torPage ? <a href={`/api/soc/jobs/${jobId}/tor/pages/${line.torPage}`} target="_blank" rel="noreferrer" title="เปิดหน้านี้ของ TOR ต้นฉบับ" className="text-label underline hover:text-ink">TOR หน้า {line.torPage} ↗</a> : null}
       {line.claudeOutcome ? <span className="text-label">Claude: <span className="font-medium text-ink">{line.claudeOutcome}</span>{line.claudeReason ? ` · ${line.claudeReason}` : ""}</span> : null}
     </div>

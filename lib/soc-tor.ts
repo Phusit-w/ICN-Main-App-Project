@@ -21,12 +21,13 @@ const SOC_NOT_READ = "แนบ TOR ต้นฉบับได้หลัง�
 export type TorMatchCounts = Record<TorMatchOutcome, number>;
 
 // The stored lines of a compare: the SOC rows in SOC order, then the TOR
-// text no row covers in TOR order.
-function torMatchLines(result: TorMatch) {
-  type Line = { socRow: number | null; item: string | null; outcome: TorMatchOutcome; socText: string | null; torText: string | null; torPage: number | null };
+// text no row covers in TOR order. A row's major item is kept only when the
+// job's major items are the ones its SOC reads into today (`sameSplit`).
+function torMatchLines(result: TorMatch, sameSplit: boolean) {
+  type Line = { socRow: number | null; item: string | null; majorItem: string | null; outcome: TorMatchOutcome; socText: string | null; torText: string | null; torPage: number | null };
   const lines: Line[] = [
-    ...result.rows.map((row) => ({ socRow: row.position, item: row.item, outcome: row.outcome, socText: row.socText, torText: row.torText, torPage: row.torPage })),
-    ...result.missing.map((missing) => ({ socRow: null, item: null, outcome: "ไม่พบใน SOC" as const, socText: null, torText: missing.torText, torPage: missing.torPage })),
+    ...result.rows.map((row) => ({ socRow: row.position, item: row.item, majorItem: sameSplit ? row.majorItem : null, outcome: row.outcome, socText: row.socText, torText: row.torText, torPage: row.torPage })),
+    ...result.missing.map((missing) => ({ socRow: null, item: null, majorItem: null, outcome: "ไม่พบใน SOC" as const, socText: null, torText: missing.torText, torPage: missing.torPage })),
   ];
   return lines.map((line, position) => ({ ...line, position }));
 }
@@ -38,10 +39,13 @@ function torMatchCounts(lines: { outcome: TorMatchOutcome }[]): TorMatchCounts {
 // Compares the job's SOC, as its file reads now, with the TOR's pages. The
 // major items are the file's as read today: a job made before the list rule
 // (TOR Match 01) may show other ones, which a report only can live with.
-async function compareWithSoc(jobId: string, pages: TorPage[]): Promise<TorMatch> {
+// `sameSplit`: the SOC still reads into the job's major items (as soc-import).
+async function compareWithSoc(jobId: string, pages: TorPage[]): Promise<{ result: TorMatch; sameSplit: boolean }> {
   const soc = await jobSocDocument(jobId);
   if (!soc) throw new Error(SOC_NOT_READ);
-  return matchTor(readSocTable(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey)))), pages);
+  const table = readSocTable(new Uint8Array(await readFile(resolveStorageKey(soc.storageKey))));
+  const jobKeys = (await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" }, select: { key: true } })).map((m) => m.key);
+  return { result: matchTor(table, pages), sameSplit: table.majorItems.map((m) => m.key).join("|") === jobKeys.join("|") };
 }
 
 // Attaches a TOR ต้นฉบับ (a PDF validateUpload() has already checked) to an
@@ -52,8 +56,8 @@ export async function attachTorOriginal(actor: SocActor, job: { id: string; titl
   if (job.kind !== "IMPORTED") throw new Error("แนบ TOR ต้นฉบับได้เฉพาะงานตรวจแบบนำเข้าผล");
   if (job.status === "READING" || job.status === "READ_FAILED") throw new Error(SOC_NOT_READ);
   const pages = readTextTor(upload.bytes);
-  const result = await compareWithSoc(job.id, pages);
-  const lines = torMatchLines(result);
+  const { result, sameSplit } = await compareWithSoc(job.id, pages);
+  const lines = torMatchLines(result, sameSplit);
   const old = await prisma.socDocument.findMany({ where: { jobId: job.id, type: TOR_DOCUMENT } });
   const stored = await storeSocFile(job.id, upload.name, ".pdf", upload.bytes);
   const documentId = randomUUID();
@@ -83,10 +87,11 @@ export async function torMatchView(jobId: string) {
     where: { jobId },
     include: {
       document: { select: { originalName: true } },
-      lines: { orderBy: { position: "asc" }, select: { id: true, socRow: true, item: true, outcome: true, socText: true, torText: true, torPage: true, claudeOutcome: true, claudeReason: true } },
+      lines: { orderBy: { position: "asc" }, select: { id: true, socRow: true, item: true, majorItem: true, outcome: true, socText: true, torText: true, torPage: true, claudeOutcome: true, claudeReason: true } },
     },
   });
   if (!match) return null;
+  const majorItems = new Map((await prisma.socMajorItem.findMany({ where: { jobId }, select: { id: true, key: true, label: true } })).map((m) => [m.key, m]));
   const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
   return {
     documentId: match.documentId,
@@ -96,7 +101,10 @@ export async function torMatchView(jobId: string) {
     warnings: strings(match.warnings),
     errorMessage: match.errorMessage,
     // Every outcome line, ตรง included: the issue list hides those by default.
-    lines: match.lines.map((line) => ({ ...line, outcome: line.outcome as TorMatchOutcome })),
+    lines: match.lines.map(({ majorItem, ...line }) => {
+      const item = majorItem ? majorItems.get(majorItem) : undefined;
+      return { ...line, outcome: line.outcome as TorMatchOutcome, majorItemId: item?.id ?? null, majorItemLabel: item?.label ?? null };
+    }),
   };
 }
 export type TorMatchView = NonNullable<Awaited<ReturnType<typeof torMatchView>>>;
