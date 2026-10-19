@@ -64,7 +64,8 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
       {torMatch.warnings.length ? <ul role="status" className="list-disc rounded-input border border-danger-border p-3 pl-8 text-sm text-label">{torMatch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
       {torMatch.lines.length ? <IssueList jobId={jobId} lines={torMatch.lines} reviewRows={reviewRows} /> : null}
     </div> : null}
-    {socReady ? <form action={submit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+    {/* onSubmit, not a form action: an action is a transition, which holds the replace confirm dialog back until the action ends, and the action waits on the dialog. */}
+    {socReady ? <form onSubmit={(event) => { event.preventDefault(); void submit(); }} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
       <SocFilePicker files={files} onChange={setFiles} disabled={pending} label={torMatch ? "เลือก PDF TOR ต้นฉบับฉบับใหม่" : "เลือกไฟล์ PDF ของ TOR ต้นฉบับ"} accept=".pdf,application/pdf" />
       <p className="text-xs text-muted">ตอนนี้รองรับ PDF ที่มีข้อความ (TOR ต้นฉบับแบบสแกนกำลังพัฒนา)</p>
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังเทียบกับ SOC…" : torMatch ? "แทนที่ TOR ต้นฉบับ" : "แนบ TOR ต้นฉบับ"}</Button></div> : null}
