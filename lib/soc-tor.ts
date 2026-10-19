@@ -9,11 +9,14 @@ import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { OCR_CONFIRM_REQUIRED, resolveStorageKey, socStorageRoot, storeSocFile } from "@/lib/soc";
 import { jobSocDocument } from "@/lib/soc-import";
+import { torJudgeRequestView } from "@/lib/soc-check-requests";
 import { queueOcrRead, stopOcrRead, type OcrRun } from "@/lib/soc-ocr-queue";
 import type { CellReader } from "@/lib/soc-pdf-soc";
 import { readSocTable } from "@/lib/soc-table";
 import { matchTor, TOR_MATCH_OUTCOMES, type TorMatch, type TorMatchOutcome, type TorPage } from "@/lib/soc-tor-match";
+import { TOR_JUDGE_REQUEST, TOR_JUDGE_SENT } from "@/lib/soc-tor-judge";
 import { readScannedTor, readTextTor } from "@/lib/soc-tor-read";
+import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 import { configuredOcrReader, OCR_NOT_SET_UP } from "@/lib/soc-typhoon";
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
@@ -67,7 +70,7 @@ const torPagesFile = (jobId: string, documentId: string) => path.join(socStorage
 // and nothing is stored or sent), it needs the OCR key, and it is read in the
 // background (startTorRead) and compared when the read ends. A TOR already
 // attached is replaced: its read stops, and its document, saved pages and
-// result go.
+// result go, and a Claude step open on it is cancelled.
 export async function attachTorOriginal(
   actor: SocActor,
   job: { id: string; title: string; kind: string; status: string },
@@ -83,14 +86,18 @@ export async function attachTorOriginal(
   }
   const compared = read.pages ? await compareWithSoc(job.id, read.pages) : null;
   const old = await prisma.socDocument.findMany({ where: { jobId: job.id, type: TOR_DOCUMENT } });
+  const openJudges = await prisma.socCheckRequest.findMany({ where: { jobId: job.id, kind: TOR_JUDGE_REQUEST, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES] } }, select: { id: true } });
   const stored = await storeSocFile(job.id, upload.name, ".pdf", upload.bytes);
   const documentId = randomUUID();
   const detail = { documentId, name: stored.originalName, replaced: old.map((d) => d.originalName), ...(compared ? { counts: compared.counts } : { scanned: true }) };
   const match = compared
     ? { state: "ready", pages: compared.pages, counts: compared.counts, warnings: compared.warnings, lines: { createMany: { data: compared.lines } } }
-    : { state: "reading", stage: READING_STAGE };
+    : { state: "reading", stage: READING_STAGE, scanned: true };
   try {
     await prisma.$transaction([
+      // Claude no longer judges the old TOR's lines; a runner on it stops at its next heartbeat.
+      prisma.socCheckRequest.updateMany({ where: { id: { in: openJudges.map((r) => r.id) }, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES] } }, data: { state: "cancelled", finishedAt: new Date(), progressNote: null } }),
+      prisma.socAuditEvent.createMany({ data: openJudges.map((r) => ({ jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_CANCELLED", detail: { checkRequestId: r.id, kind: TOR_JUDGE_REQUEST, reason: "TOR_REPLACED" } })) }),
       // Deleting the old document deletes its TOR Match and lines too.
       prisma.socDocument.deleteMany({ where: { jobId: job.id, type: TOR_DOCUMENT } }),
       prisma.socDocument.create({ data: { id: documentId, jobId: job.id, type: TOR_DOCUMENT, mimeType: "application/pdf", pageCount: read.pageCount, ...stored } }),
@@ -209,6 +216,9 @@ export async function torMatchView(jobId: string) {
     counts: (match.counts ?? null) as TorMatchCounts | null,
     warnings: strings(match.warnings),
     errorMessage: match.errorMessage,
+    // The Claude step: how many lines it would be sent, and its latest request.
+    judgeable: match.lines.filter((line) => (TOR_JUDGE_SENT as readonly string[]).includes(line.outcome)).length,
+    judge: await torJudgeRequestView(match.id),
     // Every outcome line, ตรง included: the issue list hides those by default.
     lines: match.lines.map(({ majorItem, ...line }) => {
       const item = majorItem ? majorItems.get(majorItem) : undefined;

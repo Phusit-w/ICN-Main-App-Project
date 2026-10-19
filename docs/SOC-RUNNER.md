@@ -171,6 +171,36 @@ event `RUN_IMPORTED` ของ run เก็บ `evidenceFlow` (`packet` เม�
 
 ทุก endpoint: คำขอของผู้ใช้อื่นตอบ `404` เสมอ (ไม่บอกว่ามีอยู่) ส่วน `401`/`403` เหมือน heartbeat
 
+### คำขอให้ Claude ตัดสินผลเทียบ TOR ต้นฉบับ (`kind: "tor_judge"`, TOR Match 07)
+
+ปุ่ม "ส่งให้ Claude ตัดสิน" ในส่วนตรวจ TOR ตรงต้นฉบับของหน้างาน สร้างคำขอหนึ่งรายการ (`SocCheckRequest.kind = "tor_judge"`,
+ไม่มี `majorItemId`) ของทุกแถวที่โค้ดเทียบได้ ความหมายต่าง หรือ ยืนยันไม่ได้ ตรึงแถวไว้ (`torLineIds`) ตอนกด เปิดได้ครั้งละหนึ่งคำขอต่อ TOR
+คิว การรับงาน heartbeat ยกเลิก ตรวจต่อเลย หยุดรอโควตา login หมดอายุ คืนคิวเมื่อเงียบ และ `failed` ใช้ร่วมกับคำขอตรวจข้อใหญ่ทุกอย่าง
+(เรียงตามเวลาที่ขอ) แต่ไม่เปลี่ยนสถานะข้อใหญ่ใด แทนที่ TOR ต้นฉบับ = ยกเลิกคำขอที่เปิดอยู่ (runner รู้ทาง `cancelled` ใน heartbeat)
+
+- **ต้องใช้ runner 0.8.0 ขึ้นไป** (`SOC_RUNNER_FOR_TOR_JUDGE`): runner ที่เก่ากว่าไม่ได้คำขอแบบนี้ หน้างานแสดง "รอติดตั้ง SOC Runner รุ่นใหม่"
+- claim ตอบ (แทน `majorItem`/`documents`/`rows` ของคำขอตรวจ ซึ่งมี `kind: "check"`):
+
+```json
+{ "request": {
+  "id": "...", "kind": "tor_judge", "claimedAt": "...", "job": { "id": "...", "title": "..." },
+  "needsRunner": "0.8.0",
+  "skill": { "version": "...", "fileName": "...", "sizeBytes": 0, "checksum": "<sha256>", "url": "/api/soc-runner/requests/<id>/skill" },
+  "tor": { "scanned": true, "document": { "id": "...", "type": "TOR_ORIGINAL", "name": "TOR.pdf", "sizeBytes": 0, "checksum": "<sha256>", "url": ".../documents/<id>" } },
+  "lines": [{ "line": 12, "outcome": "ความหมายต่าง", "item": "4.10.1", "socRow": 87, "socText": "...", "torText": "...", "torPage": 45, "image": true }]
+} }
+```
+
+  `tor` เป็น `null` เมื่อ TOR ถูกแทนที่หลังกด (runner รายงาน `failed`) `image: true` = TOR เป็น PDF สแกน (`SocTorMatch.scanned`)
+  หรือหน้านั้นเป็นหน้ารูปของ TOR แบบข้อความ ดาวน์โหลดได้เฉพาะไฟล์ TOR ต้นฉบับของคำขอนี้
+- runner (`_judge_tor`): ดาวน์โหลด TOR เฉพาะเมื่อมีแถว `image` แล้ววาดหน้านั้นเป็น PNG ด้วย PyMuPDF หน้าละครั้ง (`out/tor-pages/p<N>.png`,
+  ด้านยาวไม่เกิน 1568 px) เขียนแถวลง `out/tor-lines.json` (แถวที่มีรูปได้ `page_image`) โหลด `references/tor-match-judge.md`
+  ของ Skill Package เป็น system prompt (Skill Package ที่ไม่มีไฟล์นี้ = `failed` ก่อน Claude รัน) prompt บังคับให้ Read รูปทุกแถวที่มี `page_image`
+  Claude เขียน `out/tor-judge.json` เป็น session ใหม่ทุกครั้ง (หยุดรอโควตาแล้วเริ่มใหม่ทั้งคำขอ)
+- submit: `results` = tor-judge.json `{ "lines": [{ "line", "outcome", "reason" }] }` ไม่มี `socCheck` server รับเฉพาะเมื่อทุกแถวที่ตรึงไว้มีผลหนึ่งรายการพอดี
+  ไม่มีแถวเกิน `outcome` เป็น ตรง / ต่างแค่รูปแบบ / ความหมายต่าง / ยืนยันไม่ได้ และมี `reason` แล้วเก็บเป็น `claudeOutcome`/`claudeReason`
+  ข้างผลของโค้ด (ผลของโค้ดและจำนวนไม่เปลี่ยน) ตอบ `201 { runId: <request id>, rowCount }` ไม่งั้น `422 { errors }` และคำขอเป็น `failed`
+
 ## ตัว SOC Runner (ticket 14, `soc-runner/`)
 
 โปรแกรม Python (standard library ล้วน) ผู้ตรวจติดตั้งด้วยคำสั่งติดตั้งจากหน้า `/soc` (ticket 16) นักพัฒนารันจาก source ได้

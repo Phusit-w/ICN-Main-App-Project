@@ -13,8 +13,9 @@ import { resolveStorageKey } from "@/lib/soc";
 import { importLocalCheckRun, jobSocDocument, type ConfirmedRow, type LocalCheckRunImport } from "@/lib/soc-import";
 import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
+import { importTorJudge, torJudgeRunnerInput, TOR_JUDGE_REQUEST } from "@/lib/soc-tor-judge";
 import {
-  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, XLSX_MIME, isExcelSoc, isRequestableItemState,
+  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, SOC_RUNNER_FOR_TOR_JUDGE, XLSX_MIME, isExcelSoc, isRequestableItemState,
   isAnnexLabel, majorItemName, socRunnerAtLeast, socRunnerState,
   type SocCheckRequestView, type SocRunnerNeed,
 } from "@/lib/soc-shared";
@@ -29,6 +30,13 @@ const MAX_REASON = 1000;
 const MAX_MISSING = 50;
 const MAX_MISSING_NAME = 300;
 const MAX_PAUSE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// A request's subject, as the audit names it: its major item, or the TOR
+// Match lines of a tor_judge request (lib/soc-tor-judge.ts), which has none.
+// Only a request with a major item moves that item's state.
+type Subject = { majorItemId: string | null; majorItem: { label: string } | null };
+const subjectName = (request: Subject) => (request.majorItem ? majorItemName(request.majorItem.label) : "ผลเทียบ TOR ต้นฉบับ");
+const subjectDetail = (request: Subject) => (request.majorItem ? { majorItemId: request.majorItemId, majorItem: request.majorItem.label } : { kind: TOR_JUDGE_REQUEST });
 
 // ---- Requesting (web) -----------------------------------------------------------
 
@@ -180,11 +188,11 @@ export async function cancelCheckRequest(actor: Actor, job: Job, requestId: stri
   const cancelled = await prisma.$transaction(async (tx) => {
     const { count } = await tx.socCheckRequest.updateMany({ where: { id: request.id, state: { in: open } }, data: { state: "cancelled", finishedAt: new Date(), progressNote: null } });
     if (!count) return false;
-    await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: { in: open } }, data: { state: request.priorState } });
-    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_CANCELLED", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label } } });
+    if (request.majorItemId) await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: { in: open } }, data: { state: request.priorState } });
+    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_CANCELLED", detail: { checkRequestId: request.id, ...subjectDetail(request) } } });
     await writeAudit({
       actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_CANCELLED", entityType: "SOC_JOB", entityId: job.id,
-      summary: `ยกเลิกตรวจ${majorItemName(request.majorItem.label)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
+      summary: `ยกเลิกตรวจ${subjectName(request)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
     }, tx);
     return true;
   });
@@ -211,10 +219,10 @@ export async function resumeCheckRequestNow(actor: Actor, job: Job, requestId: s
   const resumed = await prisma.$transaction(async (tx) => {
     const { count } = await tx.socCheckRequest.updateMany({ where: { id: request.id, state: "paused_quota" }, data: { resumeAt: new Date() } });
     if (!count) return false;
-    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_RESUME_NOW", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label, resumeAt: request.resumeAt?.toISOString() ?? null } } });
+    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUEST_RESUME_NOW", detail: { checkRequestId: request.id, ...subjectDetail(request), resumeAt: request.resumeAt?.toISOString() ?? null } } });
     await writeAudit({
       actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_RESUME_NOW", entityType: "SOC_JOB", entityId: job.id,
-      summary: `สั่งตรวจต่อเลย${majorItemName(request.majorItem.label)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
+      summary: `สั่งตรวจต่อเลย${subjectName(request)} ในงาน ${job.title}`, metadata: { checkRequestId: request.id },
     }, tx);
     return true;
   });
@@ -245,9 +253,9 @@ export async function releaseStaleCheckRequests(now = new Date()) {
         data: { state: "requested", claimedByLinkId: null, claimedAt: null, progressNote: null },
       });
       if (!count) return;
-      await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: "running" }, data: { state: "requested" } });
+      if (request.majorItemId) await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: "running" }, data: { state: "requested" } });
       await tx.socAuditEvent.create({
-        data: { jobId: request.jobId, action: "CHECK_REQUEST_RELEASED", detail: { checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label, lastSeenAt: request.lastSeenAt?.toISOString() ?? null } },
+        data: { jobId: request.jobId, action: "CHECK_REQUEST_RELEASED", detail: { checkRequestId: request.id, ...subjectDetail(request), lastSeenAt: request.lastSeenAt?.toISOString() ?? null } },
       });
     });
   }
@@ -260,7 +268,7 @@ export async function releaseStaleCheckRequests(now = new Date()) {
 // state, for "รอเครื่องของคุณเปิด") and the reason of a failed one.
 export async function majorItemRequestViews(jobId: string, now = new Date()) {
   const requests = await prisma.socCheckRequest.findMany({
-    where: { jobId, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES, "failed"] } },
+    where: { jobId, kind: "check", state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES, "failed"] } },
     orderBy: { createdAt: "desc" },
     include: {
       requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
@@ -270,23 +278,41 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
   const excelSoc = requests.length ? isExcelSoc(await jobSocDocument(jobId)) : false;
   const views = new Map<string, { request: SocCheckRequestView | null; failureReason: string | null }>();
   for (const r of requests) {
-    if (views.has(r.majorItemId)) continue; // the latest one per item
+    if (!r.majorItemId || views.has(r.majorItemId)) continue; // the latest one per item
     const link = r.requestedBy.socRunnerLinks[0];
-    const tooOldFor = link?.runnerVersion ? runnerTooOldFor(link.runnerVersion, { excelSoc, imageRows: r.majorItem.imageRowCount }) : null;
+    const tooOldFor = link?.runnerVersion ? runnerTooOldFor(link.runnerVersion, { excelSoc, imageRows: r.majorItem?.imageRowCount ?? 0 }) : null;
     views.set(r.majorItemId, r.state === "failed"
       ? { request: null, failureReason: r.failureReason }
-      : {
-        failureReason: null,
-        request: {
-          id: r.id, state: r.state, requestedById: r.requestedById, requestedByName: r.requestedBy.displayName,
-          runnerState: link ? socRunnerState(link.lastSeenAt, now) : null,
-          progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null, rowCount: r.rowNumbers.length,
-          // A runner that has never reported shows as not connected instead.
-          ...(tooOldFor ? { runnerTooOld: tooOldFor } : {}),
-        },
-      });
+      : { failureReason: null, request: requestView(r, link, now, tooOldFor) });
   }
   return views;
+}
+
+// The latest tor_judge request of a TOR Match, open or closed, as the TOR
+// Match section shows it; null when Claude was never asked.
+export async function torJudgeRequestView(torMatchId: string, now = new Date()) {
+  const r = await prisma.socCheckRequest.findFirst({
+    where: { torMatchId, kind: TOR_JUDGE_REQUEST },
+    orderBy: { createdAt: "desc" },
+    include: { requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } } },
+  });
+  if (!r) return null;
+  const link = r.requestedBy.socRunnerLinks[0];
+  const tooOld = link?.runnerVersion && !socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_TOR_JUDGE) ? "tor_judge" as const : null;
+  return { ...requestView(r, link, now, tooOld), failureReason: r.state === "failed" ? r.failureReason : null, lineCount: r.torLineIds.length };
+}
+
+function requestView(
+  r: { id: string; state: string; requestedById: string; requestedBy: { displayName: string }; progressNote: string | null; resumeAt: Date | null; rowNumbers: number[] },
+  link: { lastSeenAt: Date | null } | undefined, now: Date, tooOldFor: SocRunnerNeed | null,
+): SocCheckRequestView {
+  return {
+    id: r.id, state: r.state, requestedById: r.requestedById, requestedByName: r.requestedBy.displayName,
+    runnerState: link ? socRunnerState(link.lastSeenAt, now) : null,
+    progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null, rowCount: r.rowNumbers.length,
+    // A runner that has never reported shows as not connected instead.
+    ...(tooOldFor ? { runnerTooOld: tooOldFor } : {}),
+  };
 }
 
 // ---- Runner API -------------------------------------------------------------------
@@ -303,6 +329,12 @@ const requestFiles = (id: string) => `/api/soc-runner/requests/${id}`;
 // `socCheck`: whether the run must come with a SOC_Check document (false for
 // an Excel SOC). The runner takes it from here, not from the SOC's file name.
 async function runnerView(requestId: string) {
+  const { kind } = await prisma.socCheckRequest.findUniqueOrThrow({ where: { id: requestId }, select: { kind: true } });
+  return kind === TOR_JUDGE_REQUEST ? torJudgeRunnerView(requestId) : checkRunnerView(requestId);
+}
+export type RunnerCheckRequest = Awaited<ReturnType<typeof runnerView>>;
+
+async function checkRunnerView(requestId: string) {
   const request = await prisma.socCheckRequest.findUniqueOrThrow({
     where: { id: requestId },
     include: {
@@ -311,28 +343,50 @@ async function runnerView(requestId: string) {
       skillPackage: true,
     },
   });
-  const skill = request.skillPackage;
+  const item = request.majorItem!; // a check request always has one
   const excelSoc = request.job.documents.some((d) => d.type === "SOC" && isExcelSoc(d));
   const picked = request.rowNumbers.length
-    ? await prisma.socCheckResult.findMany({ where: { majorItemId: request.majorItemId, rowNumber: { in: request.rowNumbers } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true } })
+    ? await prisma.socCheckResult.findMany({ where: { majorItemId: item.id, rowNumber: { in: request.rowNumbers } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true } })
     : [];
   return {
     id: request.id,
+    kind: "check" as const,
     claimedAt: request.claimedAt?.toISOString() ?? null,
     job: { id: request.job.id, title: request.job.title },
-    majorItem: runnerMajorItem(request.majorItem),
+    majorItem: runnerMajorItem(item),
     acknowledgedMissing: request.acknowledgedMissing,
-    needsRunner: request.majorItem.imageRowCount ? SOC_RUNNER_FOR_IMAGE_ROWS : excelSoc ? SOC_RUNNER_FOR_EXCEL_SOC : null,
-    imageRows: request.majorItem.imageRowCount,
+    needsRunner: item.imageRowCount ? SOC_RUNNER_FOR_IMAGE_ROWS : excelSoc ? SOC_RUNNER_FOR_EXCEL_SOC : null,
+    imageRows: item.imageRowCount,
     socCheck: !excelSoc,
     rows: picked.map((r) => ({ row: r.rowNumber, item: r.item })),
-    skill: skill ? { version: skill.version, fileName: socSkillDownloadName(skill), sizeBytes: skill.sizeBytes, checksum: skill.checksum, url: `${requestFiles(request.id)}/skill` } : null,
-    documents: request.job.documents.map((d) => ({
-      id: d.id, type: d.type, name: d.originalName, sizeBytes: d.sizeBytes, checksum: d.checksum, url: `${requestFiles(request.id)}/documents/${d.id}`,
-    })),
+    skill: runnerSkill(request.id, request.skillPackage),
+    documents: request.job.documents.map((d) => runnerDocument(request.id, d)),
   };
 }
-export type RunnerCheckRequest = Awaited<ReturnType<typeof runnerView>>;
+
+// A tor_judge request (lib/soc-tor-judge.ts): the TOR ต้นฉบับ and the lines
+// Claude judges. `tor` is null when the TOR was replaced since the request.
+async function torJudgeRunnerView(requestId: string) {
+  const request = await prisma.socCheckRequest.findUniqueOrThrow({ where: { id: requestId }, include: { job: { select: { id: true, title: true } }, skillPackage: true } });
+  const input = await torJudgeRunnerInput(request.torMatchId, request.torLineIds);
+  return {
+    id: request.id,
+    kind: "tor_judge" as const,
+    claimedAt: request.claimedAt?.toISOString() ?? null,
+    job: { id: request.job.id, title: request.job.title },
+    needsRunner: SOC_RUNNER_FOR_TOR_JUDGE,
+    skill: runnerSkill(request.id, request.skillPackage),
+    tor: input ? { scanned: input.scanned, document: runnerDocument(request.id, input.document) } : null,
+    lines: input?.lines ?? [],
+  };
+}
+
+const runnerSkill = (requestId: string, skill: { version: string; rootDir: string; sizeBytes: number; checksum: string } | null) =>
+  skill ? { version: skill.version, fileName: socSkillDownloadName(skill), sizeBytes: skill.sizeBytes, checksum: skill.checksum, url: `${requestFiles(requestId)}/skill` } : null;
+
+const runnerDocument = (requestId: string, d: { id: string; type: string; originalName: string; sizeBytes: number; checksum: string }) => ({
+  id: d.id, type: d.type, name: d.originalName, sizeBytes: d.sizeBytes, checksum: d.checksum, url: `${requestFiles(requestId)}/documents/${d.id}`,
+});
 
 // The major item as the runner and the skill name it: by its number. A ผนวก
 // goes as its number ("7") with "ผนวก 7 …" as the title: the skill sees in the
@@ -351,11 +405,13 @@ function runnerTooOldFor(runnerVersion: string, request: { excelSoc: boolean; im
   return null;
 }
 
-// A runner is handed only the requests its version can carry out (runnerTooOld).
+// A runner is handed only the requests its version can carry out (runnerTooOld,
+// and no tor_judge request before SOC_RUNNER_FOR_TOR_JUDGE).
 const CLAIMABLE = (userId: string, now: Date, runnerVersion: string | null): Prisma.SocCheckRequestWhereInput => ({
   requestedById: userId,
   job: { deletedAt: null, ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC) ? {} : { documents: { none: { type: "SOC", mimeType: XLSX_MIME } } }) },
   ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_IMAGE_ROWS) ? {} : { majorItem: { imageRowCount: 0 } }),
+  ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_TOR_JUDGE) ? {} : { kind: "check" }),
   OR: [{ state: { in: ["requested", "needs_login"] } }, { state: "paused_quota", resumeAt: { lte: now } }],
 });
 
@@ -387,9 +443,9 @@ export async function claimNextCheckRequest(link: RunnerLink): Promise<RunnerChe
       if (!count) return false;
       // A link revoked since it was authenticated takes nothing.
       if (!(await tx.socRunnerLink.count({ where: { id: link.id, revokedAt: null } }))) throw new Error("UNAUTHORIZED");
-      await tx.socMajorItem.update({ where: { id: next.majorItemId }, data: { state: "running" } });
+      if (next.majorItemId) await tx.socMajorItem.update({ where: { id: next.majorItemId }, data: { state: "running" } });
       await tx.socAuditEvent.create({
-        data: { jobId: next.jobId, actorId: link.userId, action: "CHECK_REQUEST_CLAIMED", detail: { checkRequestId: next.id, majorItemId: next.majorItemId, majorItem: next.majorItem.label, linkId: link.id, skillVersion: skill.version, from: next.state } },
+        data: { jobId: next.jobId, actorId: link.userId, action: "CHECK_REQUEST_CLAIMED", detail: { checkRequestId: next.id, ...subjectDetail(next), linkId: link.id, skillVersion: skill.version, from: next.state } },
       });
       return true;
     });
@@ -411,10 +467,15 @@ async function claimedRequest(link: RunnerLink, requestId: string) {
   return request;
 }
 
-// A SOC or evidence file of the request's job.
+// A SOC or evidence file of the request's job; for a tor_judge request, only
+// the TOR ต้นฉบับ of the TOR Match it judges.
 export async function runnerRequestDocument(link: RunnerLink, requestId: string, documentId: string) {
   const request = await claimedRequest(link, requestId);
-  const document = await prisma.socDocument.findFirst({ where: { id: documentId, jobId: request.jobId, type: { in: ["SOC", "EVIDENCE"] } } });
+  const document = await prisma.socDocument.findFirst({
+    where: request.kind === TOR_JUDGE_REQUEST
+      ? { id: documentId, jobId: request.jobId, torMatch: { id: request.torMatchId ?? "" } }
+      : { id: documentId, jobId: request.jobId, type: { in: ["SOC", "EVIDENCE"] } },
+  });
   if (!document) throw new Error("NOT_FOUND");
   await touch(request.id);
   return { document, bytes: await readFile(resolveStorageKey(document.storageKey)) };
@@ -498,19 +559,21 @@ export async function reportCheckRequest(link: RunnerLink, requestId: string, re
   await prisma.$transaction(async (tx) => {
     const { count } = await tx.socCheckRequest.updateMany({ where, data });
     if (!count) throw new Error("NOT_CLAIMED");
-    await tx.socMajorItem.updateMany({
-      where: { id: request.majorItemId, state: "running" },
-      data: { state: report.state, ...(report.state === "needs_documents" ? { missingDocuments: report.missingDocuments } : {}) },
-    });
+    if (request.majorItemId) {
+      await tx.socMajorItem.updateMany({
+        where: { id: request.majorItemId, state: "running" },
+        data: { state: report.state, ...(report.state === "needs_documents" ? { missingDocuments: report.missingDocuments } : {}) },
+      });
+    }
     // Until the next heartbeat says otherwise, claims wait for a Claude login.
     if (report.state === "needs_login") await tx.socRunnerLink.updateMany({ where: { id: link.id, revokedAt: null }, data: { claudeLogin: "logged_out" } });
     const { state: _state, ...rest } = report;
     await tx.socAuditEvent.create({
-      data: { jobId: request.jobId, actorId: link.userId, action: "CHECK_REQUEST_REPORTED", detail: JSON.parse(JSON.stringify({ checkRequestId: request.id, majorItemId: request.majorItemId, majorItem: request.majorItem.label, state: report.state, ...rest })) },
+      data: { jobId: request.jobId, actorId: link.userId, action: "CHECK_REQUEST_REPORTED", detail: JSON.parse(JSON.stringify({ checkRequestId: request.id, ...subjectDetail(request), state: report.state, ...rest })) },
     });
     await writeAudit({
       actorId: link.userId, action: "SOC_CHECK_REQUEST_REPORTED", entityType: "SOC_JOB", entityId: request.jobId,
-      summary: `${majorItemName(request.majorItem.label)} ในงาน ${request.job.title}: ${REPORT_SUMMARY[report.state]}`,
+      summary: `${subjectName(request)} ในงาน ${request.job.title}: ${REPORT_SUMMARY[report.state]}`,
       metadata: { checkRequestId: request.id, state: report.state },
     }, tx);
   });
@@ -529,12 +592,15 @@ export async function submitCheckRequest(
   const request = await claimedRequest(link, requestId);
   await touch(request.id);
   const pinned = request.skillPackageId ? await prisma.socSkillPackage.findUnique({ where: { id: request.skillPackageId }, select: { version: true } }) : null;
-  const imported = await importLocalCheckRun({ id: link.userId }, {
-    jobId: request.jobId, majorItemId: request.majorItemId, results: input.results, socCheck: input.socCheck,
-    run: { skillVersion: input.skillVersion || pinned?.version || "", model: input.model, source: "runner", packetFallback: input.packetFallback },
-    replaceConfirmed: request.replaceConfirmed,
-    checkRequest: { id: request.id, requestedById: request.requestedById, acknowledgedMissing: request.acknowledgedMissing, rowNumbers: request.rowNumbers },
-  });
+  const skillVersion = input.skillVersion || pinned?.version || "";
+  const imported = request.majorItemId
+    ? await importLocalCheckRun({ id: link.userId }, {
+      jobId: request.jobId, majorItemId: request.majorItemId, results: input.results, socCheck: input.socCheck,
+      run: { skillVersion, model: input.model, source: "runner", packetFallback: input.packetFallback },
+      replaceConfirmed: request.replaceConfirmed,
+      checkRequest: { id: request.id, requestedById: request.requestedById, acknowledgedMissing: request.acknowledgedMissing, rowNumbers: request.rowNumbers },
+    })
+    : await importTorJudge(request, input.results, { skillVersion, model: input.model });
   if (!imported.ok) {
     const reason = `ผลตรวจที่ SOC Runner ส่งกลับมาไม่ผ่านการตรวจสอบ: ${imported.errors.slice(0, 3).join(" / ")}`.slice(0, MAX_REASON);
     // Best effort: the request may have been released meanwhile.

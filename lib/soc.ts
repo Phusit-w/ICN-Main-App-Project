@@ -398,7 +398,7 @@ export async function removeSocEvidence(actor: SocActor, documentId: string) {
   if (!document) throw new Error("NOT_FOUND");
   const { job } = await authorizeSocJob(document.jobId);
   if (job.kind !== "IMPORTED" || document.type !== "EVIDENCE") throw new Error("ลบได้เฉพาะไฟล์ PDF หลักฐานของงานตรวจแบบนำเข้าผล");
-  if (await prisma.socCheckRequest.count({ where: { jobId: job.id, state: "running" } })) {
+  if (await prisma.socCheckRequest.count({ where: { jobId: job.id, kind: "check", state: "running" } })) {
     throw new Error("SOC Runner กำลังตรวจงานนี้อยู่ ลบไฟล์ได้หลังตรวจเสร็จ");
   }
   const detail = { documentId: document.id, name: document.originalName };

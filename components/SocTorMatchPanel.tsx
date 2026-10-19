@@ -3,11 +3,12 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { cancelSocTorRead, resumeSocTorRead } from "@/actions/soc";
+import { cancelSocCheckRequest, requestSocTorJudge, resumeSocCheckRequestNow } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker from "@/components/SocFilePicker";
 import type { TorMatchView } from "@/lib/soc-tor";
-import { majorItemName, socMajorItemHash, socRowHash } from "@/lib/soc-shared";
+import { isOpenCheckRequestState, majorItemName, majorItemStateText, socMajorItemHash, socRowHash } from "@/lib/soc-shared";
 import { torDiff, type DiffPart } from "@/lib/soc-tor-diff";
 import { TOR_MATCH_OUTCOMES, type TorMatchOutcome } from "@/lib/soc-tor-match";
 
@@ -26,7 +27,7 @@ const ISSUE: Record<TorMatchOutcome, boolean> = { "ตรง": false, "ต่า
 // changes the datasheet check above. `socReady`: the SOC is fully read (a
 // scanned PDF SOC may still be reading). `reviewRows`: the SOC rows the
 // review panel below shows, which a line links to (`#soc-row-N`).
-export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows }: { jobId: string; torMatch: TorMatchView | null; socReady: boolean; reviewRows: number[] }) {
+export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows, viewerId, viewerIsAdmin }: { jobId: string; torMatch: TorMatchView | null; socReady: boolean; reviewRows: number[]; viewerId: string; viewerIsAdmin: boolean }) {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
@@ -76,6 +77,7 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
       {torMatch.state === "failed" ? <ReadFailed jobId={jobId} message={torMatch.errorMessage} /> : null}
       {counts ? <ul className="flex flex-wrap gap-2" aria-label="จำนวนตามผลเทียบ TOR ต้นฉบับ">{TOR_MATCH_OUTCOMES.map((outcome) => <li key={outcome} title={OUTCOME_HINTS[outcome]} className={`rounded-full px-3 py-1 text-xs font-medium ${ISSUE[outcome] && counts[outcome] ? "border border-danger-border text-danger" : "bg-chip text-label"}`}>{outcome} <span className="tabular-nums">{counts[outcome]}</span></li>)}</ul> : null}
       {torMatch.warnings.length ? <ul role="status" className="list-disc rounded-input border border-danger-border p-3 pl-8 text-sm text-label">{torMatch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
+      {torMatch.state === "ready" ? <ClaudeJudge jobId={jobId} judgeable={torMatch.judgeable} judge={torMatch.judge} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} /> : null}
       {torMatch.lines.length ? <IssueList jobId={jobId} lines={torMatch.lines} reviewRows={reviewRows} /> : null}
     </div> : null}
     {/* onSubmit, not a form action: an action is a transition, which holds the replace confirm dialog back until the action ends, and the action waits on the dialog. */}
@@ -136,6 +138,55 @@ function ReadFailed({ jobId, message }: { jobId: string; message: string | null 
   return <div className="flex flex-wrap items-center gap-3">
     <p role="alert" className="text-sm text-danger">{message || "อ่าน TOR ต้นฉบับไม่สำเร็จ"}</p>
     <Button size="sm" disabled={busy} onClick={resume}>{busy ? "กำลังเริ่ม…" : "อ่านต่อ"}</Button>
+    {error ? <p role="alert" className="w-full text-xs text-danger">{error}</p> : null}
+  </div>;
+}
+
+// The Claude step (decisions 13, 23): the lines code left as ความหมายต่าง or
+// ยืนยันไม่ได้ go to Claude on the viewer's SOC Runner as one request. Its
+// state reads as a major item's check; Claude's outcome and reason show on
+// each line below.
+function ClaudeJudge({ jobId, judgeable, judge, viewerId, viewerIsAdmin }: { jobId: string; judgeable: number; judge: TorMatchView["judge"]; viewerId: string; viewerIsAdmin: boolean }) {
+  const router = useRouter();
+  const [dialog, confirm] = useConfirmDialog();
+  // The button whose action is running, for its label; every button waits meanwhile.
+  const [busy, setBusy] = useState<"send" | "cancel" | "resume" | null>(null);
+  const [error, setError] = useState("");
+  const open = judge !== null && isOpenCheckRequestState(judge.state);
+  async function act(button: "send" | "cancel" | "resume", run: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+    setBusy(button);
+    setError("");
+    try {
+      const result = await run();
+      if (!result.ok) setError(result.error);
+    } catch {
+      setError("ทำรายการไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      router.refresh();
+      setBusy(null);
+    }
+  }
+  async function send() {
+    if (!(await confirm({ title: `ส่ง ${judgeable} แถวให้ Claude ตัดสิน?`, message: "SOC Runner บนเครื่องของคุณจะให้ Claude ดูแถวที่ระบบเทียบเองแล้วสรุปไม่ได้ (ความหมายต่าง และยืนยันไม่ได้) พร้อมภาพหน้า TOR ต้นฉบับเมื่อเป็น PDF สแกนหรือหน้าที่เป็นรูป ใช้โควตา Claude ของคุณ ผลของระบบยังแสดงไว้คู่กัน", confirmLabel: "ส่งให้ Claude" }))) return;
+    await act("send", () => requestSocTorJudge(jobId));
+  }
+  async function cancel() {
+    if (!judge || !(await confirm({ title: "ยกเลิกให้ Claude ตัดสิน?", message: judge.state === "requested" ? "คำขอนี้จะถูกยกเลิก" : "SOC Runner จะหยุดภายในประมาณ 30 วินาที โควตา Claude ที่ใช้ไปแล้วจะไม่ได้คืน", confirmLabel: "ยืนยันยกเลิก", cancelLabel: "ไม่ยกเลิก", danger: true }))) return;
+    await act("cancel", () => cancelSocCheckRequest(jobId, judge.id));
+  }
+  const status = judge ? majorItemStateText({ state: judge.state, request: open ? judge : null, failureReason: judge.failureReason }, viewerId) : null;
+  return <div className="flex flex-wrap items-center gap-3 rounded-input bg-ground p-3 text-sm">
+    {dialog}
+    <span className="font-medium">Claude ตัดสินแถวที่ระบบสรุปไม่ได้</span>
+    {open && status ? <span role="status" className="text-label">{status.label}{status.detail ? <span className="text-xs text-muted"> · {status.detail}</span> : null}</span>
+      : judge?.state === "done" ? <span className="text-xs text-muted">ตัดสินแล้ว {judge.lineCount} แถว ดูผลที่แต่ละแถวด้านล่าง</span>
+        : judge?.state === "failed" ? <span role="alert" className="text-xs text-danger">ไม่สำเร็จ: {judge.failureReason || "ไม่ทราบสาเหตุ"}</span>
+          : <span className="text-xs text-muted">{judgeable ? `${judgeable} แถว (ความหมายต่าง และยืนยันไม่ได้)` : "ไม่มีแถวที่ต้องให้ Claude ตัดสิน"}</span>}
+    <span className="ml-auto flex gap-2">
+      {open && judge.state === "paused_quota" && (judge.requestedById === viewerId || viewerIsAdmin) ? <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("resume", () => resumeSocCheckRequestNow(jobId, judge.id))}>{busy === "resume" ? "กำลังสั่ง…" : "ตรวจต่อเลย"}</Button> : null}
+      {open && (judge.requestedById === viewerId || viewerIsAdmin) ? <Button size="sm" variant="outline" disabled={busy !== null} onClick={cancel}>{busy === "cancel" ? "กำลังยกเลิก…" : "ยกเลิก"}</Button> : null}
+      {!open && judgeable ? <Button size="sm" disabled={busy !== null} onClick={send} title="ตัดสินด้วย SOC Runner บนเครื่องของคุณ">{busy === "send" ? "กำลังส่ง…" : judge?.state === "done" ? `ให้ Claude ตัดสินใหม่ (${judgeable} แถว)` : `ส่งให้ Claude ตัดสิน (${judgeable} แถว)`}</Button> : null}
+    </span>
     {error ? <p role="alert" className="w-full text-xs text-danger">{error}</p> : null}
   </div>;
 }

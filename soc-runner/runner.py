@@ -10,8 +10,11 @@ login with `--log`, one copy at a time.
 It sends a heartbeat every 30 s, polls the server for the oldest Check Request
 of its user, downloads the SOC, the evidence and the pinned skill package,
 runs `claude -p` with the skill in full mode on one major item, and submits
-results.json and the SOC_Check document (an Excel SOC has no SOC_Check). It
-only polls; it opens no port.
+results.json and the SOC_Check document (an Excel SOC has no SOC_Check). A
+request of kind "tor_judge" (TOR Match 07) instead has Claude judge the TOR
+Match lines the server could not settle, with the TOR pages rendered as images
+where the TOR is scanned or the page is a picture. It only polls; it opens no
+port.
 """
 from __future__ import annotations
 
@@ -34,7 +37,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCancelled, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.7.0"
+RUNNER_VERSION = "0.8.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -70,6 +73,14 @@ MAX_LOGIN_RECHECK_SECONDS = 30 * 60
 MAX_MISSING = 50  # the server's limits for needs_documents
 MAX_MISSING_NAME = 300
 DOCUMENT_EXTENSION = re.compile(r"\.(pdf|docx?|xlsx?|pptx?)$", re.I)
+# A tor_judge request (TOR Match 07): Claude judges the TOR Match lines the server's compare could not settle.
+TOR_JUDGE_KIND = "tor_judge"
+TOR_JUDGE_DOC = "references/tor-match-judge.md"  # in the skill package: the judge instructions, Claude's system prompt
+TOR_LINES_FILE = "tor-lines.json"  # under out/: the lines to judge
+TOR_JUDGE_FILE = "tor-judge.json"  # under out/: Claude's answer, submitted as the results
+TOR_PAGES_DIR = "tor-pages"  # under out/: the TOR pages Claude must Read, p<N>.png
+TOR_PAGE_DPI = 150
+TOR_PAGE_MAX_SIDE = 1568  # pixels; Claude scales a larger image down anyway, at the same token cost
 # A request id from the server, before it names a folder under work/.
 SAFE_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
@@ -103,7 +114,7 @@ def load_config(path: Path) -> Config:
 
 
 def carry_out(request: dict, server, claude, work_root: Path, log=print, on_pause=None, clock=time.time,
-              build_packet=None, move_wait=time.sleep, busy_wait=time.sleep) -> str:
+              build_packet=None, move_wait=time.sleep, busy_wait=time.sleep, render_pages=None) -> str:
     """Carries out one claimed Check Request.
 
     Returns "submitted", "rejected" (the import refused the results and the
@@ -124,6 +135,10 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
     in out/packet and the prompt turns the skill's packet flow on. When the
     packet can't be built, the item runs on the old flow and the reason goes
     with the submit (`build_packet(work, skill_dir, soc, label)` returns it).
+
+    A tor_judge request runs `_judge_tor` instead, through the same reports,
+    pause, login and failure handling; `render_pages(pdf, pages, folder)`
+    renders its TOR page images.
     """
     request_id = request["id"]
     try:
@@ -131,15 +146,15 @@ def carry_out(request: dict, server, claude, work_root: Path, log=print, on_paus
     except RunFailed as error:
         return _report_failed(server, request_id, str(error), log)
     try:
-        return _carry_out(request, server, claude, work, log, on_pause, clock, build_packet or build_evidence_packet, busy_wait)
+        return _carry_out(request, server, claude, work, log, on_pause, clock, build_packet or build_evidence_packet, busy_wait,
+                          render_pages or render_tor_pages)
     finally:
         # Tried again before the next request and when the runner starts.
         _restore_and_log(Path(work_root), log, move_wait)
 
 
-def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, build_packet, busy_wait) -> str:
+def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, build_packet, busy_wait, render_pages) -> str:
     request_id = request["id"]
-    item = request["majorItem"]
     try:
         needs = request.get("needsRunner")
         if needs and not _version_at_least(RUNNER_VERSION, str(needs)):
@@ -147,94 +162,98 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
                             " กรุณาติดตั้ง SOC Runner ใหม่ด้วยคำสั่งติดตั้งจากหน้า SOC แล้วกดตรวจอีกครั้ง")
         server.report(request_id, {"state": "running", "progress": "กำลังดาวน์โหลดไฟล์"})
         skill_name, skill_version = _install_skill(request, server, work)
-        documents = _download_documents(request, server, work / "inputs")
-        needs_soc_check = _needs_soc_check(request)
-        out_dir = work / "out"
-        saved = _read_run_state(work)
-        resume = bool(saved.get("sessionId")) and saved.get("skillVersion") == skill_version
-        if not resume:
-            # A new skill version since the pause: its earlier output no longer fits.
-            shutil.rmtree(out_dir, ignore_errors=True)
-            saved = _new_run_state(work, skill_version)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / MISSING_DOCUMENTS_FILE).unlink(missing_ok=True)
-        skill_dir = work / ".claude" / "skills" / skill_name
+        if request.get("kind") == TOR_JUDGE_KIND:
+            submitted = _judge_tor(request, server, claude, work, log, skill_name, skill_version, busy_wait, render_pages)
+        else:
+            item = request["majorItem"]
+            documents = _download_documents(request, server, work / "inputs")
+            needs_soc_check = _needs_soc_check(request)
+            out_dir = work / "out"
+            saved = _read_run_state(work)
+            resume = bool(saved.get("sessionId")) and saved.get("skillVersion") == skill_version
+            if not resume:
+                # A new skill version since the pause: its earlier output no longer fits.
+                shutil.rmtree(out_dir, ignore_errors=True)
+                saved = _new_run_state(work, skill_version)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / MISSING_DOCUMENTS_FILE).unlink(missing_ok=True)
+            skill_dir = work / ".claude" / "skills" / skill_name
 
-        def prepare_packet() -> None:
-            # A resumed session already knows which flow it is on; the choice is kept with the session.
-            if "packetFallback" in saved:
-                return
-            server.report(request_id, {"state": "running", "progress": f"กำลังเตรียม evidence packet ข้อ {item['label']}"})
-            fallback = build_packet(work, skill_dir, documents, item["label"]) or ""
-            # The old flow has no way to show Claude the images of Image Rows.
-            if fallback and request.get("imageRows"):
-                raise RunFailed(f"ข้อ {item['label']} มีแถวรูป {request['imageRows']} แถว ซึ่งตรวจได้ด้วย evidence packet เท่านั้น"
-                                f" แต่สร้าง packet ไม่ได้: {fallback}")
-            saved["packetFallback"] = fallback
-            _write_run_state(work, saved)
-            if saved["packetFallback"]:
-                log(f"[{request_id}] ไม่ใช้ evidence packet ใช้ flow เดิม: {saved['packetFallback']}")
+            def prepare_packet() -> None:
+                # A resumed session already knows which flow it is on; the choice is kept with the session.
+                if "packetFallback" in saved:
+                    return
+                server.report(request_id, {"state": "running", "progress": f"กำลังเตรียม evidence packet ข้อ {item['label']}"})
+                fallback = build_packet(work, skill_dir, documents, item["label"]) or ""
+                # The old flow has no way to show Claude the images of Image Rows.
+                if fallback and request.get("imageRows"):
+                    raise RunFailed(f"ข้อ {item['label']} มีแถวรูป {request['imageRows']} แถว ซึ่งตรวจได้ด้วย evidence packet เท่านั้น"
+                                    f" แต่สร้าง packet ไม่ได้: {fallback}")
+                saved["packetFallback"] = fallback
+                _write_run_state(work, saved)
+                if saved["packetFallback"]:
+                    log(f"[{request_id}] ไม่ใช้ evidence packet ใช้ flow เดิม: {saved['packetFallback']}")
 
-        if not resume:
-            prepare_packet()
-        server.report(request_id, {"state": "running", "progress": f"Claude กำลังตรวจข้อ {item['label']}{' ต่อ' if resume else ''}"})
-        log(f"[{request_id}] {'ตรวจต่อ' if resume else 'ตรวจ'}ข้อ {item['label']} ด้วย skill {skill_version}")
-        def first_run(note: str = "") -> ClaudeTask:
-            """A new session. The packet flow's prompt and system prompt are the same for every item;
-            the item itself goes to out/request.md."""
-            packet = not saved["packetFallback"]
-            system_prompt = None
-            if packet:
-                (out_dir / REQUEST_FILE).write_text(build_request_file(request, documents), encoding="utf-8")
-                system_prompt = write_system_prompt(work, skill_dir, skill_name)
-            return ClaudeTask(prompt=build_prompt(request, skill_name, documents, packet=packet) + note, cwd=work,
-                              out_dir=out_dir, session_id=saved["sessionId"], system_prompt_file=system_prompt)
-
-        def resumed_run() -> ClaudeTask:
-            # The CLI doesn't keep an appended system prompt with the session: a packet session gets the docs again.
-            docs = work / ".claude" / SYSTEM_PROMPT_FILE
-            return ClaudeTask(prompt=build_resume_prompt(request, needs_soc_check), cwd=work, out_dir=out_dir, session_id=saved["sessionId"],
-                              resume=True, system_prompt_file=docs if not saved["packetFallback"] and docs.is_file() else None)
-
-        task, note, retries = (resumed_run() if resume else first_run()), "", BUSY_RETRIES
-        while True:
-            try:
-                run = claude.run(task)
-                break
-            except ClaudeSessionMissing:
-                if not task.resume:
-                    raise
-                # The session was never saved (it stopped at once) or is gone: a new
-                # one, which still finds the rows already written in out/.
-                log(f"[{request_id}] ไม่พบ session เดิมของ Claude เริ่มใหม่โดยใช้ผลระหว่างทางใน out/")
-                saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
+            if not resume:
                 prepare_packet()
-                note = PARTIAL_OUTPUT_NOTE
-                task = first_run(note)
-            except ClaudeBusy as error:
-                if not retries:
-                    raise
-                retries -= 1
-                log(f"[{request_id}] Claude ยังไม่พร้อม จะลองใหม่ใน {BUSY_RETRY_SECONDS} วินาที ({error})")
-                server.report(request_id, {"state": "running", "progress": "Claude ยังไม่พร้อม กำลังรอเพื่อลองใหม่"})
-                busy_wait(BUSY_RETRY_SECONDS)
-                if not task.resume:
-                    # The CLI may have saved the session before it stopped, and a new run can't take a used id.
+            server.report(request_id, {"state": "running", "progress": f"Claude กำลังตรวจข้อ {item['label']}{' ต่อ' if resume else ''}"})
+            log(f"[{request_id}] {'ตรวจต่อ' if resume else 'ตรวจ'}ข้อ {item['label']} ด้วย skill {skill_version}")
+            def first_run(note: str = "") -> ClaudeTask:
+                """A new session. The packet flow's prompt and system prompt are the same for every item;
+                the item itself goes to out/request.md."""
+                packet = not saved["packetFallback"]
+                system_prompt = None
+                if packet:
+                    (out_dir / REQUEST_FILE).write_text(build_request_file(request, documents), encoding="utf-8")
+                    system_prompt = write_system_prompt(work, skill_dir, skill_name)
+                return ClaudeTask(prompt=build_prompt(request, skill_name, documents, packet=packet) + note, cwd=work,
+                                  out_dir=out_dir, session_id=saved["sessionId"], system_prompt_file=system_prompt)
+
+            def resumed_run() -> ClaudeTask:
+                # The CLI doesn't keep an appended system prompt with the session: a packet session gets the docs again.
+                docs = work / ".claude" / SYSTEM_PROMPT_FILE
+                return ClaudeTask(prompt=build_resume_prompt(request, needs_soc_check), cwd=work, out_dir=out_dir, session_id=saved["sessionId"],
+                                  resume=True, system_prompt_file=docs if not saved["packetFallback"] and docs.is_file() else None)
+
+            task, note, retries = (resumed_run() if resume else first_run()), "", BUSY_RETRIES
+            while True:
+                try:
+                    run = claude.run(task)
+                    break
+                except ClaudeSessionMissing:
+                    if not task.resume:
+                        raise
+                    # The session was never saved (it stopped at once) or is gone: a new
+                    # one, which still finds the rows already written in out/.
+                    log(f"[{request_id}] ไม่พบ session เดิมของ Claude เริ่มใหม่โดยใช้ผลระหว่างทางใน out/")
                     saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
+                    prepare_packet()
+                    note = PARTIAL_OUTPUT_NOTE
                     task = first_run(note)
-        acknowledged = request.get("acknowledgedMissing") or []
-        missing = _missing_documents(out_dir, acknowledged)
-        if missing:
-            log(f"[{request_id}] ขาดเอกสาร: {', '.join(missing)}")
-            server.report(request_id, {"state": "needs_documents", "missingDocuments": missing})
-            _discard(work)
-            return "needs_documents"
-        if (out_dir / MISSING_DOCUMENTS_FILE).is_file() and not (out_dir / "results.json").is_file():
-            raise RunFailed(f"Claude หยุดเพราะขาดเอกสารที่ผู้ตรวจรับทราบแล้ว ({', '.join(acknowledged)}) แทนที่จะตรวจต่อ ลองกดตรวจใหม่")
-        results, soc_check = _outputs(out_dir, run.summary, needs_soc_check)
-        server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตรวจ"})
-        submitted = server.submit(request_id, results, soc_check, run.model, skill_version,
-                                  packet_fallback=saved.get("packetFallback") or "")
+                except ClaudeBusy as error:
+                    if not retries:
+                        raise
+                    retries -= 1
+                    log(f"[{request_id}] Claude ยังไม่พร้อม จะลองใหม่ใน {BUSY_RETRY_SECONDS} วินาที ({error})")
+                    server.report(request_id, {"state": "running", "progress": "Claude ยังไม่พร้อม กำลังรอเพื่อลองใหม่"})
+                    busy_wait(BUSY_RETRY_SECONDS)
+                    if not task.resume:
+                        # The CLI may have saved the session before it stopped, and a new run can't take a used id.
+                        saved = _new_run_state(work, skill_version, saved.get("packetFallback"))
+                        task = first_run(note)
+            acknowledged = request.get("acknowledgedMissing") or []
+            missing = _missing_documents(out_dir, acknowledged)
+            if missing:
+                log(f"[{request_id}] ขาดเอกสาร: {', '.join(missing)}")
+                server.report(request_id, {"state": "needs_documents", "missingDocuments": missing})
+                _discard(work)
+                return "needs_documents"
+            if (out_dir / MISSING_DOCUMENTS_FILE).is_file() and not (out_dir / "results.json").is_file():
+                raise RunFailed(f"Claude หยุดเพราะขาดเอกสารที่ผู้ตรวจรับทราบแล้ว ({', '.join(acknowledged)}) แทนที่จะตรวจต่อ ลองกดตรวจใหม่")
+            results, soc_check = _outputs(out_dir, run.summary, needs_soc_check)
+            server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตรวจ"})
+            submitted = server.submit(request_id, results, soc_check, run.model, skill_version,
+                                      packet_fallback=saved.get("packetFallback") or "")
     except NotClaimed:
         log(f"[{request_id}] คำขอนี้ไม่ได้อยู่กับเครื่องนี้แล้ว (ยกเลิกหรือหมดเวลา) ข้ามไป")
         _discard(work)
@@ -270,6 +289,123 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
     log(f"[{request_id}] ส่งผลแล้ว {submitted.get('rowCount', '?')} แถว")
     _discard(work)
     return "submitted"
+
+
+def _judge_tor(request: dict, server, claude, work: Path, log, skill_name: str, skill_version: str, busy_wait, render_pages) -> dict:
+    """A tor_judge request: writes the lines to out/tor-lines.json, renders the TOR page of every line
+    marked `image` (a scanned TOR, or a picture page) to out/tor-pages/, and has Claude judge each line
+    by the skill's judge instructions into out/tor-judge.json, which is submitted. Always a new Claude
+    session: the run is short, and a pause or lost login starts it again."""
+    request_id = request["id"]
+    tor, lines = request.get("tor"), request.get("lines") or []
+    if not tor:
+        raise RunFailed("TOR ต้นฉบับถูกแทนที่หลังส่งคำขอ กรุณากดส่งให้ Claude ตัดสินใหม่")
+    if not lines:
+        raise RunFailed("คำขอนี้ไม่มีแถวให้ Claude ตัดสิน")
+    skill_dir = work / ".claude" / "skills" / skill_name
+    if not (skill_dir / TOR_JUDGE_DOC).is_file():
+        raise RunFailed("Skill Package รุ่นนี้ยังไม่มีคำแนะนำการตัดสินผลเทียบ TOR ต้นฉบับ ให้ admin อัปโหลด Skill Package รุ่นใหม่")
+    out_dir, inputs = work / "out", work / "inputs"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
+    inputs.mkdir(parents=True, exist_ok=True)
+    pages = sorted({line["torPage"] for line in lines if line.get("image") and line.get("torPage")})
+    rendered: set[int] = set()
+    if pages:
+        server.report(request_id, {"state": "running", "progress": f"กำลังเตรียมภาพหน้า TOR ต้นฉบับ {len(pages)} หน้า"})
+        rendered = set(render_pages(_download_tor(tor["document"], server, inputs), pages, out_dir / TOR_PAGES_DIR))
+        # Decision 23: such a line must not reach Claude as OCR text alone.
+        missing = [page for page in pages if page not in rendered]
+        if missing:
+            raise RunFailed(f"สร้างภาพหน้า TOR ต้นฉบับหน้า {', '.join(map(str, missing))} ไม่ได้ (PDF มีหน้าไม่ถึง) Claude จึงตัดสินแถวเหล่านั้นไม่ได้")
+    entries = []
+    for line in lines:
+        entry = {key: line.get(key) for key in ("line", "outcome", "item", "socRow", "socText", "torText", "torPage")}
+        if line.get("image") and line.get("torPage") in rendered:
+            entry["page_image"] = f"out/{TOR_PAGES_DIR}/p{line['torPage']}.png"
+        entries.append(entry)
+    (out_dir / TOR_LINES_FILE).write_text(json.dumps({"scanned": bool(tor.get("scanned")), "lines": entries}, ensure_ascii=False, indent=1),
+                                          encoding="utf-8")
+    system_prompt = write_judge_system_prompt(work, skill_dir, skill_name)
+    images = sum(1 for entry in entries if "page_image" in entry)
+    server.report(request_id, {"state": "running", "progress": f"Claude กำลังตัดสิน {len(entries)} แถว"})
+    log(f"[{request_id}] Claude ตัดสินผลเทียบ TOR ต้นฉบับ {len(entries)} แถว (ภาพ {len(rendered)} หน้า) ด้วย skill {skill_version}")
+    prompt = build_judge_prompt(skill_name, len(entries), images)
+    retries = BUSY_RETRIES
+    while True:
+        try:
+            run = claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=str(uuid.uuid4()), system_prompt_file=system_prompt))
+            break
+        except ClaudeBusy as error:
+            if not retries:
+                raise
+            retries -= 1
+            log(f"[{request_id}] Claude ยังไม่พร้อม จะลองใหม่ใน {BUSY_RETRY_SECONDS} วินาที ({error})")
+            server.report(request_id, {"state": "running", "progress": "Claude ยังไม่พร้อม กำลังรอเพื่อลองใหม่"})
+            busy_wait(BUSY_RETRY_SECONDS)
+    answer = out_dir / TOR_JUDGE_FILE
+    if not answer.is_file():
+        said = f" Claude ตอบว่า: {run.summary[:300]}" if run.summary else ""
+        raise RunFailed(f"Claude ตัดสินจบแต่ไม่ได้สร้างไฟล์ {TOR_JUDGE_FILE}." + said)
+    server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตัดสิน"})
+    return server.submit(request_id, answer, None, run.model, skill_version)
+
+
+def build_judge_prompt(skill_name: str, lines: int, images: int) -> str:
+    """The judge run's prompt; the judge instructions themselves are the system prompt (write_judge_system_prompt)."""
+    return "\n".join([
+        HEADLESS_MARKER,
+        "",
+        f"ตัดสินผลเทียบ TOR ต้นฉบับตามคำแนะนำการตัดสินของ skill `{skill_name}` ที่โหลดไว้ใน system prompt แล้ว ห้ามถามผู้ใช้",
+        f"- แถวที่ต้องตัดสิน: `out/{TOR_LINES_FILE}` ({lines} แถว)",
+        (f"- {images} แถวมี `page_image`: ต้องเปิดไฟล์รูปนั้นด้วย tool Read ก่อนตัดสินแถวนั้นทุกครั้ง"
+         " ห้ามตัดสินจากข้อความ OCR อย่างเดียว (หลายแถวใช้รูปเดียวกันได้ เปิดครั้งเดียวพอ)") if images else
+        "- ไม่มีแถวที่มี `page_image`: ตัดสินจากข้อความในไฟล์",
+        f"- เขียนผลที่ `out/{TOR_JUDGE_FILE}` ให้ครบทุกแถวตามเลข `line` ห้ามเพิ่มหรือตัดแถว",
+        "- ห้ามแก้ไขไฟล์ใน `inputs/`",
+    ]) + "\n"
+
+
+def write_judge_system_prompt(work: Path, skill_dir: Path, skill_name: str) -> Path:
+    """.claude/runner-system.md of a judge run: the skill's judge instructions."""
+    header = (f"# skill `{skill_name}`: คำแนะนำการตัดสินผลเทียบ TOR ต้นฉบับ ที่ SOC Runner โหลดไว้ให้แล้ว\n\n"
+              f"เนื้อหาของ `.claude/skills/{skill_name}/{TOR_JUDGE_DOC}` อยู่ด้านล่างครบทั้งไฟล์ ห้ามเปิดไฟล์นี้ด้วย tool Read อีก\n\n")
+    path = work / ".claude" / SYSTEM_PROMPT_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(header.encode("utf-8") + (skill_dir / TOR_JUDGE_DOC).read_bytes())
+    return path
+
+
+def render_tor_pages(pdf: Path, pages: list[int], folder: Path) -> list[int]:
+    """Renders these 1-based pages of the TOR to folder/p<N>.png, at most TOR_PAGE_MAX_SIDE pixels on the
+    long side. Returns the pages rendered; one past the end of the PDF is left out."""
+    import pymupdf  # installed into the runner's own Python (requirements.txt)
+
+    folder.mkdir(parents=True, exist_ok=True)
+    done: list[int] = []
+    try:
+        document = pymupdf.open(pdf)
+    except Exception as error:
+        raise RunFailed(f"เปิด PDF TOR ต้นฉบับไม่ได้: {error}") from None
+    with document:
+        for number in pages:
+            if not 1 <= number <= document.page_count:
+                continue
+            page = document[number - 1]
+            zoom = min(TOR_PAGE_DPI / 72, TOR_PAGE_MAX_SIDE / max(page.rect.width, page.rect.height))
+            page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).save(folder / f"p{number}.png")
+            done.append(number)
+    return done
+
+
+def _download_tor(document: dict, server, inputs: Path) -> Path:
+    name = _safe_path(_safe_name(document.get("name") or "TOR.pdf"), MAX_WINDOWS_PATH - len(str(inputs)) - 1)
+    download = server.download(document["url"])
+    if hashlib.sha256(download.content).hexdigest() != document.get("checksum"):
+        raise RunFailed(f"ดาวน์โหลด TOR ต้นฉบับ {name} ไม่สมบูรณ์ (checksum ไม่ตรง)")
+    path = inputs / name
+    path.write_bytes(download.content)
+    return path
 
 
 PARTIAL_OUTPUT_NOTE = ("- `out/` อาจมีผลระหว่างทางจากรอบก่อนที่หยุดไป (เช่น highlights.json) ให้ใช้ต่อได้"
@@ -772,7 +908,8 @@ class SocRunner:
         request = self.server.claim()
         if not request:
             return None
-        self.log(f"รับคำขอ {request['id']}: {request['job'].get('title', '')} ข้อ {request['majorItem']['label']}")
+        what = "ผลเทียบ TOR ต้นฉบับ" if request.get("kind") == TOR_JUDGE_KIND else f"ข้อ {request['majorItem']['label']}"
+        self.log(f"รับคำขอ {request['id']}: {request['job'].get('title', '')} {what}")
         with self._lock:
             self.current_request_id = request["id"]
         try:

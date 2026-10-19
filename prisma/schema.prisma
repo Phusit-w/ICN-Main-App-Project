@@ -117,37 +117,37 @@ model ExpenseRecord {
 // the app itself was explicitly out of scope when this was added; approval
 // is still a paper signature after printing).
 model User {
-  id                         String            @id @default(cuid())
-  username                   String            @unique
+  id                         String                 @id @default(cuid())
+  username                   String                 @unique
   // PBKDF2-SHA256, see lib/auth.ts's hashPassword — never plaintext.
   passwordHash               String
   displayName                String
-  role                       String            @default("USER") // "USER" | "ADMIN"
-  isActive                   Boolean           @default(true)
-  mustChangePassword         Boolean           @default(false)
-  sessionVersion             Int               @default(1)
+  role                       String                 @default("USER") // "USER" | "ADMIN"
+  isActive                   Boolean                @default(true)
+  mustChangePassword         Boolean                @default(false)
+  sessionVersion             Int                    @default(1)
   passwordChangedAt          DateTime?
   disabledAt                 DateTime?
   // Which apps a USER may open — values in lib/access.ts (APP_ACCESS). ADMIN
   // ignores this and may open everything. The default grants everything, so
   // accounts that existed before per-app access keep what they had.
-  appAccess                  String[]          @default(["expense", "soc", "project-card-edit"])
-  createdAt                  DateTime          @default(now())
-  updatedAt                  DateTime          @updatedAt
+  appAccess                  String[]               @default(["expense", "soc", "project-card-edit"])
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
   socJobs                    SocJob[]
   socAuditEvents             SocAuditEvent[]
-  socMajorItemsRequested     SocMajorItem[]    @relation("SocMajorItemRequestedBy")
-  socMajorItemsRan           SocMajorItem[]    @relation("SocMajorItemRanBy")
+  socMajorItemsRequested     SocMajorItem[]         @relation("SocMajorItemRequestedBy")
+  socMajorItemsRan           SocMajorItem[]         @relation("SocMajorItemRanBy")
   socCheckRunsImported       SocCheckRun[]
   socSkillPackagesUploaded   SocSkillPackage[]
-  socRunnerLinks             SocRunnerLink[]   @relation("SocRunnerLinkUser")
-  socRunnerLinksRevoked      SocRunnerLink[]   @relation("SocRunnerLinkRevokedBy")
+  socRunnerLinks             SocRunnerLink[]        @relation("SocRunnerLinkUser")
+  socRunnerLinksRevoked      SocRunnerLink[]        @relation("SocRunnerLinkRevokedBy")
   socRunnerInstallCodes      SocRunnerInstallCode[]
   socCheckRequests           SocCheckRequest[]
-  expenseRecords             ExpenseRecord[]   @relation("ExpenseOwner")
-  auditEvents                AuditLog[]        @relation("AuditActor")
-  targetedAuditEvents        AuditLog[]        @relation("AuditTarget")
-  verifiedProjectCardBudgets ProjectCard[]     @relation("ProjectCardBudgetVerifier")
+  expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
+  auditEvents                AuditLog[]             @relation("AuditActor")
+  targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
+  verifiedProjectCardBudgets ProjectCard[]          @relation("ProjectCardBudgetVerifier")
 }
 
 // A durable SOC audit job. PostgreSQL doubles as the low-volume work queue:
@@ -221,20 +221,23 @@ model SocDocument {
 // "TOR Match", lib/soc-tor.ts). A report only: it never changes major items,
 // check requests or check results. Deleted with its TOR document.
 model SocTorMatch {
-  id           String            @id @default(cuid())
-  jobId        String            @unique
-  job          SocJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  documentId   String            @unique
-  document     SocDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  state        String // "reading" | "ready" | "failed"
-  stage        String? // while a scanned TOR is read: "รอคิวที่ N" or the pages read so far
-  pages        Json? // the TOR's pages as read, [{ text, picture }], so a re-compare reads nothing again
-  counts       Json? // lines per outcome
-  warnings     Json? // strings: e.g. a major item the TOR has no section for
-  errorMessage String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  lines        SocTorMatchLine[]
+  id            String            @id @default(cuid())
+  jobId         String            @unique
+  job           SocJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  documentId    String            @unique
+  document      SocDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  state         String // "reading" | "ready" | "failed"
+  stage         String? // while a scanned TOR is read: "รอคิวที่ N" or the pages read so far
+  pages         Json? // the TOR's pages as read, [{ text, picture }], so a re-compare reads nothing again
+  counts        Json? // lines per outcome
+  warnings      Json? // strings: e.g. a major item the TOR has no section for
+  errorMessage  String?
+  // A scanned TOR (read by the OCR): the Claude step sees every TOR page as an image.
+  scanned       Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  lines         SocTorMatchLine[]
+  judgeRequests SocCheckRequest[]
 }
 
 // One outcome line of a TOR Match: a SOC row, or TOR text no SOC row covers
@@ -485,12 +488,19 @@ model SocRunnerInstallCode {
 // item. Only the requester's own SOC Runner may claim it. Open states:
 // requested | running | paused_quota | needs_login. Closed: needs_documents |
 // failed | done | cancelled. See lib/soc-check-requests.ts.
+// `kind` "tor_judge" (TOR Match 07): Claude judges the TOR Match lines code
+// could not settle (lib/soc-tor-judge.ts); it has no major item.
 model SocCheckRequest {
   id                  String           @id @default(cuid())
   jobId               String
   job                 SocJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  majorItemId         String
-  majorItem           SocMajorItem     @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
+  kind                String           @default("check")
+  majorItemId         String?
+  majorItem           SocMajorItem?    @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
+  // tor_judge: the TOR Match and its lines (ids) sent to Claude, pinned at request.
+  torMatchId          String?
+  torMatch            SocTorMatch?     @relation(fields: [torMatchId], references: [id], onDelete: SetNull)
+  torLineIds          String[]         @default([])
   requestedById       String
   requestedBy         User             @relation(fields: [requestedById], references: [id], onDelete: Cascade)
   state               String           @default("requested")
@@ -523,6 +533,7 @@ model SocCheckRequest {
   @@index([requestedById, state, createdAt])
   @@index([majorItemId, createdAt])
   @@index([state, lastSeenAt])
+  @@index([torMatchId])
 }
 
 model SocAuditEvent {

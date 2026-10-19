@@ -1218,6 +1218,158 @@ class ProcessTest(unittest.TestCase):
         self.assertIsNone(log)
 
 
+JUDGE_DOC = "# ตัดสินผลเทียบ TOR ต้นฉบับ\nกติกาการตัดสิน\n"
+JUDGE_ANSWER = {"lines": [{"line": 2, "outcome": "ตรง", "reason": "OCR อ่าน ๘ เป็น 8"}]}
+
+
+def judge_request(skill: bytes, tor_pdf: bytes, lines: list[dict], scanned: bool = False) -> tuple[dict, dict]:
+    request = {
+        "id": "req-j", "kind": "tor_judge", "claimedAt": "2026-10-19T10:00:00.000Z",
+        "job": {"id": "job-1", "title": "Apron"}, "needsRunner": "0.8.0",
+        "skill": {"version": "v8", "fileName": "tor.skill", "sizeBytes": len(skill), "checksum": sha256(skill),
+                  "url": "/api/soc-runner/requests/req-j/skill"},
+        "tor": {"scanned": scanned, "document": {"id": "t1", "type": "TOR_ORIGINAL", "name": "TOR Apron.pdf", "sizeBytes": len(tor_pdf),
+                                                 "checksum": sha256(tor_pdf), "url": "/api/soc-runner/requests/req-j/documents/t1"}},
+        "lines": lines,
+    }
+    files = {request["skill"]["url"]: FakeDownload(skill, {"X-Soc-Skill-Version": "v8"}),
+             request["tor"]["document"]["url"]: FakeDownload(tor_pdf)}
+    return request, files
+
+
+def judge_line(line: int, page: int | None, image: bool, outcome: str = "ความหมายต่าง") -> dict:
+    return {"line": line, "outcome": outcome, "item": f"4.10.{line}", "socRow": line + 10, "socText": "(8 core)",
+            "torText": "(๑๒ core)", "torPage": page, "image": image}
+
+
+def tor_pdf(pages: int) -> bytes:
+    import pymupdf
+    document = pymupdf.open()
+    for number in range(pages):
+        document.new_page().insert_text((72, 72), f"TOR page {number + 1}")
+    data = document.tobytes()
+    document.close()
+    return data
+
+
+class TorJudgeTest(unittest.TestCase):
+    """A tor_judge request (TOR Match 07): Claude judges the leftover TOR Match lines; TOR pages are
+    rendered and must be Read only where the server marked a line `image`."""
+
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-judge-"))
+        self.skill = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD,
+                                "tor-word-compliance-check/references/tor-match-judge.md": JUDGE_DOC})
+        self.claude = FakeClaude(writes={"tor-judge.json": json.dumps(JUDGE_ANSWER, ensure_ascii=False).encode("utf-8")})
+        self.rendered: list[list[int]] = []
+        self.seen_lines: list[dict] = []  # out/tor-lines.json as Claude found it
+        self.claude.during_run = lambda: self.seen_lines.append(
+            json.loads((self.claude.tasks[-1].out_dir / "tor-lines.json").read_text(encoding="utf-8")))
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def fake_render(self, pdf: Path, pages: list[int], folder: Path) -> list[int]:
+        self.assertTrue(pdf.is_file())
+        self.rendered.append(list(pages))
+        folder.mkdir(parents=True, exist_ok=True)
+        for page in pages:
+            (folder / f"p{page}.png").write_bytes(b"png")
+        return list(pages)
+
+    def run_request(self, request: dict, files: dict, render=None):
+        server = FakeServer(request, files)
+        outcome = carry_out(request, server, self.claude, self.work_root, quiet, render_pages=render or self.fake_render)
+        return outcome, server
+
+    def lines_file(self) -> dict:
+        return self.seen_lines[-1]
+
+    def test_text_tor_lines_go_without_images_and_the_answer_is_submitted(self):
+        request, files = judge_request(self.skill, b"%PDF-1.4 text", [judge_line(2, 5, False), judge_line(3, None, False, "ยืนยันไม่ได้")])
+        del files[request["tor"]["document"]["url"]]  # nothing to render: the TOR is not even downloaded
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "submitted")
+        self.assertEqual(self.rendered, [])
+        task = self.claude.tasks[0]
+        self.assertIn("tor-lines.json", task.prompt)
+        self.assertIn("tor-judge.json", task.prompt)
+        self.assertNotIn("ต้องเปิดไฟล์รูป", task.prompt)
+        self.assertIn(JUDGE_DOC.encode("utf-8"), self.claude.seen_system[0])
+        self.assertEqual([entry.get("page_image") for entry in self.lines_file()["lines"]], [None, None])
+        self.assertEqual(self.lines_file()["lines"][0]["torText"], "(๑๒ core)")
+        self.assertEqual(server.submits[0]["results"], JUDGE_ANSWER)
+        self.assertIsNone(server.submits[0]["socCheckName"])
+        self.assertEqual(server.submits[0]["skillVersion"], "v8")
+        self.assertFalse((self.work_root / "req-j").exists(), "the request's folder goes once submitted")
+
+    def test_scanned_or_picture_pages_are_rendered_once_each_and_the_prompt_requires_reading_them(self):
+        lines = [judge_line(2, 3, True), judge_line(4, 3, True), judge_line(5, 7, True), judge_line(6, 9, False), judge_line(8, None, True)]
+        request, files = judge_request(self.skill, b"%PDF-1.4 scan", lines, scanned=True)
+        outcome, _ = self.run_request(request, files)
+        self.assertEqual(outcome, "submitted")
+        self.assertEqual(self.rendered, [[3, 7]], "only marked lines with a page, each page once")
+        self.assertEqual([entry.get("page_image") for entry in self.lines_file()["lines"]],
+                         ["out/tor-pages/p3.png", "out/tor-pages/p3.png", "out/tor-pages/p7.png", None, None])
+        self.assertTrue(self.lines_file()["scanned"])
+        prompt = self.claude.tasks[0].prompt
+        self.assertIn("3 แถวมี `page_image`", prompt)
+        self.assertIn("ต้องเปิดไฟล์รูปนั้นด้วย tool Read", prompt)
+        self.assertEqual(self.claude.seen_out[0], ["tor-lines.json", "tor-pages"], "the images are there when Claude runs")
+
+    @unittest.skipUnless(__import__("importlib").util.find_spec("pymupdf"), "PyMuPDF is not installed")
+    def test_the_real_renderer_draws_the_pages_asked_and_skips_one_past_the_end(self):
+        from runner import render_tor_pages
+        folder = self.work_root / "pages"
+        pdf = self.work_root / "tor.pdf"
+        pdf.write_bytes(tor_pdf(2))
+        self.assertEqual(render_tor_pages(pdf, [2, 5], folder), [2])
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["p2.png"])
+        self.assertEqual((folder / "p2.png").read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_a_marked_page_that_cannot_be_rendered_fails_before_claude_runs(self):
+        request, files = judge_request(self.skill, b"%PDF", [judge_line(2, 3, True), judge_line(4, 99, True)], scanned=True)
+        outcome, server = self.run_request(request, files, render=lambda pdf, pages, folder: [p for p in pages if p < 50])
+        self.assertEqual(outcome, "failed")
+        self.assertEqual(self.claude.tasks, [])
+        self.assertIn("หน้า 99", server.reports[-1][1]["reason"])
+
+    def test_a_skill_without_the_judge_instructions_fails_before_claude_runs(self):
+        old = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD})
+        request, files = judge_request(old, b"%PDF", [judge_line(2, 1, False)])
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "failed")
+        self.assertEqual(self.claude.tasks, [])
+        self.assertIn("คำแนะนำการตัดสิน", server.reports[-1][1]["reason"])
+
+    def test_a_replaced_tor_or_a_missing_answer_fails_the_request(self):
+        request, files = judge_request(self.skill, b"%PDF", [judge_line(2, 1, False)])
+        request["tor"] = None
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "failed")
+        self.assertIn("ถูกแทนที่", server.reports[-1][1]["reason"])
+
+        request, files = judge_request(self.skill, b"%PDF", [judge_line(2, 1, False)])
+        self.claude.writes = {}
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "failed")
+        self.assertIn("tor-judge.json", server.reports[-1][1]["reason"])
+
+    def test_the_claude_quota_pauses_it_like_a_check(self):
+        request, files = judge_request(self.skill, b"%PDF", [judge_line(2, 1, False)])
+        self.claude.error = ClaudeQuotaExhausted(datetime.now(timezone.utc) + timedelta(hours=1))
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "paused")
+        self.assertEqual(server.reports[-1][1]["state"], "paused_quota")
+
+    def test_the_runner_logs_a_judge_request_by_its_kind(self):
+        request, files = judge_request(self.skill, b"%PDF", [judge_line(2, 1, False)])
+        logged: list[str] = []
+        runner = SocRunner(FakeServer(request, files), self.claude, self.work_root, log=logged.append)
+        self.assertEqual(runner.poll_once(), "submitted")
+        self.assertIn("ผลเทียบ TOR ต้นฉบับ", logged[0])
+
+
 class ClaudeCancelTest(unittest.TestCase):
     """ยกเลิกตรวจ kills the real `claude` process tree and the run says it was cancelled."""
 

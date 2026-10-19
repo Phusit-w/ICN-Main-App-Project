@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { authorizeSocJob } from "@/lib/soc";
 import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck, requestRowRechecks, resumeCheckRequestNow, setMajorItemSkipped } from "@/lib/soc-check-requests";
+import { requestTorJudge } from "@/lib/soc-tor-judge";
 
 // Check Requests (ticket 13). Any user who may open the job may ask for a
 // check; it runs only on their own SOC Runner.
@@ -36,6 +37,15 @@ export async function requestAllSocChecks(jobId: string) {
 export async function requestSocRowRechecks(jobId: string, resultIds: string[]) {
   const { actor, job } = await authorizeSocJob(jobId);
   const result = await requestRowRechecks(actor, job, Array.isArray(resultIds) ? resultIds.filter((id) => typeof id === "string").slice(0, 5000) : []);
+  revalidatePath(`/soc/${jobId}`);
+  return result;
+}
+
+// ส่งให้ Claude ตัดสิน in TOR Match: the lines code could not settle, as one
+// request on the clicking user's SOC Runner.
+export async function requestSocTorJudge(jobId: string) {
+  const { actor, job } = await authorizeSocJob(jobId);
+  const result = await requestTorJudge(actor, job);
   revalidatePath(`/soc/${jobId}`);
   return result;
 }

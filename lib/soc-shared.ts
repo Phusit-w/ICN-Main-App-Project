@@ -265,12 +265,18 @@ export const isExcelSoc = (soc: { mimeType: string } | null | undefined) => soc?
 // An older runner is not handed such a request.
 export const SOC_RUNNER_FOR_IMAGE_ROWS = "0.6.0";
 
+// The oldest SOC Runner that carries out a tor_judge request (TOR Match 07):
+// Claude judges the TOR Match lines code could not settle, with the TOR page
+// images it renders. An older runner is not handed such a request.
+export const SOC_RUNNER_FOR_TOR_JUDGE = "0.8.0";
+
 // Why a request needs a newer runner, what the job page says it can't check,
 // and from which version it can.
-export type SocRunnerNeed = "excel_soc" | "image_rows";
+export type SocRunnerNeed = "excel_soc" | "image_rows" | "tor_judge";
 export const SOC_RUNNER_NEEDS: Record<SocRunnerNeed, { what: string; version: string }> = {
   excel_soc: { what: " SOC ที่เป็น Excel ", version: SOC_RUNNER_FOR_EXCEL_SOC },
   image_rows: { what: "ข้อที่มีแถวรูป (ช่อง TOR เป็นรูป) ", version: SOC_RUNNER_FOR_IMAGE_ROWS },
+  tor_judge: { what: "ผลเทียบ TOR ต้นฉบับ ", version: SOC_RUNNER_FOR_TOR_JUDGE },
 };
 
 // An Image Row's kind, as the skill sorts the image (results.json `image_kind`).
