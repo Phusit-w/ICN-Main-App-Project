@@ -12,7 +12,7 @@ import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import { requestSocRowRechecks } from "@/actions/socCheckRequests";
-import { majorItemName, SOC_EXCEL_PATH_TIP } from "@/lib/soc-shared";
+import { majorItemName, SOC_EXCEL_PATH_TIP, socRowOfHash } from "@/lib/soc-shared";
 import { filterReviewRows, isSettledDecision, nextRowToReview, PENDING_FIX, PICTURE_ROW_REASON, SOC_FINAL_DECISIONS, SOC_FINAL_DECISION_LABELS, SOC_REVIEW_NOTE_MAX, SOC_ROW_STATUS_ICONS, SOC_ROW_STATUS_LABELS, socAxisValueLabel, sortReviewRows, type EvidenceCitation, type SocDecisionFilter, type SocFinalDecision, type SocReviewFilter, type SocReviewSort } from "@/lib/soc-review";
 
 type ReviewItem = { id: string; label: string; state: string; missingDocuments: string[]; confirmed: boolean };
@@ -85,15 +85,38 @@ export default function SocReviewPanel({ jobId, items, rows }: { jobId: string; 
   const allDisplayedPicked = displayedRows.length > 0 && displayedRows.every((r) => picked.has(r.id));
   const sectionRef = useRef<HTMLElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const scrollToRow = (id: string, block: ScrollLogicalPosition) => tableRef.current?.querySelector(`[data-row-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block });
   const select = (id: string) => {
     setSelectedId(id);
-    tableRef.current?.querySelector(`[data-row-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
+    scrollToRow(id, "nearest");
   };
   // A phone has no room beside the table: a picked row opens full screen.
+  const isPhone = () => !!window.matchMedia?.("(max-width: 1023px)").matches;
   const pick = (id: string) => {
     select(id);
-    if (window.matchMedia?.("(max-width: 1023px)").matches) setExpanded(true);
+    if (isPhone()) setExpanded(true);
   };
+  // A TOR Match line links here as #soc-row-N: that row is shown and picked
+  // whatever the filter. A new object each time, so the same row scrolls again.
+  const [jump, setJump] = useState<{ id: string } | null>(null);
+  useEffect(() => {
+    const onHash = () => {
+      const rowNumber = socRowOfHash(window.location.hash);
+      const row = rows.find((r) => r.rowNumber === rowNumber);
+      if (!row) return;
+      setFilter(DEFAULT_FILTER);
+      setSort("status");
+      setSelectedId(row.id);
+      if (isPhone()) setExpanded(true);
+      setJump({ id: row.id });
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [rows]);
+  useEffect(() => {
+    // The row is in the table only after the filter reset renders.
+    if (jump) tableRef.current?.querySelector(`[data-row-id="${CSS.escape(jump.id)}"]`)?.scrollIntoView({ block: "center" });
+  }, [jump]);
   const changed = sort !== "status" || filter.status !== "all" || filter.majorItemId !== "all" || (filter.decision ?? "all") !== "all" || !!filter.evidenceMissing;
   const reset = () => { setFilter(DEFAULT_FILTER); setSort("status"); };
   if (!rows.length && !banners.length) return null;

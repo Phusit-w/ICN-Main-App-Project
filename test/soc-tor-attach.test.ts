@@ -101,6 +101,10 @@ test("attaching a text TOR compares it at once; another TOR replaces it and its 
   assert.equal(view?.name, "TOR เดิม.pdf");
   assert.deepEqual(view?.counts, { "ตรง": 3, "ต่างแค่รูปแบบ": 1, "ความหมายต่าง": 1, "ไม่พบใน SOC": 1, "ไม่พบใน TOR": 0, "ยืนยันไม่ได้": 0 });
   assert.deepEqual(view?.warnings, []);
+  // The issue list gets every line, ตรง included, in stored order with both texts.
+  assert.deepEqual(view?.lines.map((l) => [l.socRow, l.outcome]), [[1, "ตรง"], [2, "ตรง"], [3, "ความหมายต่าง"], [4, "ตรง"], [5, "ต่างแค่รูปแบบ"], [null, "ไม่พบใน SOC"]]);
+  const changedLine = view?.lines[2];
+  assert.ok(changedLine?.socText && changedLine.torText && changedLine.torPage === 1);
 
   const replaced = await attach(jobId, buildTablePdf([torPage(7)]), "TOR ใหม่.pdf");
   assert.equal(replaced.status, 201);

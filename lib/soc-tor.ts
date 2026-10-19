@@ -79,7 +79,13 @@ export async function attachTorOriginal(actor: SocActor, job: { id: string; titl
 
 // What the job page shows of a job's TOR Match; null when no TOR is attached.
 export async function torMatchView(jobId: string) {
-  const match = await prisma.socTorMatch.findUnique({ where: { jobId }, include: { document: { select: { originalName: true } } } });
+  const match = await prisma.socTorMatch.findUnique({
+    where: { jobId },
+    include: {
+      document: { select: { originalName: true } },
+      lines: { orderBy: { position: "asc" }, select: { id: true, socRow: true, item: true, outcome: true, socText: true, torText: true, torPage: true, claudeOutcome: true, claudeReason: true } },
+    },
+  });
   if (!match) return null;
   const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
   return {
@@ -89,6 +95,8 @@ export async function torMatchView(jobId: string) {
     counts: (match.counts ?? null) as TorMatchCounts | null,
     warnings: strings(match.warnings),
     errorMessage: match.errorMessage,
+    // Every outcome line, ตรง included: the issue list hides those by default.
+    lines: match.lines.map((line) => ({ ...line, outcome: line.outcome as TorMatchOutcome })),
   };
 }
 export type TorMatchView = NonNullable<Awaited<ReturnType<typeof torMatchView>>>;

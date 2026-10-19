@@ -74,9 +74,9 @@ export function thaiText(text: string): string {
 const light = (text: string) => thaiText(text).replace(/\s+/g, "");
 
 // Symbols that carry meaning: a changed one is ความหมายต่าง, not ต่างแค่รูปแบบ.
-const KEPT_SYMBOLS = new Set("<>≤≥±+=%");
+export const KEPT_SYMBOLS: ReadonlySet<string> = new Set("<>≤≥±+=%");
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
-const isThai = (c: string) => c >= "฀" && c <= "๿";
+export const isThai = (c: string) => c >= "฀" && c <= "๿";
 
 // The comparison text of `text` (no spaces, punctuation, digit script or
 // case; NFKC, so µ is μ) and, per character of it, its index in `text`.
