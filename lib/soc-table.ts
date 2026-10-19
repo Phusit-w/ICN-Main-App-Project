@@ -24,6 +24,10 @@ export type SocRowText = {
 // kind a browser can't show (.emf, .wmf, .tiff …).
 export type SocRowImage = { name: string; data: Uint8Array; mimeType: string | null };
 
+// A SOC row as TOR Match reads it. `position`: 1-based across the whole SOC
+// (as `rowPosition`); `majorItem`: as `majorItemOfRow`.
+export type SocTableRow = { position: number; item: string; tor: string; image: boolean; majorItem: string | null };
+
 export type SocTable = {
   file: { extension: string; mimeType: string }; // how to store the SOC file
   majorItems: SocMajorItemSpec[];
@@ -43,6 +47,8 @@ export type SocTable = {
   // in the SOC, see SocMajorItems.rowKeys). Null when no row is found or it
   // lies above the first major item.
   majorItemOfRow: (row: number, item: string) => string | null;
+  // Every row of the SOC's tables in order, for TOR Match (lib/soc-tor-match.ts).
+  rows: SocTableRow[];
   // The sheet a SOC row is on, to show with the row when an Excel SOC has
   // more than one sheet. Null otherwise.
   sheetOfRow: (row: number) => string | null;
@@ -156,6 +162,7 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
       const row = findRow(rowNumber, itemNumber);
       return row ? rowKeys[allRows.indexOf(row)] : null;
     },
+    rows: allRows.map((row, index) => ({ position: index + 1, item: itemOf(row), tor: row.tor ?? row.cells[1] ?? "", image: !!row.imageId, majorItem: rowKeys[index] })),
     warnings,
   };
 }
