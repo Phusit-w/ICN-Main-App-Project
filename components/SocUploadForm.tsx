@@ -42,7 +42,7 @@ export default function SocUploadForm() {
         let body = await readUploadResponse<{ id?: string; error?: string; needsOcrConfirm?: boolean }>(response);
         if (body.needsOcrConfirm) {
           // A scanned PDF goes to an outside OCR service: ask every time; cancel stores and sends nothing.
-          const yes = await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก", message: "SOC นี้เป็น PDF แบบสแกน ระบบจะส่งภาพของตารางไปอ่านที่บริการ OCR ภายนอก (Typhoon) และใช้เวลาอ่านนาน (ประมาณ 100 นาทีสำหรับ 85 หน้า) ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" });
+          const yes = await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก", message: "SOC นี้เป็น PDF แบบสแกน ระบบจะส่งภาพของตารางไปอ่านที่บริการ OCR ภายนอก (Typhoon) ฟีเจอร์นี้ยังอยู่ระหว่างการพัฒนา และใช้เวลานานทั้งตอนอ่านตารางและตอนตรวจ (อ่านประมาณ 100–140 นาทีสำหรับ 85 หน้า) ผลอ่านอาจคลาดเคลื่อน ควรตรวจทานก่อนใช้งานจริง ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" });
           if (!yes) return;
           formData.set("ocrConfirmed", "1");
           response = await fetch("/api/soc/jobs", { method: "POST", body: formData });
