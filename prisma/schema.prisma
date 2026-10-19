@@ -187,6 +187,7 @@ model SocJob {
   majorItems    SocMajorItem[]
   checkRuns     SocCheckRun[]
   checkRequests SocCheckRequest[]
+  torMatch      SocTorMatch?
 
   @@index([ownerId, updatedAt])
   @@index([status, createdAt])
@@ -200,7 +201,8 @@ model SocDocument {
   job          SocJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
   // "SOC" | "EVIDENCE" | "OUTPUT" | "PREVIEW" | "RUN_OUTPUT" (the SOC_Check
   // document of one Local Check Run) | "SOC_SOURCE_PDF" (the PDF a PDF SOC's
-  // job was made from; its "SOC" is the .xlsx made from it, ADR 0009)
+  // job was made from; its "SOC" is the .xlsx made from it, ADR 0009) |
+  // "TOR_ORIGINAL" (the TOR ต้นฉบับ of TOR Match, one per job)
   type         String
   originalName String
   storageKey   String        @unique
@@ -210,8 +212,48 @@ model SocDocument {
   pageCount    Int?
   createdAt    DateTime      @default(now())
   checkRuns    SocCheckRun[]
+  torMatch     SocTorMatch?
 
   @@index([jobId, type])
+}
+
+// The TOR Match of a job against its TOR ต้นฉบับ (docs/SOC-DOMAIN-GLOSSARY.md
+// "TOR Match", lib/soc-tor.ts). A report only: it never changes major items,
+// check requests or check results. Deleted with its TOR document.
+model SocTorMatch {
+  id           String            @id @default(cuid())
+  jobId        String            @unique
+  job          SocJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  documentId   String            @unique
+  document     SocDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  state        String // "reading" | "ready" | "failed"
+  pages        Json? // the TOR's pages as read, [{ text, picture }], so a re-compare reads nothing again
+  counts       Json? // lines per outcome
+  warnings     Json? // strings: e.g. a major item the TOR has no section for
+  errorMessage String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  lines        SocTorMatchLine[]
+}
+
+// One outcome line of a TOR Match: a SOC row, or TOR text no SOC row covers
+// (ไม่พบใน SOC, no SOC row). `claudeOutcome` and `claudeReason` come from
+// the Claude step on the SOC Runner.
+model SocTorMatchLine {
+  id            String      @id @default(cuid())
+  matchId       String
+  match         SocTorMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  position      Int // order: the SOC rows, then the TOR text no row covers
+  socRow        Int? // the SOC row's 1-based number, as SocCheckResult.rowNumber
+  item          String?
+  outcome       String // one of TOR_MATCH_OUTCOMES (lib/soc-tor-match.ts)
+  socText       String?
+  torText       String?
+  torPage       Int?
+  claudeOutcome String?
+  claudeReason  String?
+
+  @@index([matchId, position])
 }
 
 // One major item (ข้อใหญ่) of an Imported SOC Check, created with the job

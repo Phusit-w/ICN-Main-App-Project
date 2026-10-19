@@ -309,7 +309,7 @@ export function hasScannedTable(pdf: Uint8Array): boolean {
   }
 }
 
-type Segment = { at: number; from: number; to: number }; // horizontal: y and x range; vertical: x and y range
+export type Segment = { at: number; from: number; to: number }; // horizontal: y and x range; vertical: x and y range
 type Char = { char: string; x: number; lineY: number; line: number };
 
 function readPage(page: mupdf.Page): PageRead {
@@ -409,11 +409,19 @@ function pageChars(page: mupdf.Page): Char[] {
   return chars;
 }
 
-// What the page draws: its ruling lines, thin filled rectangles (how Word
-// draws borders) and straight stroked lines, kept only when they meet a line
+// What the page draws: its ruling lines, kept only when they meet a line
 // across them, so an underline or a rule under the page title is not taken
 // for the table; and the middle of each picture.
 function drawing(page: mupdf.Page): { horizontal: Segment[]; vertical: Segment[]; images: { x: number; y: number }[] } {
+  const { horizontal, vertical, images } = pageDrawing(page);
+  const meets = (line: Segment, across: Segment[]) =>
+    across.some((other) => other.at >= line.from - TOUCH && other.at <= line.to + TOUCH && line.at >= other.from - TOUCH && line.at <= other.to + TOUCH);
+  return { horizontal: horizontal.filter((line) => meets(line, vertical)), vertical: vertical.filter((line) => meets(line, horizontal)), images };
+}
+
+// Every line the page draws: thin filled rectangles (how Word draws borders
+// and underlines) and straight stroked lines; and the middle of each picture.
+export function pageDrawing(page: mupdf.Page): { horizontal: Segment[]; vertical: Segment[]; images: { x: number; y: number }[] } {
   const horizontal: Segment[] = [];
   const vertical: Segment[] = [];
   const images: { x: number; y: number }[] = [];
@@ -457,9 +465,7 @@ function drawing(page: mupdf.Page): { horizontal: Segment[]; vertical: Segment[]
   } finally {
     device.destroy();
   }
-  const meets = (line: Segment, across: Segment[]) =>
-    across.some((other) => other.at >= line.from - TOUCH && other.at <= line.to + TOUCH && line.at >= other.from - TOUCH && line.at <= other.to + TOUCH);
-  return { horizontal: horizontal.filter((line) => meets(line, vertical)), vertical: vertical.filter((line) => meets(line, horizontal)), images };
+  return { horizontal, vertical, images };
 }
 
 // Positions of lines drawn at (nearly) the same place, as one each.

@@ -11,8 +11,11 @@ import * as mupdf from "mupdf";
 // covers, and whether a picture sits in it.
 export type TableCell = string | { text: string; span?: number; rowSpan?: number; image?: boolean };
 // One page: the column widths and the rows; `textAbove` is a title outside the
-// table. A `scanned` page is one image covering the page and no text.
-export type TablePage = { columns: number[]; rows: TableCell[][]; stroked?: boolean; textAbove?: string; scanned?: boolean; raster?: RasterTable };
+// table. A `scanned` page is one image covering the page and no text. `lines`
+// are text lines under the table (or on their own: no columns, no rows), each
+// with the indexes of its characters drawn with a line under them, the way
+// Word types ≤ as an underlined <; `picture` puts a picture on the page.
+export type TablePage = { columns: number[]; rows: TableCell[][]; stroked?: boolean; textAbove?: string; scanned?: boolean; raster?: RasterTable; lines?: { text: string; underline?: number[] }[]; picture?: boolean };
 // A scanned page's table: column widths in pixels (100 per inch, as the cutter
 // reads it); one string per cell, "" for no ink; the first row is the header.
 // `innerTable` draws a 2 × 2 table inside that cell.
@@ -69,6 +72,12 @@ export function buildTablePdf(pages: TablePage[], options: { password?: string }
         column += span;
       }
     });
+    (page.lines ?? []).forEach(({ text, underline = [] }, i) => {
+      const lineTop = top + 10 + i * LINE_HEIGHT;
+      if (text) content += show(text, LEFT, lineTop);
+      for (const at of underline) content += `${LEFT + at * CHAR_WIDTH} ${PAGE[1] - lineTop - FONT_SIZE - 1} ${CHAR_WIDTH} 0.5 re f\n`;
+    });
+    if (page.picture) content += `q 200 0 0 150 ${PAGE[0] - 260} 40 cm /Im1 Do Q\n`;
     return content;
   });
 
