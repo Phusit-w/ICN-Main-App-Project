@@ -122,6 +122,8 @@ test("the TOR text of a near match starts and ends on whole words, not mid-word"
     ["", "* Weight : ≤ 12 กิโลกรัม", "1"],
   ]), [page("1. ตู้ขนาดดังนี้\n*   Depth   :   ≥  120  มิลลิเมตร\n*   Wight   :   ≤  12 กิโลกรัม\n")]);
   assert.deepEqual(result.rows.map((row) => [row.outcome, row.torText?.trim()]), [["ตรง", "ตู้ขนาดดังนี้"], ["ตรง", "Depth   :   ≥  120  มิลลิเมตร"], ["ความหมายต่าง", "Wight   :   ≤  12 กิโลกรัม"]]);
+  // The whole word is covered too: no "W" left over as ไม่พบใน SOC.
+  assert.deepEqual(result.missing, []);
 });
 
 test("a dropped middle word is ความหมายต่าง; a dropped last word leaves it ไม่พบใน SOC", () => {

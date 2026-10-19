@@ -200,17 +200,18 @@ function locate(r: string, t: string, cursor: number): { span: Span; score: numb
 
 const rawOf = (section: Section, [a, b]: Span) => section.raw.slice(section.index[a], section.index[b - 1] + 1);
 
-// A near match's stretch, as shown: a shared run can start or end inside a
-// Latin word or number ("Wight" for "Weight" shares "ight"), so it runs on to
-// the whole word. Thai has no word ends to run to and is left as matched.
+// A matched stretch, run on to whole words: a shared run can start or end
+// inside a Latin word or number ("Wight" for "Weight" shares "ight"), and the
+// rest of the word would be left as ไม่พบใน SOC. Thai has no word ends to run
+// to and is left as matched. A step is taken only between neighbours in the
+// TOR text (no space or line break between them).
 const LATIN_OR_DIGIT = /[A-Za-z0-9]/;
-function shownRawOf(section: Section, [a, b]: Span): string {
-  const raw = section.raw;
-  let start = section.index[a];
-  let end = section.index[b - 1] + 1;
-  while (start > 0 && LATIN_OR_DIGIT.test(raw[start]) && LATIN_OR_DIGIT.test(raw[start - 1])) start--;
-  while (end < raw.length && LATIN_OR_DIGIT.test(raw[end - 1]) && LATIN_OR_DIGIT.test(raw[end])) end++;
-  return raw.slice(start, end);
+function wholeWords(section: Section, [a, b]: Span): Span {
+  const { raw, index, norm } = section;
+  const joined = (i: number) => index[i + 1] === index[i] + 1 && LATIN_OR_DIGIT.test(raw[index[i]]) && LATIN_OR_DIGIT.test(raw[index[i + 1]]);
+  while (a > 0 && joined(a - 1)) a--;
+  while (b < norm.length && joined(b - 1)) b++;
+  return [a, b];
 }
 
 function pageAt(section: Section, normIndex: number): number | null {
@@ -253,14 +254,15 @@ function matchSection(rows: SocTableRow[], section: Section, label: string): { r
     }
     const r = comparable(row.tor);
     if (!r) continue; // no TOR text to compare
-    const { outcome: found, span, moves } = classify(row.tor, r, section, cursor);
+    const { outcome: found, span: matched, moves } = classify(row.tor, r, section, cursor);
+    const span = matched && wholeWords(section, matched);
     // The row may be on a page of the section that is a picture.
     const outcome = found === "ไม่พบใน TOR" && section.picturePages.length ? "ยืนยันไม่ได้" : found;
     if (span) {
       covered.fill(1, span[0], span[1]);
       if (moves) cursor = Math.max(cursor, span[1]); // never back: a match behind is a repeat
     }
-    results.push({ ...base, outcome, torText: span && shownRawOf(section, span), torPage: span && pageAt(section, span[0]) });
+    results.push({ ...base, outcome, torText: span && rawOf(section, span), torPage: span && pageAt(section, span[0]) });
   }
   const missing: TorMatchMissing[] = [];
   for (let i = 0; i < covered.length; ) {
