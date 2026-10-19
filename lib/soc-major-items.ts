@@ -90,10 +90,11 @@ export function annexKeysOfRows(rows: string[][]): (string | null)[] | null {
 // A ผนวก over SPLIT_MAJOR_ITEM_ROWS with two or more own items ("1.", "2." …)
 // is split into one major item per own item (key "7.2": items "7.2", "7.2.1"
 // …). Rows above the first ผนวก belong to no major item.
-function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean): SocMajorItemSpec[] | null {
+function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean): SocMajorItems | null {
   const headings = annexHeadingsOfRows(rows);
   if (!headings) return null;
   const annexes = new Map<string, MajorItemTally>();
+  const placed: RowPlace[] = [];
   let annex: MajorItemTally | null = null;
   let part: ItemTally | null = null;
   for (const [index, heading] of headings.entries()) {
@@ -102,7 +103,10 @@ function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boole
       annexes.set(heading.key, annex);
       part = null;
     }
-    if (!annex) continue;
+    if (!annex) {
+      placed.push(null);
+      continue;
+    }
     // A part is the ผนวก's own item "4" (and "4.1" under it): the first segment of the row's number.
     const segments = itemSegments(rows[index][0] || "");
     if (segments) {
@@ -111,37 +115,91 @@ function annexItemsOfRows(rows: string[][], isImageRow: (index: number) => boole
       annex.subs.set(partKey, part);
       if (segments.length === 1 && !part.title) part.title = rows[index].slice(1).find((t) => t)?.slice(0, MAX_TITLE) || null;
     }
-    const image = isImageRow(index) ? 1 : 0;
-    annex.rowCount += 1;
-    annex.imageRowCount += image;
-    if (part) {
-      part.rowCount += 1;
-      part.imageRowCount += image;
-    } else {
-      annex.rowsBeforeSubs += 1;
-      annex.imagesBeforeSubs += image;
-    }
+    placed.push([annex, part]);
+    count(annex, part, isImageRow(index));
   }
-  // A big ผนวก is split into its own items, as a big major item is (SPLIT_MAJOR_ITEM_ROWS); none is guessed ไม่ต้องตรวจ.
-  return [...annexes.values()].flatMap(({ rowsBeforeSubs, imagesBeforeSubs, subs, ...item }): SocMajorItemSpec[] => {
-    if (item.rowCount <= SPLIT_MAJOR_ITEM_ROWS || subs.size < 2) return [{ ...item, groupLabel: null, groupTitle: null, skipped: false }];
-    // The ผนวก's heading row and any row before its first item join the first part.
-    return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), imageRowCount: s.imageRowCount + (i === 0 ? imagesBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title, skipped: false }));
+  // A big ผนวก is split into its own items, as a big major item is; none is guessed ไม่ต้องตรวจ.
+  const { items, rowKeys } = splitBigItems(annexes.values(), placed);
+  return { majorItems: items.map((item) => ({ ...item, skipped: false })), rowKeys };
+}
+
+// The major items of a SOC, and the major item each row lies in.
+export type SocMajorItems = {
+  majorItems: SocMajorItemSpec[];
+  // Per row, the key of the major item it lies in (after any split), or null
+  // for a row above the first major item. A row belongs to the major item it
+  // sits in, whatever its own number says (a list "๖." inside ข้อ ๕ is ข้อ ๕'s).
+  rowKeys: (string | null)[];
+};
+
+// Where a row was counted: its major item, and the sub-section within it (null before the first).
+type RowPlace = readonly [MajorItemTally, ItemTally | null] | null;
+
+function count(major: MajorItemTally, sub: ItemTally | null, isImage: boolean) {
+  const image = isImage ? 1 : 0;
+  major.rowCount += 1;
+  major.imageRowCount += image;
+  if (sub) {
+    sub.rowCount += 1;
+    sub.imageRowCount += image;
+  } else {
+    major.rowsBeforeSubs += 1;
+    major.imagesBeforeSubs += image;
+  }
+}
+
+// Over SPLIT_MAJOR_ITEM_ROWS: a major item with two or more sub-sections is
+// split one level, into those sub-sections (๕ → ๕.๑ … ๕.๑๕); a sub-section
+// isn't split again. Its heading row and any row before its first sub-section
+// join the first sub-section.
+function splitBigItems(majors: Iterable<MajorItemTally>, placed: RowPlace[]) {
+  const split = new Set<MajorItemTally>();
+  const items = [...majors].flatMap((major): Omit<SocMajorItemSpec, "skipped">[] => {
+    const { rowsBeforeSubs, imagesBeforeSubs, subs, ...item } = major;
+    if (item.rowCount <= SPLIT_MAJOR_ITEM_ROWS || subs.size < 2) return [{ ...item, groupLabel: null, groupTitle: null }];
+    split.add(major);
+    return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), imageRowCount: s.imageRowCount + (i === 0 ? imagesBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title }));
   });
+  const rowKeys = placed.map((place) => {
+    if (!place) return null;
+    const [major, sub] = place;
+    return split.has(major) ? (sub ?? [...major.subs.values()][0]).key : major.key;
+  });
+  return { items, rowKeys };
 }
 
 // The major items of a SOC, from every row of its tables in order (first cell
 // = item number). `isImageRow(i)`: whether row i is an Image Row.
-export function majorItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean = () => false): SocMajorItemSpec[] {
+//
+// A numbered list inside a major item is not a run of other major items: MOF
+// RFID ข้อ ๕ lists places "๑. ชั้น ๑๘ …" to "๑๑. ชั้น ๒๐ …", and the real
+// ข้อ ๖ follows. A row "N." starts major item N only when N is past the
+// current major item and doesn't run on a list (the last list row was not
+// N−1); otherwise it is a list row, counted like an unnumbered row. A dotted
+// row ("๖.๑") always belongs to the major item its number starts with.
+export function majorItemsOfRows(rows: string[][], isImageRow: (index: number) => boolean = () => false): SocMajorItems {
   const annexes = annexItemsOfRows(rows, isImageRow);
   if (annexes) return annexes;
   // Each row counts towards the item number above it, until the next one.
   const majors = new Map<string, MajorItemTally>();
+  const placed: RowPlace[] = [];
   let major: MajorItemTally | null = null;
   let sub: ItemTally | null = null;
+  let current: number | null = null; // the current major item's number
+  let listNumber: number | null = null; // the last list row's number, inside the current major item
   for (const [index, cells] of rows.entries()) {
-    const segments = itemSegments(cells[0] || "");
+    let segments = itemSegments(cells[0] || "");
     const text = () => cells.slice(1).find((t) => t)?.slice(0, MAX_TITLE) || null;
+    if (segments) {
+      const number = Number(toArabic(segments[0]));
+      if (segments.length > 1 || current === null || (number > current && listNumber !== number - 1)) {
+        current = number;
+        listNumber = null;
+      } else {
+        listNumber = number;
+        segments = null;
+      }
+    }
     if (segments) {
       const key = segmentKey(segments.slice(0, 1));
       major = majors.get(key) ?? { key, label: segments[0], title: null, rowCount: 0, imageRowCount: 0, rowsBeforeSubs: 0, imagesBeforeSubs: 0, subs: new Map() };
@@ -155,27 +213,12 @@ export function majorItemsOfRows(rows: string[][], isImageRow: (index: number) =
         if (segments.length === 2 && !sub.title) sub.title = text();
       }
     }
-    if (!major) continue;
-    const image = isImageRow(index) ? 1 : 0;
-    major.rowCount += 1;
-    major.imageRowCount += image;
-    if (sub) {
-      sub.rowCount += 1;
-      sub.imageRowCount += image;
-    } else {
-      major.rowsBeforeSubs += 1;
-      major.imagesBeforeSubs += image;
-    }
+    placed.push(major && [major, sub]);
+    if (major) count(major, sub, isImageRow(index));
   }
-  // Over SPLIT_MAJOR_ITEM_ROWS: split one level, into the second-level
-  // sub-sections (๕ → ๕.๑ … ๕.๑๕). A sub-section isn't split again.
-  const items = [...majors.values()].flatMap(({ rowsBeforeSubs, imagesBeforeSubs, subs, ...item }): Omit<SocMajorItemSpec, "skipped">[] => {
-    if (item.rowCount <= SPLIT_MAJOR_ITEM_ROWS || subs.size < 2) return [{ ...item, groupLabel: null, groupTitle: null }];
-    // The major item's own heading row (and any row before ๕.๑) joins the first sub-section.
-    return [...subs.values()].map((s, i) => ({ ...s, rowCount: s.rowCount + (i === 0 ? rowsBeforeSubs : 0), imageRowCount: s.imageRowCount + (i === 0 ? imagesBeforeSubs : 0), groupLabel: item.label, groupTitle: item.title }));
-  });
+  const { items, rowKeys } = splitBigItems(majors.values(), placed);
   const split = items.some((item) => item.groupLabel);
-  return items.map((item) => ({ ...item, skipped: split && !item.groupLabel }));
+  return { majorItems: items.map((item) => ({ ...item, skipped: split && !item.groupLabel })), rowKeys };
 }
 
 // The same item number, whatever its digits or trailing dot ("๒.๑" = "2.1.").

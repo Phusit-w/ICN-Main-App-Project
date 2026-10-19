@@ -85,9 +85,17 @@ function isBlank(value: unknown) {
 // row isn't found); an Image Row must come with its image_kind, and only an
 // Image Row may. Without it (the SOC can't be read) the kinds are only checked
 // against their values.
+// `majorItemOfRow`: the major item a row of the job's SOC lies in (null when
+// the row isn't found). A row found in the SOC belongs to the major item it
+// sits in, whatever its number says (a list "๖." inside ข้อ ๕ is ข้อ ๕'s);
+// otherwise its item number decides.
 export function validateLocalCheckRun(
   data: unknown, majorItem: { key: string; label: string },
-  { takesGroupHeading = false, isImageRow }: { takesGroupHeading?: boolean; isImageRow?: (row: number, item: string) => boolean | null } = {},
+  { takesGroupHeading = false, isImageRow, majorItemOfRow }: {
+    takesGroupHeading?: boolean;
+    isImageRow?: (row: number, item: string) => boolean | null;
+    majorItemOfRow?: (row: number, item: string) => string | null;
+  } = {},
 ): { rows: ValidRow[] } | { errors: string[] } {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return { errors: ["ไฟล์ results.json ต้องเป็น JSON object ที่มี mode, options และ results"] };
@@ -146,8 +154,9 @@ export function validateLocalCheckRun(
       }
     }
     if (!isBlank(row.item)) {
+      const sitsIn = Number.isInteger(row.row) ? majorItemOfRow?.(row.row as number, String(row.item)) ?? null : null;
       if (!majorItemKey(String(row.item))) errors.push(`${where}: item ไม่ใช่เลขข้อ`);
-      else if (!isItemInMajorItem(String(row.item), majorItem, { takesGroupHeading })) errors.push(`${where} ไม่ได้อยู่ใน${majorItemName(majorItem.label, "ข้อใหญ่")}`);
+      else if (sitsIn ? sitsIn !== majorItem.key : !isItemInMajorItem(String(row.item), majorItem, { takesGroupHeading })) errors.push(`${where} ไม่ได้อยู่ใน${majorItemName(majorItem.label, "ข้อใหญ่")}`);
     }
   });
 
@@ -250,9 +259,14 @@ export async function importLocalCheckRun(actor: { id: string }, input: LocalChe
     errors.push("ไฟล์ SOC_Check ต้องเป็น Word (.docx) ที่ถูกต้อง ขนาดไม่เกิน 25 MB");
   }
   const groupFirst = item.groupLabel ? await prisma.socMajorItem.findFirst({ where: { jobId: job.id, groupLabel: item.groupLabel }, orderBy: { position: "asc" }, select: { id: true } }) : null;
-  const rowText = (await readJobSoc(soc))?.rowText ?? (() => null);
+  const table = await readJobSoc(soc);
+  const rowText = table?.rowText ?? (() => null);
   const isImageRow = (row: number, itemNumber: string) => { const text = rowText(row, itemNumber); return text ? !!text.image : null; };
-  const validated = validateLocalCheckRun(input.results, item, { takesGroupHeading: groupFirst?.id === item.id, isImageRow });
+  // A job keeps the major items it was made with; a row's place decides only
+  // when the SOC still splits into those same items (an older job may not).
+  const jobKeys = (await prisma.socMajorItem.findMany({ where: { jobId: job.id }, orderBy: { position: "asc" }, select: { key: true } })).map((m) => m.key);
+  const sameSplit = !!table && table.majorItems.map((m) => m.key).join("|") === jobKeys.join("|");
+  const validated = validateLocalCheckRun(input.results, item, { takesGroupHeading: groupFirst?.id === item.id, isImageRow, majorItemOfRow: sameSplit ? table.majorItemOfRow : undefined });
   if ("errors" in validated) errors.push(...validated.errors);
   if (errors.length || !("rows" in validated)) return { ok: false, errors };
   const onlyRows = input.checkRequest?.rowNumbers?.length ? input.checkRequest.rowNumbers : null;

@@ -265,6 +265,60 @@ test("a major item over 60 rows with no sub-sections, or only one, stays whole",
   assert.deepEqual(readSocMajorItems(single).map((m) => [m.key, m.rowCount, m.groupLabel]), [["1", 82, null]]);
 });
 
+const THAI = ["๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙", "๑๐", "๑๑", "๑๒", "๑๓", "๑๔"];
+const places = (count: number) => THAI.slice(0, count).map((n, i) => [`${n}.`, `ชั้น ${i + 18}`, "", ""]);
+
+// The shape of MOF RFID: ข้อ ๕ lists places "๑." to "๑๑.", then the real ข้อ ๖ … ๑๔ follow.
+// Rows: header 1, ข้อ ๑-๔ 2-5, ข้อ ๕ 6, its list 7-17 ("๖. ชั้น 23" is row 12), ข้อ ๖ 18.
+const LIST_SOC = () => buildSocDocx([
+  HEADER,
+  ...THAI.slice(0, 4).map((n) => [`${n}.`, `ข้อ ${n}`, "", ""]),
+  ["๕.", "สถานที่ติดตั้ง ดังนี้", "", ""],
+  ...places(11),
+  ...THAI.slice(5).map((n) => [`${n}.`, `ข้อ ${n}`, "", ""]),
+  ["๑๔.๑", "ข้อ ๑๔.๑", "", ""], // a SOC table has a dotted item number
+]);
+
+test("a numbered list inside a major item stays in it and doesn't count into the major items it numbers", () => {
+  const table = readSocTable(LIST_SOC());
+  assert.deepEqual(table.majorItems.map((m) => [m.key, m.rowCount]), THAI.map((_, i) => [String(i + 1), i === 4 ? 12 : i === 13 ? 2 : 1]));
+  assert.equal(table.majorItems[5].title, "ข้อ ๖");
+  // The list row "๖." sits in ข้อ ๕, the real ข้อ ๖ in ข้อ ๖, whichever number the run gives the list row.
+  assert.equal(table.rowText(12, "๖")?.tor, "ชั้น 23");
+  assert.equal(table.majorItemOfRow(12, "๖"), "5");
+  assert.equal(table.majorItemOfRow(12, "๕.๖"), "5");
+  assert.equal(table.majorItemOfRow(18, "๖"), "6");
+  assert.equal(table.majorItemOfRow(2, "๑"), "1");
+  assert.equal(table.majorItemOfRow(1, "๑"), null); // the header row lies above the first major item
+});
+
+test("a list inside a split major item stays in the sub-section it sits in", () => {
+  const table = readSocTable(buildSocDocx([
+    HEADER,
+    ["๕.", "ระบบ RFID", "", ""],
+    ...section("๕.๑", "เครื่องอ่าน", 50),
+    ...section("๕.๒", "สถานที่ติดตั้ง", 0), ...places(11), // rows 55-65, "๖." is row 60
+    ["๖.", "การฝึกอบรม", "", ""],
+  ]));
+  assert.deepEqual(table.majorItems.map((m) => [m.key, m.rowCount]), [["5.1", 52], ["5.2", 12], ["6", 1]]);
+  assert.equal(table.majorItemOfRow(2, "๕"), "5.1"); // the split item's heading row joins its first sub-section
+  assert.equal(table.majorItemOfRow(60, "๕.๒.๖"), "5.2");
+  assert.equal(table.majorItemOfRow(60, "๖"), "5.2");
+  assert.equal(table.majorItemOfRow(66, "๖"), "6");
+});
+
+test("a real major item follows a list, also one that skips a number or runs on a list's numbers", () => {
+  const soc = buildSocDocx([
+    HEADER,
+    ["๑.", "ข้อ ๑", "", ""], ["๑.", "รายการ ก", "", ""], ["๒.", "รายการ ข", "", ""],
+    ["๒.", "ข้อ ๒", "", ""], ["๑.", "รายการ ค", "", ""], ["๒.", "รายการ ง", "", ""], ["๓.", "รายการ จ", "", ""],
+    ["๓.", "ข้อ ๓", "", ""],
+    ["๕.", "ข้อ ๕", "", ""], // no ข้อ ๔ in this SOC
+    ["๕.๑", "ข้อ ๕.๑", "", ""],
+  ]);
+  assert.deepEqual(readSocMajorItems(soc).map((m) => [m.key, m.title, m.rowCount]), [["1", "ข้อ ๑", 3], ["2", "ข้อ ๒", 4], ["3", "ข้อ ๓", 1], ["5", "ข้อ ๕", 2]]);
+});
+
 test("majorItemKey maps any item number to its major item", () => {
   assert.equal(majorItemKey("๑.๒.๗"), "1");
   assert.equal(majorItemKey("4.3.1"), "4");

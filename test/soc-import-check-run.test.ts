@@ -298,6 +298,30 @@ test("a sub-section of a split major item takes its own rows, and the first one 
   assert.equal((await prisma.socMajorItem.findUniqueOrThrow({ where: { id: first.id } })).state, "checked");
 });
 
+// MOF RFID: ข้อ ๕ lists places "๑." to "๗.", then the real ข้อ ๖ and ๗ follow.
+// Rows: header 1, ข้อ ๕ 2, its list 3-9 ("๖. ชั้น 23" is row 8), ข้อ ๖ 10, ข้อ ๗ 11, ๗.๑ 12.
+const LIST_SOC = buildSocDocx([
+  ["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "เลขอ้างอิงในเอกสารข้อเสนอ"],
+  ["๕.", "สถานที่ติดตั้ง ดังนี้", "", ""],
+  ...["๑", "๒", "๓", "๔", "๕", "๖", "๗"].map((n, i) => [`${n}.`, `ชั้น ${i + 18}`, "", ""]),
+  ["๖.", "การฝึกอบรม", "", ""],
+  ["๗.", "การรับประกัน", "", ""],
+  ["๗.๑", "ระยะเวลา", "", ""],
+]);
+
+test("a list row inside a major item is imported with that major item, whatever number it was given", { skip }, async () => {
+  const owner = await user("owner");
+  const jobId = await createImportedSocJob(owner, { title: "MOF RFID", soc: { name: "SOC.docx", bytes: LIST_SOC }, evidence: [{ name: "a.pdf", bytes: PDF }] });
+  const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
+  assert.deepEqual(items.map((m) => [m.label, m.rowCount]), [["๕", 8], ["๖", 1], ["๗", 2]]);
+  const [five, six] = items;
+
+  const intoSix = await importRun(owner, jobId, six.id, splitRun([[8, "๖"], [10, "๖"]]));
+  assert.ok(!intoSix.ok && intoSix.errors.length === 1 && intoSix.errors[0].includes("ไม่ได้อยู่ในข้อใหญ่ ๖"), JSON.stringify(intoSix));
+  assert.ok((await importRun(owner, jobId, five.id, splitRun([[2, "๕"], [8, "๖"], [9, "๕.๗"]]))).ok);
+  assert.ok((await importRun(owner, jobId, six.id, splitRun([[10, "๖"]]))).ok);
+});
+
 test("every problem in a file is reported at once", { skip }, async () => {
   const { owner, jobId, item } = await setup();
   const run = withRow(withRow({ ...runFor("1"), mode: "standard" }, 2, { detail: undefined }), 3, { reference_check: "ok" });

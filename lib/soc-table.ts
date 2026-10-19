@@ -39,6 +39,10 @@ export type SocTable = {
   // The 1-based position, across the whole SOC, of the row `rowText` finds:
   // an Excel SOC's own row number, which a PDF SOC's row pages are kept by.
   rowPosition: (row: number, item: string) => number | null;
+  // The key of the major item the row `rowText` finds lies in (by its place
+  // in the SOC, see SocMajorItems.rowKeys). Null when no row is found or it
+  // lies above the first major item.
+  majorItemOfRow: (row: number, item: string) => string | null;
   // The sheet a SOC row is on, to show with the row when an Excel SOC has
   // more than one sheet. Null otherwise.
   sheetOfRow: (row: number) => string | null;
@@ -131,10 +135,11 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
     const byItem = allRows.filter((row) => sameItem(itemOf(row), itemNumber));
     return byItem.length === 1 ? byItem[0] : undefined;
   };
+  const { majorItems, rowKeys } = majorItemsOfRows(allRows.map((row) => row.cells), (index) => !!allRows[index].imageId);
   return {
     file,
     sheetOfRow,
-    majorItems: majorItemsOfRows(allRows.map((row) => row.cells), (index) => !!allRows[index].imageId),
+    majorItems,
     rowText: (rowNumber, itemNumber) => {
       const row = findRow(rowNumber, itemNumber);
       return row ? { tor: row.tor ?? row.cells[1] ?? "", proposal: row.proposal, ...(row.remark ? { remark: row.remark } : {}), ...(row.imageId ? { image: true } : {}) } : null;
@@ -146,6 +151,10 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
     rowPosition: (rowNumber, itemNumber) => {
       const row = findRow(rowNumber, itemNumber);
       return row ? allRows.indexOf(row) + 1 : null;
+    },
+    majorItemOfRow: (rowNumber, itemNumber) => {
+      const row = findRow(rowNumber, itemNumber);
+      return row ? rowKeys[allRows.indexOf(row)] : null;
     },
     warnings,
   };
