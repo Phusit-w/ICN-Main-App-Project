@@ -7,7 +7,7 @@ import { cancelSocCheckRequest, requestSocTorJudge, resumeSocCheckRequestNow } f
 import Button from "@/components/ui/Button";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker from "@/components/SocFilePicker";
-import type { TorMatchView } from "@/lib/soc-tor";
+import type { TorMatchCounts, TorMatchView } from "@/lib/soc-tor";
 import { isOpenCheckRequestState, majorItemName, majorItemStateText, socMajorItemHash, socRowHash } from "@/lib/soc-shared";
 import { torDiff, type DiffPart } from "@/lib/soc-tor-diff";
 import { CollapseButton, useStoredFlag } from "@/components/SocCollapse";
@@ -78,7 +78,7 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
       <p className="flex flex-wrap items-center gap-2 text-sm"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">TOR ต้นฉบับ</span><a href={`/api/soc/documents/${torMatch.documentId}`} target="_blank" rel="noreferrer" className="min-w-0 break-all text-ink">{torMatch.name}</a></p>
       {torMatch.state === "reading" ? <ReadProgress jobId={jobId} stage={torMatch.stage} /> : null}
       {torMatch.state === "failed" ? <ReadFailed jobId={jobId} message={torMatch.errorMessage} /> : null}
-      {counts ? <ul className="flex flex-wrap gap-2" aria-label="จำนวนตามผลเทียบ TOR ต้นฉบับ">{TOR_MATCH_OUTCOMES.map((outcome) => <li key={outcome} title={OUTCOME_HINTS[outcome]} className={`rounded-full px-3 py-1 text-xs font-medium ${ISSUE[outcome] && counts[outcome] ? "border border-danger-border text-danger" : "bg-chip text-label"}`}>{outcome} <span className="tabular-nums">{counts[outcome]}</span></li>)}</ul> : null}
+      {counts ? <OutcomeCounts counts={counts} /> : null}
       {torMatch.state === "ready" && counts ? <p><a href={`/api/soc/jobs/${jobId}/tor/excel`} title="ไฟล์ Excel: จำนวนตามผลเทียบ แล้วทุกแถวที่ไม่ตรง พร้อมผลและเหตุผลของ Claude" className="inline-block rounded-input border border-line bg-surface px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-hover">ดาวน์โหลดผลเทียบ TOR (Excel)</a></p> : null}
       {torMatch.warnings.length ? <ul role="status" className="list-disc rounded-input border border-danger-border p-3 pl-8 text-sm text-label">{torMatch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
       {torMatch.state === "ready" ? <ClaudeJudge jobId={jobId} judgeable={torMatch.judgeable} judge={torMatch.judge} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} /> : null}
@@ -93,6 +93,18 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
     </form> : <p className="mt-4 text-xs text-muted">แนบ TOR ต้นฉบับได้หลังอ่านตาราง SOC ครบแล้ว</p>}
     </div> : null}
   </section>;
+}
+
+// The counts on top: the outcomes with no issue as one "ไม่มีประเด็น" chip
+// (its split in the tooltip), then each issue outcome that has lines.
+function OutcomeCounts({ counts }: { counts: TorMatchCounts }) {
+  const clear = TOR_MATCH_OUTCOMES.filter((o) => !ISSUE[o]);
+  const issues = TOR_MATCH_OUTCOMES.filter((o) => ISSUE[o] && counts[o]);
+  const chip = "rounded-full px-3 py-1 text-xs font-medium";
+  return <ul className="flex flex-wrap gap-2" aria-label="จำนวนตามผลเทียบ TOR ต้นฉบับ">
+    <li title={clear.map((o) => `${o} ${counts[o]}: ${OUTCOME_HINTS[o]}`).join("\n")} className={`${chip} bg-chip text-label`}>ไม่มีประเด็น <span className="tabular-nums">{clear.reduce((sum, o) => sum + counts[o], 0)}</span></li>
+    {issues.map((o) => <li key={o} title={OUTCOME_HINTS[o]} className={`${chip} border border-danger-border text-danger`}>{o} <span className="tabular-nums">{counts[o]}</span></li>)}
+  </ul>;
 }
 
 // A scanned TOR being read: where the read is, and a cancel that keeps the pages read.
