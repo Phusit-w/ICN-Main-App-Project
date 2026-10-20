@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* แนะนำการใช้งาน popups (components/SocGuidedTour.tsx); retinted by .soc-tour at the end. */
+@import "driver.js/dist/driver.css";
 
 /* Design tokens for the 2026 UI redesign (see docs/ux-audit/CURRENT-UI-AUDIT.md
    and the Claude Design handoff "Web app selector UI mockups"). Values lifted
@@ -69,7 +71,8 @@
    lavender are intentionally left at their light values (the orange CTA
    stays orange; peach/lavender read as bright accent tiles on the dark
    ground, and the dark text on them stays legible). */
-.app-shell-root[data-theme="dark"] {
+.app-shell-root[data-theme="dark"],
+.driver-popover.soc-tour[data-theme="dark"] {
   --color-ground: #14151a;
   --color-surface: #1e1f26;
   --color-ink: #f2f3f5;
@@ -370,3 +373,48 @@ button.btn-danger:not(:disabled):not(.ui-btn):active {
     -webkit-appearance: none;
   }
 }
+
+/* แนะนำการใช้งาน popup (components/SocGuidedTour.tsx) in the app's look.
+   The popup lives outside .app-shell-root, so it carries its own data-theme
+   (the dark token block above also matches .soc-tour[data-theme="dark"]). */
+.driver-popover.soc-tour {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-input);
+  box-shadow: var(--shadow-dropdown);
+  min-width: 280px;
+  max-width: 340px;
+  padding: 18px;
+}
+.soc-tour .driver-popover-title {
+  font-family: var(--font-display), var(--font-sans);
+  font-size: 16px;
+  padding-right: 24px;
+}
+.soc-tour .driver-popover-description { font-size: 14px; line-height: 1.6; color: var(--color-subtle); }
+.soc-tour .driver-popover-progress-text { color: var(--color-muted); font-size: 12px; }
+.soc-tour .driver-popover-close-btn { color: var(--color-muted); top: 6px; right: 6px; border-radius: 8px; }
+.soc-tour .driver-popover-close-btn:hover,
+.soc-tour .driver-popover-close-btn:focus-visible { color: var(--color-ink); background: var(--color-hover); }
+.soc-tour .driver-popover-footer-btn {
+  color: var(--color-label);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  text-shadow: none;
+}
+.soc-tour .driver-popover-footer-btn:hover,
+.soc-tour .driver-popover-footer-btn:focus-visible { color: var(--color-ink); background-color: var(--color-hover); }
+.soc-tour .driver-popover-next-btn { color: #000; background-color: var(--color-accent); border-color: var(--color-accent); font-weight: 600; }
+.soc-tour .driver-popover-next-btn:hover,
+.soc-tour .driver-popover-next-btn:focus-visible { color: #000; background-color: #f08d10; }
+.soc-tour .driver-popover-footer-btn:focus-visible,
+.soc-tour .driver-popover-close-btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+.soc-tour .driver-popover-arrow-side-left { border-left-color: var(--color-surface); }
+.soc-tour .driver-popover-arrow-side-right { border-right-color: var(--color-surface); }
+.soc-tour .driver-popover-arrow-side-top { border-top-color: var(--color-surface); }
+.soc-tour .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-surface); }

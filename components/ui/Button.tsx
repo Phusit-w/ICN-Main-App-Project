@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 
 // Shared button for the 2026 redesign. Carries the `ui-btn` class, which
 // globals.css's site-wide `button:hover → solid black` scaffolding rule
@@ -46,6 +46,7 @@ const variants: Record<Variant, string> = {
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>;
   variant?: Variant;
   size?: Size;
 }

@@ -74,7 +74,7 @@ export default function SocRunnerPanel({ runner: latest, latestVersion, showConf
   }
 
   return <div className="flex flex-wrap items-center justify-between gap-4 rounded-card bg-surface p-5 shadow-card">
-    <div className="space-y-1">
+    <div data-tour="runner-status" className="space-y-1">
       <div className="text-xs font-medium text-label">SOC Runner ของคุณ</div>
       {runner ? <>
         <div className="flex items-center gap-2 font-medium"><span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ${DOT[runner.state]}`} />{SOC_RUNNER_STATE_LABELS[runner.state]}
@@ -96,7 +96,7 @@ export default function SocRunnerPanel({ runner: latest, latestVersion, showConf
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </div>
     <div className="flex flex-col items-end gap-1">
-      <Button size="sm" variant={runner ? "outline" : "primary"} disabled={pending} onClick={createCommand}>
+      <Button data-tour="runner-install" size="sm" variant={runner ? "outline" : "primary"} disabled={pending} onClick={createCommand}>
         {pending ? "กำลังสร้าง…" : runner ? "สร้างคำสั่งติดตั้งใหม่ (ซ่อม/ย้ายเครื่อง)" : "สร้างคำสั่งติดตั้ง SOC Runner"}
       </Button>
       {showConfigDownload ? <button type="button" className="text-[11px] text-muted underline hover:text-ink disabled:opacity-50" disabled={pending} onClick={() => runner ? setConfirmingConfig(true) : downloadConfig()}>

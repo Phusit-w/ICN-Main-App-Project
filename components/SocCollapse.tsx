@@ -6,7 +6,7 @@ import { useSyncExternalStore, type ReactNode } from "react";
 const STORED_FLAG_EVENT = "soc:stored-flag-changed";
 const storedFlagFallback = new Map<string, boolean>();
 
-function readStoredFlag(key: string, initial: boolean) {
+export function readStoredFlag(key: string, initial: boolean) {
   try {
     const value = window.localStorage.getItem(key);
     return value === null ? storedFlagFallback.get(key) ?? initial : value === "1";
