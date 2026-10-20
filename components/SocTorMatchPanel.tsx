@@ -211,19 +211,23 @@ function ClaudeJudge({ jobId, judgeable, judge, viewerId, viewerIsAdmin }: { job
 type Line = TorMatchView["lines"][number];
 const filterChip = (on: boolean) => `ui-btn rounded-full px-3 py-1.5 text-xs tabular-nums transition-colors ${on ? "bg-ink text-ground" : "bg-chip text-label hover:text-ink"}`;
 
-// Every line but ตรง (a toggle adds those), or one outcome's, SOC and TOR side
-// by side with the changed words marked.
+// The lines with an issue (by default), one issue outcome's, or the lines with
+// none (ตรง and ต่างแค่รูปแบบ), SOC and TOR side by side with the changed
+// words marked. Same grouping as the counts on top; an issue outcome with no
+// lines has no chip.
 function IssueList({ jobId, lines, reviewRows }: { jobId: string; lines: Line[]; reviewRows: number[] }) {
-  const [outcome, setOutcome] = useState<TorMatchOutcome | "all">("all");
-  const [withMatched, setWithMatched] = useState(false);
+  const [filter, setFilter] = useState<TorMatchOutcome | "issues" | "clear">("issues");
   const reviewable = new Set(reviewRows);
   const count = (o: TorMatchOutcome) => lines.filter((line) => line.outcome === o).length;
-  const shown = lines.filter((line) => (outcome === "all" ? withMatched || line.outcome !== "ตรง" : line.outcome === outcome));
+  const issueOutcomes = TOR_MATCH_OUTCOMES.filter((o) => ISSUE[o] && count(o));
+  const shown = lines.filter((line) => (filter === "issues" ? ISSUE[line.outcome] : filter === "clear" ? !ISSUE[line.outcome] : line.outcome === filter));
+  const chip = (value: typeof filter, label: string, n: number, title?: string) =>
+    <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} title={title} className={filterChip(filter === value)}>{label} ({n})</button>;
   return <div className="flex flex-col gap-3 border-t border-line pt-4">
     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="กรองตามผลเทียบ">
-      <button type="button" aria-pressed={outcome === "all"} onClick={() => setOutcome("all")} className={filterChip(outcome === "all")}>ทุกผลยกเว้นตรง</button>
-      {TOR_MATCH_OUTCOMES.map((o) => <button key={o} type="button" aria-pressed={outcome === o} onClick={() => setOutcome(o)} title={OUTCOME_HINTS[o]} className={filterChip(outcome === o)}>{o} ({count(o)})</button>)}
-      {outcome === "all" ? <label className="ml-auto flex items-center gap-1.5 text-xs text-label"><input type="checkbox" checked={withMatched} onChange={(e) => setWithMatched(e.target.checked)} />แสดงแถวที่ตรงด้วย</label> : null}
+      {chip("issues", "มีประเด็น", lines.filter((line) => ISSUE[line.outcome]).length)}
+      {issueOutcomes.length > 1 ? issueOutcomes.map((o) => chip(o, o, count(o), OUTCOME_HINTS[o])) : null}
+      {chip("clear", "ไม่มีประเด็น", lines.filter((line) => !ISSUE[line.outcome]).length, TOR_MATCH_OUTCOMES.filter((o) => !ISSUE[o]).map((o) => `${o} ${count(o)}`).join(" · "))}
     </div>
     {shown.length ? <ul className="flex max-h-[70vh] flex-col overflow-auto rounded-input border border-line">{shown.map((line) => <IssueLine key={line.id} jobId={jobId} line={line} reviewable={line.socRow !== null && reviewable.has(line.socRow)} />)}</ul>
       : <p className="p-4 text-center text-sm text-muted">ไม่มีแถวในตัวกรองนี้</p>}
