@@ -29,6 +29,7 @@ const { POST: importRoute } = await import("@/app/api/soc/jobs/[id]/major-items/
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob } = await import("@/lib/soc");
 const { torMatchView } = await import("@/lib/soc-tor");
+const { TOR_OCR_BETA_NOTE } = await import("@/lib/soc-tor-match");
 const { OCR_NOT_SET_UP } = await import("@/lib/soc-typhoon");
 
 let storageRoot = "";
@@ -228,4 +229,15 @@ test("the TOR Match Excel: one sheet, the counts on top, then every line but ต
   assert.match(body[2][5], /อุปกรณ์สำรองไฟฟ้า/);
   assert.ok(!body.some((r) => r[1] === "ตรง"));
   assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: "TOR_MATCH_DOWNLOADED" } }), 1);
+
+  // A text TOR has no Beta line; a TOR read by the OCR does, above the table.
+  assert.equal(view!.scanned, false);
+  assert.ok(!rows.some((r) => r[0] === TOR_OCR_BETA_NOTE));
+  await prisma.socTorMatch.update({ where: { jobId }, data: { scanned: true } });
+  const scannedBook = new ExcelJS.Workbook();
+  await scannedBook.xlsx.load(await (await downloadTorExcel(jobId)).arrayBuffer());
+  const scannedRows: string[][] = [];
+  scannedBook.worksheets[0].eachRow((row) => scannedRows.push(cellsOf(row)));
+  const beta = scannedRows.findIndex((r) => r[0] === TOR_OCR_BETA_NOTE);
+  assert.ok(beta >= 0 && beta < scannedRows.findIndex((r) => r[0] === "แถวใน SOC"), "the Beta line sits above the table");
 });

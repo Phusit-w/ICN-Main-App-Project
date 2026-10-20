@@ -11,7 +11,7 @@ import type { TorMatchCounts, TorMatchView } from "@/lib/soc-tor";
 import { isOpenCheckRequestState, majorItemName, majorItemStateText, socMajorItemHash, socRowHash } from "@/lib/soc-shared";
 import { torDiff, type DiffPart } from "@/lib/soc-tor-diff";
 import { CollapseButton, useStoredFlag } from "@/components/SocCollapse";
-import { TOR_MATCH_OUTCOMES, type TorMatchOutcome } from "@/lib/soc-tor-match";
+import { TOR_MATCH_OUTCOMES, TOR_OCR_BETA_NOTE, type TorMatchOutcome } from "@/lib/soc-tor-match";
 
 const OUTCOME_HINTS: Record<TorMatchOutcome, string> = {
   "ตรง": "ข้อความตรงกับ TOR ต้นฉบับ",
@@ -51,7 +51,7 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
       let answer = await send();
       if (answer.body.needsOcrConfirm) {
         // A scanned TOR goes to an outside OCR service: ask every time; cancel stores and sends nothing.
-        if (!(await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก", message: "TOR ต้นฉบับนี้เป็น PDF แบบสแกน ระบบจะส่งภาพของแต่ละหน้าไปอ่านที่บริการ OCR ภายนอก (Typhoon) อ่านในเบื้องหลังต่อคิวหลังงานอ่านอื่น (ประมาณ 2 วินาทีต่อหน้า) แล้วจึงเทียบกับ SOC ผลอ่านอาจคลาดเคลื่อน ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" }))) return;
+        if (!(await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก (Beta)", message: "TOR ต้นฉบับนี้เป็น PDF แบบสแกน ระบบจะส่งภาพของแต่ละหน้าไปอ่านที่บริการ OCR ภายนอก (Typhoon) อ่านในเบื้องหลังต่อคิวหลังงานอ่านอื่น (ประมาณ 2 วินาทีต่อหน้า) แล้วจึงเทียบกับ SOC การอ่าน TOR สแกนยังเป็น Beta ไม่แม่นยำ 100% บางแถวอาจไม่ตรงเพราะ OCR อ่านผิด ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" }))) return;
         form.set("ocrConfirmed", "1");
         answer = await send();
       }
@@ -75,7 +75,8 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
     {open ? <div id="soc-tor-match-body">
     <p className="mt-1 text-xs text-muted">เทียบข้อความ TOR ในตาราง SOC กับ TOR ต้นฉบับทีละแถว เป็นรายงานเท่านั้น ไม่เปลี่ยนผลตรวจ Datasheet</p>
     {torMatch ? <div className="mt-4 flex flex-col gap-3">
-      <p className="flex flex-wrap items-center gap-2 text-sm"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">TOR ต้นฉบับ</span><a href={`/api/soc/documents/${torMatch.documentId}`} target="_blank" rel="noreferrer" className="min-w-0 break-all text-ink">{torMatch.name}</a></p>
+      <p className="flex flex-wrap items-center gap-2 text-sm"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">TOR ต้นฉบับ</span><a href={`/api/soc/documents/${torMatch.documentId}`} target="_blank" rel="noreferrer" className="min-w-0 break-all text-ink">{torMatch.name}</a>{torMatch.scanned ? <BetaChip /> : null}</p>
+      {torMatch.scanned ? <p className="rounded-input bg-peach p-3 text-xs leading-relaxed text-black">{TOR_OCR_BETA_NOTE}</p> : null}
       {torMatch.state === "reading" ? <ReadProgress jobId={jobId} stage={torMatch.stage} /> : null}
       {torMatch.state === "failed" ? <ReadFailed jobId={jobId} message={torMatch.errorMessage} /> : null}
       {counts ? <OutcomeCounts counts={counts} /> : null}
@@ -87,7 +88,7 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
     {/* onSubmit, not a form action: an action is a transition, which holds the replace confirm dialog back until the action ends, and the action waits on the dialog. */}
     {socReady ? <form onSubmit={(event) => { event.preventDefault(); void submit(); }} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
       <SocFilePicker files={files} onChange={setFiles} disabled={pending} label={torMatch ? "เลือก PDF TOR ต้นฉบับฉบับใหม่" : "เลือกไฟล์ PDF ของ TOR ต้นฉบับ"} accept=".pdf,application/pdf" />
-      <p className="text-xs text-muted">PDF แบบสแกนจะถามยืนยันก่อนส่งไปอ่านที่บริการ OCR ภายนอก</p>
+      <p className="text-xs text-muted">PDF แบบสแกนจะถามยืนยันก่อนส่งไปอ่านที่บริการ OCR ภายนอก (Beta: ยังไม่แม่นยำ 100%)</p>
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังเทียบกับ SOC…" : torMatch ? "แทนที่ TOR ต้นฉบับ" : "แนบ TOR ต้นฉบับ"}</Button></div> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </form> : <p className="mt-4 text-xs text-muted">แนบ TOR ต้นฉบับได้หลังอ่านตาราง SOC ครบแล้ว</p>}
@@ -105,6 +106,11 @@ function OutcomeCounts({ counts }: { counts: TorMatchCounts }) {
     <li title={clear.map((o) => `${o} ${counts[o]}: ${OUTCOME_HINTS[o]}`).join("\n")} className={`${chip} bg-chip text-label`}>ไม่มีประเด็น <span className="tabular-nums">{clear.reduce((sum, o) => sum + counts[o], 0)}</span></li>
     {issues.map((o) => <li key={o} title={OUTCOME_HINTS[o]} className={`${chip} border border-danger-border text-danger`}>{o} <span className="tabular-nums">{counts[o]}</span></li>)}
   </ul>;
+}
+
+// A scanned TOR's result: read by the outside OCR, not yet fully accurate.
+function BetaChip() {
+  return <span title={TOR_OCR_BETA_NOTE} className="rounded-full bg-peach px-2 py-0.5 text-[11px] font-semibold text-black">Beta · อ่านด้วย OCR</span>;
 }
 
 // A scanned TOR being read: where the read is, and a cancel that keeps the pages read.

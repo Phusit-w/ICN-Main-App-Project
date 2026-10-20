@@ -6,7 +6,7 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { bangkokDate, fill, FONT, safeName, styleBody, styleHeader, type SocExcelFile } from "@/lib/soc-results-excel";
-import { TOR_MATCH_OUTCOMES, type TorMatchOutcome } from "@/lib/soc-tor-match";
+import { TOR_MATCH_OUTCOMES, TOR_OCR_BETA_NOTE, type TorMatchOutcome } from "@/lib/soc-tor-match";
 import type { TorMatchCounts } from "@/lib/soc-tor";
 
 // The outcome cell's colour, as the results Excel's ผลอ้างอิง.
@@ -52,6 +52,7 @@ export async function downloadTorMatchExcel(actor: { id: string }, jobId: string
     styleBody(row);
     row.getCell(1).fill = fill(OUTCOME_FILLS[outcome]);
   }
+  if (match.scanned) sheet.addRow([TOR_OCR_BETA_NOTE]).getCell(1).font = { ...FONT, bold: true, color: { argb: "FFC00000" } };
   for (const warning of warnings) sheet.addRow([`คำเตือน: ${warning}`]).getCell(1).font = { ...FONT, color: { argb: "FFC00000" } };
   sheet.addRow(["TOR Match เป็นรายงานเท่านั้น ไม่เปลี่ยนผลตรวจ Datasheet · ไม่แสดงแถวที่ตรง"]).getCell(1).font = FONT;
   sheet.addRow([]);

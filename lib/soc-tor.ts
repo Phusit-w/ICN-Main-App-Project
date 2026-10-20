@@ -213,6 +213,8 @@ export async function torMatchView(jobId: string) {
     name: match.document.originalName,
     state: match.state,
     stage: match.stage,
+    // Read by the outside OCR: shown as Beta, the read is not yet fully accurate.
+    scanned: match.scanned,
     counts: (match.counts ?? null) as TorMatchCounts | null,
     warnings: strings(match.warnings),
     errorMessage: match.errorMessage,

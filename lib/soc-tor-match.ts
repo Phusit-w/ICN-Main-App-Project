@@ -12,7 +12,11 @@ import type { SocMajorItemSpec } from "@/lib/soc-major-items";
 import { toArabicDigits } from "@/lib/soc-shared";
 import type { SocTableRow } from "@/lib/soc-table";
 
-export const TOR_MATCH_OUTCOMES = ["ตรง", "ต่างแค่รูปแบบ", "ความหมายต่าง", "ไม่พบใน SOC", "ไม่พบใน TOR", "ยืนยันไม่ได้"] as const;
+// A scanned TOR is read by the outside OCR (Typhoon), which still misreads
+// some characters: its result is marked Beta on the page and in the Excel.
+export const TOR_OCR_BETA_NOTE = "Beta: TOR ต้นฉบับนี้อ่านด้วย OCR (Typhoon) ซึ่งยังไม่แม่นยำ 100% แถวที่ไม่ตรงบางแถวอาจมาจาก OCR อ่านผิด ไม่ใช่ SOC แก้ข้อความ ควรเปิดดูหน้า TOR จริง หรือส่งให้ Claude ตัดสิน";
+
+export const TOR_MATCH_OUTCOMES =["ตรง", "ต่างแค่รูปแบบ", "ความหมายต่าง", "ไม่พบใน SOC", "ไม่พบใน TOR", "ยืนยันไม่ได้"] as const;
 export type TorMatchOutcome = (typeof TOR_MATCH_OUTCOMES)[number];
 export type TorMatchRowOutcome = Exclude<TorMatchOutcome, "ไม่พบใน SOC">;
 

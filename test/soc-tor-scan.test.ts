@@ -100,6 +100,7 @@ test("a scanned TOR is read page by page in the background, then compared with t
   const view = await torMatchView(set.job.id);
   assert.equal(view?.state, "ready");
   assert.equal(view?.stage, null);
+  assert.equal(view?.scanned, true, "an OCR-read TOR is shown as Beta");
   assert.deepEqual(view?.counts, { "ตรง": 4, "ต่างแค่รูปแบบ": 0, "ความหมายต่าง": 1, "ไม่พบใน SOC": 0, "ไม่พบใน TOR": 0, "ยืนยันไม่ได้": 0 });
   assert.deepEqual(view?.lines.map((l) => [l.socRow, l.outcome, l.torPage]), [[1, "ตรง", 1], [2, "ตรง", 1], [3, "ความหมายต่าง", 1], [4, "ตรง", 2], [5, "ตรง", 2]]);
   const document = await prisma.socDocument.findFirstOrThrow({ where: { jobId: set.job.id, type: "TOR_ORIGINAL" } });
