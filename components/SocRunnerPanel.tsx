@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import CopyButton from "@/components/CopyButton";
-import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_CONFIG_FILE, SOC_RUNNER_STATE_LABELS, type SocRunnerState, type SocRunnerView } from "@/lib/soc-shared";
+import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_CONFIG_FILE, SOC_RUNNER_STATE_LABELS, socRunnerVersionNote, type SocRunnerState, type SocRunnerView } from "@/lib/soc-shared";
 
 const DOT: Record<SocRunnerState, string> = { online: "bg-[#22a06b]", offline: "bg-danger", never_seen: "bg-muted" };
 const formatTime = (value: string) => new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
@@ -16,13 +16,14 @@ type InstallCommand = { command: string; expiresAt: string };
 // online, when it was last seen, and the install command tied to them (or,
 // for a runner run from source, the bare config, offered to ADMIN only: one
 // stray click would replace a reviewer's installed runner).
-export default function SocRunnerPanel({ runner: latest, showConfigDownload }: {
-  runner: SocRunnerView | null; showConfigDownload: boolean;
+export default function SocRunnerPanel({ runner: latest, latestVersion, showConfigDownload }: {
+  runner: SocRunnerView | null; latestVersion: string | null; showConfigDownload: boolean;
 }) {
   // A revoked latest link means an admin revoked it (a replaced link always
   // has a newer active one): show it as unlinked, with a note.
   const runner = latest && !latest.revokedAt ? latest : null;
   const revokedAt = latest?.revokedAt ?? null;
+  const versionNote = runner ? socRunnerVersionNote(runner.runnerVersion, latestVersion) : null;
   const router = useRouter();
   const [error, setError] = useState("");
   const [install, setInstall] = useState<InstallCommand | null>(null);
@@ -82,6 +83,7 @@ export default function SocRunnerPanel({ runner: latest, showConfigDownload }: {
         <div className="text-xs text-muted">
           {runner.state === "never_seen" ? `เชื่อมเมื่อ ${formatTime(runner.linkedAt)} · รอ SOC Runner บนเครื่องของคุณเชื่อมต่อครั้งแรก` : null}
           {runner.runnerVersion ? `เวอร์ชัน ${runner.runnerVersion}` : null}
+          {versionNote ? <span className={versionNote.outdated ? "text-danger" : undefined}> · {versionNote.text}</span> : null}
           {runner.claudeLogin ? ` · ${SOC_CLAUDE_LOGIN_LABELS[runner.claudeLogin]}` : null}
         </div>
       </> : <>
@@ -89,6 +91,7 @@ export default function SocRunnerPanel({ runner: latest, showConfigDownload }: {
         {revokedAt ? <div className="text-xs text-muted">ผู้ดูแลยกเลิกเมื่อ {formatTime(revokedAt)} · ติดตั้งใหม่เพื่อใช้ SOC Runner อีกครั้ง</div> : null}
         <div className="text-xs text-muted">ติดตั้งบนเครื่องของคุณด้วยคำสั่งเดียว (ไม่ต้องใช้สิทธิ์ admin) เครื่องนั้นจะรับเฉพาะงานตรวจของคุณ ด้วยบัญชี Claude ของคุณเอง</div>
       </>}
+      {versionNote?.outdated ? <p className="text-xs text-danger">กด &quot;สร้างคำสั่งติดตั้งใหม่ (ซ่อม/ย้ายเครื่อง)&quot; แล้ววางคำสั่งใน Windows PowerShell บนเครื่องนั้น เพื่อติดตั้งรุ่น {latestVersion}</p> : null}
       {runner?.claudeLogin === "logged_out" ? <p role="alert" className="text-xs text-danger">SOC Runner ต้องการให้คุณเข้าสู่ระบบ Claude ใหม่บนเครื่องนั้น: เปิดโปรแกรม claude แล้วพิมพ์ /login คำขอที่รออยู่จะตรวจต่อเอง</p> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </div>

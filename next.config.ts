@@ -23,9 +23,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["mupdf"],
 
   // The SOC Runner install script (lib/soc-runner-install.ts) hands out the
-  // runner's own files, read from soc-runner/ at run time.
+  // runner's own files, read from soc-runner/ at run time. /soc and the
+  // admin runner page read the latest version from runner.py.
   outputFileTracingIncludes: {
     "/api/soc-runner/install/*": ["./soc-runner/{runner,claude_cli,server_client,install}.py", "./soc-runner/requirements.txt", "./soc-runner/bootstrap.ps1"],
+    "/soc": ["./soc-runner/runner.py"],
+    "/admin/soc-runners": ["./soc-runner/runner.py"],
   },
 
   // Serve images as-is, no on-the-fly optimization. The standalone server

@@ -28,6 +28,17 @@ const SOURCE_DIR = path.join(process.cwd(), "soc-runner");
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 
+// The latest SOC Runner version: the RUNNER_VERSION of the runner.py the
+// install command hands out, so there is no second constant to keep in step.
+// Null when the file is missing or carries no version (then nothing is compared).
+export async function latestSocRunnerVersion(file = path.join(SOURCE_DIR, "runner.py")): Promise<string | null> {
+  try {
+    return (await readFile(file, "utf8")).match(/^RUNNER_VERSION\s*=\s*["']([^"'\r\n]+)["']/m)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const hashCode = (code: string) => createHash("sha256").update(code).digest("hex");
 
 // A new one-time install code for the user, and the command that uses it.

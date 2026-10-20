@@ -301,6 +301,14 @@ export function socRunnerAtLeast(version: string | null, needed: string): boolea
   return true;
 }
 
+// A runner's reported version against the latest one the server hands out:
+// "ล่าสุดแล้ว", or "มีรุ่นใหม่ <latest>" when it is older. Null when either
+// is unknown (a runner that has not reported yet, no runner.py to read).
+export function socRunnerVersionNote(version: string | null, latest: string | null): { outdated: boolean; text: string } | null {
+  if (!version || !latest) return null;
+  return socRunnerAtLeast(version, latest) ? { outdated: false, text: "ล่าสุดแล้ว" } : { outdated: true, text: `มีรุ่นใหม่ ${latest}` };
+}
+
 // A Runner Link as /soc and the admin page show it (dates as ISO strings).
 export type SocRunnerView = {
   state: SocRunnerState; lastSeenAt: string | null; runnerVersion: string | null;

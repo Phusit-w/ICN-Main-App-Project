@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { revokeSocRunner } from "@/actions/socRunners";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_REVOKE_REASON_LABELS, SOC_RUNNER_STATE_LABELS, type SocRunnerView } from "@/lib/soc-shared";
+import { SOC_CLAUDE_LOGIN_LABELS, SOC_RUNNER_REVOKE_REASON_LABELS, SOC_RUNNER_STATE_LABELS, socRunnerVersionNote, type SocRunnerView } from "@/lib/soc-shared";
 
 export type AdminSocRunnerLink = SocRunnerView & { id: string; username: string; userDisplayName: string; revokedByName: string | null };
 const formatTime = (value: string) => new Date(value).toLocaleString("th-TH");
 
-export default function AdminSocRunners({ links }: { links: AdminSocRunnerLink[] }) {
+export default function AdminSocRunners({ links, latestVersion }: { links: AdminSocRunnerLink[]; latestVersion: string | null }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [target, setTarget] = useState<AdminSocRunnerLink | null>(null);
@@ -34,7 +34,7 @@ export default function AdminSocRunners({ links }: { links: AdminSocRunnerLink[]
         <td className="px-5 py-3 text-xs">{l.revokedAt
           ? <>ยกเลิกแล้ว{l.revokeReason ? ` · ${SOC_RUNNER_REVOKE_REASON_LABELS[l.revokeReason]}` : ""}{l.revokedByName && l.revokeReason === "admin" ? ` (${l.revokedByName})` : ""}<div>{formatTime(l.revokedAt)}</div></>
           : <><span className="rounded-full bg-chip px-3 py-1 font-medium">{SOC_RUNNER_STATE_LABELS[l.state]}</span>{l.claudeLogin ? <div className="mt-1.5">{SOC_CLAUDE_LOGIN_LABELS[l.claudeLogin]}</div> : null}</>}</td>
-        <td className="whitespace-nowrap px-5 py-3 text-xs text-muted">{l.lastSeenAt ? formatTime(l.lastSeenAt) : "–"}{l.runnerVersion ? <div className="font-mono">v{l.runnerVersion}</div> : null}</td>
+        <td className="whitespace-nowrap px-5 py-3 text-xs text-muted">{l.lastSeenAt ? formatTime(l.lastSeenAt) : "–"}{l.runnerVersion ? <div className="font-mono">v{l.runnerVersion}{!l.revokedAt && socRunnerVersionNote(l.runnerVersion, latestVersion)?.outdated ? <span title={`รุ่นล่าสุดคือ ${latestVersion} ผู้ใช้ต้องติดตั้งใหม่`} className="ml-2 rounded-full border border-danger-border px-2 py-0.5 font-sans text-[11px] font-medium text-danger">รุ่นเก่า</span> : null}</div> : null}</td>
         <td className="whitespace-nowrap px-5 py-3 text-xs text-muted">{formatTime(l.linkedAt)}</td>
         <td className="whitespace-nowrap px-5 py-3 text-right">{l.revokedAt ? null : <Button size="sm" variant="danger" disabled={pending} onClick={() => setTarget(l)}>ยกเลิกลิงก์</Button>}</td>
       </tr>)}</tbody>
