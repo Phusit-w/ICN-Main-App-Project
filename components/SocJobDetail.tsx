@@ -36,8 +36,9 @@ export default function SocJobDetail({ job }: { job: Job }) {
   const [selectedId, setSelectedId] = useState(filtered[0]?.id || job.results[0]?.id || "");
   const selected = job.results.find((r) => r.id === selectedId) || filtered[0] || job.results[0];
 
-  // Poll while the worker runs a legacy job, while a Check Request is open, or while a scanned TOR ต้นฉบับ is read.
-  const waiting = ACTIVE.has(job.status) || job.majorItems.some((m) => isOpenCheckRequestState(m.state)) || job.torMatch?.state === "reading";
+  // Poll while the worker runs a legacy job, while a Check Request is open (a major item's, or Claude judging the TOR Match), or while a scanned TOR ต้นฉบับ is read.
+  const judge = job.torMatch?.judge;
+  const waiting = ACTIVE.has(job.status) || job.majorItems.some((m) => isOpenCheckRequestState(m.state)) || job.torMatch?.state === "reading" || (judge != null && isOpenCheckRequestState(judge.state));
   useEffect(() => {
     if (!waiting) return;
     const timer = window.setInterval(() => router.refresh(), job.kind === "IMPORTED" ? 10000 : 3000);
