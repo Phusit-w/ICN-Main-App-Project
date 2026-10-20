@@ -56,7 +56,8 @@ function user(username: string, appAccess: string[] = ["soc"], role = "USER") {
 
 async function setup(ownerName = "owner") {
   const owner = await user(ownerName);
-  const jobId = await createImportedSocJob(owner, { title: "SOC Demo", soc: { name: "SOC_Demo.docx", bytes: SOC_DEMO }, evidence: [{ name: "Datasheet_Demo.pdf", bytes: PDF }] });
+  // Job Titles are unique, so a second job (of another owner) gets its own.
+  const jobId = await createImportedSocJob(owner, { title: `SOC Demo ${ownerName}`, soc: { name: "SOC_Demo.docx", bytes: SOC_DEMO }, evidence: [{ name: "Datasheet_Demo.pdf", bytes: PDF }] });
   const items = await prisma.socMajorItem.findMany({ where: { jobId }, orderBy: { position: "asc" } });
   const byKey = (key: string) => items.find((m) => m.key === key)!;
   return { owner, jobId, items, byKey };
