@@ -227,8 +227,9 @@ function IssueLine({ jobId, line, reviewable }: { jobId: string; line: Line; rev
       {line.item ? <span className="font-medium">ข้อ {line.item}</span> : null}
       {soc ? reviewable ? <a href={socRowHash(line.socRow!)} onClick={refireSameHash} title="เปิดแถวนี้ในตรวจทานผลด้านล่าง" className="text-label underline hover:text-ink">SOC แถว {line.socRow}</a> : line.majorItemId ? <a href={socMajorItemHash(line.majorItemId)} onClick={refireSameHash} title="แถวนี้ยังไม่มีผลตรวจ ไปที่ข้อใหญ่ของแถวนี้เพื่อกดตรวจ" className="text-label underline hover:text-ink">SOC แถว {line.socRow} · ไปที่{majorItemName(line.majorItemLabel ?? "", "ข้อใหญ่")}</a> : <span className="text-muted" title="แถวนี้ยังไม่มีผลตรวจ จึงยังไม่อยู่ในตรวจทานผล">SOC แถว {line.socRow}</span> : null}
       {line.torPage ? <a href={`/api/soc/jobs/${jobId}/tor/pages/${line.torPage}`} target="_blank" rel="noreferrer" title="เปิดหน้านี้ของ TOR ต้นฉบับ" className="text-label underline hover:text-ink">TOR หน้า {line.torPage} ↗</a> : null}
-      {line.claudeOutcome ? <span className="text-label">Claude: <span className="font-medium text-ink">{line.claudeOutcome}</span>{line.claudeReason ? ` · ${line.claudeReason}` : ""}</span> : null}
     </div>
+    {/* Claude's verdict on its own line under the row's header, so a long reason reads easily. */}
+    {line.claudeOutcome ? <p className="text-xs text-label">Claude: <span className="font-medium text-ink">{line.claudeOutcome}</span>{line.claudeReason ? <span className="mt-0.5 block text-ink">{line.claudeReason}</span> : null}</p> : null}
     <div className={`grid grid-cols-1 gap-2 text-sm ${soc && tor ? "md:grid-cols-2" : ""}`}>
       {soc ? <Side label="SOC" parts={diff ? diff.soc : plain(line.socText)} /> : null}
       {tor ? <Side label="TOR ต้นฉบับ" parts={diff ? diff.tor : plain(line.torText)} /> : null}
