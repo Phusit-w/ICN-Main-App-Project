@@ -4,6 +4,7 @@
 // Driven through the route, with the signed-in user stubbed.
 import { after, before, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import ExcelJS from "exceljs";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -23,6 +24,7 @@ mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signe
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
 const { POST: torRoute } = await import("@/app/api/soc/jobs/[id]/tor/route");
+const { GET: torExcelRoute } = await import("@/app/api/soc/jobs/[id]/tor/excel/route");
 const { POST: importRoute } = await import("@/app/api/soc/jobs/[id]/major-items/[itemId]/import/route");
 const { requestSocCheck } = await import("@/actions/socCheckRequests");
 const { createImportedSocJob } = await import("@/lib/soc");
@@ -185,4 +187,45 @@ test("attaching and replacing a TOR leaves the datasheet check as it was", { ski
   assert.equal((await attach(jobId, buildTablePdf([torPage(30)]))).status, 201);
   assert.equal((await attach(jobId, buildTablePdf([torPage(7)]))).status, 201);
   assert.deepEqual(await snapshot(), before);
+});
+
+// TOR Match Excel (tor-match ticket 05).
+function downloadTorExcel(jobId: string) {
+  return torExcelRoute(new Request(`http://localhost/api/soc/jobs/${jobId}/tor/excel`), { params: Promise.resolve({ id: jobId }) });
+}
+const cellsOf = (row: ExcelJS.Row) => (row.values as unknown[]).slice(1).map((v) => (v == null ? "" : String(v)));
+
+test("the TOR Match Excel: one sheet, the counts on top, then every line but ตรง", { skip }, async () => {
+  const { jobId } = await job("excel");
+  assert.equal((await downloadTorExcel(jobId)).status, 409); // no TOR yet
+  assert.equal((await attach(jobId, buildTablePdf([torPage(30)]))).status, 201);
+  const judged = await prisma.socTorMatchLine.findFirstOrThrow({ where: { match: { jobId }, socRow: 3 } });
+  await prisma.socTorMatchLine.update({ where: { id: judged.id }, data: { claudeOutcome: "ความหมายต่าง", claudeReason: "TOR 30 วัน SOC 7 วัน" } });
+
+  const response = await downloadTorExcel(jobId);
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal(response.headers.get("content-type"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.match(response.headers.get("content-disposition") ?? "", /^attachment; filename\*=UTF-8''TOR_Match-.*\.xlsx$/);
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await response.arrayBuffer());
+  assert.equal(book.worksheets.length, 1);
+  const sheet = book.worksheets[0];
+  const rows: string[][] = [];
+  sheet.eachRow((row) => rows.push(cellsOf(row)));
+
+  const counts = new Map(rows.filter((r) => r.length >= 2 && /^\d+$/.test(r[1])).map((r) => [r[0], Number(r[1])]));
+  const view = await torMatchView(jobId);
+  for (const [outcome, count] of Object.entries(view!.counts!)) assert.equal(counts.get(outcome), count, outcome);
+
+  const head = rows.findIndex((r) => r[0] === "แถวใน SOC");
+  assert.deepEqual(rows[head], ["แถวใน SOC", "ผลเทียบ", "ผล Claude", "เหตุผล Claude", "ข้อความใน SOC", "ข้อความใน TOR ต้นฉบับ", "หน้า TOR"]);
+  const body = rows.slice(head + 1);
+  assert.deepEqual(body.map((r) => [r[0], r[1]]), [["3", "ความหมายต่าง"], ["5", "ต่างแค่รูปแบบ"], ["", "ไม่พบใน SOC"]]);
+  assert.deepEqual(body[0].slice(2, 4), ["ความหมายต่าง", "TOR 30 วัน SOC 7 วัน"]);
+  assert.match(body[0][4], /7 วัน/);
+  assert.match(body[0][5], /30 วัน/);
+  assert.equal(body[0][6], "1");
+  assert.match(body[2][5], /อุปกรณ์สำรองไฟฟ้า/);
+  assert.ok(!body.some((r) => r[1] === "ตรง"));
+  assert.equal(await prisma.socAuditEvent.count({ where: { jobId, action: "TOR_MATCH_DOWNLOADED" } }), 1);
 });

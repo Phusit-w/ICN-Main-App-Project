@@ -16,7 +16,7 @@ import { isSettledDecision, PENDING_FIX, SOC_FINAL_DECISION_LABELS, SOC_ROW_STAT
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-export type SocResultsExcel = { ok: true; bytes: Uint8Array; fileName: string } | { ok: false; error: string };
+export type SocExcelFile = { ok: true; bytes: Uint8Array; fileName: string } | { ok: false; error: string };
 
 const CONFIDENCE_LABELS: Record<string, string> = { high: "สูง", medium: "กลาง", low: "ต่ำ" };
 // The TOR cell of an Image Row: images aren't put in the workbook.
@@ -66,20 +66,20 @@ export function referenceStatus(row: SocReviewRow): ReferenceStatus {
   return status("ไม่เกี่ยวข้อง");
 }
 
-const fill = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb: `FF${argb}` } });
+export const fill = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb: `FF${argb}` } });
 // Tahoma has Thai glyphs on every Windows and Mac.
-const FONT: Partial<ExcelJS.Font> = { name: "Tahoma", size: 10 };
+export const FONT: Partial<ExcelJS.Font> = { name: "Tahoma", size: 10 };
 const GREY_LINE: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FFBFBFBF" } };
 const BORDER: Partial<ExcelJS.Borders> = { top: GREY_LINE, left: GREY_LINE, bottom: GREY_LINE, right: GREY_LINE };
 
-function styleHeader(row: ExcelJS.Row) {
+export function styleHeader(row: ExcelJS.Row) {
   row.eachCell({ includeEmpty: true }, (cell) => {
     cell.font = { ...FONT, bold: true }; cell.fill = fill("E7E6E6"); cell.border = BORDER;
     cell.alignment = { vertical: "middle", wrapText: true };
   });
 }
 
-function styleBody(row: ExcelJS.Row, bold = false) {
+export function styleBody(row: ExcelJS.Row, bold = false) {
   row.eachCell({ includeEmpty: true }, (cell) => {
     cell.font = { ...FONT, bold }; cell.border = BORDER; cell.alignment = { vertical: "top", wrapText: true };
   });
@@ -200,7 +200,7 @@ export const MAX_PICKED_ROWS = 5000;
 // The rows the reviewer picked on the review page (by result id, in the
 // page's order) as one sheet, with the download audited. Ids of another job
 // or of rows replaced since are skipped.
-export async function downloadPickedSocResultsExcel(actor: { id: string }, jobId: string, resultIds: string[]): Promise<SocResultsExcel> {
+export async function downloadPickedSocResultsExcel(actor: { id: string }, jobId: string, resultIds: string[]): Promise<SocExcelFile> {
   const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { majorItems: { select: { id: true, label: true } } } });
   if (!job || job.deletedAt) throw new Error("NOT_FOUND");
   if (job.kind !== "IMPORTED") return { ok: false, error: "ดาวน์โหลดผลตรวจ Excel ได้เฉพาะงานตรวจแบบนำเข้าผล" };
@@ -224,15 +224,15 @@ export async function downloadPickedSocResultsExcel(actor: { id: string }, jobId
   return { ok: true, bytes, fileName: `${fileBase(job.title)}-เลือก ${picked.length} แถว.xlsx` };
 }
 
-const safeName = (text: string) => text.replace(/[\\/:*?"<>|\r\n]+/g, "_").trim().slice(0, 80);
+export const safeName = (text: string) => text.replace(/[\\/:*?"<>|\r\n]+/g, "_").trim().slice(0, 80);
 const fileBase = (title: string) => `SOC_Check-${bangkokDate(new Date())}-${safeName(title) || "SOC"}`;
 
-const bangkokDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
+export const bangkokDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
 
 // The workbook for the job (majorItemId null) or for one of its major items,
 // with the download audited. The caller has already authorised the actor for
 // the job. Throws NOT_FOUND for a missing job or a major item of another job.
-export async function downloadSocResultsExcel(actor: { id: string }, jobId: string, majorItemId: string | null): Promise<SocResultsExcel> {
+export async function downloadSocResultsExcel(actor: { id: string }, jobId: string, majorItemId: string | null): Promise<SocExcelFile> {
   const job = await prisma.socJob.findUnique({ where: { id: jobId }, include: { majorItems: { orderBy: { position: "asc" } } } });
   if (!job || job.deletedAt) throw new Error("NOT_FOUND");
   if (job.kind !== "IMPORTED") return { ok: false, error: "ดาวน์โหลดผลตรวจ Excel ได้เฉพาะงานตรวจแบบนำเข้าผล" };
