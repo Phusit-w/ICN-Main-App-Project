@@ -66,28 +66,28 @@ export default function SocUploadForm() {
   return (
     <form action={submit} className="flex flex-col gap-6">
       <UploadSection number="1" title="รายละเอียดงาน" description="ใช้สำหรับค้นหาและตั้งชื่อไฟล์ผลลัพธ์">
-        <label className="flex max-w-2xl flex-col gap-2 text-sm font-medium">
+        <label data-tour="job-title" className="flex max-w-2xl flex-col gap-2 text-sm font-medium">
           ชื่อโครงการ
           <input name="title" required maxLength={SOC_TITLE_MAX} placeholder="เช่น Udon CASRI-H3C" className="h-[46px] rounded-input border border-line bg-surface px-4 text-ink outline-none focus:border-ink" />
         </label>
       </UploadSection>
-      <UploadSection number="2" title="เอกสาร SOC" description="รองรับ Word (.docx), Excel (.xlsx) และ PDF ขนาดไม่เกิน 25 MB">
+      <UploadSection number="2" tourTarget="soc-file" title="เอกสาร SOC" description="รองรับ Word (.docx), Excel (.xlsx) และ PDF ขนาดไม่เกิน 25 MB">
         <SocFilePicker files={soc} onChange={setSoc} disabled={pending} label="เลือกไฟล์ SOC (Word, Excel หรือ PDF)" accept={SOC_FILE_ACCEPT} />
         {/\.pdf$/i.test(soc[0]?.name ?? "") ? <p className="mt-3 text-sm text-muted">ถ้ามีไฟล์ Word ต้นฉบับ แนะนำให้อัป Word</p> : null}
       </UploadSection>
-      <UploadSection number="3" title="Datasheet / Catalog" description="แนบ PDF ได้ไม่เกิน 200 ไฟล์ ไฟล์ละไม่เกิน 120 MB รวมไม่เกิน 1 GB ถ้า SOC อ้างชื่อโฟลเดอร์ (เช่น 2.5 …) ให้กดเลือกโฟลเดอร์ ระบบจะเก็บโฟลเดอร์ย่อยไว้ให้">
+      <UploadSection number="3" tourTarget="evidence" title="Datasheet / Catalog" description="แนบ PDF ได้ไม่เกิน 200 ไฟล์ ไฟล์ละไม่เกิน 120 MB รวมไม่เกิน 1 GB ถ้า SOC อ้างชื่อโฟลเดอร์ (เช่น 2.5 …) ให้กดเลือกโฟลเดอร์ ระบบจะเก็บโฟลเดอร์ย่อยไว้ให้">
         <SocFilePicker files={evidence} onChange={setEvidence} disabled={pending} multiple folders label="เลือกไฟล์ PDF" accept=".pdf,application/pdf" />
       </UploadSection>
       {error ? <p role="alert" className="rounded-input border border-danger-border bg-surface px-4 py-3 text-sm text-danger">{error}{partialJobId ? <> <Link href={`/soc/${partialJobId}`} className="font-medium text-danger underline">เปิดหน้างานเพื่อเพิ่มไฟล์ที่เหลือ</Link></> : null}</p> : null}
       <div className="flex justify-end gap-3">
         <Button variant="outline" onClick={() => router.push("/soc")} disabled={pending}>ยกเลิก</Button>
-        <Button type="submit" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : "สร้างงานตรวจ"}</Button>
+        <Button type="submit" data-tour="create-job" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : "สร้างงานตรวจ"}</Button>
       </div>
       {confirmDialog}
     </form>
   );
 }
 
-function UploadSection({ number, title, description, children }: { number: string; title: string; description: string; children: React.ReactNode }) {
-  return <section className="rounded-card bg-surface p-6 shadow-card"><div className="mb-5 flex items-center gap-3"><span className="grid size-8 place-items-center rounded-full bg-ink text-sm font-bold text-ground">{number}</span><div><h2 className="font-display text-base font-semibold">{title}</h2><p className="text-xs text-muted">{description}</p></div></div>{children}</section>;
+function UploadSection({ number, tourTarget, title, description, children }: { number: string; tourTarget?: string; title: string; description: string; children: React.ReactNode }) {
+  return <section data-tour={tourTarget} className="rounded-card bg-surface p-6 shadow-card"><div className="mb-5 flex items-center gap-3"><span className="grid size-8 place-items-center rounded-full bg-ink text-sm font-bold text-ground">{number}</span><div><h2 className="font-display text-base font-semibold">{title}</h2><p className="text-xs text-muted">{description}</p></div></div>{children}</section>;
 }

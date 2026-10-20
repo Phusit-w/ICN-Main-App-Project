@@ -233,13 +233,17 @@ test("the popup follows the app's dark theme", async () => {
   shell.remove();
 });
 
+const assertTourTargets = (container: HTMLElement, targets: string[]) => {
+  for (const target of targets) assert.ok(container.querySelector(`[data-tour="${target}"]`), `missing data-tour="${target}"`);
+};
+
 test("every control the job-list tour points at is on /soc", async () => {
   const { render } = await setup();
   const { SOC_JOB_LIST_TOUR } = await import("@/lib/soc-tours");
   setWidth(800); // keep the tour itself out of the way
   const { default: SocJobsPage } = await import("@/app/(app)/soc/page");
   const view = render(await SocJobsPage());
-  for (const step of SOC_JOB_LIST_TOUR) assert.ok(view.container.querySelector(`[data-tour="${step.target}"]`), `missing data-tour="${step.target}"`);
+  assertTourTargets(view.container, SOC_JOB_LIST_TOUR.map((step) => step.target));
 });
 
 test("the Runner panel marks its status and install button whether or not a Runner is linked", async () => {
@@ -248,7 +252,18 @@ test("the Runner panel marks its status and install button whether or not a Runn
   const linked: SocRunnerView = { state: "online", lastSeenAt: null, linkedAt: "2026-10-20T00:00:00Z", runnerVersion: "0.8.0", claudeLogin: null, revokedAt: null, revokeReason: null };
   for (const runner of [null, linked]) {
     const view = render(React.createElement(SocRunnerPanel, { runner, latestVersion: "0.8.0", showConfigDownload: false }));
-    for (const target of ["runner-status", "runner-install"]) assert.ok(view.container.querySelector(`[data-tour="${target}"]`), `missing data-tour="${target}"`);
+    assertTourTargets(view.container, ["runner-status", "runner-install"]);
     cleanup();
   }
+});
+
+test("every control the new-job tour points at is on /soc/new, with the tour's button", async () => {
+  const { render } = await setup();
+  const { SOC_NEW_JOB_TOUR } = await import("@/lib/soc-tours");
+  setWidth(800);
+  const { default: NewSocJobPage } = await import("@/app/(app)/soc/new/page");
+  const view = render(await NewSocJobPage());
+  assert.equal(SOC_NEW_JOB_TOUR.length, 4);
+  assertTourTargets(view.container, SOC_NEW_JOB_TOUR.map((step) => step.target));
+  assert.ok(view.getByRole("button", { name: "แนะนำการใช้งาน" }));
 });
