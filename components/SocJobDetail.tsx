@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cancelSocRead, renameSocJobAction, resumeSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocReviewPanel from "@/components/SocReviewPanel";
 import SocTorMatchPanel from "@/components/SocTorMatchPanel";
+import { CollapseButton, useStoredFlag, writeStoredFlag } from "@/components/SocCollapse";
 import type { TorMatchView } from "@/lib/soc-tor";
 import SocFilePicker, { sendEvidenceBatches } from "@/components/SocFilePicker";
 import type { SocReviewRow } from "@/lib/soc-review-view";
@@ -65,44 +66,10 @@ export default function SocJobDetail({ job }: { job: Job }) {
   </div>;
 }
 
-// Yes/no view choices remembered per browser (falls back to memory when storage is blocked).
-const STORED_FLAG_EVENT = "soc:stored-flag-changed";
-const storedFlagFallback = new Map<string, boolean>();
 // What the SOC table reader told the reviewer at upload: parts of the SOC
 // file that are not checked.
 function SocWarnings({ warnings }: { warnings: string[] }) {
   return <section role="status" className="rounded-card border border-danger-border bg-surface p-5 shadow-card"><h2 className="font-display text-sm font-semibold">ส่วนของไฟล์ SOC ที่ระบบไม่ได้ตรวจ</h2><ul className="mt-2 list-disc pl-5 text-sm text-label">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></section>;
-}
-
-function readStoredFlag(key: string, initial: boolean) {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value === null ? storedFlagFallback.get(key) ?? initial : value === "1";
-  } catch {
-    return storedFlagFallback.get(key) ?? initial;
-  }
-}
-function writeStoredFlag(key: string, value: boolean) {
-  try { window.localStorage.setItem(key, value ? "1" : "0"); } catch { /* storage blocked: the fallback below still works */ }
-  storedFlagFallback.set(key, value);
-  window.dispatchEvent(new Event(STORED_FLAG_EVENT));
-}
-function subscribeStoredFlag(onChange: () => void) {
-  window.addEventListener(STORED_FLAG_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => { window.removeEventListener(STORED_FLAG_EVENT, onChange); window.removeEventListener("storage", onChange); };
-}
-function useStoredFlag(key: string, initial: boolean): [boolean, (value: boolean) => void] {
-  const value = useSyncExternalStore(subscribeStoredFlag, () => readStoredFlag(key, initial), () => initial);
-  return [value, (next: boolean) => writeStoredFlag(key, next)];
-}
-
-// The ▶ header button that folds a panel away (same look as CollapsibleEntryRow).
-function CollapseButton({ open, onToggle, controls, children }: { open: boolean; onToggle: () => void; controls: string; children: ReactNode }) {
-  return <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={controls} title={open ? "ย่อ" : "ขยาย"} className="ui-btn flex min-w-0 items-center gap-2 text-left">
-    <span aria-hidden className={`shrink-0 text-[10px] text-muted transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
-    {children}
-  </button>;
 }
 
 // "อัปโหลดเพิ่ม" on a major item opens the documents panel before jumping to it.

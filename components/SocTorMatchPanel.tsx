@@ -10,6 +10,7 @@ import SocFilePicker from "@/components/SocFilePicker";
 import type { TorMatchView } from "@/lib/soc-tor";
 import { isOpenCheckRequestState, majorItemName, majorItemStateText, socMajorItemHash, socRowHash } from "@/lib/soc-shared";
 import { torDiff, type DiffPart } from "@/lib/soc-tor-diff";
+import { CollapseButton, useStoredFlag } from "@/components/SocCollapse";
 import { TOR_MATCH_OUTCOMES, type TorMatchOutcome } from "@/lib/soc-tor-match";
 
 const OUTCOME_HINTS: Record<TorMatchOutcome, string> = {
@@ -67,9 +68,11 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
     }
   }
   const counts = torMatch?.counts;
+  const [open, setOpen] = useStoredFlag("soc:tor-match-open", true);
   return <section id="soc-tor-match" className="rounded-card bg-surface p-5 shadow-card">
     {dialog}
-    <h2 className="font-display font-semibold">ตรวจ TOR ตรงต้นฉบับ</h2>
+    <h2><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-tor-match-body"><span className="font-display font-semibold">ตรวจ TOR ตรงต้นฉบับ</span>{!open && counts ? <span className="text-xs font-normal text-muted">{TOR_MATCH_OUTCOMES.filter((o) => ISSUE[o] && counts[o]).map((o) => `${o} ${counts[o]}`).join(" · ") || "ไม่มีประเด็น"}</span> : null}</CollapseButton></h2>
+    {open ? <div id="soc-tor-match-body">
     <p className="mt-1 text-xs text-muted">เทียบข้อความ TOR ในตาราง SOC กับ TOR ต้นฉบับทีละแถว เป็นรายงานเท่านั้น ไม่เปลี่ยนผลตรวจ Datasheet</p>
     {torMatch ? <div className="mt-4 flex flex-col gap-3">
       <p className="flex flex-wrap items-center gap-2 text-sm"><span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-label">TOR ต้นฉบับ</span><a href={`/api/soc/documents/${torMatch.documentId}`} target="_blank" rel="noreferrer" className="min-w-0 break-all text-ink">{torMatch.name}</a></p>
@@ -88,6 +91,7 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
       {files.length ? <div className="flex justify-end"><Button type="submit" size="sm" disabled={pending}>{pending ? "กำลังเทียบกับ SOC…" : torMatch ? "แทนที่ TOR ต้นฉบับ" : "แนบ TOR ต้นฉบับ"}</Button></div> : null}
       {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
     </form> : <p className="mt-4 text-xs text-muted">แนบ TOR ต้นฉบับได้หลังอ่านตาราง SOC ครบแล้ว</p>}
+    </div> : null}
   </section>;
 }
 
