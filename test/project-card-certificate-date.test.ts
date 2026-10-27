@@ -157,6 +157,24 @@ test("each filter in use shows as a chip whose × link drops only that filter", 
   assert.match(html, /▸<\/span>ตัวกรอง<span[^>]*>5<\/span>/);
 });
 
+test("each result row shows its Certificate Date in the หนังสือรับรอง column and a สัญญา chip when it has a Contract", { skip }, async () => {
+  await signIn();
+  await push([
+    card("PEA001", { contractPath: CONTRACT, certificatePath: CERT, certificateDate: "2025-03-14" }),
+    card("PEA002", { contractPath: CONTRACT }),
+  ]);
+  const html = await pageHtml({});
+  assert.match(html, />หนังสือรับรอง</);
+  const row = (code: string) => {
+    const start = html.indexOf(`>${code}`);
+    return html.slice(html.lastIndexOf("<li", start), html.indexOf("</li>", start));
+  };
+  assert.match(row("PEA001"), /14 มี\.ค\. 68/);
+  assert.match(row("PEA001"), />สัญญา</);
+  assert.doesNotMatch(row("PEA002"), /มี\.ค\./);
+  assert.match(row("PEA002"), />สัญญา</);
+});
+
 test("the certificate-age filter keeps only cards whose Certificate Date is within those years", { skip }, async () => {
   await signIn();
   const recent = new Date();

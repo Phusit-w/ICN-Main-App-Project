@@ -53,13 +53,14 @@ function formatBudget(amount: string | null): string {
   return amount ? fmt(amount, 2) : "-";
 }
 
-type SortKey = "name" | "client" | "year" | "budget";
+type SortKey = "name" | "client" | "year" | "certificate" | "budget";
 type Sort = { key: SortKey; dir: "asc" | "desc" } | null;
 
 const SORT_COLUMNS: { key: SortKey; label: string; className?: string }[] = [
   { key: "name", label: "โครงการ" },
   { key: "client", label: "ลูกค้า" },
   { key: "year", label: "ปี" },
+  { key: "certificate", label: "หนังสือรับรอง" },
   { key: "budget", label: "งบประมาณ (บาท)", className: "justify-end" },
 ];
 
@@ -71,6 +72,8 @@ function sortValue(card: ProjectCardRow, key: SortKey): string | number | null {
       return card.client;
     case "year":
       return card.year;
+    case "certificate":
+      return card.certificateDate;
     case "budget":
       return card.budgetAmount === null ? null : Number(card.budgetAmount);
   }
@@ -95,6 +98,12 @@ function sortCards(cards: ProjectCardRow[], sort: Sort): ProjectCardRow[] {
 function nextSort(sort: Sort, key: SortKey): Sort {
   if (sort?.key !== key) return { key, dir: "asc" };
   return sort.dir === "asc" ? { key, dir: "desc" } : null;
+}
+
+// "14 มี.ค. 68", or null when the card has no Certificate Date.
+function certificateDateLabel(card: ProjectCardRow): string | null {
+  const date = card.certificateDate ? parseCertificateDate(card.certificateDate) : null;
+  return date ? formatCertificateDate(date, true) : null;
 }
 
 function SortArrow({ dir }: { dir: "asc" | "desc" | null }) {
@@ -125,7 +134,7 @@ export default function ProjectCardList({
 
   return (
     <>
-      <div className="hidden grid-cols-[1fr_110px_70px_170px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
+      <div className="hidden grid-cols-[1fr_110px_70px_110px_170px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
         {SORT_COLUMNS.map((col) => {
           const dir = sort?.key === col.key ? sort.dir : null;
           return (
@@ -156,6 +165,8 @@ export default function ProjectCardList({
           <option value="">ลำดับเดิม</option>
           <option value="year:desc">ปี มาก → น้อย</option>
           <option value="year:asc">ปี น้อย → มาก</option>
+          <option value="certificate:desc">หนังสือรับรอง ใหม่ → เก่า</option>
+          <option value="certificate:asc">หนังสือรับรอง เก่า → ใหม่</option>
           <option value="budget:desc">งบ มาก → น้อย</option>
           <option value="budget:asc">งบ น้อย → มาก</option>
           <option value="name:asc">ชื่อโครงการ ก → ฮ</option>
@@ -170,7 +181,7 @@ export default function ProjectCardList({
             <button
               type="button"
               onClick={() => setOpenId(card.id)}
-              className="ui-btn grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-5 py-4 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none md:grid-cols-[1fr_110px_70px_170px] md:items-center"
+              className="ui-btn grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-5 py-4 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none md:grid-cols-[1fr_110px_70px_110px_170px] md:items-center"
             >
               <span className="min-w-0">
                 <span className="block font-medium leading-snug text-ink">{card.projectName}</span>
@@ -187,10 +198,15 @@ export default function ProjectCardList({
                       {categoryLabel(t)}
                     </span>
                   ))}
+                  {/* Outlined, unlike the Category chips: it says which document the project has, not what it's about. */}
+                  {card.contractPath ? (
+                    <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">สัญญา</span>
+                  ) : null}
                 </span>
               </span>
               <span className="hidden text-sm text-label md:block">{card.client}</span>
               <span className="hidden text-sm text-label md:block">{card.year ?? "-"}</span>
+              <span className="hidden text-sm text-label md:block">{certificateDateLabel(card) ?? "-"}</span>
               <span className="text-right">
                 <span className="block font-medium tabular-nums text-ink">{formatBudget(card.budgetAmount)}</span>
                 {card.budgetAmount && !card.budgetVerified ? (
@@ -200,6 +216,7 @@ export default function ProjectCardList({
               <span className="col-span-2 text-xs text-muted md:hidden">
                 {card.client}
                 {card.year ? ` · ปี ${card.year}` : ""}
+                {card.certificateDate ? ` · รับรอง ${certificateDateLabel(card)}` : ""}
               </span>
             </button>
           </li>

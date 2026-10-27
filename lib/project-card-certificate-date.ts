@@ -26,9 +26,15 @@ export function certificateDateValue(date: Date | null): string | null {
   return date ? date.toISOString().slice(0, 10) : null;
 }
 
-// "12 มี.ค. 2567": th-TH counts years in the Buddhist era.
-export function formatCertificateDate(date: Date): string {
-  return new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+// "12 มี.ค. 2567": th-TH counts years in the Buddhist era. `short` drops the
+// century ("12 มี.ค. 67") for the result list's narrow column.
+export function formatCertificateDate(date: Date, short = false): string {
+  return new Intl.DateTimeFormat("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: short ? "2-digit" : "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 // The earliest Certificate Date still within the last `years` years, counted

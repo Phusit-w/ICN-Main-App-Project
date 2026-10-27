@@ -268,7 +268,11 @@ export default async function ProjectCardPage({
         <SocGuidedTour tourId="project-card" steps={PROJECT_CARD_TOUR} />
       </div>
 
-      <form method="get" className="flex flex-col gap-3">
+      {/* The boxes only read defaultValue when first made, and ล้างทั้งหมด / a chip's ×
+          change the URL without a page load. Keyed on the filters in use, the
+          form is made afresh whenever they change, so a dropped filter's text
+          doesn't linger in its box (and come back on the next ค้นหา). */}
+      <form key={currentParams.toString()} method="get" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <div data-tour="search" className="min-w-[240px] flex-1">
             <Field
