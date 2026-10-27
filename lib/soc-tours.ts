@@ -29,3 +29,11 @@ export const SOC_JOB_TOUR: SocTourStep[] = [
   { target: "row-ticks", title: "ติ๊กเลือกแถว", body: "ติ๊กแถวเพื่อส่งให้ Claude ตรวจใหม่เฉพาะแถวนั้น หรือดาวน์โหลด Excel เฉพาะแถวที่เลือก" },
   { target: "expand-workspace", title: "เต็มจอ", body: "กด ⤢ เพื่อเปิดพื้นที่ตรวจทานเต็มจอ ดูทีละแถวพร้อมหน้าเอกสารอ้างอิง" },
 ];
+
+export const SOC_WORKSPACE_TOUR: SocTourStep[] = [
+  { target: "workspace-comparison", title: "ข้อกำหนด TOR เทียบกับ SOC", body: "ด้านซ้ายแสดงข้อกำหนด TOR เทียบกับค่าที่ SOC เสนอ และผลที่ Claude ตรวจ" },
+  { target: "workspace-evidence", title: "เอกสารอ้างอิง", body: "ด้านขวาแสดงหน้า PDF ที่ SOC อ้าง ใช้ปุ่มซูมหรือ “พอดีความกว้าง” เพื่ออ่านให้สบายตา" },
+  { target: "workspace-decision", title: "Final Decision", body: "เลือกผลตัดสินด้วยเมาส์ หรือกดเลข 1–4 บนคีย์บอร์ด แล้วกด Ctrl+Enter เพื่อบันทึก" },
+  { target: "workspace-nav", title: "เปลี่ยนข้อ", body: "ใช้ปุ่ม ← → หรือกดแป้น ← → (j/k) เพื่อเลื่อนไปข้อก่อนหน้าหรือข้อถัดไป" },
+  { target: "expand-workspace", title: "กลับไปที่ตาราง", body: "กด Esc หรือปุ่ม ⤡ เพื่อย่อกลับไปอยู่ข้างตาราง" },
+];

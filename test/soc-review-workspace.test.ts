@@ -21,6 +21,8 @@ function installDom() {
     IS_REACT_ACT_ENVIRONMENT: true,
   })) Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+  // Narrow: the full-screen workspace's tour (soc-guided-tour.test.ts) doesn't open by itself over these tests.
+  Object.defineProperty(dom.window, "innerWidth", { configurable: true, value: 800 });
 }
 
 const row = (id: string, item: string, page: number): SocReviewRow => ({

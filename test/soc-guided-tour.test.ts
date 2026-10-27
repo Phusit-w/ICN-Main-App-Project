@@ -348,3 +348,45 @@ test("a folded major items panel drops the steps inside it", async () => {
   await next("เอกสารหลักฐาน"); // ตรวจ / ไม่ต้องตรวจ sits inside the folded table
   act(() => writeStoredFlag("soc:major-items-open", true));
 });
+
+const openWorkspace = async (width: number) => {
+  (await import("@/components/SocCollapse")).writeStoredFlag("soc:tour-seen:soc-workspace", false); // each test is a first visit
+  const testing = await setup();
+  const { default: SocReviewPanel } = await import("@/components/SocReviewPanel");
+  setWidth(width);
+  const rows = [reviewRow, { ...reviewRow, id: "row-2", item: "๑.๒", rowNumber: 5 }];
+  const view = testing.render(React.createElement(SocReviewPanel, { jobId: "job-1", items: [majorItem] as never, rows: rows as never }));
+  await testing.user.click(view.getByRole("button", { name: "ขยายเต็มจอ" }));
+  return { ...testing, view, workspace: view.getByRole("dialog", { name: "ตรวจข้อ ๑.๑" }) };
+};
+
+test("every control the workspace tour points at is in full screen, next to a replay button", async () => {
+  const { SOC_WORKSPACE_TOUR } = await import("@/lib/soc-tours");
+  const { workspace, within } = await openWorkspace(800);
+  assert.equal(SOC_WORKSPACE_TOUR.length, 5);
+  assertTourTargets(workspace, SOC_WORKSPACE_TOUR.map((step) => step.target));
+  assert.ok(within(workspace).getByRole("button", { name: "แนะนำการใช้งาน" }));
+});
+
+test("the workspace tour opens by itself the first time full screen opens, and only once", async () => {
+  const { screen, user, view, workspace, within } = await openWorkspace(1200);
+  await user.click(within(await screen.findByRole("dialog", { name: "ข้อกำหนด TOR เทียบกับ SOC" })).getByRole("button", { name: "ปิด" }));
+  await user.click(within(workspace).getByRole("button", { name: "ย่อกลับข้างตาราง" }));
+  await user.click(view.getByRole("button", { name: "ขยายเต็มจอ" }));
+  assert.equal(screen.queryByRole("dialog", { name: "ข้อกำหนด TOR เทียบกับ SOC" }), null);
+});
+
+test("with the workspace tour open, Esc closes only the tour and no shortcut acts on the workspace", async () => {
+  const { screen, user, view, within } = await openWorkspace(1200);
+  await screen.findByRole("dialog", { name: "ข้อกำหนด TOR เทียบกับ SOC" });
+  await user.keyboard("1j");
+  assert.equal(within(view.getByRole("dialog", { name: "ตรวจข้อ ๑.๑" })).getAllByRole("radio").filter((radio) => radio.getAttribute("aria-checked") === "true").length, 0, "no decision picked");
+  assert.ok(view.getByRole("dialog", { name: "ตรวจข้อ ๑.๑" }), "still on the first row");
+
+  await user.keyboard("{Escape}");
+  assert.equal(screen.queryByRole("dialog", { name: "ข้อกำหนด TOR เทียบกับ SOC" }), null, "the tour closed");
+  assert.ok(view.getByRole("dialog", { name: "ตรวจข้อ ๑.๑" }), "the workspace is still full screen");
+
+  await user.keyboard("{Escape}");
+  assert.equal(view.queryByRole("dialog", { name: "ตรวจข้อ ๑.๑" }), null, "Esc with no tour leaves full screen");
+});

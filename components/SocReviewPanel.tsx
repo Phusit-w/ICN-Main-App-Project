@@ -10,6 +10,8 @@ import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore, u
 import { useRouter } from "next/navigation";
 import { decideSocRow } from "@/actions/soc";
 import Button from "@/components/ui/Button";
+import SocGuidedTour from "@/components/SocGuidedTour";
+import { SOC_WORKSPACE_TOUR } from "@/lib/soc-tours";
 import type { SocReviewRow } from "@/lib/soc-review-view";
 import { requestSocRowRechecks } from "@/actions/socCheckRequests";
 import { majorItemName, SOC_EXCEL_PATH_TIP, socRowOfHash } from "@/lib/soc-shared";
@@ -267,7 +269,8 @@ function ReviewWorkspace({ jobId, row, rows, majorItemLabel, expanded, onExpand,
   // Beside the table they work while the review section has focus; full screen, anywhere.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (destination) return;
+      // A tour is open (driver.js marks the body): Esc closes only the tour, and no shortcut acts on the workspace.
+      if (destination || document.body.classList.contains("driver-active")) return;
       if (!expanded && !(event.target instanceof Node && scopeRef.current?.contains(event.target))) return;
       if (expanded && event.key === "Tab") {
         const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], textarea, select, input') ?? [])].filter((element) => element.offsetParent !== null || element === document.activeElement);
@@ -298,8 +301,11 @@ function ReviewWorkspace({ jobId, row, rows, majorItemLabel, expanded, onExpand,
     </h2>
     {expanded ? <span className="hidden whitespace-nowrap text-[11px] text-muted xl:inline">คีย์ลัด: ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก · Esc ย่อ</span> : null}
     <span className="whitespace-nowrap text-xs tabular-nums text-label" title={`ยืนยันแล้ว ${settled} จาก ${rows.length} ข้อที่แสดง · คีย์ลัด ← → เปลี่ยนข้อ · 1–4 เลือก · Ctrl+Enter บันทึก`}>{at + 1}/{rows.length}</span>
-    <button type="button" disabled={!previous} onClick={() => previous && request(previous.id)} aria-label="ข้อก่อนหน้า" title="ข้อก่อนหน้า (←)" className={navButton}>←</button>
-    <button type="button" disabled={!next} onClick={() => next && request(next.id)} aria-label="ข้อถัดไป" title="ข้อถัดไป (→)" className={navButton}>→</button>
+    <span data-tour="workspace-nav" className="inline-flex items-center gap-2 sm:gap-3">
+      <button type="button" disabled={!previous} onClick={() => previous && request(previous.id)} aria-label="ข้อก่อนหน้า" title="ข้อก่อนหน้า (←)" className={navButton}>←</button>
+      <button type="button" disabled={!next} onClick={() => next && request(next.id)} aria-label="ข้อถัดไป" title="ข้อถัดไป (→)" className={navButton}>→</button>
+    </span>
+    {expanded ? <SocGuidedTour tourId="soc-workspace" steps={SOC_WORKSPACE_TOUR} /> : null}
     <button ref={toggleRef} data-tour="expand-workspace" type="button" onClick={() => onExpand(!expanded)} aria-label={expanded ? "ย่อกลับข้างตาราง" : "ขยายเต็มจอ"} title={expanded ? "ย่อกลับข้างตาราง (Esc)" : "ขยายเต็มจอ"} className={navButton}>{expanded ? "⤡" : "⤢"}<span className="hidden sm:inline">{expanded ? " ย่อ" : " เต็มจอ"}</span></button>
     <div aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-chip"><div className="h-full bg-accent transition-all" style={{ width: `${rows.length ? (settled / rows.length) * 100 : 0}%` }} /></div>
   </header>;
@@ -424,14 +430,14 @@ function RowInspector({ jobId, row, layout, decisionForm }: { jobId: string; row
   // Narrow: tabs / the picked pane / the decision. Wide: comparison over the decision on the left, evidence on the right.
   return <div className="mx-auto grid h-full max-w-[1600px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-surface shadow-card sm:rounded-card md:grid-cols-[minmax(20rem,2fr)_minmax(24rem,3fr)] md:grid-rows-[minmax(0,1fr)_auto]">
     <div role="tablist" aria-label="ส่วนของพื้นที่ตรวจ" className="grid grid-cols-2 border-b border-line md:hidden">{tab("comparison", "รายละเอียดเทียบ")}{tab("evidence", "เอกสารอ้างอิง")}</div>
-    <section role="region" aria-label="รายละเอียดเทียบ" className={`${pane === "comparison" ? "flex" : "hidden"} min-h-0 flex-col gap-3 overflow-y-auto p-4 md:col-start-1 md:row-start-1 md:flex md:border-r md:border-line`}>
+    <section role="region" aria-label="รายละเอียดเทียบ" data-tour="workspace-comparison" className={`${pane === "comparison" ? "flex" : "hidden"} min-h-0 flex-col gap-3 overflow-y-auto p-4 md:col-start-1 md:row-start-1 md:flex md:border-r md:border-line`}>
       {comparison}
       {axes}
     </section>
-    <section role="region" aria-label="เอกสารอ้างอิง" className={`${pane === "evidence" ? "flex" : "hidden"} min-h-0 flex-col overflow-y-auto bg-ground p-3 md:col-start-2 md:row-span-2 md:row-start-1 md:flex`}>
+    <section role="region" aria-label="เอกสารอ้างอิง" data-tour="workspace-evidence" className={`${pane === "evidence" ? "flex" : "hidden"} min-h-0 flex-col overflow-y-auto bg-ground p-3 md:col-start-2 md:row-span-2 md:row-start-1 md:flex`}>
       <PdfEvidence jobId={jobId} row={row} />
     </section>
-    <div className="border-t border-line bg-surface p-3 md:col-start-1 md:row-start-2 md:border-r">{decisionForm}</div>
+    <div data-tour="workspace-decision" className="border-t border-line bg-surface p-3 md:col-start-1 md:row-start-2 md:border-r">{decisionForm}</div>
   </div>;
 }
 
