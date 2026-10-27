@@ -15,7 +15,7 @@ import { loadTaxonomy } from "@/lib/project-card-terms";
 import {
   CERTIFICATE_AGE_OPTIONS,
   certificateDateValue,
-  certificateIssuedSince,
+  certificateDatedSince,
 } from "@/lib/project-card-certificate-date";
 
 export const dynamic = "force-dynamic";
@@ -175,7 +175,7 @@ export default async function ProjectCardPage({
   if (wantsContract) filters.push({ contractPath: { not: null } });
   if (wantsCertificate) filters.push({ certificatePath: { not: null } });
   // A card with no Certificate Date can't be shown to be recent enough, so it drops out.
-  if (certWithin !== undefined) filters.push({ certificateDate: { gte: certificateIssuedSince(certWithin) } });
+  if (certWithin !== undefined) filters.push({ certificateDate: { gte: certificateDatedSince(certWithin) } });
 
   const [matchedCards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
     prisma.projectCard.findMany({
@@ -425,7 +425,7 @@ export default async function ProjectCardPage({
               budgetNote: card.budgetNote,
               budgetVerified: card.budgetVerified,
               year: card.year,
-              certificateDate: card.certificateDate ? certificateDateValue(card.certificateDate) : null,
+              certificateDate: certificateDateValue(card.certificateDate),
               category: card.category,
               tags: card.tags,
               workTypes: card.workTypes,

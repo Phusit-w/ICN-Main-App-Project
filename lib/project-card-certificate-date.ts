@@ -21,9 +21,9 @@ export function parseCertificateDate(value: string): Date | null {
   return date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
 }
 
-// The value an <input type="date"> takes.
-export function certificateDateValue(date: Date): string {
-  return date.toISOString().slice(0, 10);
+// The value an <input type="date"> takes; null stays null.
+export function certificateDateValue(date: Date | null): string | null {
+  return date ? date.toISOString().slice(0, 10) : null;
 }
 
 // "12 มี.ค. 2567": th-TH counts years in the Buddhist era.
@@ -31,11 +31,10 @@ export function formatCertificateDate(date: Date): string {
   return new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
-// The earliest Certificate Date still "issued within `years` years", counted
-// back from today's date in Bangkok.
-export function certificateIssuedSince(years: number, now: Date = new Date()): Date {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(now);
-  const since = parseCertificateDate(today) ?? new Date(now);
-  since.setUTCFullYear(since.getUTCFullYear() - years);
-  return since;
+// The earliest Certificate Date still within the last `years` years, counted
+// back from today's date in Bangkok. 29 Feb counts back to 1 Mar.
+export function certificateDatedSince(years: number, now: Date = new Date()): Date {
+  // en-CA writes YYYY-MM-DD.
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(now).split("-").map(Number);
+  return new Date(Date.UTC(year - years, month - 1, day));
 }

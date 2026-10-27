@@ -24,6 +24,11 @@ ProjectCardInput wire shape, e.g.:
       }
     ]
 
+A record that only adds a Certificate Date ("YYYY-MM-DD", Gregorian) to an
+existing card still needs projectCode, client, projectName and certificatePath
+exactly as the card has them (they are overwritten). Every other field left
+out keeps what the card has.
+
 Usage:
     python push_manual_entries.py --entries entries.json \
         --api-url https://psaidemo.icn21.local/api/project-card/ingest \

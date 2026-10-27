@@ -72,8 +72,9 @@ const MAX_TEXT_LENGTH = 5000;
 // Category/Tags/Work Types are compared with what's stored: only an actual change
 // marks the classification as edited by a person, after which a push never
 // overwrites it (CONTEXT.md's Description Source entry). The same goes for
-// the Description: a change to either language sets its source to `manual`,
-// and the Certificate Date ("YYYY-MM-DD", or null to clear it).
+// the Description: a change to either language sets its source to `manual`.
+// A changed Certificate Date ("YYYY-MM-DD", or null to clear it) is likewise
+// never overwritten by a push afterwards, a cleared one included.
 export async function updateProjectCardDetails(
   id: string,
   input: {
@@ -137,9 +138,9 @@ export async function updateProjectCardDetails(
     if (certificateDate === null && input.certificateDate !== null) throw new Error("วันที่ลงรับรองไม่ถูกต้อง");
     if (certificateDate !== null && existing.certificatePath === null) throw new Error("โครงการนี้ไม่มีหนังสือรับรอง");
   }
-  const storedDate = existing.certificateDate ? certificateDateValue(existing.certificateDate) : null;
-  const newDate = certificateDate ? certificateDateValue(certificateDate) : null;
-  const certificateDateChanged = certificateDate !== undefined && newDate !== storedDate;
+  const storedDate = certificateDateValue(existing.certificateDate);
+  const newDate = certificateDate === undefined ? storedDate : certificateDateValue(certificateDate);
+  const certificateDateChanged = newDate !== storedDate;
   await prisma.projectCard.update({
     where: { id },
     data: {
@@ -150,9 +151,9 @@ export async function updateProjectCardDetails(
         : {}),
       budgetNote,
       ...classification,
-      // Same as the Description: clearing the date leaves nothing to
-      // protect, so a later push may fill it again.
-      ...(certificateDateChanged ? { certificateDate, certificateDateEditedByPerson: certificateDate !== null } : {}),
+      // A person clearing the date means "no date on this letter", so a push
+      // must not fill it back in either.
+      ...(certificateDateChanged ? { certificateDate, certificateDateEditedByPerson: true } : {}),
       ...(budgetAmount === undefined
         ? {}
         : { budgetAmount, budgetVerified: true, budgetVerifiedAt: new Date(), budgetVerifiedById: actor.id }),

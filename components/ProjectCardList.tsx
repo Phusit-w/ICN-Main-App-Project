@@ -232,6 +232,7 @@ function ProjectCardDetail({
   const [tags, setTags] = useState<string[]>(card.tags);
   const [workTypes, setWorkTypes] = useState<string[]>(card.workTypes);
   const [certificateDate, setCertificateDate] = useState(card.certificateDate ?? "");
+  const storedCertificateDate = card.certificateDate ? parseCertificateDate(card.certificateDate) : null;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -532,8 +533,8 @@ function ProjectCardDetail({
               {card.certificatePath ? (
                 <PathRow
                   label={
-                    card.certificateDate
-                      ? `หนังสือรับรอง · ลงวันที่ ${formatCertificateDate(new Date(card.certificateDate))}`
+                    storedCertificateDate
+                      ? `หนังสือรับรอง · ลงวันที่ ${formatCertificateDate(storedCertificateDate)}`
                       : "หนังสือรับรอง"
                   }
                   path={card.certificatePath}

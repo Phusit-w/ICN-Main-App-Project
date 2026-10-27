@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { prisma } from "@/lib/prisma";
 import { setupTestDatabase } from "@/test/db";
 import {
-  certificateIssuedSince,
+  certificateDatedSince,
   formatCertificateDate,
   parseCertificateDate,
 } from "@/lib/project-card-certificate-date";
@@ -66,10 +66,10 @@ test("a Certificate Date shows as a short Buddhist-era date", () => {
   assert.equal(formatCertificateDate(new Date("2024-03-12T00:00:00Z")), "12 มี.ค. 2567");
 });
 
-test("'issued within N years' counts back from today's date in Bangkok", () => {
+test("'within N years' counts back from today's date in Bangkok", () => {
   // 2026-10-27 01:00 Bangkok is still 2026-10-26 in UTC.
   const now = new Date("2026-10-26T18:00:00Z");
-  assert.equal(certificateIssuedSince(3, now).toISOString(), "2023-10-27T00:00:00.000Z");
+  assert.equal(certificateDatedSince(3, now).toISOString(), "2023-10-27T00:00:00.000Z");
 });
 
 test("a push stores the Certificate Date; a later push without one keeps it", { skip }, async () => {
@@ -79,7 +79,7 @@ test("a push stores the Certificate Date; a later push without one keeps it", { 
   assert.equal(stored.certificateDate?.toISOString(), "2024-03-12T00:00:00.000Z");
 });
 
-test("a push is refused a Certificate Date that isn't a date, or comes without the certificate", { skip }, async () => {
+test("a push is refused a Certificate Date that isn't a date, or for a card with no certificate", { skip }, async () => {
   const result = await push([
     card("PEA001", { certificatePath: CERT, certificateDate: "12/03/2567" }),
     card("PEA002", { contractPath: CONTRACT, certificateDate: "2024-03-12" }),
@@ -88,7 +88,7 @@ test("a push is refused a Certificate Date that isn't a date, or comes without t
   assert.equal(await prisma.projectCard.count(), 0);
 });
 
-test("a Certificate Date a person edited is never overwritten by a push; clearing it lets a push fill it again", { skip }, async () => {
+test("a Certificate Date a person edited or cleared is never overwritten by a push", { skip }, async () => {
   await signIn();
   await push([card("PEA001", { certificatePath: CERT, certificateDate: "2024-03-12" })]);
   const { id } = await prisma.projectCard.findUniqueOrThrow({ where: { projectCode: "PEA001" } });
@@ -103,7 +103,19 @@ test("a Certificate Date a person edited is never overwritten by a push; clearin
   await updateProjectCardDetails(id, { descriptionTh: "", descriptionEn: "", budgetNote: "", certificateDate: null });
   await push([card("PEA001", { certificatePath: CERT, certificateDate: "2020-01-01" })]);
   stored = await prisma.projectCard.findUniqueOrThrow({ where: { id } });
-  assert.equal(stored.certificateDate?.toISOString(), "2020-01-01T00:00:00.000Z");
+  assert.equal(stored.certificateDate, null);
+});
+
+test("a date-only backfill leaves the rest of the card alone", { skip }, async () => {
+  await push([card("PEA001", { certificatePath: CERT, contractPath: CONTRACT, year: 2021, budgetAmount: 1000, budgetSource: "certificate" })]);
+  const result = await push([card("PEA001", { certificatePath: CERT, certificateDate: "2024-03-12" })]);
+  assert.equal(result.rejected, 0);
+  const stored = await prisma.projectCard.findUniqueOrThrow({ where: { projectCode: "PEA001" } });
+  assert.equal(stored.certificateDate?.toISOString(), "2024-03-12T00:00:00.000Z");
+  assert.equal(stored.certificatePath, CERT);
+  assert.equal(stored.contractPath, CONTRACT);
+  assert.equal(stored.year, 2021);
+  assert.equal(stored.budgetAmount?.toNumber(), 1000);
 });
 
 test("the popup refuses a Certificate Date on a card with no Work Certificate", { skip }, async () => {
@@ -126,7 +138,7 @@ test("the document filter keeps cards with every ticked document", { skip }, asy
   assert.deepEqual(shown(await pageHtml({ doc: ["contract", "certificate"] })), ["PEA003"]);
 });
 
-test("the certificate-age filter keeps only cards certified within those years", { skip }, async () => {
+test("the certificate-age filter keeps only cards whose Certificate Date is within those years", { skip }, async () => {
   await signIn();
   const recent = new Date();
   recent.setUTCFullYear(recent.getUTCFullYear() - 1);
