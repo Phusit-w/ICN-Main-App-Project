@@ -17,7 +17,11 @@ mock.module("@/actions/socCheckRequests", { namedExports: {
   cancelSocCheckRequest: noop, continueSocCheckWithoutMissing: noop, requestAllSocChecks: noop, requestSocCheck: noop, resumeSocCheckRequestNow: noop,
   setSocMajorItemSkipped: noop, requestSocTorJudge: noop, requestSocRowRechecks: noop,
 } });
-mock.module("@/lib/authorization", { namedExports: { requirePageAccess: async () => undefined } });
+mock.module("@/lib/authorization", { namedExports: { requirePageAccess: async () => ({ id: "user-1", role: "USER", appAccess: [] }) } });
+// The ค้นหาโครงการ page's data, for its anchor check at the end.
+mock.module("@/lib/prisma", { namedExports: { prisma: { projectCard: { findMany: async () => [], groupBy: async () => [], count: async () => 0 } } } });
+mock.module("@/actions/projectCard", { namedExports: { updateProjectCardDetails: noop, verifyProjectCardBudget: noop } });
+mock.module("@/lib/project-card-terms", { namedExports: { loadTaxonomy: async () => ({ categories: [], workTypes: [] }) } });
 mock.module("@/lib/soc", {
   namedExports: {
     requireSocActor: async () => ({ id: "user-1", role: "USER" }),
@@ -263,6 +267,17 @@ test("the Runner panel marks its status and install button whether or not a Runn
     assertTourTargets(view.container, ["runner-status", "runner-install"]);
     cleanup();
   }
+});
+
+test("every control the ค้นหาโครงการ tour points at is on /project-card, with the tour's button", async () => {
+  const { render } = await setup();
+  const { PROJECT_CARD_TOUR } = await import("@/lib/project-card-tours");
+  setWidth(800);
+  const { default: ProjectCardPage } = await import("@/app/(app)/project-card/page");
+  const view = render(await ProjectCardPage({ searchParams: Promise.resolve({}) }));
+  assert.equal(PROJECT_CARD_TOUR.length, 8);
+  assertTourTargets(view.container, PROJECT_CARD_TOUR.map((step) => step.target));
+  assert.ok(view.getByRole("button", { name: "แนะนำการใช้งาน" }));
 });
 
 test("every control the new-job tour points at is on /soc/new, with the tour's button", async () => {

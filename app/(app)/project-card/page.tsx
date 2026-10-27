@@ -6,6 +6,8 @@ import Field from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
 import ProjectCardList from "@/components/ProjectCardList";
+import SocGuidedTour from "@/components/SocGuidedTour";
+import { PROJECT_CARD_TOUR } from "@/lib/project-card-tours";
 import { CommaNumberField } from "@/components/CommaNumberInput";
 import Link from "next/link";
 import { matchCategories, matchWorkTypes, type Term } from "@/lib/project-card-taxonomy";
@@ -193,25 +195,29 @@ export default async function ProjectCardPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
-        <p className="mt-1 text-sm text-muted">
-          ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ลักษณะงาน ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
-          <code className="text-xs">_BID</code>
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
+          <p className="mt-1 text-sm text-muted">
+            ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ลักษณะงาน ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
+            <code className="text-xs">_BID</code>
+          </p>
+        </div>
+        <SocGuidedTour tourId="project-card" steps={PROJECT_CARD_TOUR} />
       </div>
 
       <form method="get" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-4">
-          <Field
-            label="ค้นหา"
-            name="q"
-            defaultValue={query}
-            leftIcon={<SearchIcon size={18} />}
-            placeholder="เช่น Solarcell, RFID, MEA"
-            containerClassName="min-w-[240px] flex-1"
-          />
-          <div className="w-[150px]">
+          <div data-tour="search" className="min-w-[240px] flex-1">
+            <Field
+              label="ค้นหา"
+              name="q"
+              defaultValue={query}
+              leftIcon={<SearchIcon size={18} />}
+              placeholder="เช่น Solarcell, RFID, MEA"
+            />
+          </div>
+          <div data-tour="client" className="w-[150px]">
             <label className="mb-1.5 block text-[13px] font-medium text-label">ลูกค้า</label>
             <input
               name="client"
@@ -227,7 +233,7 @@ export default async function ProjectCardPage({
               ))}
             </datalist>
           </div>
-          <div className="w-[120px]">
+          <div data-tour="years" className="w-[120px]">
             <label htmlFor="project-card-year-from" className="mb-1.5 block text-[13px] font-medium text-label">
               ตั้งแต่ปี
             </label>
@@ -262,25 +268,27 @@ export default async function ProjectCardPage({
               ))}
             </datalist>
           </div>
-          <CommaNumberField
-            label="งบมากกว่า (ล้านบาท)"
-            name="budgetMin"
-            maxDecimals={6}
-            defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
-            placeholder="เช่น 10"
-            containerClassName="w-[180px]"
-          />
-          <CommaNumberField
-            label="งบน้อยกว่า (ล้านบาท)"
-            name="budgetMax"
-            maxDecimals={6}
-            defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
-            placeholder="เช่น 100"
-            containerClassName="w-[180px]"
-          />
+          <div data-tour="budget" className="flex flex-wrap items-end gap-4">
+            <CommaNumberField
+              label="งบมากกว่า (ล้านบาท)"
+              name="budgetMin"
+              maxDecimals={6}
+              defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
+              placeholder="เช่น 10"
+              containerClassName="w-[180px]"
+            />
+            <CommaNumberField
+              label="งบน้อยกว่า (ล้านบาท)"
+              name="budgetMax"
+              maxDecimals={6}
+              defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
+              placeholder="เช่น 100"
+              containerClassName="w-[180px]"
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-end gap-4">
-          <div className="w-[280px]">
+          <div data-tour="category" className="w-[280px]">
             <label htmlFor="project-card-category" className="mb-1.5 block text-[13px] font-medium text-label">
               หมวดหมู่
             </label>
@@ -303,7 +311,7 @@ export default async function ProjectCardPage({
               ))}
             </datalist>
           </div>
-          <div className="w-[240px]">
+          <div data-tour="work-type" className="w-[240px]">
             <label htmlFor="project-card-work-type" className="mb-1.5 block text-[13px] font-medium text-label">
               ลักษณะงาน
             </label>
@@ -326,7 +334,7 @@ export default async function ProjectCardPage({
               ))}
             </datalist>
           </div>
-          <Button type="submit" variant="dark" className="h-[52px]">
+          <Button type="submit" variant="dark" className="h-[52px]" data-tour="search-button">
             ค้นหา
           </Button>
           {/* A plain link back to the unfiltered page: clears every box at once. */}
@@ -341,7 +349,7 @@ export default async function ProjectCardPage({
 
       <p className="text-sm text-muted">พบ {cards.length.toLocaleString("th-TH")} โครงการ</p>
 
-      <div className="overflow-hidden rounded-card bg-surface shadow-card">
+      <div data-tour="results" className="overflow-hidden rounded-card bg-surface shadow-card">
         {cards.length ? (
           <ProjectCardList
             taxonomy={taxonomy}
