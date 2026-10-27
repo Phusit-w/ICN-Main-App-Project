@@ -25,10 +25,10 @@ export default function SocGuidedTour({ tourId, steps, ready = true }: {
   const tour = useRef<Driver | null>(null);
   const button = useRef<HTMLButtonElement>(null);
 
-  // Steps are resolved now: a control that isn't on screen drops its step.
+  // Steps are resolved now: a control that isn't on screen (missing, or inside a folded panel) drops its step.
   function start() {
     if (tour.current?.isActive()) return;
-    const present = steps.filter((step) => document.querySelector(targetSelector(step)));
+    const present = steps.filter((step) => { const el = document.querySelector(targetSelector(step)); return el && !el.closest("[hidden]"); });
     if (!present.length) return;
     const instance = driver({
       steps: present.map((step) => ({ element: targetSelector(step), popover: { title: step.title, description: step.body } })),

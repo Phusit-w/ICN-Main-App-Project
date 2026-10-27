@@ -8,7 +8,15 @@ import type { SocRunnerView } from "@/lib/soc-shared";
 // The /soc page's server data, for the anchor check at the end.
 mock.module("next/navigation", { namedExports: { useRouter: () => ({ refresh() {} }) } });
 mock.module("next/link", { defaultExport: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => React.createElement("a", props) });
-mock.module("@/actions/soc", { namedExports: { trashSocJob: async () => ({ ok: true }) } });
+const noop = async () => ({ ok: true });
+mock.module("@/actions/soc", { namedExports: {
+  trashSocJob: noop, cancelSocRead: noop, renameSocJobAction: noop, resumeSocRead: noop, confirmSocJob: noop, retrySocJob: noop, updateSocResult: noop,
+  cancelSocTorRead: noop, resumeSocTorRead: noop, decideSocRow: noop,
+} });
+mock.module("@/actions/socCheckRequests", { namedExports: {
+  cancelSocCheckRequest: noop, continueSocCheckWithoutMissing: noop, requestAllSocChecks: noop, requestSocCheck: noop, resumeSocCheckRequestNow: noop,
+  setSocMajorItemSkipped: noop, requestSocTorJudge: noop, requestSocRowRechecks: noop,
+} });
 mock.module("@/lib/authorization", { namedExports: { requirePageAccess: async () => undefined } });
 mock.module("@/lib/soc", {
   namedExports: {
@@ -266,4 +274,77 @@ test("every control the new-job tour points at is on /soc/new, with the tour's b
   assert.equal(SOC_NEW_JOB_TOUR.length, 4);
   assertTourTargets(view.container, SOC_NEW_JOB_TOUR.map((step) => step.target));
   assert.ok(view.getByRole("button", { name: "แนะนำการใช้งาน" }));
+});
+
+const reviewRow = {
+  id: "row-1", item: "๑.๑", rowNumber: 4, majorItemId: "major-1", sheet: null, status: "review", reasons: [], evidenceMissing: false,
+  torText: "ข้อกำหนด", torImage: false, image: null, socPdfPage: null, referenceNote: null, proposalText: "ข้อเสนอ", bidderRemark: null, reference: "Datasheet, page 4", referencePages: [4],
+  citations: [], declaredSelection: "comply", systemRecommendation: "compliant", axes: [], detail: "", keyIssue: null, confidence: "high",
+  finalDecision: null, finalNote: null, reviewedByName: null, reviewedAt: null,
+};
+
+const majorItem = { id: "major-1", label: "๑", title: "ข้อกำหนดทั่วไป", groupLabel: null, groupTitle: null, large: false, skipped: false, state: "not_checked", skillVersion: null, skillVersionStatus: null, model: null, runSource: null, ranByName: null, hasResults: false, missingDocuments: [], confirmed: false, request: null, failureReason: null };
+
+function jobProps(over: Record<string, unknown> = {}) {
+  return {
+    id: "job-1", kind: "IMPORTED", title: "งานทดสอบ", status: "READY", stage: "", progress: 0, errorMessage: null, ownerName: "ผู้ตรวจ", canTrash: true, viewerId: "user-1", viewerIsAdmin: false,
+    results: [], reviewRows: [reviewRow], documents: [], torMatch: null, majorItems: [majorItem], currentSkillVersion: null, socWarnings: [], excelSoc: false, ...over,
+  };
+}
+
+test("every control the job tour points at is on an Imported job with results", async () => {
+  const { render } = await setup();
+  const { SOC_JOB_TOUR } = await import("@/lib/soc-tours");
+  const { default: SocJobDetail } = await import("@/components/SocJobDetail");
+  setWidth(800);
+  const view = render(React.createElement(SocJobDetail, { job: jobProps() as never }));
+  assert.equal(SOC_JOB_TOUR.length, 8);
+  assertTourTargets(view.container, SOC_JOB_TOUR.map((step) => step.target));
+  assert.ok(view.getByRole("button", { name: "แนะนำการใช้งาน" }));
+});
+
+test("a job with no review rows has no review targets, and a legacy job has no tour button", async () => {
+  const { render, cleanup } = await setup();
+  const { default: SocJobDetail } = await import("@/components/SocJobDetail");
+  setWidth(800);
+  const empty = render(React.createElement(SocJobDetail, { job: jobProps({ reviewRows: [] }) as never }));
+  for (const target of ["review-filters", "row-ticks", "expand-workspace"]) assert.equal(empty.container.querySelector(`[data-tour="${target}"]`), null, target);
+  assert.ok(empty.container.querySelector('[data-tour="major-items"]'));
+  cleanup();
+  const legacy = render(React.createElement(SocJobDetail, { job: jobProps({ kind: "LEGACY", majorItems: [], reviewRows: [] }) as never }));
+  assert.equal(legacy.queryByRole("button", { name: "แนะนำการใช้งาน" }), null);
+  assert.equal(legacy.container.querySelector("[data-tour]"), null);
+});
+
+test("the job tour opens on its own once the major items are showing, not while the SOC is still being read", async () => {
+  const { render, cleanup, screen } = await setup();
+  const { readStoredFlag } = await import("@/components/SocCollapse");
+  const { default: SocJobDetail } = await import("@/components/SocJobDetail");
+  setWidth(1200);
+
+  render(React.createElement(SocJobDetail, { job: jobProps({ status: "READING" }) as never }));
+  assert.equal(screen.queryByRole("dialog"), null);
+  assert.equal(readStoredFlag("soc:tour-seen:soc-job", false), false, "not marked seen");
+  cleanup();
+
+  render(React.createElement(SocJobDetail, { job: jobProps() as never }));
+  assert.ok(await screen.findByRole("dialog", { name: "ข้อใหญ่ของ SOC" }));
+});
+
+test("a folded major items panel drops the steps inside it", async () => {
+  const { render, screen, user, act, within } = await setup();
+  const { default: SocJobDetail } = await import("@/components/SocJobDetail");
+  const { writeStoredFlag } = await import("@/components/SocCollapse");
+  setWidth(800);
+  render(React.createElement(SocJobDetail, { job: jobProps() as never }));
+  act(() => writeStoredFlag("soc:major-items-open", false));
+  await user.click(screen.getByRole("button", { name: "แนะนำการใช้งาน" }));
+  const next = async (title: string) => {
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "ถัดไป" }));
+    return screen.findByRole("dialog", { name: title });
+  };
+  await screen.findByRole("dialog", { name: "ข้อใหญ่ของ SOC" });
+  await next("ตรวจทั้งชุด");
+  await next("เอกสารหลักฐาน"); // ตรวจ / ไม่ต้องตรวจ sits inside the folded table
+  act(() => writeStoredFlag("soc:major-items-open", true));
 });

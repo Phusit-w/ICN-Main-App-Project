@@ -69,7 +69,7 @@ export default function SocTorMatchPanel({ jobId, torMatch, socReady, reviewRows
   }
   const counts = torMatch?.counts;
   const [open, setOpen] = useStoredFlag("soc:tor-match-open", true);
-  return <section id="soc-tor-match" className="rounded-card bg-surface p-5 shadow-card">
+  return <section id="soc-tor-match" data-tour="tor-match" className="rounded-card bg-surface p-5 shadow-card">
     {dialog}
     <h2><CollapseButton open={open} onToggle={() => setOpen(!open)} controls="soc-tor-match-body"><span className="font-display font-semibold">ตรวจ TOR ตรงต้นฉบับ</span>{!open && counts ? <span className="text-xs font-normal text-muted">{TOR_MATCH_OUTCOMES.filter((o) => ISSUE[o] && counts[o]).map((o) => `${o} ${counts[o]}`).join(" · ") || "ไม่มีประเด็น"}</span> : null}</CollapseButton></h2>
     {open ? <div id="soc-tor-match-body">
