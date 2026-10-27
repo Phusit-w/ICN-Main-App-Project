@@ -8,6 +8,7 @@ import CopyButton from "@/components/CopyButton";
 import CommaNumberInput, { withCommas } from "@/components/CommaNumberInput";
 import { fmt } from "@/lib/format";
 import { descriptionSourceLabel, termLabel, type Taxonomy } from "@/lib/project-card-taxonomy";
+import { formatCertificateDate, parseCertificateDate } from "@/lib/project-card-certificate-date";
 
 export type ProjectCardRow = {
   id: string;
@@ -26,6 +27,8 @@ export type ProjectCardRow = {
   budgetNote: string;
   budgetVerified: boolean;
   year: number | null;
+  // "YYYY-MM-DD", or null when unknown (CONTEXT.md's Certificate Date entry).
+  certificateDate: string | null;
   category: string | null;
   tags: string[];
   workTypes: string[];
@@ -228,6 +231,7 @@ function ProjectCardDetail({
   const [category, setCategory] = useState(card.category ?? "");
   const [tags, setTags] = useState<string[]>(card.tags);
   const [workTypes, setWorkTypes] = useState<string[]>(card.workTypes);
+  const [certificateDate, setCertificateDate] = useState(card.certificateDate ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -239,6 +243,7 @@ function ProjectCardDetail({
     setCategory(card.category ?? "");
     setTags(card.tags);
     setWorkTypes(card.workTypes);
+    setCertificateDate(card.certificateDate ?? "");
     setError(null);
   }
 
@@ -257,6 +262,10 @@ function ProjectCardDetail({
       setError("ต้องเลือกลักษณะงานอย่างน้อย 1 อย่าง");
       return;
     }
+    if (certificateDate && !parseCertificateDate(certificateDate)) {
+      setError("วันที่ลงรับรองไม่ถูกต้อง");
+      return;
+    }
     const original = card.budgetAmount === null ? null : Number(card.budgetAmount);
     startTransition(async () => {
       try {
@@ -270,6 +279,7 @@ function ProjectCardDetail({
           // dropped rather than blocking the save.
           tags: tags.filter((t) => t !== category),
           workTypes,
+          ...(certificateDate !== (card.certificateDate ?? "") ? { certificateDate: certificateDate || null } : {}),
         });
         setEditing(false);
         setError(null);
@@ -519,7 +529,32 @@ function ProjectCardDetail({
                 </div>
               )}
               {card.contractPath ? <PathRow label="สัญญา" path={card.contractPath} /> : null}
-              {card.certificatePath ? <PathRow label="หนังสือรับรอง" path={card.certificatePath} /> : null}
+              {card.certificatePath ? (
+                <PathRow
+                  label={
+                    card.certificateDate
+                      ? `หนังสือรับรอง · ลงวันที่ ${formatCertificateDate(new Date(card.certificateDate))}`
+                      : "หนังสือรับรอง"
+                  }
+                  path={card.certificatePath}
+                />
+              ) : null}
+              {editing && card.certificatePath ? (
+                <div>
+                  <label htmlFor="project-card-certificate-date" className="mb-1 block text-xs text-muted">
+                    วันที่ลงรับรอง (วันที่ที่ลงในหนังสือรับรอง)
+                  </label>
+                  <input
+                    id="project-card-certificate-date"
+                    type="date"
+                    value={certificateDate}
+                    onChange={(e) => setCertificateDate(e.target.value)}
+                    disabled={pending}
+                    className="h-11 w-full max-w-xs rounded-field border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-ink"
+                  />
+                  <p className="mt-1 text-xs text-muted">ถ้าแก้วันที่ การอัปเดตข้อมูลครั้งต่อไปจะไม่เขียนทับ</p>
+                </div>
+              ) : null}
             </div>
           </Section>
 

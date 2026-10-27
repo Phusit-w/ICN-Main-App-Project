@@ -6,6 +6,7 @@ import {
   type Taxonomy,
   type Term,
 } from "@/lib/project-card-taxonomy";
+import { parseCertificateDate } from "@/lib/project-card-certificate-date";
 
 // Project Card ingest has no browser session to check — the extraction
 // script that crawls the `PS` share runs off this app's server entirely
@@ -56,6 +57,7 @@ export interface ProjectCardInput {
   vatStatus: VatStatus | null;
   budgetNote: string;
   year: number | null;
+  certificateDate: Date | null;
   category: string | null;
   tags: string[];
   workTypes: string[];
@@ -186,6 +188,16 @@ export function validateProjectCardInput(raw: unknown, taxonomy: Taxonomy): Proj
     year = r.year as number;
   }
 
+  // Read off the Work Certificate (CONTEXT.md's Certificate Date entry), so
+  // it only comes with that certificate's path. Absent/null means "not read
+  // this pass", never "erase".
+  let certificateDate: Date | null = null;
+  if (r.certificateDate !== undefined && r.certificateDate !== null) {
+    certificateDate = typeof r.certificateDate === "string" ? parseCertificateDate(r.certificateDate) : null;
+    if (certificateDate === null) throw new Error('"certificateDate" must be a date written YYYY-MM-DD (Gregorian)');
+    if (certificatePath === null) throw new Error('"certificateDate" requires "certificatePath"');
+  }
+
   return {
     projectCode,
     client,
@@ -201,6 +213,7 @@ export function validateProjectCardInput(raw: unknown, taxonomy: Taxonomy): Proj
     vatStatus,
     budgetNote,
     year,
+    certificateDate,
     ...validateClassification(r.category, r.tags, taxonomy.categories),
     workTypes: validateWorkTypes(r.workTypes, taxonomy.workTypes),
   };

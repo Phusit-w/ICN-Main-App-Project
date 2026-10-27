@@ -12,6 +12,11 @@ import { CommaNumberField } from "@/components/CommaNumberInput";
 import Link from "next/link";
 import { matchCategories, matchWorkTypes, type Term } from "@/lib/project-card-taxonomy";
 import { loadTaxonomy } from "@/lib/project-card-terms";
+import {
+  CERTIFICATE_AGE_OPTIONS,
+  certificateDateValue,
+  certificateIssuedSince,
+} from "@/lib/project-card-certificate-date";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +82,9 @@ export default async function ProjectCardPage({
     yearTo?: string;
     budgetMin?: string;
     budgetMax?: string;
+    // Ticked "เอกสารที่มี" boxes: contract and/or certificate.
+    doc?: string | string[];
+    certWithin?: string;
   }>;
 }) {
   const actor = await requirePageAccess("project-card");
@@ -89,6 +97,8 @@ export default async function ProjectCardPage({
     yearTo: yearToParam,
     budgetMin: budgetMinParam,
     budgetMax: budgetMaxParam,
+    doc: docParam,
+    certWithin: certWithinParam,
   } = await searchParams;
   const taxonomy = await loadTaxonomy();
   const query = q?.trim() ?? "";
@@ -108,6 +118,13 @@ export default async function ProjectCardPage({
   const budgetMin = parseFloatParam(budgetMinParam);
   const budgetMax = parseFloatParam(budgetMaxParam);
   const toBaht = (millions: number) => Math.round(millions * 1_000_000);
+  // "เอกสารที่มี": every ticked document must be on the card. Read from the
+  // card's own Folder Paths — a path means the project has that document.
+  const docs = new Set([docParam ?? []].flat());
+  const wantsContract = docs.has("contract");
+  const wantsCertificate = docs.has("certificate");
+  // "หนังสือรับรองออกภายใน N ปี": only the listed choices; anything else is ignored.
+  const certWithin = CERTIFICATE_AGE_OPTIONS.find((years) => String(years) === certWithinParam);
 
   const filters: Prisma.ProjectCardWhereInput[] = [];
   const matchedCategories = matchCategories(taxonomy.categories, query);
@@ -155,6 +172,10 @@ export default async function ProjectCardPage({
   if (yearTo !== undefined) filters.push({ year: { lte: yearTo } });
   if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
   if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
+  if (wantsContract) filters.push({ contractPath: { not: null } });
+  if (wantsCertificate) filters.push({ certificatePath: { not: null } });
+  // A card with no Certificate Date can't be shown to be recent enough, so it drops out.
+  if (certWithin !== undefined) filters.push({ certificateDate: { gte: certificateIssuedSince(certWithin) } });
 
   const [matchedCards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
     prisma.projectCard.findMany({
@@ -199,7 +220,7 @@ export default async function ProjectCardPage({
         <div>
           <h1 className="font-display text-[28px] font-bold">ค้นหาโครงการ</h1>
           <p className="mt-1 text-sm text-muted">
-            ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ลักษณะงาน ปี และงบประมาณ — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
+            ค้นหาจากลูกค้า ชื่อโครงการ หรือคำอธิบาย พร้อมกรองตามลูกค้า หมวดหมู่ ลักษณะงาน ปี งบประมาณ และเอกสาร — ข้อมูลจากสัญญาและหนังสือรับรองผลงานในโฟลเดอร์{" "}
             <code className="text-xs">_BID</code>
           </p>
         </div>
@@ -334,6 +355,39 @@ export default async function ProjectCardPage({
               ))}
             </datalist>
           </div>
+          <div data-tour="documents" className="flex flex-wrap items-end gap-4">
+            <fieldset>
+              <legend className="mb-1.5 block text-[13px] font-medium text-label">เอกสารที่มี</legend>
+              <div className="flex h-[52px] items-center gap-4 text-sm text-ink">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="doc" value="contract" defaultChecked={wantsContract} className="size-4" />
+                  สัญญา
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="doc" value="certificate" defaultChecked={wantsCertificate} className="size-4" />
+                  หนังสือรับรอง
+                </label>
+              </div>
+            </fieldset>
+            <div className="w-[200px]">
+              <label htmlFor="project-card-cert-within" className="mb-1.5 block text-[13px] font-medium text-label">
+                หนังสือรับรองออกภายใน
+              </label>
+              <select
+                id="project-card-cert-within"
+                name="certWithin"
+                defaultValue={certWithin !== undefined ? String(certWithin) : ""}
+                className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+              >
+                <option value="">ไม่กำหนด</option>
+                {CERTIFICATE_AGE_OPTIONS.map((years) => (
+                  <option key={years} value={years}>
+                    {years} ปี
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <Button type="submit" variant="dark" className="h-[52px]" data-tour="search-button">
             ค้นหา
           </Button>
@@ -371,6 +425,7 @@ export default async function ProjectCardPage({
               budgetNote: card.budgetNote,
               budgetVerified: card.budgetVerified,
               year: card.year,
+              certificateDate: card.certificateDate ? certificateDateValue(card.certificateDate) : null,
               category: card.category,
               tags: card.tags,
               workTypes: card.workTypes,

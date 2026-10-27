@@ -19,7 +19,8 @@ ProjectCardInput wire shape, e.g.:
         "budgetSource": "certificate",
         "vatStatus": "included",
         "budgetNote": "",
-        "year": 2022
+        "year": 2022,
+        "certificateDate": "2022-08-15"
       }
     ]
 

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { validateClassification, validateWorkTypes } from "@/lib/project-card";
 import { loadTaxonomy } from "@/lib/project-card-terms";
+import { certificateDateValue, parseCertificateDate } from "@/lib/project-card-certificate-date";
 
 // Confirms (and optionally corrects) an AI-extracted budget — see
 // app/(app)/project-card/CONTEXT.md's Budget entry. Once verified, a
@@ -59,6 +60,7 @@ const FIELD_LABEL: Record<string, string> = {
   category: "หมวดหลัก",
   tags: "หมวดหมู่รอง",
   workTypes: "ลักษณะงาน",
+  certificateDate: "วันที่ลงรับรอง",
 };
 
 const MAX_TEXT_LENGTH = 5000;
@@ -70,7 +72,8 @@ const MAX_TEXT_LENGTH = 5000;
 // Category/Tags/Work Types are compared with what's stored: only an actual change
 // marks the classification as edited by a person, after which a push never
 // overwrites it (CONTEXT.md's Description Source entry). The same goes for
-// the Description: a change to either language sets its source to `manual`.
+// the Description: a change to either language sets its source to `manual`,
+// and the Certificate Date ("YYYY-MM-DD", or null to clear it).
 export async function updateProjectCardDetails(
   id: string,
   input: {
@@ -81,6 +84,7 @@ export async function updateProjectCardDetails(
     category?: string | null;
     tags?: string[];
     workTypes?: string[];
+    certificateDate?: string | null;
   },
 ): Promise<void> {
   const actor = await requireAccess("project-card-edit");
@@ -105,6 +109,8 @@ export async function updateProjectCardDetails(
       category: true,
       tags: true,
       workTypes: true,
+      certificatePath: true,
+      certificateDate: true,
     },
   });
   const descriptionChanged =
@@ -123,6 +129,17 @@ export async function updateProjectCardDetails(
       classification = { ...categoryAndTags, workTypes, classificationEditedByPerson: true };
     }
   }
+  // A Certificate Date belongs to a Work Certificate (CONTEXT.md), so a card
+  // without one can't be given a date.
+  let certificateDate: Date | null | undefined;
+  if (input.certificateDate !== undefined) {
+    certificateDate = input.certificateDate === null ? null : parseCertificateDate(input.certificateDate);
+    if (certificateDate === null && input.certificateDate !== null) throw new Error("วันที่ลงรับรองไม่ถูกต้อง");
+    if (certificateDate !== null && existing.certificatePath === null) throw new Error("โครงการนี้ไม่มีหนังสือรับรอง");
+  }
+  const storedDate = existing.certificateDate ? certificateDateValue(existing.certificateDate) : null;
+  const newDate = certificateDate ? certificateDateValue(certificateDate) : null;
+  const certificateDateChanged = certificateDate !== undefined && newDate !== storedDate;
   await prisma.projectCard.update({
     where: { id },
     data: {
@@ -133,6 +150,9 @@ export async function updateProjectCardDetails(
         : {}),
       budgetNote,
       ...classification,
+      // Same as the Description: clearing the date leaves nothing to
+      // protect, so a later push may fill it again.
+      ...(certificateDateChanged ? { certificateDate, certificateDateEditedByPerson: certificateDate !== null } : {}),
       ...(budgetAmount === undefined
         ? {}
         : { budgetAmount, budgetVerified: true, budgetVerifiedAt: new Date(), budgetVerifiedById: actor.id }),
@@ -159,6 +179,7 @@ export async function updateProjectCardDetails(
   if (classification.workTypes && !sameSet(classification.workTypes, existing.workTypes)) {
     record("workTypes", existing.workTypes, classification.workTypes);
   }
+  if (certificateDateChanged) record("certificateDate", storedDate, newDate);
   const changed = Object.keys(after);
   if (changed.length) {
     const budgetText =

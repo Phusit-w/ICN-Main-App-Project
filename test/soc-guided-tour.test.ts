@@ -275,7 +275,7 @@ test("every control the ค้นหาโครงการ tour points at is o
   setWidth(800);
   const { default: ProjectCardPage } = await import("@/app/(app)/project-card/page");
   const view = render(await ProjectCardPage({ searchParams: Promise.resolve({}) }));
-  assert.equal(PROJECT_CARD_TOUR.length, 8);
+  assert.equal(PROJECT_CARD_TOUR.length, 9);
   assertTourTargets(view.container, PROJECT_CARD_TOUR.map((step) => step.target));
   assert.ok(view.getByRole("button", { name: "แนะนำการใช้งาน" }));
 });

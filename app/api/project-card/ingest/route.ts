@@ -86,6 +86,8 @@ export async function POST(request: Request) {
   let skippedPersonClassification = 0;
   // And for a Description a person edited (Description Source `manual`).
   let skippedManualDescription = 0;
+  // And for a Certificate Date a person set.
+  let skippedPersonCertificateDate = 0;
 
   // Prisma's interactive-transaction default timeout (5000ms) isn't enough
   // once the batch is large: the real PS share crawl pushes 100s of records
@@ -115,6 +117,7 @@ export async function POST(request: Request) {
             vatStatus: project.vatStatus,
             budgetNote: project.budgetNote,
             year: project.year,
+            certificateDate: project.certificateDate,
             category: project.category,
             tags: project.tags,
             workTypes: project.workTypes,
@@ -130,6 +133,7 @@ export async function POST(request: Request) {
       if (existing.classificationEditedByPerson && sendsClassification) skippedPersonClassification++;
       const descriptionIsManual = existing.descriptionSource === "manual";
       if (descriptionIsManual && project.descriptionSource !== null) skippedManualDescription++;
+      if (existing.certificateDateEditedByPerson && project.certificateDate !== null) skippedPersonCertificateDate++;
       await tx.projectCard.update({
         where: { projectCode: project.projectCode },
         data: {
@@ -155,6 +159,9 @@ export async function POST(request: Request) {
           projectFolderPath: preserveIfNull(existing.projectFolderPath, project.projectFolderPath),
           budgetNote: preserveIfBlank(existing.budgetNote, project.budgetNote),
           year: preserveIfNull(existing.year, project.year),
+          ...(existing.certificateDateEditedByPerson
+            ? {}
+            : { certificateDate: preserveIfNull(existing.certificateDate, project.certificateDate) }),
           // budgetAmount/budgetSource/vatStatus travel together as one unit
           // (CONTEXT.md's Budget entry: a figure, where it came from, and
           // its VAT status are never presented separately). Once a person
@@ -193,6 +200,7 @@ export async function POST(request: Request) {
       skippedVerifiedBudget,
       skippedPersonClassification,
       skippedManualDescription,
+      skippedPersonCertificateDate,
       projectCodes: validated.map((p) => p.projectCode),
       errors,
     },
@@ -204,6 +212,7 @@ export async function POST(request: Request) {
     skippedVerifiedBudget,
     skippedPersonClassification,
     skippedManualDescription,
+    skippedPersonCertificateDate,
     rejected: errors.length,
     errors,
   });

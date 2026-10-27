@@ -72,6 +72,10 @@ _Avoid_: Comment, remark
 The year a project's Contract was signed — not its delivery/acceptance date or the date a Work Certificate was issued, since those can trail signing by years and aren't reliably present on every project. Read from whichever document, Contract or Work Certificate, states it.
 _Avoid_: Fiscal year, contract year
 
+**Certificate Date**:
+The date written on a project's Work Certificate as the letter's own date (ลงวันที่) — not the delivery or acceptance date its text may mention, and not the date ICN received it. Lets a user tell how old a piece of past work is, since a TOR often only accepts work certified within the last few years. Blank when the project has no Work Certificate, or when no date can be read from it — never guessed. Different from Year, which is when the Contract was signed.
+_Avoid_: Issue date, certification date, acceptance date
+
 **Superseding Version**:
 When a project's Contract or Work Certificate collection holds multiple documents and one explicitly states it replaces an earlier one (e.g. a version marked "ออกทดแทน" the original), that document is used as the source of truth and the one it replaces is not. When no document states such a relationship, the multiple versions are surfaced for a person to pick instead — never guessed.
 _Avoid_: Revision, amendment, latest version
