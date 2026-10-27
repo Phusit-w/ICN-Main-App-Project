@@ -177,6 +177,47 @@ export default async function ProjectCardPage({
   // A card with no Certificate Date can't be shown to be recent enough, so it drops out.
   if (certWithin !== undefined) filters.push({ certificateDate: { gte: certificateDatedSince(certWithin) } });
 
+  // The filters in use, each as a chip whose × drops just that filter and
+  // keeps the rest (the search box itself isn't a chip: it stays in view).
+  const currentParams = new URLSearchParams();
+  for (const [key, value] of Object.entries({
+    q: query, client, category: categoryText, workType: workTypeText,
+    yearFrom: yearFromParam, yearTo: yearToParam, budgetMin: budgetMinParam, budgetMax: budgetMaxParam,
+    certWithin: certWithin !== undefined ? String(certWithin) : undefined,
+  })) {
+    if (value) currentParams.set(key, value);
+  }
+  for (const d of docs) currentParams.append("doc", d);
+  const without = (key: string, value?: string) => {
+    const next = new URLSearchParams(currentParams);
+    next.delete(key, value);
+    const qs = next.toString();
+    return qs ? `/project-card?${qs}` : "/project-card";
+  };
+  const withoutRange = (from: string, to: string) => {
+    const next = new URLSearchParams(currentParams);
+    next.delete(from);
+    next.delete(to);
+    const qs = next.toString();
+    return qs ? `/project-card?${qs}` : "/project-card";
+  };
+  const range = (from: number | undefined, to: number | undefined, unit: string, fromWord: string, toWord: string) =>
+    from !== undefined && to !== undefined ? `${unit} ${from}–${to}` : from !== undefined ? `${fromWord} ${from}` : `${toWord} ${to}`;
+  const chips: { label: string; href: string }[] = [
+    ...(client ? [{ label: `ลูกค้า: ${client}`, href: without("client") }] : []),
+    ...(categoryText ? [{ label: `หมวดหมู่: ${categoryDisplay}`, href: without("category") }] : []),
+    ...(workTypeText ? [{ label: `ลักษณะงาน: ${workTypeDisplay}`, href: without("workType") }] : []),
+    ...(yearFrom !== undefined || yearTo !== undefined
+      ? [{ label: range(yearFrom, yearTo, "ปี", "ตั้งแต่ปี", "ถึงปี"), href: withoutRange("yearFrom", "yearTo") }]
+      : []),
+    ...(budgetMin !== undefined || budgetMax !== undefined
+      ? [{ label: `${range(budgetMin, budgetMax, "งบ", "งบมากกว่า", "งบน้อยกว่า")} ล้านบาท`, href: withoutRange("budgetMin", "budgetMax") }]
+      : []),
+    ...(wantsContract ? [{ label: "มีสัญญา", href: without("doc", "contract") }] : []),
+    ...(wantsCertificate ? [{ label: "มีหนังสือรับรอง", href: without("doc", "certificate") }] : []),
+    ...(certWithin !== undefined ? [{ label: `หนังสือรับรองออกภายใน ${certWithin} ปี`, href: without("certWithin") }] : []),
+  ];
+
   const [matchedCards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
     prisma.projectCard.findMany({
       where: filters.length ? { AND: filters } : undefined,
@@ -227,8 +268,8 @@ export default async function ProjectCardPage({
         <SocGuidedTour tourId="project-card" steps={PROJECT_CARD_TOUR} />
       </div>
 
-      <form method="get" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end gap-4">
+      <form method="get" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div data-tour="search" className="min-w-[240px] flex-1">
             <Field
               label="ค้นหา"
@@ -238,168 +279,204 @@ export default async function ProjectCardPage({
               placeholder="เช่น Solarcell, RFID, MEA"
             />
           </div>
-          <div data-tour="client" className="w-[150px]">
-            <label className="mb-1.5 block text-[13px] font-medium text-label">ลูกค้า</label>
-            <input
-              name="client"
-              list="project-card-clients"
-              defaultValue={client}
-              placeholder="ทุกลูกค้า"
-              autoComplete="off"
-              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-            />
-            <datalist id="project-card-clients">
-              {clientOptions(availableClients).map(([c, count]) => (
-                <option key={c} value={c} label={`${count.toLocaleString("th-TH")} โครงการ`} />
-              ))}
-            </datalist>
-          </div>
-          <div data-tour="years" className="w-[120px]">
-            <label htmlFor="project-card-year-from" className="mb-1.5 block text-[13px] font-medium text-label">
-              ตั้งแต่ปี
-            </label>
-            <input
-              id="project-card-year-from"
-              name="yearFrom"
-              list="project-card-years"
-              inputMode="numeric"
-              defaultValue={yearFrom !== undefined ? String(yearFrom) : ""}
-              placeholder="เช่น 2020"
-              autoComplete="off"
-              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-            />
-          </div>
-          <div className="w-[120px]">
-            <label htmlFor="project-card-year-to" className="mb-1.5 block text-[13px] font-medium text-label">
-              ถึงปี
-            </label>
-            <input
-              id="project-card-year-to"
-              name="yearTo"
-              list="project-card-years"
-              inputMode="numeric"
-              defaultValue={yearTo !== undefined ? String(yearTo) : ""}
-              placeholder="เช่น 2024"
-              autoComplete="off"
-              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-            />
-            <datalist id="project-card-years">
-              {availableYears.map(({ year: y }) => (
-                <option key={y} value={y ?? ""} />
-              ))}
-            </datalist>
-          </div>
-          <div data-tour="budget" className="flex flex-wrap items-end gap-4">
-            <CommaNumberField
-              label="งบมากกว่า (ล้านบาท)"
-              name="budgetMin"
-              maxDecimals={6}
-              defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
-              placeholder="เช่น 10"
-              containerClassName="w-[180px]"
-            />
-            <CommaNumberField
-              label="งบน้อยกว่า (ล้านบาท)"
-              name="budgetMax"
-              maxDecimals={6}
-              defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
-              placeholder="เช่น 100"
-              containerClassName="w-[180px]"
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-4">
-          <div data-tour="category" className="w-[280px]">
-            <label htmlFor="project-card-category" className="mb-1.5 block text-[13px] font-medium text-label">
-              หมวดหมู่
-            </label>
-            <input
-              id="project-card-category"
-              name="category"
-              list="project-card-categories"
-              defaultValue={categoryDisplay}
-              placeholder="ทุกหมวด — พิมพ์หรือเลือก"
-              autoComplete="off"
-              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-            />
-            <datalist id="project-card-categories">
-              {taxonomy.categories.map((c, i) => (
-                <option
-                  key={c.value}
-                  value={c.en}
-                  label={`${c.th} · ${categoryCounts[i].toLocaleString("th-TH")} โครงการ`}
-                />
-              ))}
-            </datalist>
-          </div>
-          <div data-tour="work-type" className="w-[240px]">
-            <label htmlFor="project-card-work-type" className="mb-1.5 block text-[13px] font-medium text-label">
-              ลักษณะงาน
-            </label>
-            <input
-              id="project-card-work-type"
-              name="workType"
-              list="project-card-work-types"
-              defaultValue={workTypeDisplay}
-              placeholder="ทุกลักษณะงาน — พิมพ์หรือเลือก"
-              autoComplete="off"
-              className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-            />
-            <datalist id="project-card-work-types">
-              {taxonomy.workTypes.map((w, i) => (
-                <option
-                  key={w.value}
-                  value={w.en}
-                  label={`${w.th} · ${workTypeCounts[i].toLocaleString("th-TH")} โครงการ`}
-                />
-              ))}
-            </datalist>
-          </div>
-          <div data-tour="documents" className="flex flex-wrap items-end gap-4">
-            <fieldset>
-              <legend className="mb-1.5 block text-[13px] font-medium text-label">เอกสารที่มี</legend>
-              <div className="flex h-[52px] items-center gap-4 text-sm text-ink">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="doc" value="contract" defaultChecked={wantsContract} className="size-4" />
-                  สัญญา
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="doc" value="certificate" defaultChecked={wantsCertificate} className="size-4" />
-                  หนังสือรับรอง
-                </label>
-              </div>
-            </fieldset>
-            <div className="w-[200px]">
-              <label htmlFor="project-card-cert-within" className="mb-1.5 block text-[13px] font-medium text-label">
-                หนังสือรับรองออกภายใน
-              </label>
-              <select
-                id="project-card-cert-within"
-                name="certWithin"
-                defaultValue={certWithin !== undefined ? String(certWithin) : ""}
-                className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
-              >
-                <option value="">ไม่กำหนด</option>
-                {CERTIFICATE_AGE_OPTIONS.map((years) => (
-                  <option key={years} value={years}>
-                    {years} ปี
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
           <Button type="submit" variant="dark" className="h-[52px]" data-tour="search-button">
             ค้นหา
           </Button>
-          {/* A plain link back to the unfiltered page: clears every box at once. */}
-          <Link
-            href="/project-card"
-            className="ui-btn inline-flex h-[52px] items-center justify-center rounded-input border border-line bg-surface px-5 text-sm font-medium text-label transition-colors hover:bg-hover hover:text-ink active:bg-line"
-          >
-            ล้างค่า
+        </div>
+        {/* Every filter but the search box, folded so the page opens on one row.
+            A plain <details>: no script, and its fields still submit with the form. */}
+        <details className="group rounded-card bg-surface shadow-card">
+          <summary data-tour="filters" className="ui-btn flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-sm font-medium text-label hover:text-ink [&::-webkit-details-marker]:hidden">
+            <span className="transition-transform group-open:rotate-90">▸</span>
+            ตัวกรอง
+            {chips.length ? (
+              <span className="rounded-full bg-ink px-2 py-0.5 text-xs text-surface">{chips.length}</span>
+            ) : null}
+            <span className="text-xs font-normal text-muted">ลูกค้า หมวดหมู่ ลักษณะงาน ปี งบประมาณ เอกสาร</span>
+          </summary>
+          <div className="flex flex-col gap-4 border-t border-line px-5 py-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="w-[150px]">
+                <label className="mb-1.5 block text-[13px] font-medium text-label">ลูกค้า</label>
+                <input
+                  name="client"
+                  list="project-card-clients"
+                  defaultValue={client}
+                  placeholder="ทุกลูกค้า"
+                  autoComplete="off"
+                  className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+                />
+                <datalist id="project-card-clients">
+                  {clientOptions(availableClients).map(([c, count]) => (
+                    <option key={c} value={c} label={`${count.toLocaleString("th-TH")} โครงการ`} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="w-[280px]">
+                <label htmlFor="project-card-category" className="mb-1.5 block text-[13px] font-medium text-label">
+                  หมวดหมู่
+                </label>
+                <input
+                  id="project-card-category"
+                  name="category"
+                  list="project-card-categories"
+                  defaultValue={categoryDisplay}
+                  placeholder="ทุกหมวด — พิมพ์หรือเลือก"
+                  autoComplete="off"
+                  className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+                />
+                <datalist id="project-card-categories">
+                  {taxonomy.categories.map((c, i) => (
+                    <option
+                      key={c.value}
+                      value={c.en}
+                      label={`${c.th} · ${categoryCounts[i].toLocaleString("th-TH")} โครงการ`}
+                    />
+                  ))}
+                </datalist>
+              </div>
+              <div className="w-[240px]">
+                <label htmlFor="project-card-work-type" className="mb-1.5 block text-[13px] font-medium text-label">
+                  ลักษณะงาน
+                </label>
+                <input
+                  id="project-card-work-type"
+                  name="workType"
+                  list="project-card-work-types"
+                  defaultValue={workTypeDisplay}
+                  placeholder="ทุกลักษณะงาน — พิมพ์หรือเลือก"
+                  autoComplete="off"
+                  className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+                />
+                <datalist id="project-card-work-types">
+                  {taxonomy.workTypes.map((w, i) => (
+                    <option
+                      key={w.value}
+                      value={w.en}
+                      label={`${w.th} · ${workTypeCounts[i].toLocaleString("th-TH")} โครงการ`}
+                    />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="w-[120px]">
+                <label htmlFor="project-card-year-from" className="mb-1.5 block text-[13px] font-medium text-label">
+                  ตั้งแต่ปี
+                </label>
+                <input
+                  id="project-card-year-from"
+                  name="yearFrom"
+                  list="project-card-years"
+                  inputMode="numeric"
+                  defaultValue={yearFrom !== undefined ? String(yearFrom) : ""}
+                  placeholder="เช่น 2020"
+                  autoComplete="off"
+                  className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+                />
+              </div>
+              <div className="w-[120px]">
+                <label htmlFor="project-card-year-to" className="mb-1.5 block text-[13px] font-medium text-label">
+                  ถึงปี
+                </label>
+                <input
+                  id="project-card-year-to"
+                  name="yearTo"
+                  list="project-card-years"
+                  inputMode="numeric"
+                  defaultValue={yearTo !== undefined ? String(yearTo) : ""}
+                  placeholder="เช่น 2024"
+                  autoComplete="off"
+                  className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+                />
+                <datalist id="project-card-years">
+                  {availableYears.map(({ year: y }) => (
+                    <option key={y} value={y ?? ""} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <CommaNumberField
+                  label="งบมากกว่า (ล้านบาท)"
+                  name="budgetMin"
+                  maxDecimals={6}
+                  defaultValue={budgetMin !== undefined ? String(budgetMin) : ""}
+                  placeholder="เช่น 10"
+                  containerClassName="w-[180px]"
+                />
+                <CommaNumberField
+                  label="งบน้อยกว่า (ล้านบาท)"
+                  name="budgetMax"
+                  maxDecimals={6}
+                  defaultValue={budgetMax !== undefined ? String(budgetMax) : ""}
+                  placeholder="เช่น 100"
+                  containerClassName="w-[180px]"
+                />
+              </div>
+            </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <fieldset>
+                  <legend className="mb-1.5 block text-[13px] font-medium text-label">เอกสารที่มี</legend>
+                  <div className="flex h-[52px] items-center gap-4 text-sm text-ink">
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" name="doc" value="contract" defaultChecked={wantsContract} className="size-4" />
+                      สัญญา
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" name="doc" value="certificate" defaultChecked={wantsCertificate} className="size-4" />
+                      หนังสือรับรอง
+                    </label>
+                  </div>
+                </fieldset>
+                <div className="w-[200px]">
+                  <label htmlFor="project-card-cert-within" className="mb-1.5 block text-[13px] font-medium text-label">
+                    หนังสือรับรองออกภายใน
+                  </label>
+                  <select
+                    id="project-card-cert-within"
+                    name="certWithin"
+                    defaultValue={certWithin !== undefined ? String(certWithin) : ""}
+                    className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm"
+                  >
+                    <option value="">ไม่กำหนด</option>
+                    {CERTIFICATE_AGE_OPTIONS.map((years) => (
+                      <option key={years} value={years}>
+                        {years} ปี
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            <div className="flex gap-2">
+              <Button type="submit" variant="dark" size="sm">
+                ใช้ตัวกรอง
+              </Button>
+            </div>
+          </div>
+        </details>
+      </form>
+
+      {chips.length ? (
+        <div data-tour="active-filters" className="-mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">ใช้อยู่:</span>
+          {chips.map((chip) => (
+            <span key={chip.label} className="inline-flex items-center gap-1 rounded-full bg-chip py-1 pl-3 pr-1 text-label">
+              {chip.label}
+              <Link
+                href={chip.href}
+                aria-label={`ลบตัวกรอง ${chip.label}`}
+                className="ui-btn inline-flex size-6 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink"
+              >
+                ×
+              </Link>
+            </span>
+          ))}
+          {/* A plain link back to the unfiltered page: clears every filter and the search at once. */}
+          <Link href="/project-card" className="ui-btn text-muted underline-offset-2 hover:text-ink hover:underline">
+            ล้างทั้งหมด
           </Link>
         </div>
-      </form>
+      ) : null}
 
       <p className="text-sm text-muted">พบ {cards.length.toLocaleString("th-TH")} โครงการ</p>
 

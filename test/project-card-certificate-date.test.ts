@@ -138,6 +138,25 @@ test("the document filter keeps cards with every ticked document", { skip }, asy
   assert.deepEqual(shown(await pageHtml({ doc: ["contract", "certificate"] })), ["PEA003"]);
 });
 
+test("each filter in use shows as a chip whose × link drops only that filter", { skip }, async () => {
+  await signIn();
+  const html = await pageHtml({ q: "fiber", client: "PEA", doc: ["contract", "certificate"], certWithin: "5", yearFrom: "2020" });
+  const chip = (label: string) => {
+    const match = new RegExp(`aria-label="ลบตัวกรอง ${label}"[^>]*href="([^"]*)"`).exec(html);
+    assert.ok(match, `chip ${label}`);
+    return new URLSearchParams(match[1].replaceAll("&amp;", "&").split("?")[1] ?? "");
+  };
+  const withoutClient = chip("ลูกค้า: PEA");
+  assert.equal(withoutClient.get("client"), null);
+  assert.equal(withoutClient.get("q"), "fiber");
+  assert.deepEqual(withoutClient.getAll("doc"), ["contract", "certificate"]);
+  assert.deepEqual(chip("มีสัญญา").getAll("doc"), ["certificate"]);
+  assert.equal(chip("หนังสือรับรองออกภายใน 5 ปี").get("certWithin"), null);
+  assert.equal(chip("ตั้งแต่ปี 2020").get("yearFrom"), null);
+  // The badge on the ตัวกรอง button counts the chips (q is the search box, not a filter).
+  assert.match(html, /▸<\/span>ตัวกรอง<span[^>]*>5<\/span>/);
+});
+
 test("the certificate-age filter keeps only cards whose Certificate Date is within those years", { skip }, async () => {
   await signIn();
   const recent = new Date();
