@@ -52,7 +52,7 @@ export default function SocGuidedTour({ tourId, steps, ready = true }: {
       onDestroyStarted: () => {
         writeStoredFlag(seenKey, true);
         instance.destroy();
-        button.current?.focus();
+        button.current?.focus({ preventScroll: true }); // the page stays where the tour left it
       },
     });
     tour.current = instance;
@@ -63,7 +63,13 @@ export default function SocGuidedTour({ tourId, steps, ready = true }: {
     if (window.innerWidth < AUTO_START_MIN_WIDTH || readStoredFlag(seenKey, false)) return;
     start();
   });
-  useEffect(() => { if (ready) autoStart(); }, [ready]);
+  // One tick later: the folded/open choice of a panel is read from this browser right after hydration,
+  // and steps inside a panel folded that way must be seen as hidden when they are resolved.
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setTimeout(autoStart, 0);
+    return () => window.clearTimeout(timer);
+  }, [ready]);
   useEffect(() => () => tour.current?.destroy(), []);
 
   return <Button ref={button} size="sm" variant="outline" onClick={start}>แนะนำการใช้งาน</Button>;
