@@ -218,10 +218,34 @@ export async function downloadSocBuild(id: string) {
   return { fileName, mimeType: DOCX_MIME, bytes: new Uint8Array(await readFile(resolveStorageKey(build.outputStorageKey))) };
 }
 
+// Deletes the build's row and its folder (TOR, template, saved pages, draft).
+// The template in the shared list is its own record and stays.
+async function removeSocBuild(build: { id: string; title: string; ownerId: string; torStorageKey: string }, actorId: string | null, note = "") {
+  await stopOcrRead(`build:${build.id}`); // no page is sent to the OCR once this returns
+  await prisma.socBuild.delete({ where: { id: build.id } });
+  await rm(resolveStorageKey(path.posix.dirname(build.torStorageKey)), { recursive: true, force: true });
+  await writeAudit({ actorId, action: "SOC_BUILD_DELETED", entityType: "SOC_BUILD", entityId: build.id, summary: `ลบ SOC ที่สร้าง ${build.title}${note}`, metadata: { title: build.title, ownerId: build.ownerId, automatic: actorId === null } });
+}
+
 export async function deleteSocBuild(id: string) {
   const { actor, build } = await authorizeSocBuild(id);
-  await stopOcrRead(`build:${id}`); // no page is sent to the OCR once this returns
-  await prisma.socBuild.delete({ where: { id } });
-  await rm(resolveStorageKey(path.posix.dirname(build.torStorageKey)), { recursive: true, force: true });
-  await writeAudit({ actorId: actor.id, action: "SOC_BUILD_DELETED", entityType: "SOC_BUILD", entityId: id, summary: `ลบ SOC ที่สร้าง ${build.title}`, metadata: { title: build.title, ownerId: build.ownerId } });
+  await removeSocBuild(build, actor.id);
+}
+
+// Every build whose 30 days (`purgeAfter`, set at creation) are over, files
+// included. Returns how many were deleted; one that fails is logged and left
+// for the next round. Run by the server at start and every few hours
+// (lib/soc-trash.ts startSocTrashPurge).
+export async function purgeExpiredSocBuilds(now = new Date(), log: (message: string) => void = console.error): Promise<number> {
+  const due = await prisma.socBuild.findMany({ where: { purgeAfter: { lte: now } }, select: { id: true, title: true, ownerId: true, torStorageKey: true } });
+  let purged = 0;
+  for (const build of due) {
+    try {
+      await removeSocBuild(build, null, " (อัตโนมัติ ครบ 30 วัน)");
+      purged += 1;
+    } catch (error) {
+      log(`[soc-builds] ลบ SOC ที่สร้าง ${build.id} ไม่สำเร็จ: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return purged;
 }

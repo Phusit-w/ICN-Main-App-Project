@@ -3,10 +3,12 @@
 // by the server (instrumentation.ts runs purgeExpiredSocJobs at start and
 // every few hours). Expense records in the trash are never purged
 // automatically: they are financial records (user decision 2026-10-08).
+// The same round deletes SOC Builds (สร้าง SOC) 30 days after they were made.
 import { rm } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { resolveStorageKey, stopScanRead } from "@/lib/soc";
+import { purgeExpiredSocBuilds } from "@/lib/soc-builds";
 import { stopTorRead } from "@/lib/soc-tor";
 
 const PURGE_EVERY_MS = 6 * 3600 * 1000;
@@ -54,6 +56,7 @@ export function startSocTrashPurge(): void {
   started = true;
   const run = () => {
     purgeExpiredSocJobs().catch((error) => console.error("[soc-trash] ล้างถังขยะไม่สำเร็จ:", error));
+    purgeExpiredSocBuilds().catch((error) => console.error("[soc-builds] ลบ SOC ที่สร้างที่ครบ 30 วันไม่สำเร็จ:", error));
   };
   setTimeout(run, FIRST_PURGE_DELAY_MS).unref();
   setInterval(run, PURGE_EVERY_MS).unref();

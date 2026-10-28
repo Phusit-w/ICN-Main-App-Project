@@ -4,9 +4,11 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done 2026-10-28
 
-- [ ] Test: a 31-day-old build and its files are removed, a 29-day-old one is kept, templates untouched
-- [ ] lint, typecheck, tests pass
+- [x] Test: a 31-day-old build and its files are removed, a 29-day-old one is kept, templates untouched
+- [x] lint, typecheck, tests pass
 
 ## Comments
+
+2026-10-28: purgeExpiredSocBuilds in lib/soc-builds.ts (row + folder, audit SOC_BUILD_DELETED with no actor), run from startSocTrashPurge (first run 1 min after start, then every 6 h). Shared templates untouched. Test in test/soc-builds.test.ts; full suite 487 pass.

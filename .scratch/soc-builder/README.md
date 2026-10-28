@@ -21,6 +21,6 @@ Spec: `spec.md`. Decisions: `DECISIONS.md` (28). ADR: `docs/adr/0011-soc-build-s
 | 04 | Create a build from a text TOR and download the draft | 01, 03 | ready-for-agent |
 | 05 | สร้าง SOC sub-menu and pages | 04 | ready-for-agent |
 | 06 | Scanned TOR build through the shared OCR queue | 04, 05 | code done (live check left) |
-| 07 | Delete builds 30 days after creation | 04 | ready-for-agent |
+| 07 | Delete builds 30 days after creation | 04 | done |
 | 08 | ให้ AI ทวนข้อความ OCR (optional, last) | 06 | ready-for-agent |
 | 09 | Measure the AI proofread on MOF and Apron | 08 | ready-for-human |

@@ -168,3 +168,33 @@ test("without SOC access creating, listing, downloading and deleting are refused
   assert.equal((await listRoute()).status, 401);
   assert.equal(await prisma.socBuild.count(), 1);
 });
+
+test("builds 30 days old are purged with their files; a younger one and the shared templates stay", { skip }, async () => {
+  const { purgeExpiredSocBuilds } = await import("@/lib/soc-builds");
+  signedIn = await user("carol");
+  const templateId = await sharedTemplate();
+  const make = async () => {
+    const { id } = await (await create({ templateId })).json();
+    return prisma.socBuild.findUniqueOrThrow({ where: { id } });
+  };
+  const [old, young] = [await make(), await make()];
+  const day = 24 * 60 * 60 * 1000;
+  // purgeAfter is set at creation to 30 days on: move the clock instead of the rows.
+  const created = old.createdAt.getTime();
+  assert.equal(Math.round((old.purgeAfter.getTime() - created) / day), 30);
+  assert.equal(await purgeExpiredSocBuilds(new Date(created + 29 * day)), 0);
+  assert.equal(await prisma.socBuild.count({ where: { id: { in: [old.id, young.id] } } }), 2);
+
+  await prisma.socBuild.update({ where: { id: young.id }, data: { purgeAfter: new Date(Date.now() + 29 * day) } });
+  await prisma.socBuild.update({ where: { id: old.id }, data: { purgeAfter: new Date(Date.now() - 1 * day) } });
+  assert.equal(await purgeExpiredSocBuilds(), 1);
+  assert.equal(await prisma.socBuild.count({ where: { id: old.id } }), 0);
+  assert.equal(existsSync(resolveStorageKey(old.torStorageKey)), false);
+  assert.equal(existsSync(resolveStorageKey(old.outputStorageKey!)), false);
+  assert.equal(await prisma.socBuild.count({ where: { id: young.id } }), 1);
+  assert.equal(existsSync(resolveStorageKey(young.torStorageKey)), true);
+  assert.equal(await prisma.socTemplate.count({ where: { id: templateId } }), 1);
+  const [entry] = await prisma.auditLog.findMany({ where: { action: "SOC_BUILD_DELETED", entityId: old.id } });
+  assert.equal(entry.actorId, null);
+  assert.match(entry.summary, /อัตโนมัติ/);
+});
