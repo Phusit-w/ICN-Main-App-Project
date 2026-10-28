@@ -55,12 +55,26 @@ test("under a ผนวก, numbering restarts at 1 under each unnumbered sub-he
   ]);
 });
 
-test("unnumbered sub-lists and a numbered list inside an item stay in the parent's row", () => {
-  const draft = build([page("๕. ข้อกำหนด\n๕.๑ สถานที่ติดตั้ง\n(ก) ชั้น ๑๘\n- ชั้น ๑๙\n๑. ห้อง ก\n๒. ห้อง ข\n๕.๒ การรับประกัน")]);
+test("a numbered list inside an item and other unnumbered lines stay in the parent's row", () => {
+  const draft = build([page("๕. ข้อกำหนด\n๕.๑ สถานที่ติดตั้ง\n(ก) ชั้น ๑๘\nและห้อง\n๑. ห้อง ก\n๒. ห้อง ข\n๕.๒ การรับประกัน")]);
   assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [
     ["๕.", "ข้อกำหนด"],
-    ["๕.๑", "สถานที่ติดตั้ง (ก) ชั้น ๑๘ - ชั้น ๑๙ ๑. ห้อง ก ๒. ห้อง ข"],
+    ["๕.๑", "สถานที่ติดตั้ง (ก) ชั้น ๑๘ และห้อง ๑. ห้อง ก ๒. ห้อง ข"],
     ["๕.๒", "การรับประกัน"],
+  ]);
+});
+
+test("a dash bullet and a ๑) or (๑) list line are rows of their own, the lines after one wrap into it", () => {
+  const draft = build([page("๓.๓ ระยะมองเห็น\n- ปกติ ๔๐๐ เมตร\nและชัดเจน\n- ซูม ๓๑ เท่า\n๓.๔ ประมวลผล\n๑) แผงวงจร\nแยก ๒ GB หรือ\n๒) หน่วยในซีพียู\n(๑) กรณีแรก\n๓.๕ หน่วยความจำ")]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [
+    ["๓.๓", "ระยะมองเห็น"],
+    ["", "ปกติ ๔๐๐ เมตร และชัดเจน"],
+    ["", "ซูม ๓๑ เท่า"],
+    ["๓.๔", "ประมวลผล"],
+    ["๑)", "แผงวงจร แยก ๒ GB หรือ"],
+    ["๒)", "หน่วยในซีพียู"],
+    ["(๑)", "กรณีแรก"],
+    ["๓.๕", "หน่วยความจำ"],
   ]);
 });
 

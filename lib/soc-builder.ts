@@ -40,6 +40,10 @@ const ITEM_LINE = /^[#*\s]*([0-9๐-๙]+(?:\.[0-9๐-๙]+)*)(\.?)(?:\s+(.*))?$
 // TOR document ("เอกสาร ผนวก ข") with the annex it names.
 const DASHED_PAGE_NUMBER = /^[-–]\s*[0-9๐-๙]+\s*[-–]$/;
 const DOCUMENT_HEADING = /^[#*\s]*เอกสาร\s*(?:ภาค)?\s*ผนวก\s*([ก-ฮ]|[0-9๐-๙]+)/;
+// A sub-line the real SOC keeps as a row of its own under the item it belongs
+// to: a dash bullet ("- มุมมองปกติ…", no item number) or a list item ("๑) …",
+// item "๑)"). Any other unnumbered line wraps the item before it.
+const SUB_LINE = /^(?:[-–•]\s+(.+)|(\(?[0-9๐-๙]+\))\s*(.*))$/;
 const XML_UNSAFE = /[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]/g;
 
 const compareNumbers = (a: number[], b: number[]) => {
@@ -130,7 +134,13 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
         current = { item: match[1] + match[2], lines: match[3] ? [match[3]] : [], heading: numbers.length === 1, page, picture: read.picture };
         rows.push(current);
       } else if (current) {
-        current.lines.push(line);
+        const sub = SUB_LINE.exec(line);
+        if (sub) {
+          current = { item: sub[2] ?? "", lines: [sub[1] ?? sub[3]].filter(Boolean), heading: false, page, picture: false };
+          rows.push(current);
+        } else {
+          current.lines.push(line);
+        }
       } else {
         looseText.add(page);
       }
