@@ -19,7 +19,7 @@ try {
 const dir = path.resolve(".scratch/tor-match/prototype/ocr/apron");
 const pages = scannedTorPages(readdirSync(dir).filter((n) => /^page-\d+\.txt$/.test(n)).sort().map((n) => readFileSync(path.join(dir, n), "utf8")));
 try {
-  const draft = buildSocDraft(bytes, pages, [[13, 39]]);
+  const draft = buildSocDraft(bytes, pages, [[Number(process.argv[4] ?? 13), Number(process.argv[5] ?? 39)]]);
   writeFileSync(out, draft.bytes);
   console.log(`built ${draft.rowCount} rows, ${draft.warnings.length} warnings ->`, out);
 } catch (error) {

@@ -86,6 +86,17 @@ test("a picture page that continues an item warns for that item", () => {
   assert.deepEqual(draft.warnings, ["ข้อ ๑.๑ (หน้า 1 ของ TOR) มีรูปภาพ กรุณาวางรูปใน Word เอง"]);
 });
 
+test("a page number between dashes is not text of the item", () => {
+  const draft = build([page("๑.๑ ก\n- ๒๖ -\nต่อ")]);
+  assert.equal(rowsOf(draft.bytes)[0][1], "ก ต่อ");
+});
+
+test("a heading that starts another TOR document ends the build there, with a warning", () => {
+  const draft = build([page("เอกสาร ภาคผนวก ก\n๑.๑ ก\n๑.๒ ข"), page("๑.๓ ค"), page("**เอกสาร ผนวก ข**\nตารางยื่นข้อเสนอ\n๑.๔ ง")]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["๑.๑", "ก"], ["๑.๒", "ข"], ["๑.๓", "ค"]]);
+  assert.deepEqual(draft.warnings.slice(1), ['ตั้งแต่หน้า 3 ของ TOR ขึ้นเอกสารใหม่ ("**เอกสาร ผนวก ข**") จึงหยุดสร้างตรงนั้น ข้อความหลังจากนี้ไม่ได้ใส่ใน SOC']);
+});
+
 test("only the chosen page ranges are built", () => {
   const pages = [page("๑.๑ ก"), page("๑.๒ ข"), page("๑.๓ ค"), page("๑.๔ ง")];
   assert.deepEqual(rowsOf(build(pages, [[2, 2], [4, 4]]).bytes).map(([item]) => item), ["๑.๒", "๑.๔"]);

@@ -36,6 +36,10 @@ type Row = { item: string; lines: string[]; heading: boolean; page: number; pict
 
 // "๔.๓.๑ …", "๕. …", "## ๕. …"; the text after the number may be empty.
 const ITEM_LINE = /^[#*\s]*([0-9๐-๙]+(?:\.[0-9๐-๙]+)*)(\.?)(?:\s+(.*))?$/;
+// A page number the TOR prints between dashes ("- ๒๗ -"), and the heading of a
+// TOR document ("เอกสาร ผนวก ข") with the annex it names.
+const DASHED_PAGE_NUMBER = /^[-–]\s*[0-9๐-๙]+\s*[-–]$/;
+const DOCUMENT_HEADING = /^[#*\s]*เอกสาร\s*(?:ภาค)?\s*ผนวก\s*([ก-ฮ]|[0-9๐-๙]+)/;
 const XML_UNSAFE = /[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]/g;
 
 const compareNumbers = (a: number[], b: number[]) => {
@@ -70,6 +74,8 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
   // unnumbered sub-heading ("ความต้องการ", "โครงสร้าง"), so there "N." is an
   // item when it restarts at 1 or follows the last number.
   let annexed = false;
+  let document: string | null = null; // the TOR document the first heading names
+  let stoppedAt: { page: number; line: string } | null = null;
 
   const accepts = (numbers: number[]): boolean => {
     const [first] = numbers;
@@ -92,6 +98,7 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
   };
 
   for (const page of pageNumbers(ranges)) {
+    if (stoppedAt) break;
     const read = pages[page - 1];
     if (!read || (!read.picture && !read.text.trim())) {
       unread.push(page);
@@ -100,7 +107,16 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
     const before = current;
     for (const raw of thaiText(read.text).split("\n")) {
       const line = raw.replace(XML_UNSAFE, "").trim();
-      if (!line) continue;
+      if (!line || DASHED_PAGE_NUMBER.test(line)) continue;
+      // Another TOR document starts (ผนวก ก, then "เอกสาร ผนวก ข"): what follows is not this SOC's.
+      const heading = DOCUMENT_HEADING.exec(line)?.[1];
+      if (heading) {
+        document ??= heading;
+        if (heading !== document && rows.length) {
+          stoppedAt = { page, line };
+          break;
+        }
+      }
       if (ANNEX_LINE.test(line)) {
         current = { item: "", lines: [line], heading: true, page, picture: read.picture };
         rows.push(current);
@@ -132,6 +148,7 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
     ...(looseText.size ? [`ข้อความก่อนข้อแรก (${named([...looseText])}) แยกเป็นข้อไม่ได้ จึงไม่ได้ใส่ใน SOC กรุณาตรวจเอง`] : []),
     ...(loosePictures.length ? [`${named(loosePictures)} ของ TOR เป็นรูปภาพก่อนข้อแรก ไม่ได้ใส่ใน SOC กรุณาตรวจเอง`] : []),
     ...rows.filter((row) => row.picture).map((row) => `${row.item ? `ข้อ ${row.item}` : row.lines[0]} (หน้า ${row.page} ของ TOR) มีรูปภาพ กรุณาวางรูปใน Word เอง`),
+    ...(stoppedAt ? [`ตั้งแต่หน้า ${stoppedAt.page} ของ TOR ขึ้นเอกสารใหม่ ("${stoppedAt.line.slice(0, 40)}") จึงหยุดสร้างตรงนั้น ข้อความหลังจากนี้ไม่ได้ใส่ใน SOC`] : []),
     ...(unread.length ? [`อ่าน ${named(unread)} ของ TOR ไม่ได้ (ไม่มีข้อความ) ข้อที่อยู่ในหน้านี้จะไม่อยู่ใน SOC`] : []),
   ];
   return { rows, warnings };
