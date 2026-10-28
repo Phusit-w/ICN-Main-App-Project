@@ -70,23 +70,30 @@ const PAGE_IMAGE_SIDE = 1800; // pixels on the long side of a page sent to OCR (
 // every page read is saved to `pagesFile` (one JSON line per page) as it
 // arrives, so a read that stopped goes on from the saved pages and never sends
 // a page twice. `readPage` is the scanned SOC's cell reader, given the page.
-export async function readScannedTor(pdf: Uint8Array, pagesFile: string, readPage: CellReader, onPage?: (done: number, total: number) => void | Promise<void>): Promise<TorPage[]> {
+export async function readScannedTor(pdf: Uint8Array, pagesFile: string, readPage: CellReader, onPage?: (done: number, total: number) => void | Promise<void>, only?: readonly number[]): Promise<TorPage[]> {
   const saved = await loadPages(pagesFile);
   const document = mupdf.Document.openDocument(pdf, "application/pdf");
   try {
     const total = document.countPages();
+    // `only`: the page numbers to read (a build reads its chosen pages); the others are left unread and empty.
+    const wanted = only && new Set(only);
+    const numbers = Array.from({ length: total }, (_, index) => index + 1).filter((number) => !wanted || wanted.has(number));
     const texts: (string | null)[] = [];
-    for (let index = 0; index < total; index++) {
-      const number = index + 1;
+    for (const number of numbers) {
       if (!saved.has(number)) {
-        const text = await readPage(pageImage(document, index), { page: number, row: 0, column: 0 });
+        const text = await readPage(pageImage(document, number - 1), { page: number, row: 0, column: 0 });
         await appendFile(pagesFile, `${JSON.stringify({ page: number, text })}\n`);
         saved.set(number, text);
       }
       texts.push(saved.get(number) ?? null);
-      await onPage?.(number, total);
+      await onPage?.(texts.length, numbers.length);
     }
-    return scannedTorPages(texts);
+    // Page headers and signature blocks are found among the pages read only.
+    const read = scannedTorPages(texts);
+    if (!wanted) return read;
+    const pages: TorPage[] = Array.from({ length: total }, () => ({ text: "", picture: false }));
+    numbers.forEach((number, at) => { pages[number - 1] = read[at]; });
+    return pages;
   } finally {
     document.destroy();
   }

@@ -30,6 +30,7 @@ let storageRoot = "";
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "soc-storage-"));
   process.env.SOC_STORAGE_ROOT = storageRoot;
+  delete process.env.TYPHOON_API_KEY;
 });
 after(() => rm(storageRoot, { recursive: true, force: true }));
 
@@ -119,7 +120,7 @@ test("a bad range, a range past the last page, no range, a scanned or broken TOR
     [{}, 400, /กรุณาเลือกเทมเพลต/],
     [{ template: TEMPLATE, tor: null }, 400, /กรุณาเลือกไฟล์ PDF ของ TOR/],
     [{ template: TEMPLATE, tor: new TextEncoder().encode("not a pdf") }, 400, /PDF/],
-    [{ template: TEMPLATE, tor: buildTablePdf([1, 2, 3].map(() => ({ columns: [], rows: [], scanned: true }))) }, 400, /ไฟล์สแกน/],
+    [{ template: TEMPLATE, tor: buildTablePdf([1, 2, 3].map(() => ({ columns: [], rows: [], scanned: true }))) }, 400, /TYPHOON_API_KEY/], // a scanned TOR needs the OCR key (and the confirm)
     [{ template: TEMPLATE, pageRanges: "1", tor: buildTablePdf([torPage("ข้อความทั่วไป ไม่มีเลขข้อ")]) }, 400, /ไม่พบข้อที่มีเลขกำกับ/],
   ];
   for (const [fields, status, message] of cases) {

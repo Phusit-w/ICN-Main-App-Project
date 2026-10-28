@@ -576,6 +576,8 @@ model SocBuild {
   pageRangeList       Json
   pagesDone           Int       @default(0)
   pagesTotal          Int?
+  // What a read in progress is doing: "รอคิวที่ N" or "กำลังอ่านหน้า a/b" (scanned TOR only).
+  stage               String?
   errorMessage        String?
   // What the user is told about the draft (strings), and its row count.
   warnings            Json?

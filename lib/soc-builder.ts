@@ -54,7 +54,7 @@ const compareNumbers = (a: number[], b: number[]) => {
   return a.length - b.length;
 };
 
-function pageNumbers(ranges: readonly PageRange[]): number[] {
+export function pageNumbers(ranges: readonly PageRange[]): number[] {
   const pages = new Set<number>();
   for (const [from, to] of ranges) {
     if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) throw new Error(`ช่วงหน้า ${from}-${to} ไม่ถูกต้อง`);
@@ -301,7 +301,7 @@ function fillCell(cell: string, lines: string[], look: CellLook = {}): string {
   const paragraph = /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/.exec(content)?.[1] ?? "";
   const pPr = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(paragraph)?.[0] ?? "";
   // The font is the first run's; an empty cell has only its paragraph mark's.
-  let rPr = /<w:r(?:\s[^>]*)?>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/.exec(paragraph)?.[1] ?? /<w:rPr>[\s\S]*?<\/w:rPr>/.exec(pPr)?.[0] ?? "";
+  const rPr = /<w:r(?:\s[^>]*)?>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/.exec(paragraph)?.[1] ?? /<w:rPr>[\s\S]*?<\/w:rPr>/.exec(pPr)?.[0] ?? "";
   const runText = (line: string) => `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`;
   const paragraphPr = look.centre ? centred(pPr) : pPr;
   const run = (text: string, first: boolean) => (text ? `<w:r>${styledRPr(rPr, { bold: look.bold, underline: look.underline && first })}${text}</w:r>` : "");

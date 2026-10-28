@@ -147,6 +147,9 @@ export function majorItemProgress(items: readonly { state: string; skipped?: boo
   return { checked, total: counted.length, percent: counted.length ? Math.round((checked / counted.length) * 100) : 0 };
 }
 
+// Shown on a build made from a scanned TOR: the OCR reads it, and not always right.
+export const SOC_BUILD_OCR_BETA_NOTE = "Beta: TOR นี้เป็นไฟล์สแกน อ่านด้วย OCR (Typhoon) ซึ่งยังไม่แม่นยำ 100% ทวนทุกข้อเทียบ TOR จริงก่อนใช้งาน ตัวเลข หน่วย และคำบางคำอาจอ่านผิด ระบบไม่ได้ใส่รูปภาพลงในไฟล์ Word";
+
 // The status of a SOC Build (SocBuild.status) as the สร้าง SOC pages show it.
 export const SOC_BUILD_STATUS_LABELS: Record<string, string> = { QUEUED: "รอคิว", READING: "กำลังอ่าน TOR", READY: "พร้อมดาวน์โหลด", FAILED: "อ่านไม่สำเร็จ", CANCELLED: "ยกเลิกแล้ว" };
 

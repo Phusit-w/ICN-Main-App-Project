@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker, { readUploadResponse } from "@/components/SocFilePicker";
 import { MAX_EVIDENCE_FILE_BYTES, SOC_TITLE_MAX } from "@/lib/soc-shared";
 
@@ -14,6 +15,7 @@ export default function SocBuildForm({ templates }: { templates: Template[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [confirmDialog, confirm] = useConfirmDialog();
   const [tor, setTor] = useState<File[]>([]);
   const [pageRanges, setPageRanges] = useState("");
   const [title, setTitle] = useState("");
@@ -50,8 +52,16 @@ export default function SocBuildForm({ templates }: { templates: Template[] }) {
         if (title.trim()) form.set("title", title.trim());
         if (useTemplateId) form.set("templateId", useTemplateId);
         else form.set("template", uploaded[0]);
-        const response = await fetch("/api/soc/builds", { method: "POST", body: form });
-        const body = await readUploadResponse<{ id?: string; error?: string }>(response);
+        let response = await fetch("/api/soc/builds", { method: "POST", body: form });
+        let body = await readUploadResponse<{ id?: string; error?: string; needsOcrConfirm?: boolean }>(response);
+        if (body.needsOcrConfirm) {
+          // A scanned TOR goes to an outside OCR service: ask every time; cancel stores and sends nothing.
+          const yes = await confirm({ title: "ไฟล์นี้จะส่งไป OCR ภายนอก (Beta)", message: "TOR นี้เป็น PDF แบบสแกน ระบบจะส่งภาพของหน้าที่คุณเลือกไปอ่านที่บริการ OCR ภายนอก (Typhoon) อ่านในเบื้องหลังต่อคิวหลังงานอ่านอื่น (ประมาณ 2 วินาทีต่อหน้า) แล้วจึงสร้างไฟล์ Word ผลอ่านจาก OCR ยังไม่แม่นยำ 100% ต้องทวนทุกข้อเทียบ TOR จริง ต้องการดำเนินการต่อหรือไม่", confirmLabel: "ยืนยันและส่ง OCR" });
+          if (!yes) return;
+          form.set("ocrConfirmed", "1");
+          response = await fetch("/api/soc/builds", { method: "POST", body: form });
+          body = await readUploadResponse<{ id?: string; error?: string; needsOcrConfirm?: boolean }>(response);
+        }
         if (!response.ok || !body.id) throw new Error(body.error || "สร้าง SOC ไม่สำเร็จ");
         router.push(`/soc/builds/${body.id}`);
         router.refresh();
@@ -71,7 +81,8 @@ export default function SocBuildForm({ templates }: { templates: Template[] }) {
 
   return (
     <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="flex flex-col gap-6">
-      <Section number="1" title="TOR และช่วงหน้า" description="PDF ที่เลือกข้อความได้ (TOR สแกนยังสร้างไม่ได้ตอนนี้) พิมพ์ช่วงหน้าที่เป็นส่วนข้อกำหนด เช่น 12-40, 55-60">
+      {confirmDialog}
+      <Section number="1" title="TOR และช่วงหน้า" description="PDF ข้อความ หรือ PDF สแกน (อ่านด้วย OCR ภายนอก Beta จะถามยืนยันก่อน) พิมพ์ช่วงหน้าที่เป็นส่วนข้อกำหนด เช่น 12-40, 55-60">
         <div className="flex flex-col gap-5">
           <SocFilePicker files={tor} onChange={setTor} disabled={pending} label="เลือกไฟล์ PDF ของ TOR" accept=".pdf,application/pdf" />
           <label className="flex max-w-md flex-col gap-2 text-sm font-medium">ช่วงหน้าของ TOR

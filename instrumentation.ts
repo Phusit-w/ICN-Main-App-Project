@@ -7,10 +7,12 @@ export async function register() {
     const { startSocTrashPurge } = await import("@/lib/soc-trash");
     startSocTrashPurge();
     // A scanned PDF SOC that was being read when the server stopped goes on from its saved cells,
-    // and a scanned TOR ต้นฉบับ from its saved pages, after them in the OCR line.
+    // a scanned TOR ต้นฉบับ from its saved pages, and a scanned TOR build from its saved pages, after them in the OCR line.
     const { resumeScanReads } = await import("@/lib/soc");
     const { resumeTorReads } = await import("@/lib/soc-tor");
+    const { resumeBuildReads } = await import("@/lib/soc-builds");
     resumeScanReads().catch((error) => console.error("Resuming scanned PDF SOC reads failed", error))
-      .then(() => resumeTorReads()).catch((error) => console.error("Resuming scanned TOR reads failed", error));
+      .then(() => resumeTorReads()).catch((error) => console.error("Resuming scanned TOR reads failed", error))
+      .then(() => resumeBuildReads()).catch((error) => console.error("Resuming scanned TOR builds failed", error));
   }
 }
