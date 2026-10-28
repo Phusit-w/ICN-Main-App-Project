@@ -5,29 +5,29 @@ Shared vocabulary for the SOC checker and its semantic review layer. Referenced 
 [ADR-SOC-AUTO-PASS-POLICY](adr/ADR-SOC-AUTO-PASS-POLICY.md),
 [SOC-ACCURACY-ACCEPTANCE](SOC-ACCURACY-ACCEPTANCE.md).
 
-## Table builder inputs and output
+## สร้าง SOC (SOC Builder)
 
-These terms describe the table-builder scope established in
-`SOC-TABLE-BUILDER-WEB-GRILL-2026-09-09.md`; release behavior and job-model choices remain open.
+Decisions: `.scratch/soc-builder/DECISIONS.md` (grill 2026-10-27).
+
+**สร้าง SOC (SOC Build)**:
+One run that turns the chosen pages of a TOR PDF into a Generated SOC Draft using a SOC Template. It lives in the SOC app but is separate from the SOC check: it is not a check job, has no results or confirmation, and appears in its own list. Splitting the TOR into rows is done by code; AI is never required. Kept 30 days.
+_Avoid_: SOC Build Job, build mode, SOC check
 
 **TOR PDF**:
-The PDF containing the procurement requirements from which the SOC table is prepared.
-_Avoid_: Evidence PDF, catalog
+The PDF, text or scanned, that a SOC Build reads its requirements from. Only the page ranges the user types are read; a scanned one is read by the external OCR after the user confirms.
+_Avoid_: TOR ต้นฉบับ (that is the TOR attached to a check job), Evidence PDF, catalog
 
 **SOC Template**:
-A blank Word document containing the table to be populated with requirement numbers and requirement content.
+A blank Word SOC table in a customer's own layout, whose item-number and TOR columns are found the same way the SOC check finds them. Either picked from the SOC app's template list or uploaded for one build. A template whose columns can't be found is refused.
+_Avoid_: blank SOC, form
 
 **Generated SOC Draft**:
-The builder's Word output containing extracted TOR requirements and any included table images. Generation alone does not mean that bidder proposal fields, references, or compliance declarations are complete or verified.
+The Word file a SOC Build produces: the template with one row per numbered TOR item (copies of the template's last empty row), each major item starting with a bold heading row, offer/reference/remark columns left empty. It comes with warnings (items that couldn't be split, pictures to paste by hand, unread pages). From a scanned TOR it is Beta: every row must be read against the real TOR. A draft is not a checked or approved SOC.
 _Avoid_: Checked SOC, approved SOC
 
-**SOC Build Job**:
-A queued SOC job that prepares a Generated SOC Draft from a TOR PDF and SOC Template. It does not produce compliance findings or require row-by-row compliance confirmation.
-_Avoid_: SOC check, compliance review
-
-**Extraction Manifest**:
-The versioned record of extracted requirement blocks, their original source locations, extraction methods, and warnings used to create a Generated SOC Draft.
-_Avoid_: Compliance result, audit verdict
+**ทวนข้อความ OCR (OCR proofread)**:
+An optional step on a SOC Build from a scanned TOR: the user's SOC Runner shows AI the page images with the OCR text, the AI returns only corrections, and the build applies them and lists each one.
+_Avoid_: TOR Match, AI OCR
 
 ## Reviewer-run checks (ADR 0008)
 
@@ -109,6 +109,26 @@ _Avoid_: PDF check, converted SOC
 **Scanned PDF SOC**:
 A PDF SOC whose table pages are images with no text layer. On upload the user must confirm that the file is sent to an external OCR service. The job exists at once in the status "กำลังอ่านตาราง" and shows progress; its check buttons stay off until the read finishes, then it becomes an Excel SOC like any PDF SOC. Scanned jobs are read one at a time ("รอคิวที่ N"). Cancel or delete stops the read. A failed read is "อ่านตารางไม่สำเร็จ" with a resume button. A table drawn inside a TOR cell is kept as multi-line text in that cell. A page whose grid cannot be cut is skipped and named; if more than half of the table pages fail, the file is refused. A PDF with both text and scanned table pages is read per page. See ADR 0010.
 _Avoid_: OCR SOC
+
+## TOR Match (ตรวจ TOR ตรงต้นฉบับ)
+
+**TOR ต้นฉบับ (Source TOR)**:
+The procurement TOR PDF a reviewer attaches to a SOC job to compare the SOC's TOR text against. One per job; attaching another replaces it and clears its TOR Match result. A scanned one is read by the same external OCR as a Scanned PDF SOC, after the user confirms.
+_Avoid_: TOR PDF (that is the SOC Build Job's input), TOR alone
+
+**ข้อความ TOR ใน SOC (SOC TOR text)**:
+The text in a SOC row's TOR column: what the SOC claims the requirement says.
+_Avoid_: TOR (ambiguous with the TOR ต้นฉบับ)
+
+**TOR Match (ตรวจ TOR ตรงต้นฉบับ)**:
+The comparison of every SOC row's TOR text with the TOR ต้นฉบับ, row by row in TOR order and matched by text (not by item number), only within the major items the SOC covers, including those set to ไม่ต้องตรวจ (that flag is about the datasheet check). An Image Row is always ยืนยันไม่ได้. It is a report, not a check: no Final Decision, no confirmation, and it does not touch the datasheet check. Code compares first; only rows that still differ can be sent to Claude on the reviewer's SOC Runner to judge. Each item ends in one of: **ตรง**, **ต่างแค่รูปแบบ** (digits, punctuation, line breaks), **ความหมายต่าง** (a word, number or condition changed), **ไม่พบใน SOC** (a TOR item missing from the SOC), **ไม่พบใน TOR** (a SOC row the TOR doesn't have), **ยืนยันไม่ได้** (unmatched or unreadable; the reviewer looks).
+_Avoid_: ตรวจ TOR, TOR check (ตรวจ means the datasheet check)
+
+## Help
+
+**แนะนำการใช้งาน (Guided Tour)**:
+A short series of Thai popups, each pointing at a real control on one SOC page and saying what it does. One per page (the job list, new job, a job, and the full-screen review workspace). It opens on its own the first time a user reaches that page on a desktop (on a job, only once its major items are showing), and again whenever they press the page's แนะนำการใช้งาน button. Closing it in any way counts as seen for that page only; the others still open on their own. It only points; it never clicks anything for the user, and it skips a control that isn't on the screen right now.
+_Avoid_: tutorial, onboarding, tooltip (a tooltip is the browser's hover text)
 
 ## Core objects
 
