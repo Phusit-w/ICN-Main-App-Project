@@ -460,9 +460,9 @@ export default async function ProjectCardPage({
         </details>
       </form>
 
-      {chips.length ? (
+      {chips.length || query ? (
         <div data-tour="active-filters" className="-mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted">ใช้อยู่:</span>
+          {chips.length ? <span className="text-muted">ใช้อยู่:</span> : null}
           {chips.map((chip) => (
             <span key={chip.label} className="inline-flex items-center gap-1 rounded-full bg-chip py-1 pl-3 pr-1 text-label">
               {chip.label}
@@ -475,7 +475,8 @@ export default async function ProjectCardPage({
               </Link>
             </span>
           ))}
-          {/* A plain link back to the unfiltered page: clears every filter and the search at once. */}
+          {/* A plain link back to the unfiltered page: clears every filter and the search at once.
+              Shown for a search with no filters too, so a typed query always has a way out. */}
           <Link href="/project-card" className="ui-btn text-muted underline-offset-2 hover:text-ink hover:underline">
             ล้างทั้งหมด
           </Link>
