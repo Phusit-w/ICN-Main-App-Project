@@ -28,13 +28,18 @@ export async function listSocTemplates() {
   return templates.map(({ id, name, originalName, sizeBytes, addedById, addedBy, createdAt }) => ({ id, name, originalName, sizeBytes, addedById, addedByName: addedBy.displayName, createdAt }));
 }
 
+// Throws, with a message for the user, when a file can't be a SOC Template: not a .docx, too big, or a table the builder can't fill.
+export function assertTemplateFile(file: { name: string; bytes: Uint8Array }): void {
+  if (path.extname(file.name).toLowerCase() !== ".docx" || !magicIsDocx(file.bytes)) throw new Error(NOT_DOCX);
+  if (file.bytes.byteLength > MAX_SOC_FILE_BYTES) throw new Error(`ไฟล์ ${file.name} ต้องมีขนาดไม่เกิน 25 MB`);
+  assertSocTemplate(file.bytes);
+}
+
 // Adds a template; a file the builder can't use is refused with the message that names the problem.
 export async function addSocTemplate(actor: SocActor, input: { name: unknown; file: { name: string; bytes: Uint8Array } }) {
   const name = cleanTemplateName(input.name);
   const { file } = input;
-  if (path.extname(file.name).toLowerCase() !== ".docx" || !magicIsDocx(file.bytes)) throw new Error(NOT_DOCX);
-  if (file.bytes.byteLength > MAX_SOC_FILE_BYTES) throw new Error(`ไฟล์ ${file.name} ต้องมีขนาดไม่เกิน 25 MB`);
-  assertSocTemplate(file.bytes);
+  assertTemplateFile(file);
   const id = randomUUID();
   const stored = await storeSocFile(`templates/${id}`, file.name, ".docx", file.bytes);
   try {
