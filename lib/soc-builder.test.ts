@@ -42,6 +42,19 @@ test("numbering restarts under every ผนวก, which starts with its own hea
   ]);
 });
 
+test("under a ผนวก, numbering restarts at 1 under each unnumbered sub-heading", () => {
+  const draft = build([page("ผนวก ๗\nความต้องการ\n1. ก\n2. ข\nโครงสร้าง\n1. ค\n2. ง\n34.8 มิลลิเมตร\nผนวก ๘\n1.1 จ")]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [
+    ["", "ผนวก ๗ ความต้องการ"],
+    ["1.", "ก"],
+    ["2.", "ข โครงสร้าง"],
+    ["1.", "ค"],
+    ["2.", "ง 34.8 มิลลิเมตร"],
+    ["", "ผนวก ๘"],
+    ["1.1", "จ"],
+  ]);
+});
+
 test("unnumbered sub-lists and a numbered list inside an item stay in the parent's row", () => {
   const draft = build([page("๕. ข้อกำหนด\n๕.๑ สถานที่ติดตั้ง\n(ก) ชั้น ๑๘\n- ชั้น ๑๙\n๑. ห้อง ก\n๒. ห้อง ข\n๕.๒ การรับประกัน")]);
   assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [

@@ -68,25 +68,27 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
   let major: number | null = null;
   let list: number | null = null;
 
+  // Under a ผนวก the TOR numbers its items from 1 again under every
+  // unnumbered sub-heading ("ความต้องการ", "โครงสร้าง"), so there "N." is an
+  // item when it restarts at 1 or follows the last number.
+  let annexed = false;
+
   const accepts = (numbers: number[]): boolean => {
+    const [first] = numbers;
     if (numbers.length === 1) {
-      const [n] = numbers;
-      if (major === null || (n > major && list !== n - 1)) {
-        major = n;
-        list = null;
-        last = numbers;
-        return true;
+      const isItem = annexed ? first === 1 || first === (last?.[0] ?? 0) + 1 : major === null || (first > major && list !== first - 1);
+      if (!isItem) {
+        list = first;
+        return false;
       }
-      list = n;
-      return false;
+    } else if (major !== null) {
+      // A dotted number is an item when it comes after the last one in the
+      // current major item, or opens the next one ("34.8 มิลลิเมตร" is not).
+      const after = first === major && last !== null && compareNumbers(numbers, last) > 0;
+      if (!(after || first === major + 1 || (annexed && first === 1))) return false;
     }
-    // A dotted number is an item when it comes after the last one, in the
-    // current major item or a later one ("2.5 เมตร" inside ข้อ ๔ is not).
-    if (major !== null && (numbers[0] < major || (numbers[0] === major && last && compareNumbers(numbers, last) <= 0))) return false;
-    if (major === null || numbers[0] > major) {
-      major = numbers[0];
-      list = null;
-    }
+    major = first;
+    list = null;
     last = numbers;
     return true;
   };
@@ -105,6 +107,7 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
         current = { item: "", lines: [line], heading: true, page, picture: read.picture };
         rows.push(current);
         last = major = list = null;
+        annexed = true;
         continue;
       }
       const match = ITEM_LINE.exec(line);
