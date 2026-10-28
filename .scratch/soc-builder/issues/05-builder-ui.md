@@ -4,10 +4,12 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** code done 2026-10-28, browser check NOT done (in-progress)
 
 - [ ] Browser check of the whole flow, light and dark, narrow screen
 - [ ] Access follows the SOC app
 - [ ] lint, typecheck, build, tests pass
 
 ## Comments
+
+2026-10-28: UI code written and committed (typecheck + lint clean): components SocSectionTabs / SocBuildForm / SocBuildDeleteButton; pages /soc/builds, /soc/builds/new, /soc/builds/[id]; tabs on /soc. NOT yet checked in a browser (light/dark/narrow), full suite + npm run build not re-run after the UI. Browser check recipe: scratch DB test-db32 (port 51821, public schema migrated, demo login demo / demo-pass-1 via .scratch/soc-builder/dev/seed-demo.ts with SCRATCH_DATABASE_URL), dev server: DATABASE_URL=<that URL> SOC_STORAGE_ROOT=C:/Phusit/soc-builder-samples/demo-storage npx next dev --webpack -p 3100. If test-db32 is gone, start a fresh one (test-db33) and repeat: CREATE SCHEMA public, prisma migrate deploy with &schema=public, seed-demo.

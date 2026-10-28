@@ -147,6 +147,9 @@ export function majorItemProgress(items: readonly { state: string; skipped?: boo
   return { checked, total: counted.length, percent: counted.length ? Math.round((checked / counted.length) * 100) : 0 };
 }
 
+// The status of a SOC Build (SocBuild.status) as the สร้าง SOC pages show it.
+export const SOC_BUILD_STATUS_LABELS: Record<string, string> = { QUEUED: "รอคิว", READING: "กำลังอ่าน TOR", READY: "พร้อมดาวน์โหลด", FAILED: "อ่านไม่สำเร็จ", CANCELLED: "ยกเลิกแล้ว" };
+
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 // What the SOC file picker offers. The old formats are offered too, so that
