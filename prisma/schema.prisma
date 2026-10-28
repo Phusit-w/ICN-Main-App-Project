@@ -144,6 +144,8 @@ model User {
   socRunnerLinksRevoked      SocRunnerLink[]        @relation("SocRunnerLinkRevokedBy")
   socRunnerInstallCodes      SocRunnerInstallCode[]
   socCheckRequests           SocCheckRequest[]
+  socTemplatesAdded          SocTemplate[]
+  socBuilds                  SocBuild[]
   expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
   auditEvents                AuditLog[]             @relation("AuditActor")
   targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
@@ -534,6 +536,61 @@ model SocCheckRequest {
   @@index([majorItemId, createdAt])
   @@index([state, lastSeenAt])
   @@index([torMatchId])
+}
+
+// A stored SOC Template of สร้าง SOC (docs/SOC-DOMAIN-GLOSSARY.md "SOC Builder",
+// ADR 0011): a blank Word SOC in a customer's layout, shared by everyone with
+// SOC access. Only the one who added it, or an ADMIN, may delete it. The file
+// lives under SOC_STORAGE_ROOT/templates/<id>/.
+model SocTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  addedById    String
+  addedBy      User     @relation(fields: [addedById], references: [id], onDelete: Restrict)
+  originalName String
+  storageKey   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  checksum     String
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// A SOC Build of สร้าง SOC (ADR 0011): its own record, not a SocJob. Keeps its
+// own copy of the template file used, the TOR PDF and the Generated SOC Draft
+// under SOC_STORAGE_ROOT/builds/<id>/. Deleted for good 30 days after it was
+// created (`purgeAfter`).
+model SocBuild {
+  id                  String    @id @default(cuid())
+  title               String
+  ownerId             String
+  owner               User      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  // "QUEUED" (waiting in the OCR queue) | "READING" (scanned TOR, pagesDone
+  // of pagesTotal) | "READY" (draft built) | "FAILED" (read failed, can
+  // resume) | "CANCELLED" (can resume)
+  status              String    @default("QUEUED")
+  scanned             Boolean   @default(false)
+  // The chosen pages as typed ("12-40, 55-60") and as [from, to] pairs.
+  pageRanges          String
+  pageRangeList       Json
+  pagesDone           Int       @default(0)
+  pagesTotal          Int?
+  errorMessage        String?
+  // What the user is told about the draft (strings), and its row count.
+  warnings            Json?
+  rowCount            Int?
+  torName             String
+  torStorageKey       String    @unique
+  templateName        String
+  templateStorageKey  String    @unique
+  outputStorageKey    String?   @unique
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  purgeAfter          DateTime
+
+  @@index([ownerId, createdAt])
+  @@index([purgeAfter])
 }
 
 model SocAuditEvent {

@@ -4,10 +4,12 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done 2026-10-28
 
-- [ ] API/DB tests like test/soc-tor-attach.test.ts: add valid / invalid template, list, delete own, delete other's refused, ADMIN deletes any, no SOC access refused
-- [ ] Migration applies on a fresh DB and does not touch existing tables
-- [ ] lint, typecheck, tests pass
+- [x] API/DB tests like test/soc-tor-attach.test.ts: add valid / invalid template, list, delete own, delete other's refused, ADMIN deletes any, no SOC access refused
+- [x] Migration applies on a fresh DB and does not touch existing tables
+- [x] lint, typecheck, tests pass
 
 ## Comments
+
+Models SocTemplate + SocBuild (migration 20261028120000_soc_builder, new tables only). Routes: GET/POST /api/soc/templates, DELETE /api/soc/templates/[id]; logic in lib/soc-templates.ts; audit SOC_TEMPLATE_ADDED / SOC_TEMPLATE_DELETED. SocBuild keeps its own copy of template + TOR + output files under builds/<id>/ (ticket 04 writes it). Tests: test/soc-templates.test.ts (5); full suite 458 pass on test-db32 (port 51821, next test DB = test-db33).
