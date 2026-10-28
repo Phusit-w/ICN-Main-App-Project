@@ -107,7 +107,7 @@ test("a page number between dashes is not text of the item", () => {
 
 test("a heading that starts another TOR document ends the build there, with a warning", () => {
   const draft = build([page("เอกสาร ภาคผนวก ก\n๑.๑ ก\n๑.๒ ข"), page("๑.๓ ค"), page("**เอกสาร ผนวก ข**\nตารางยื่นข้อเสนอ\n๑.๔ ง")]);
-  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["๑.๑", "ก"], ["๑.๒", "ข"], ["๑.๓", "ค"]]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["", "เอกสาร ภาคผนวก ก"], ["๑.๑", "ก"], ["๑.๒", "ข"], ["๑.๓", "ค"]]);
   assert.deepEqual(draft.warnings.slice(1), ['ตั้งแต่หน้า 3 ของ TOR ขึ้นเอกสารใหม่ ("**เอกสาร ผนวก ข**") จึงหยุดสร้างตรงนั้น ข้อความหลังจากนี้ไม่ได้ใส่ใน SOC']);
 });
 
@@ -126,10 +126,26 @@ test("pages with no text and pages past the TOR are named as unread", () => {
   assert.deepEqual(draft.warnings, ["อ่าน หน้า 2, หน้า 4 ของ TOR ไม่ได้ (ไม่มีข้อความ) ข้อที่อยู่ในหน้านี้จะไม่อยู่ใน SOC"]);
 });
 
-test("text before the first item is a warning, not a row", () => {
-  const draft = build([page("ข้อกำหนดและขอบเขต\n๑.๑ ก")]);
-  assert.equal(rowsOf(draft.bytes).length, 1);
-  assert.deepEqual(draft.warnings, ["ข้อความก่อนข้อแรก (หน้า 1) แยกเป็นข้อไม่ได้ จึงไม่ได้ใส่ใน SOC กรุณาตรวจเอง"]);
+test("text before the first item is a row per line at the top, with no item number, and a warning", () => {
+  const draft = build([page("**เอกสาร ภาคผนวก ก.**\nคุณสมบัติทางเทคนิค\nกรมจะพิจารณา\n๑.๑ ก")]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["", "เอกสาร ภาคผนวก ก."], ["", "คุณสมบัติทางเทคนิค"], ["", "กรมจะพิจารณา"], ["๑.๑", "ก"]]);
+  assert.deepEqual(draft.warnings, ["ข้อความก่อนข้อแรก (หน้า 1) ใส่เป็นแถวบนสุดของ SOC แถวละบรรทัด ไม่มีเลขข้อ กรุณาตรวจและจัดรูปแบบเอง"]);
+});
+
+test("the table takes the indent of the page header's table when both have the same grid (Word 2013+)", () => {
+  const grid = `<w:tblGrid><w:gridCol w:w="900"/><w:gridCol w:w="5000"/></w:tblGrid>`;
+  const cell = (width: string) => `<w:tc><w:tcPr><w:tcW w:w="${width}"/></w:tcPr><w:p/></w:tc>`;
+  const body = `<w:tbl><w:tblPr><w:tblInd w:w="-342" w:type="dxa"/></w:tblPr>${grid}<w:tr><w:tc><w:p><w:r><w:t>ลำดับ</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>ข้อกำหนด TOR</w:t></w:r></w:p></w:tc></w:tr><w:tr>${cell("900")}${cell("5000")}</w:tr></w:tbl>`;
+  const compat = (mode: number) => `<w:settings><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="${mode}"/></w:compat></w:settings>`;
+  const header = (blockGrid: string) => `<w:hdr><w:tbl><w:tblPr><w:tblInd w:w="-379" w:type="dxa"/></w:tblPr>${blockGrid}</w:tbl></w:hdr>`;
+  const indentOf = (mode: number, headerGrid: string) => {
+    const template = buildDocx(body, { parts: { "word/settings.xml": compat(mode), "word/header1.xml": header(headerGrid) } });
+    const xml = readZip(build([page("๑.๑ ก")], [[1, 1]], template).bytes).find((entry) => entry.name === "word/document.xml")!.data.toString("utf8");
+    return /<w:tblInd w:w="(-?\d+)"/.exec(xml)![1];
+  };
+  assert.equal(indentOf(15, grid), "-379");
+  assert.equal(indentOf(14, grid), "-342");
+  assert.equal(indentOf(15, `<w:tblGrid><w:gridCol w:w="800"/></w:tblGrid>`), "-342");
 });
 
 test("pages with no numbered item are refused", () => {

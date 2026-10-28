@@ -63,7 +63,8 @@ function pageNumbers(ranges: readonly PageRange[]): number[] {
 function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row[]; warnings: string[] } {
   const rows: Row[] = [];
   const unread: number[] = [];
-  const looseText = new Set<number>(); // pages with text before the first item
+  const introText = new Set<number>(); // pages with text before the first item
+  let started = false; // a numbered item or a ผนวก heading has been read
   const loosePictures: number[] = [];
   let current = null as Row | null;
   // The numbering state restarts under every ผนวก heading. `major` and
@@ -116,7 +117,7 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
       const heading = DOCUMENT_HEADING.exec(line)?.[1];
       if (heading) {
         document ??= heading;
-        if (heading !== document && rows.length) {
+        if (heading !== document && started) {
           stoppedAt = { page, line };
           break;
         }
@@ -124,6 +125,7 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
       if (ANNEX_LINE.test(line)) {
         current = { item: "", lines: [line], heading: true, page, picture: read.picture };
         rows.push(current);
+        started = true;
         last = major = list = null;
         annexed = true;
         continue;
@@ -133,7 +135,8 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
       if (match && numbers && accepts(numbers)) {
         current = { item: match[1] + match[2], lines: match[3] ? [match[3]] : [], heading: numbers.length === 1, page, picture: read.picture };
         rows.push(current);
-      } else if (current) {
+        started = true;
+      } else if (started && current) {
         const sub = SUB_LINE.exec(line);
         if (sub) {
           current = { item: sub[2] ?? "", lines: [sub[1] ?? sub[3]].filter(Boolean), heading: false, page, picture: false };
@@ -142,7 +145,13 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
           current.lines.push(line);
         }
       } else {
-        looseText.add(page);
+        // Text above the first item (title, "คุณสมบัติทางเทคนิค", an intro): a row of its own per line, without an item number.
+        const text = line.replace(/^[#*s]+|[*s]+$/g, "");
+        if (text) {
+          current = { item: "", lines: [text], heading: true, page, picture: false };
+          rows.push(current);
+          introText.add(page);
+        }
       }
     }
     // A picture page that starts no item continues the item before it.
@@ -152,10 +161,10 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
     }
   }
 
-  if (!rows.length) throw new Error(NO_ITEMS);
+  if (!started) throw new Error(NO_ITEMS);
   const named = (pages: number[]) => pages.map((page) => `หน้า ${page}`).join(", ");
   const warnings = [
-    ...(looseText.size ? [`ข้อความก่อนข้อแรก (${named([...looseText])}) แยกเป็นข้อไม่ได้ จึงไม่ได้ใส่ใน SOC กรุณาตรวจเอง`] : []),
+    ...(introText.size ? [`ข้อความก่อนข้อแรก (${named([...introText])}) ใส่เป็นแถวบนสุดของ SOC แถวละบรรทัด ไม่มีเลขข้อ กรุณาตรวจและจัดรูปแบบเอง`] : []),
     ...(loosePictures.length ? [`${named(loosePictures)} ของ TOR เป็นรูปภาพก่อนข้อแรก ไม่ได้ใส่ใน SOC กรุณาตรวจเอง`] : []),
     ...rows.filter((row) => row.picture).map((row) => `${row.item ? `ข้อ ${row.item}` : row.lines[0]} (หน้า ${row.page} ของ TOR) มีรูปภาพ กรุณาวางรูปใน Word เอง`),
     ...(stoppedAt ? [`ตั้งแต่หน้า ${stoppedAt.page} ของ TOR ขึ้นเอกสารใหม่ ("${stoppedAt.line.slice(0, 40)}") จึงหยุดสร้างตรงนั้น ข้อความหลังจากนี้ไม่ได้ใส่ใน SOC`] : []),
@@ -197,7 +206,7 @@ const inside = (xml: string, [start, end]: Span, tag: string): Span => [xml.inde
 const cellText = (xml: string) => [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((m) => decodeXml(m[1])).join("").replace(/\s+/g, " ").trim();
 
 // keepEnd: where the rows kept from the template (title / header rows) end.
-type TemplateTable = { keepEnd: number; tableEnd: number; pattern: string };
+type TemplateTable = { tableStart: number; keepEnd: number; tableEnd: number; pattern: string };
 
 // The template table is the first top-level table whose last row is empty and
 // has at least two cells (item number, TOR): that row is the pattern for every
@@ -217,7 +226,7 @@ function findTemplateTable(xml: string): TemplateTable {
       return second && ITEM_NAME.test(cellText(xml.slice(...first))) && TOR_NAME.test(cellText(xml.slice(...second)));
     });
     const lastText = rows.slice(0, -1).findLastIndex((row) => cellText(xml.slice(...row)));
-    found.push({ named, keepEnd: lastText < 0 ? rows[0][0] : rows[lastText][1], tableEnd: rows[rows.length - 1][1], pattern });
+    found.push({ named, tableStart: table[0], keepEnd: lastText < 0 ? rows[0][0] : rows[lastText][1], tableEnd: rows[rows.length - 1][1], pattern });
   }
   const table = found.find((t) => t.named) ?? found[0];
   if (!table) throw new Error(NO_TEMPLATE_TABLE);
@@ -277,6 +286,26 @@ function fillRow(pattern: string, row: Row): string {
   return pattern.slice(0, cells[0][0]) + filled.join("") + pattern.slice(cells[cells.length - 1][1]);
 }
 
+// A customer's page header often holds the column titles as a table of its own
+// (the SOC table has no header row). Word 2013+ puts a table's left edge at its
+// tblInd, so a body table indented differently from the header table (same
+// column grid) has its lines off the titles' by the difference; take the
+// header table's indent.
+function alignWithHeader(xml: string, tableStart: number, entries: ZipEntry[]): string {
+  const part = (name: string) => entries.find((entry) => entry.name === name)?.data.toString("utf8") ?? "";
+  if (Number(/w:name="compatibilityMode"[^>]*w:val="(\d+)"/.exec(part("word/settings.xml"))?.[1] ?? 0) < 15) return xml;
+  const grid = (table: string) => /<w:tblGrid>[\s\S]*?<\/w:tblGrid>/.exec(table)?.[0].replace(/\s+/g, "");
+  const body = grid(xml.slice(tableStart));
+  const indent = entries
+    .filter((entry) => /^word\/header\d*\.xml$/.test(entry.name))
+    .map((entry) => entry.data.toString("utf8"))
+    .flatMap((header) => header.split("<w:tbl>").slice(1))
+    .find((table) => grid(table) === body && /<w:tblInd /.test(table))
+    ?.match(/<w:tblInd w:w="(-?\d+)"/)?.[1];
+  if (!body || indent === undefined) return xml;
+  return xml.slice(0, tableStart) + xml.slice(tableStart).replace(/(<w:tblInd w:w=")-?\d+(")/, `$1${indent}$2`);
+}
+
 // ------------------------------------------------------------------- build
 
 const collapse = (text: string) => text.replace(/\s+/g, " ").trim();
@@ -306,7 +335,7 @@ export function buildSocDraft(template: Uint8Array, pages: TorPage[], ranges: re
   const { entries, xml } = readTemplate(template);
   const table = findTemplateTable(xml);
   const { rows, warnings } = splitItems(pages, ranges);
-  const filled = xml.slice(0, table.keepEnd) + rows.map((row) => fillRow(table.pattern, row)).join("") + xml.slice(table.tableEnd);
+  const filled = alignWithHeader(xml.slice(0, table.keepEnd) + rows.map((row) => fillRow(table.pattern, row)).join("") + xml.slice(table.tableEnd), table.tableStart, entries);
   const bytes = writeZip(entries.map((entry) => (entry.name === WORD_DOCUMENT ? { ...entry, data: Buffer.from(filled, "utf8") } : entry)));
   assertReadsBack(bytes, rows);
   return { bytes, warnings, rowCount: rows.length };
