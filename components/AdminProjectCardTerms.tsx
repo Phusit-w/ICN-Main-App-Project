@@ -1,12 +1,31 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createProjectCardTerm, renameProjectCardTerm, type Result } from "@/actions/projectCardTerms";
+import {
+  createProjectCardTerm,
+  renameProjectCardTerm,
+  setProjectCardTermSynonyms,
+  type Result,
+} from "@/actions/projectCardTerms";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import type { TermKind } from "@/lib/project-card-taxonomy";
 
-export type AdminTerm = { id: string; kind: TermKind; value: string; en: string; th: string; cardCount: number };
+export type AdminTerm = {
+  id: string;
+  kind: TermKind;
+  value: string;
+  en: string;
+  th: string;
+  synonyms: string[];
+  cardCount: number;
+};
+
+// Synonyms are typed as one comma-separated line; an empty line means none.
+// Blank pieces ("a,,b") are passed on so the action can reject them.
+function splitSynonyms(text: string): string[] {
+  return text.trim() ? text.split(",") : [];
+}
 
 const SECTIONS: { kind: TermKind; title: string; addLabel: string; hint: string }[] = [
   { kind: "category", title: "หมวดหมู่", addLabel: "เพิ่มหมวดหมู่", hint: "สาขาเทคโนโลยีของโครงการ ใช้เป็นทั้งหมวดหลักและหมวดหมู่รอง" },
@@ -73,6 +92,7 @@ function TermSection({
             <tr>
               <th className="p-4">ชื่อภาษาอังกฤษ</th>
               <th className="p-4">ชื่อภาษาไทย</th>
+              <th className="p-4">คำพ้อง</th>
               <th className="p-4">การ์ดที่ใช้</th>
               <th className="p-4" />
             </tr>
@@ -105,60 +125,96 @@ function TermSection({
 }
 
 function TermRow({ term, pending, run }: { term: AdminTerm; pending: boolean; run: Run }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<"labels" | "synonyms" | null>(null);
   const [en, setEn] = useState(term.en);
   const [th, setTh] = useState(term.th);
+  const [synonyms, setSynonyms] = useState(term.synonyms.join(", "));
   const input = "w-full rounded-input border border-line bg-surface p-2";
 
-  if (editing) {
-    return (
-      <tr className="border-b border-line last:border-0">
-        <td className="p-4">
-          <input aria-label="ชื่อภาษาอังกฤษ" className={input} value={en} onChange={(e) => setEn(e.target.value)} disabled={pending} />
-        </td>
-        <td className="p-4">
-          <input aria-label="ชื่อภาษาไทย" className={input} value={th} onChange={(e) => setTh(e.target.value)} disabled={pending} />
-        </td>
-        <td className="p-4 text-muted">{term.cardCount}</td>
-        <td className="p-4">
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() => {
-                setEn(term.en);
-                setTh(term.th);
-                setEditing(false);
-              }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              size="sm"
-              disabled={pending}
-              onClick={() => run(() => renameProjectCardTerm(term.id, { en, th }), `แก้ชื่อ "${term.en}" แล้ว`, () => setEditing(false))}
-            >
-              บันทึก
-            </Button>
-          </div>
-        </td>
-      </tr>
-    );
+  function cancel() {
+    setEn(term.en);
+    setTh(term.th);
+    setSynonyms(term.synonyms.join(", "));
+    setEditing(null);
   }
+
+  const synonymCell =
+    editing === "synonyms" ? (
+      <input
+        aria-label="คำพ้อง"
+        className={input}
+        placeholder="คั่นด้วยจุลภาค เช่น fibre, ไฟเบอร์"
+        value={synonyms}
+        onChange={(e) => setSynonyms(e.target.value)}
+        disabled={pending}
+      />
+    ) : term.synonyms.length ? (
+      <div className="flex flex-wrap gap-1">
+        {term.synonyms.map((s) => (
+          <span key={s} className="rounded-full bg-chip px-2 py-0.5 text-xs">
+            {s}
+          </span>
+        ))}
+      </div>
+    ) : (
+      <span className="text-muted">—</span>
+    );
 
   return (
     <tr className="border-b border-line last:border-0">
       <td className="p-4">
-        <div className="font-medium">{term.en}</div>
-        <div className="text-xs text-muted">{term.value}</div>
+        {editing === "labels" ? (
+          <input aria-label="ชื่อภาษาอังกฤษ" className={input} value={en} onChange={(e) => setEn(e.target.value)} disabled={pending} />
+        ) : (
+          <>
+            <div className="font-medium">{term.en}</div>
+            <div className="text-xs text-muted">{term.value}</div>
+          </>
+        )}
       </td>
-      <td className="p-4">{term.th}</td>
+      <td className="p-4">
+        {editing === "labels" ? (
+          <input aria-label="ชื่อภาษาไทย" className={input} value={th} onChange={(e) => setTh(e.target.value)} disabled={pending} />
+        ) : (
+          term.th
+        )}
+      </td>
+      <td className="p-4">{synonymCell}</td>
       <td className="p-4">{term.cardCount.toLocaleString("th-TH")}</td>
-      <td className="p-4 text-right">
-        <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditing(true)}>
-          แก้ชื่อ
-        </Button>
+      <td className="p-4">
+        <div className="flex flex-wrap justify-end gap-2">
+          {editing ? (
+            <>
+              <Button size="sm" variant="outline" disabled={pending} onClick={cancel}>
+                ยกเลิก
+              </Button>
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  editing === "labels"
+                    ? run(() => renameProjectCardTerm(term.id, { en, th }), `แก้ชื่อ "${term.en}" แล้ว`, () => setEditing(null))
+                    : run(
+                        () => setProjectCardTermSynonyms(term.id, splitSynonyms(synonyms)),
+                        `แก้คำพ้องของ "${term.en}" แล้ว`,
+                        () => setEditing(null),
+                      )
+                }
+              >
+                บันทึก
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditing("labels")}>
+                แก้ชื่อ
+              </Button>
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditing("synonyms")}>
+                แก้คำพ้อง
+              </Button>
+            </>
+          )}
+        </div>
       </td>
     </tr>
   );

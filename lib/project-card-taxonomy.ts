@@ -5,7 +5,10 @@
 // reader (ingest validation, the popup, the search filter, free-text
 // matching) applies to a loaded list, so they can never disagree.
 
-export type Term = { value: string; en: string; th: string };
+// `synonyms` are further words that name the entry ("ไฟเบอร์", "fibre" for
+// Fiber Optic), kept by admins beside the labels. Only free-text matching
+// reads them; they never change what a card stores.
+export type Term = { value: string; en: string; th: string; synonyms: string[] };
 export const TERM_KINDS = ["category", "workType"] as const;
 export type TermKind = (typeof TERM_KINDS)[number];
 export type Taxonomy = { categories: Term[]; workTypes: Term[] };
@@ -29,16 +32,9 @@ const THAI = /[฀-๿]/;
 // the English label — plain substring matching made short, common queries
 // misfire ("MA" hit "sMArt", "IT" hit "cITy"). Thai is written without
 // spaces between words, so a Thai query matches anywhere in the Thai label.
+// Synonyms ("ไฟเบอร์", "fibre") are matched by the same rules.
 export function matchCategories(list: readonly Term[], query: string): string[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  if (THAI.test(q)) return list.filter((c) => c.th.includes(q)).map((c) => c.value);
-  return list
-    .filter((c) => {
-      const label = c.en.toLowerCase();
-      return label.startsWith(q) || label.split(/[^a-z0-9]+/).some((word) => word.startsWith(q));
-    })
-    .map((c) => c.value);
+  return matchTerms(list, query, (text, words, q) => text.startsWith(q) || words.some((word) => word.startsWith(q)));
 }
 
 // Free-text search over Work Types ("MA", "บำรุงรักษา", "rental", "เช่า").
@@ -46,17 +42,35 @@ export function matchCategories(list: readonly Term[], query: string): string[] 
 // be a whole word, because "MA" is itself a Work Type and word-prefix
 // matching would also list every Managed Services card. From 3 letters on,
 // a word prefix is enough ("rent", "install", "maint"). Thai matches
-// anywhere in the Thai label, as for Categories.
+// anywhere in the Thai label, as for Categories. Synonyms ("ซ่อมบำรุง",
+// "maintenance") likewise; a synonym of several words also matches when the
+// query is the whole synonym ("managed service").
 export function matchWorkTypes(list: readonly Term[], query: string): string[] {
+  return matchTerms(
+    list,
+    query,
+    (text, words, q) => text === q || words.some((word) => word === q || (q.length >= 3 && word.startsWith(q))),
+  );
+}
+
+// The Thai rule shared by both lists, plus the given Latin rule applied to
+// the English label and each synonym (lowercased, and split into words).
+function matchTerms(
+  list: readonly Term[],
+  query: string,
+  latinMatches: (text: string, words: string[], q: string) => boolean,
+): string[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  if (THAI.test(q)) return list.filter((w) => w.th.includes(q)).map((w) => w.value);
+  const thai = THAI.test(q);
   return list
-    .filter((w) => {
-      const words = w.en.toLowerCase().split(/[^a-z0-9]+/);
-      return words.some((word) => word === q || (q.length >= 3 && word.startsWith(q)));
-    })
-    .map((w) => w.value);
+    .filter((t) =>
+      [thai ? t.th : t.en, ...t.synonyms].some((raw) => {
+        const text = raw.toLowerCase();
+        return thai ? text.includes(q) : latinMatches(text, text.split(/[^a-z0-9]+/), q);
+      }),
+    )
+    .map((t) => t.value);
 }
 
 // The stored `value` for a new list entry, from its English label

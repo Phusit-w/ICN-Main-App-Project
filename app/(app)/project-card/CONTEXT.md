@@ -52,6 +52,10 @@ _Avoid_: Label, keyword, sub-category
 How ICN delivered a project, from a short company list admins keep in Admin Center (to start: supply, installation, MA, managed services, rental, system development). A card has one or more (e.g. supply + installation + MA).
 _Avoid_: Service type, contract type
 
+**Synonym**:
+A further word that names a Category or Work Type besides its English and Thai labels (e.g. "ไฟเบอร์" and "fibre" for Fiber Optic, "ซ่อมบำรุง" for MA), kept by admins in Admin Center beside the labels. Only free-text matching reads them — a keyword search for a synonym finds cards with that Category, Tag or Work Type — and they never change what a card stores. A word names at most one entry of a list.
+_Avoid_: Alias, keyword
+
 **Project Folder**:
 The project's own folder in the wider project archive (`_Project …` on the `PS` share), where its TOR and other working files live. A third Folder Path on the card besides the Contract and Work Certificate paths; blank when the project has no folder there, or when no single folder can be identified with confidence — blank, never a guess.
 _Avoid_: Archive path, TOR path

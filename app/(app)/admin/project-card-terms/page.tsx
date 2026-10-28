@@ -8,7 +8,7 @@ import { isTermKind } from "@/lib/project-card-taxonomy";
 export default async function AdminProjectCardTermsPage() {
   const terms = await prisma.projectCardTerm.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, kind: true, value: true, en: true, th: true },
+    select: { id: true, kind: true, value: true, en: true, th: true, synonyms: true },
   });
   // How many cards use each entry (as Category or Tag / as a Work Type), so
   // an admin sees what a rename will touch.
@@ -31,8 +31,8 @@ export default async function AdminProjectCardTermsPage() {
         แก้ชื่อแล้วการ์ดทุกใบที่ใช้รายการนั้นจะแสดงชื่อใหม่ทันที
       </p>
       <p className="text-sm text-muted">
-        ช่องค้นหาจับคำจากชื่อทั้งสองภาษา — แก้ชื่อแล้วคำที่ใช้ค้นเจอจะเปลี่ยนตาม (เช่น ลักษณะงาน &quot;MA&quot; ค้นด้วยคำว่า MA
-        เพราะมีคำนี้อยู่ในชื่อภาษาอังกฤษ)
+        ช่องค้นหาจับคำจากชื่อทั้งสองภาษาและคำพ้อง — แก้ชื่อแล้วคำที่ใช้ค้นเจอจะเปลี่ยนตาม (เช่น ลักษณะงาน &quot;MA&quot; ค้นด้วยคำว่า MA
+        เพราะมีคำนี้อยู่ในชื่อภาษาอังกฤษ) เพิ่มคำพ้องเมื่อคนมักเรียกด้วยคำอื่น เช่น &quot;ไฟเบอร์&quot; สำหรับ Fiber Optic
       </p>
       <AdminProjectCardTerms terms={rows} />
     </section>

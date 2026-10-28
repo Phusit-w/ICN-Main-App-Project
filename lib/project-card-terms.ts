@@ -8,9 +8,9 @@ import type { Taxonomy, Term, TermKind } from "@/lib/project-card-taxonomy";
 export async function loadTaxonomy(): Promise<Taxonomy> {
   const rows = await prisma.projectCardTerm.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { kind: true, value: true, en: true, th: true },
+    select: { kind: true, value: true, en: true, th: true, synonyms: true },
   });
   const pick = (kind: TermKind): Term[] =>
-    rows.filter((r) => r.kind === kind).map(({ value, en, th }) => ({ value, en, th }));
+    rows.filter((r) => r.kind === kind).map(({ value, en, th, synonyms }) => ({ value, en, th, synonyms }));
   return { categories: pick("category"), workTypes: pick("workType") };
 }

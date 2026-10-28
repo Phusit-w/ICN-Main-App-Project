@@ -744,6 +744,9 @@ model ProjectCardTerm {
   value     String
   en        String
   th        String
+  // Further words that name the entry ("ไฟเบอร์", "fibre"), edited beside
+  // the labels and read only by free-text matching.
+  synonyms  String[] @default([])
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
