@@ -22,7 +22,7 @@ A blank Word SOC table in a customer's own layout, whose item-number and TOR col
 _Avoid_: blank SOC, form
 
 **Generated SOC Draft**:
-The Word file a SOC Build produces: the template with one row per numbered TOR item (copies of the template's last empty row), each major item starting with a bold heading row, offer/reference/remark columns left empty. It comes with warnings (items that couldn't be split, pictures to paste by hand, unread pages). From a scanned TOR it is Beta: every row must be read against the real TOR. A draft is not a checked or approved SOC.
+The Word file a SOC Build produces: the template with one row per numbered TOR item (copies of the template's last empty row), each major item starting with a heading row (item cell + one merged plain cell, as in a real SOC), offer/reference/remark columns left empty. It comes with warnings (items that couldn't be split, pictures to paste by hand, unread pages). From a scanned TOR it is Beta: every row must be read against the real TOR. A draft is not a checked or approved SOC.
 _Avoid_: Checked SOC, approved SOC
 
 **ทวนข้อความ OCR (OCR proofread)**:

@@ -245,16 +245,9 @@ export function assertSocTemplate(template: Uint8Array): void {
 
 // ----------------------------------------------------------------- filling
 
-// Bold goes where the schema puts it: after rStyle and rFonts, before the rest.
-function withBold(rPr: string): string {
-  const inner = rPr.replace(/^<w:rPr>|<\/w:rPr>$/g, "").replace(/<w:b(?:Cs)?(?:\s[^>]*)?\/>/g, "");
-  const lead = /^(?:<w:rStyle\b[^>]*\/>)?(?:<w:rFonts\b[^>]*\/>)?/.exec(inner)![0];
-  return `<w:rPr>${lead}<w:b/><w:bCs/>${inner.slice(lead.length)}</w:rPr>`;
-}
-
 // An empty copy of a template cell (its properties, paragraph and font kept)
 // holding `lines`, one Word line break between them.
-function fillCell(cell: string, lines: string[], bold: boolean): string {
+function fillCell(cell: string, lines: string[]): string {
   const open = /^<w:tc\b[^>]*>/.exec(cell)![0];
   const content = cell.slice(open.length, -"</w:tc>".length);
   const tcPr = /^\s*(<w:tcPr>[\s\S]*?<\/w:tcPr>)/.exec(content)?.[1].replace(/<w:vMerge\b[^>]*\/>/g, "") ?? "";
@@ -262,15 +255,25 @@ function fillCell(cell: string, lines: string[], bold: boolean): string {
   const pPr = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(paragraph)?.[0] ?? "";
   // The font is the first run's; an empty cell has only its paragraph mark's.
   let rPr = /<w:r(?:\s[^>]*)?>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/.exec(paragraph)?.[1] ?? /<w:rPr>[\s\S]*?<\/w:rPr>/.exec(pPr)?.[0] ?? "";
-  if (bold) rPr = withBold(rPr);
   const text = lines.map((line) => `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`).join("<w:br/>");
   return `${open}${tcPr}<w:p>${pPr}${text ? `<w:r>${rPr}${text}</w:r>` : ""}</w:p></w:tc>`;
 }
 
+// `filled` (the first of `cells`) stretched over all of `cells`: one grid span,
+// the cells' widths added up.
+function spanCells(filled: string, cells: string[]): string {
+  const width = cells.reduce((sum, cell) => sum + Number(/<w:tcW\b[^>]*\bw:w="(\d+)"/.exec(cell)?.[1] ?? 0), 0);
+  const span = `<w:gridSpan w:val="${cells.length}"/>`;
+  const sized = width ? filled.replace(/(<w:tcW\b[^>]*\bw:w=")\d+(")/, `$1${width}$2`) : filled;
+  if (/<w:tcW\b[^>]*\/>/.test(sized)) return sized.replace(/(<w:tcW\b[^>]*\/>)/, `$1${span}`);
+  return sized.includes("<w:tcPr>") ? sized.replace("<w:tcPr>", `<w:tcPr>${span}`) : sized.replace(/^(<w:tc\b[^>]*>)/, `$1<w:tcPr>${span}</w:tcPr>`);
+}
+
 function fillRow(pattern: string, row: Row): string {
   const cells = childElements(pattern, ...inside(pattern, [0, pattern.length], "tr"), "tc");
-  const texts = [row.item ? [row.item] : [], row.lines];
-  const filled = cells.map((span, index) => fillCell(pattern.slice(...span), texts[index] ?? [], row.heading));
+  const [itemCell, ...rest] = cells.map((span) => pattern.slice(...span));
+  // A heading row, as in the real SOC: the item cell and one cell across the rest.
+  const filled = row.heading && rest.length > 1 ? [fillCell(itemCell, [row.item]), spanCells(fillCell(rest[0], row.lines), rest)] : [itemCell, ...rest].map((cell, index) => fillCell(cell, [row.item ? [row.item] : [], row.lines][index] ?? []));
   return pattern.slice(0, cells[0][0]) + filled.join("") + pattern.slice(cells[cells.length - 1][1]);
 }
 

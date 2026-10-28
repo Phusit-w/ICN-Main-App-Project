@@ -59,12 +59,13 @@ on the reviewer's PC with their own Claude plan (ADR 0008).
     the item number goes at the start of the TOR text (as in PDF SOC). A generated SOC must be
     readable by the SOC check.
 17. Rows are copies of the template's last empty row (font, borders, widths kept). Major-item
-    headings are ordinary rows with bold text, never merged cells.
+    headings are rows with the item cell and ONE merged plain (not bold) cell across the rest,
+    as in the real SOC (changed 2026-10-28 after comparing with the real Apron SOC; was bold, never merged).
 18. Text tables inside a TOR item become multi-line text in the cell; pictures become a warning
     with the TOR page number (user pastes the picture in Word).
 19. Output: the Word Generated SOC Draft + a warning list on the build's page. No link to a SOC
     check job in v1.
-26. One SOC table filled (the first one found); all items in it, each annex starting with a bold
+26. One SOC table filled (the first one found); all items in it, each annex starting with a
     major-item row. Separate files per annex = separate builds with different page ranges.
 27. Build title defaults to the TOR file name, editable, duplicates allowed; output file
     `SOC-<title>.docx`.

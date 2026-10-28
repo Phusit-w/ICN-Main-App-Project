@@ -152,7 +152,21 @@ test("a template with cover text keeps it, and every other part of the file is u
   assert.deepEqual(rowsOf(draft.bytes), [["๑.๑", "ก", "1"]]);
 });
 
-test("rows keep the template row's font; a heading row is bold and the others are not", () => {
+test("a heading row is the item cell and one plain cell across the rest; the other rows keep every cell", () => {
+  const cell = (width: string) => `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr><w:p/></w:tc>`;
+  const header = `<w:tr>${["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ", "อ้างอิง"].map((text) => `<w:tc><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:tc>`).join("")}</w:tr>`;
+  const template = buildDocx(`<w:tbl><w:tblPr/>${header}<w:tr>${cell("900")}${cell("4000")}${cell("3000")}${cell("1100")}</w:tr></w:tbl>`);
+  const draft = build([page("๑. หัวข้อ\n๑.๑ ก")], [[1, 1]], template);
+  const xml = readZip(draft.bytes).find((entry) => entry.name === "word/document.xml")!.data.toString("utf8");
+  const [heading, item] = xml.split("<w:tr>").slice(2);
+  assert.equal(heading.match(/<w:tc>/g)!.length, 2);
+  assert.match(heading, /<w:tcW w:w="8100" w:type="dxa"\/><w:gridSpan w:val="3"\/>/);
+  assert.doesNotMatch(heading, /<w:b\/>/);
+  assert.equal(item.match(/<w:tc>/g)!.length, 4);
+  assert.deepEqual(rowsOf(draft.bytes).map(([itemNo, tor]) => [itemNo, tor]), [["๑.", "หัวข้อ"], ["๑.๑", "ก"]]);
+});
+
+test("rows keep the template row's font, and a heading row is not bold", () => {
   const cell = (width: string) => `<w:tc><w:tcPr><w:tcW w:w="${width}"/></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="TH Sarabun New"/><w:sz w:val="32"/></w:rPr></w:pPr></w:p></w:tc>`;
   const header = `<w:tr><w:tc><w:p><w:r><w:t>ลำดับ</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>ข้อกำหนด TOR</w:t></w:r></w:p></w:tc></w:tr>`;
   const template = buildDocx(`<w:tbl><w:tblPr/>${header}<w:tr>${cell("900")}${cell("5000")}</w:tr></w:tbl>`);
@@ -161,8 +175,7 @@ test("rows keep the template row's font; a heading row is bold and the others ar
   const rows = xml.split("<w:tr>").slice(2);
   assert.equal(rows.length, 2);
   for (const row of rows) assert.match(row, /<w:rFonts w:ascii="TH Sarabun New"\/>[\s\S]*<w:sz w:val="32"\/>[\s\S]*<w:tcW w:w="5000"\/>/);
-  assert.match(rows[0], /<w:rPr><w:rFonts w:ascii="TH Sarabun New"\/><w:b\/><w:bCs\/><w:sz w:val="32"\/><\/w:rPr>/);
-  assert.doesNotMatch(rows[1], /<w:b\/>/);
+  for (const row of rows) assert.doesNotMatch(row, /<w:b\/>/);
 });
 
 test("the offer, reference and remark cells are left empty", () => {
