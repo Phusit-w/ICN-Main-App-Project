@@ -107,7 +107,7 @@ test("a page number between dashes is not text of the item", () => {
 
 test("a heading that starts another TOR document ends the build there, with a warning", () => {
   const draft = build([page("เอกสาร ภาคผนวก ก\n๑.๑ ก\n๑.๒ ข"), page("๑.๓ ค"), page("**เอกสาร ผนวก ข**\nตารางยื่นข้อเสนอ\n๑.๔ ง")]);
-  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["", "เอกสาร ภาคผนวก ก"], ["๑.๑", "ก"], ["๑.๒", "ข"], ["๑.๓", "ค"]]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["เอกสาร ภาคผนวก ก", ""], ["๑.๑", "ก"], ["๑.๒", "ข"], ["๑.๓", "ค"]]);
   assert.deepEqual(draft.warnings.slice(1), ['ตั้งแต่หน้า 3 ของ TOR ขึ้นเอกสารใหม่ ("**เอกสาร ผนวก ข**") จึงหยุดสร้างตรงนั้น ข้อความหลังจากนี้ไม่ได้ใส่ใน SOC']);
 });
 
@@ -127,9 +127,26 @@ test("pages with no text and pages past the TOR are named as unread", () => {
 });
 
 test("text before the first item is a row per line at the top, with no item number, and a warning", () => {
-  const draft = build([page("**เอกสาร ภาคผนวก ก.**\nคุณสมบัติทางเทคนิค\nกรมจะพิจารณา\n๑.๑ ก")]);
-  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["", "เอกสาร ภาคผนวก ก."], ["", "คุณสมบัติทางเทคนิค"], ["", "กรมจะพิจารณา"], ["๑.๑", "ก"]]);
+  const draft = build([page("**เอกสาร ภาคผนวก ก.**\n**คุณลักษณะระบบ**\n**คุณสมบัติทางเทคนิค**\nกรมจะพิจารณา\n๑.๑ ก")]);
+  assert.deepEqual(rowsOf(draft.bytes).map(([item, tor]) => [item, tor]), [["เอกสาร ภาคผนวก ก. คุณลักษณะระบบ", ""], ["", "คุณสมบัติทางเทคนิค"], ["", "กรมจะพิจารณา"], ["๑.๑", "ก"]]);
   assert.deepEqual(draft.warnings, ["ข้อความก่อนข้อแรก (หน้า 1) ใส่เป็นแถวบนสุดของ SOC แถวละบรรทัด ไม่มีเลขข้อ กรุณาตรวจและจัดรูปแบบเอง"]);
+});
+
+test("the title above the first item is one centred bold cell across the table, first line underlined; a bold line after it is an underlined heading row", () => {
+  const cell = (width: string) => `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="TH Sarabun New"/><w:sz w:val="28"/></w:rPr></w:pPr></w:p></w:tc>`;
+  const header = `<w:tr>${["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ"].map((text) => `<w:tc><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:tc>`).join("")}</w:tr>`;
+  const template = buildDocx(`<w:tbl><w:tblPr/>${header}<w:tr>${cell("900")}${cell("4000")}${cell("3000")}</w:tr></w:tbl>`);
+  const draft = build([page("**เอกสาร ผนวก ข**\n**โครงการ ก**\n**คุณสมบัติทางเทคนิค**\n๑.๑ ก")], [[1, 1]], template);
+  const xml = readZip(draft.bytes).find((entry) => entry.name === "word/document.xml")!.data.toString("utf8");
+  const [title, subtitle] = xml.split("<w:tr>").slice(2);
+  assert.equal(title.match(/<w:tc>/g)!.length, 1);
+  assert.match(title, /<w:tcW w:w="7900" w:type="dxa"\/><w:gridSpan w:val="3"\/>/);
+  assert.equal(title.match(/<w:p>/g)!.length, 2);
+  assert.equal(title.match(/<w:jc w:val="center"\/>/g)!.length, 2);
+  assert.equal(title.match(/<w:b\/><w:bCs\/>/g)!.length, 2);
+  assert.equal(title.match(/<w:u w:val="single"\/>/g)!.length, 1);
+  assert.match(subtitle, /<w:u w:val="single"\/>/);
+  assert.doesNotMatch(subtitle, /<w:b\/>/);
 });
 
 test("the table takes the indent of the page header's table when both have the same grid (Word 2013+)", () => {

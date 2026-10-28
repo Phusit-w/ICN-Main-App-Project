@@ -32,7 +32,10 @@ const NOT_READABLE_BACK = "สร้าง SOC ไม่สำเร็จ: ร�
 
 // A SOC row to write: the item number as the TOR writes it (empty for a ผนวก
 // heading), its text lines, the first TOR page, and whether it is a heading.
-type Row = { item: string; lines: string[]; heading: boolean; page: number; picture: boolean };
+// `style`: the look of a row above the first item — "title" (one cell across the
+// whole table, centred, bold, first line underlined) or "underlined" (a
+// heading row with underlined text).
+type Row = { item: string; lines: string[]; heading: boolean; page: number; picture: boolean; style?: "title" | "underlined" };
 
 // "๔.๓.๑ …", "๕. …", "## ๕. …"; the text after the number may be empty.
 const ITEM_LINE = /^[#*\s]*([0-9๐-๙]+(?:\.[0-9๐-๙]+)*)(\.?)(?:\s+(.*))?$/;
@@ -65,6 +68,7 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
   const unread: number[] = [];
   const introText = new Set<number>(); // pages with text before the first item
   let started = false; // a numbered item or a ผนวก heading has been read
+  let titleOpen = false; // the title row above the first item may still take its second line
   const loosePictures: number[] = [];
   let current = null as Row | null;
   // The numbering state restarts under every ผนวก heading. `major` and
@@ -145,11 +149,21 @@ function splitItems(pages: TorPage[], ranges: readonly PageRange[]): { rows: Row
           current.lines.push(line);
         }
       } else {
-        // Text above the first item (title, "คุณสมบัติทางเทคนิค", an intro): a row of its own per line, without an item number.
-        const text = line.replace(/^[#*s]+|[*s]+$/g, "");
+        // Text above the first item: the TOR document's title (its "เอกสาร ผนวก …" heading and the bold line
+        // after it) is one title row; other bold lines are underlined; the rest is a plain row per line.
+        const text = line.replace(/^[#*\s]+|[*\s]+$/g, "");
         if (text) {
-          current = { item: "", lines: [text], heading: true, page, picture: false };
-          rows.push(current);
+          const bold = /^\s*\*\*.*\*\*\s*$/.test(line);
+          const title = rows.findLast((row) => row.style === "title");
+          if (title && titleOpen && bold && title.lines.length < 2) {
+            title.lines.push(text);
+            if (title.lines.length === 2) titleOpen = false;
+          } else {
+            const isTitle = !title && DOCUMENT_HEADING.test(text);
+            titleOpen = isTitle;
+            current = { item: "", lines: [text], heading: true, page, picture: false, style: isTitle ? "title" : bold ? "underlined" : undefined };
+            rows.push(current);
+          }
           introText.add(page);
         }
       }
@@ -254,9 +268,33 @@ export function assertSocTemplate(template: Uint8Array): void {
 
 // ----------------------------------------------------------------- filling
 
+// The run properties with bold and/or underline added where the schema puts
+// them: bold after rStyle and rFonts, underline before the language.
+function styledRPr(rPr: string, { bold = false, underline = false } = {}): string {
+  if (!bold && !underline) return rPr;
+  const inner = rPr.replace(/^<w:rPr>|<\/w:rPr>$/g, "").replace(/<w:(?:b|bCs|u)(?:\s[^>]*)?\/>/g, "");
+  const lead = /^(?:<w:rStyle\b[^>]*\/>)?(?:<w:rFonts\b[^>]*\/>)?/.exec(inner)![0];
+  let rest = inner.slice(lead.length);
+  if (underline) {
+    const at = rest.search(/<w:lang\b/);
+    rest = at < 0 ? `${rest}<w:u w:val="single"/>` : `${rest.slice(0, at)}<w:u w:val="single"/>${rest.slice(at)}`;
+  }
+  return `<w:rPr>${lead}${bold ? "<w:b/><w:bCs/>" : ""}${rest}</w:rPr>`;
+}
+
+// The paragraph properties centred, before the run properties as the schema wants.
+function centred(pPr: string): string {
+  const without = pPr.replace(/<w:jc\b[^>]*\/>/g, "");
+  if (!without) return '<w:pPr><w:jc w:val="center"/></w:pPr>';
+  const at = without.search(/<w:rPr>/);
+  return at < 0 ? without.replace("</w:pPr>", '<w:jc w:val="center"/></w:pPr>') : `${without.slice(0, at)}<w:jc w:val="center"/>${without.slice(at)}`;
+}
+
+type CellLook = { bold?: boolean; underline?: boolean; centre?: boolean; paragraphs?: boolean };
+
 // An empty copy of a template cell (its properties, paragraph and font kept)
-// holding `lines`, one Word line break between them.
-function fillCell(cell: string, lines: string[]): string {
+// holding `lines`: one Word line break between them, or a paragraph each.
+function fillCell(cell: string, lines: string[], look: CellLook = {}): string {
   const open = /^<w:tc\b[^>]*>/.exec(cell)![0];
   const content = cell.slice(open.length, -"</w:tc>".length);
   const tcPr = /^\s*(<w:tcPr>[\s\S]*?<\/w:tcPr>)/.exec(content)?.[1].replace(/<w:vMerge\b[^>]*\/>/g, "") ?? "";
@@ -264,8 +302,11 @@ function fillCell(cell: string, lines: string[]): string {
   const pPr = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(paragraph)?.[0] ?? "";
   // The font is the first run's; an empty cell has only its paragraph mark's.
   let rPr = /<w:r(?:\s[^>]*)?>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/.exec(paragraph)?.[1] ?? /<w:rPr>[\s\S]*?<\/w:rPr>/.exec(pPr)?.[0] ?? "";
-  const text = lines.map((line) => `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`).join("<w:br/>");
-  return `${open}${tcPr}<w:p>${pPr}${text ? `<w:r>${rPr}${text}</w:r>` : ""}</w:p></w:tc>`;
+  const runText = (line: string) => `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`;
+  const paragraphPr = look.centre ? centred(pPr) : pPr;
+  const run = (text: string, first: boolean) => (text ? `<w:r>${styledRPr(rPr, { bold: look.bold, underline: look.underline && first })}${text}</w:r>` : "");
+  if (look.paragraphs && lines.length) return `${open}${tcPr}${lines.map((line, i) => `<w:p>${paragraphPr}${run(runText(line), i === 0)}</w:p>`).join("")}</w:tc>`;
+  return `${open}${tcPr}<w:p>${paragraphPr}${run(lines.map(runText).join("<w:br/>"), true)}</w:p></w:tc>`;
 }
 
 // `filled` (the first of `cells`) stretched over all of `cells`: one grid span,
@@ -281,8 +322,14 @@ function spanCells(filled: string, cells: string[]): string {
 function fillRow(pattern: string, row: Row): string {
   const cells = childElements(pattern, ...inside(pattern, [0, pattern.length], "tr"), "tc");
   const [itemCell, ...rest] = cells.map((span) => pattern.slice(...span));
+  // A title row, as in the real SOC: one cell across the whole table.
+  if (row.style === "title") {
+    const all = [itemCell, ...rest];
+    return pattern.slice(0, cells[0][0]) + spanCells(fillCell(itemCell, row.lines, { bold: true, underline: true, centre: true, paragraphs: true }), all) + pattern.slice(cells[cells.length - 1][1]);
+  }
+  const look: CellLook = { underline: row.style === "underlined" };
   // A heading row, as in the real SOC: the item cell and one cell across the rest.
-  const filled = row.heading && rest.length > 1 ? [fillCell(itemCell, [row.item]), spanCells(fillCell(rest[0], row.lines), rest)] : [itemCell, ...rest].map((cell, index) => fillCell(cell, [row.item ? [row.item] : [], row.lines][index] ?? []));
+  const filled = row.heading && rest.length > 1 ? [fillCell(itemCell, [row.item]), spanCells(fillCell(rest[0], row.lines, look), rest)] : [itemCell, ...rest].map((cell, index) => fillCell(cell, [row.item ? [row.item] : [], row.lines][index] ?? []));
   return pattern.slice(0, cells[0][0]) + filled.join("") + pattern.slice(cells[cells.length - 1][1]);
 }
 
@@ -313,7 +360,8 @@ const collapse = (text: string) => text.replace(/\s+/g, " ").trim();
 // The SOC check must read the draft as built: the same items and item
 // numbers in order, each in the major item the item numbers give.
 function assertReadsBack(draft: Uint8Array, rows: Row[]): void {
-  const built = rows.map((row) => [row.item, collapse(row.lines.join(" "))]);
+  // A title row is one cell across the table: the check reads its text as the item cell.
+  const built = rows.map((row) => (row.style === "title" ? [collapse(row.lines.join(" ")), ""] : [row.item, collapse(row.lines.join(" "))]));
   let read;
   try {
     read = readSocTable(draft).rows;
