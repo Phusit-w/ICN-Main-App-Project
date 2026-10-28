@@ -335,7 +335,7 @@ function sectionsAt(tor: Tor, heads: Map<number, number>, firstFromPageTop: bool
   }));
 }
 
-const ANNEX_LINE = /^\s*ผนวก\s*([0-9๐-๙]+)\s*$/;
+export const ANNEX_LINE = /^\s*ผนวก\s*([0-9๐-๙]+)\s*$/;
 const number = (digits: string) => Number(toArabicDigits(digits));
 
 // ผนวก N in the TOR: from its last heading line ("ผนวก N" alone) to the next.
