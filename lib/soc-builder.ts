@@ -24,9 +24,7 @@ export type SocDraft = { bytes: Uint8Array<ArrayBuffer>; warnings: string[]; row
 
 const WORD_DOCUMENT = "word/document.xml";
 const UNREADABLE_TEMPLATE = "ไม่สามารถอ่านไฟล์เทมเพลต SOC ได้ กรุณาใช้ไฟล์ Word (.docx) ที่ถูกต้อง";
-const NO_TEMPLATE_TABLE = "ไม่พบตาราง SOC ในเทมเพลต: ต้องมีแถวหัวตารางที่คอลัมน์ 1 ชื่อ ลำดับ (หรือ ข้อ) และคอลัมน์ 2 ชื่อ ข้อกำหนด TOR";
-const NO_TEMPLATE_ROW = "ตาราง SOC ในเทมเพลตไม่มีแถวใต้หัวตาราง กรุณาเพิ่มแถวว่าง 1 แถวเพื่อใช้เป็นแบบของทุกข้อ";
-const NARROW_TEMPLATE_ROW = "แถวสุดท้ายของตาราง SOC ในเทมเพลตมีน้อยกว่า 2 คอลัมน์ (ต้องมีคอลัมน์เลขข้อและคอลัมน์ TOR)";
+const NO_TEMPLATE_TABLE = "ไม่พบตาราง SOC ในเทมเพลต: ต้องมีตารางที่แถวสุดท้ายเป็นแถวว่าง และมีอย่างน้อย 2 คอลัมน์ (คอลัมน์ 1 = เลขข้อ, คอลัมน์ 2 = ข้อกำหนด TOR)";
 const NO_ITEMS = "ไม่พบข้อที่มีเลขกำกับ (เช่น ๔.๓.๑) ในหน้า TOR ที่เลือก กรุณาตรวจช่วงหน้า";
 const NOT_READABLE_BACK = "สร้าง SOC ไม่สำเร็จ: ระบบตรวจ SOC อ่านแถวของไฟล์ที่สร้างไม่ตรงกับที่สร้าง (เทมเพลตนี้อาจใช้ไม่ได้) กรุณาติดต่อผู้ดูแลระบบ";
 
@@ -171,25 +169,32 @@ const inside = (xml: string, [start, end]: Span, tag: string): Span => [xml.inde
 
 const cellText = (xml: string) => [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((m) => decodeXml(m[1])).join("").replace(/\s+/g, " ").trim();
 
-type TemplateTable = { headerEnd: number; tableEnd: number; pattern: string };
+// keepEnd: where the rows kept from the template (title / header rows) end.
+type TemplateTable = { keepEnd: number; tableEnd: number; pattern: string };
 
-// The first table with a header row (ลำดับ | ข้อกำหนด TOR …), and its last
-// row as the pattern for every row.
+// The template table is the first top-level table whose last row is empty and
+// has at least two cells (item number, TOR): that row is the pattern for every
+// row. A table with a header row named ลำดับ | ข้อกำหนด TOR comes first, so a
+// cover table above it is never taken. The rows above the last text-bearing
+// row (title and header rows) stay; empty rows after them are replaced.
 function findTemplateTable(xml: string): TemplateTable {
+  const found: (TemplateTable & { named: boolean })[] = [];
   for (const table of childElements(xml, 0, xml.length, "tbl")) {
-    const [from, to] = inside(xml, table, "tbl");
-    const rows = childElements(xml, from, to, "tr");
-    const header = rows.findIndex((row) => {
-      const [a, b] = childElements(xml, ...inside(xml, row, "tr"), "tc");
-      return b && ITEM_NAME.test(cellText(xml.slice(...a))) && TOR_NAME.test(cellText(xml.slice(...b)));
-    });
-    if (header < 0) continue;
-    if (header === rows.length - 1) throw new Error(NO_TEMPLATE_ROW);
+    const rows = childElements(xml, ...inside(xml, table, "tbl"), "tr");
+    if (!rows.length) continue;
     const pattern = xml.slice(...rows[rows.length - 1]);
-    if (childElements(pattern, ...inside(pattern, [0, pattern.length], "tr"), "tc").length < 2) throw new Error(NARROW_TEMPLATE_ROW);
-    return { headerEnd: rows[header][1], tableEnd: rows[rows.length - 1][1], pattern };
+    const cells = childElements(pattern, ...inside(pattern, [0, pattern.length], "tr"), "tc");
+    if (cells.length < 2 || cellText(pattern)) continue;
+    const named = rows.some((row) => {
+      const [first, second] = childElements(xml, ...inside(xml, row, "tr"), "tc");
+      return second && ITEM_NAME.test(cellText(xml.slice(...first))) && TOR_NAME.test(cellText(xml.slice(...second)));
+    });
+    const lastText = rows.slice(0, -1).findLastIndex((row) => cellText(xml.slice(...row)));
+    found.push({ named, keepEnd: lastText < 0 ? rows[0][0] : rows[lastText][1], tableEnd: rows[rows.length - 1][1], pattern });
   }
-  throw new Error(NO_TEMPLATE_TABLE);
+  const table = found.find((t) => t.named) ?? found[0];
+  if (!table) throw new Error(NO_TEMPLATE_TABLE);
+  return table;
 }
 
 function readTemplate(template: Uint8Array): { entries: ZipEntry[]; xml: string } {
@@ -205,8 +210,8 @@ function readTemplate(template: Uint8Array): { entries: ZipEntry[]; xml: string 
 }
 
 // Throws, with a message for the user, when the template can't be filled and
-// read back by the SOC check: no table whose first row names the item number
-// and TOR columns, or no row under it to use as the pattern.
+// read back by the SOC check: no table whose last row is an empty row of at
+// least two cells to use as the pattern.
 export function assertSocTemplate(template: Uint8Array): void {
   findTemplateTable(readTemplate(template).xml);
 }
@@ -271,7 +276,7 @@ export function buildSocDraft(template: Uint8Array, pages: TorPage[], ranges: re
   const { entries, xml } = readTemplate(template);
   const table = findTemplateTable(xml);
   const { rows, warnings } = splitItems(pages, ranges);
-  const filled = xml.slice(0, table.headerEnd) + rows.map((row) => fillRow(table.pattern, row)).join("") + xml.slice(table.tableEnd);
+  const filled = xml.slice(0, table.keepEnd) + rows.map((row) => fillRow(table.pattern, row)).join("") + xml.slice(table.tableEnd);
   const bytes = writeZip(entries.map((entry) => (entry.name === WORD_DOCUMENT ? { ...entry, data: Buffer.from(filled, "utf8") } : entry)));
   assertReadsBack(bytes, rows);
   return { bytes, warnings, rowCount: rows.length };

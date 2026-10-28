@@ -31,7 +31,7 @@ before(async () => {
 after(() => rm(storageRoot, { recursive: true, force: true }));
 
 const VALID = buildSocDocx([["ลำดับ", "ข้อกำหนด TOR", "ข้อเสนอ"], ["", "", ""]]);
-const NO_HEADER = buildSocDocx([["a", "b"], ["", ""]]);
+const NO_EMPTY_ROW = buildSocDocx([["ลำดับ", "ข้อกำหนด TOR"]]);
 
 const user = (username: string, role: "USER" | "ADMIN" = "USER", appAccess = ["soc"]) =>
   prisma.user.create({ data: { username, displayName: `คุณ ${username}`, passwordHash: "x", role, appAccess } });
@@ -60,7 +60,7 @@ test("a valid template is added, kept on disk and listed with who added it", { s
 
 test("a template the builder can't fill is refused with the problem named, and nothing is kept", { skip }, async () => {
   signedIn = await user("anna");
-  const response = await add("ผิด", NO_HEADER);
+  const response = await add("ผิด", NO_EMPTY_ROW);
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /ไม่พบตาราง SOC ในเทมเพลต/);
   assert.equal(await prisma.socTemplate.count(), 0);

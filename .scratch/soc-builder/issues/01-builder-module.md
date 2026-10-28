@@ -12,3 +12,5 @@
 - [ ] lint, typecheck, tests pass
 
 ## Comments
+
+2026-10-28 (after ticket 03): the user's real Apron Template.docx (blank 19 x 6 table, no header row, no text) was refused by the first contract. Contract is now: first table whose last row is empty with 2+ cells (a table with a ลำดับ / ข้อกำหนด TOR header row preferred); rows above the last text-bearing row stay, empty rows are replaced. Real Template builds 306 rows for Apron, widths kept.

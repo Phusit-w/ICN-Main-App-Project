@@ -145,11 +145,18 @@ test("the offer, reference and remark cells are left empty", () => {
   assert.deepEqual(table.rowText(2, "๑.๑"), { tor: "ก", proposal: null });
 });
 
-test("a template with no header row, or no row under it, is refused with the problem named", () => {
-  assert.throws(() => assertSocTemplate(buildSocDocx([["a", "b"], ["", ""]])), /ไม่พบตาราง SOC ในเทมเพลต/);
-  assert.throws(() => assertSocTemplate(buildSocDocx([HEADER])), /ไม่มีแถวใต้หัวตาราง/);
+test("a template with no empty last row of two cells is refused with the problem named", () => {
+  assert.throws(() => assertSocTemplate(buildSocDocx([HEADER])), /ไม่พบตาราง SOC ในเทมเพลต/);
+  assert.throws(() => assertSocTemplate(buildSocDocx([["a"], [""]])), /อย่างน้อย 2 คอลัมน์/);
+  assert.throws(() => assertSocTemplate(buildDocx("<w:p/>")), /ไม่พบตาราง SOC ในเทมเพลต/);
   assert.throws(() => assertSocTemplate(new Uint8Array([1, 2, 3])), /ไม่สามารถอ่านไฟล์เทมเพลต/);
   assert.doesNotThrow(() => assertSocTemplate(TEMPLATE));
+});
+
+test("a template of blank rows with no header (as a customer sends it) is filled; its title rows stay and its blank rows are replaced", () => {
+  const template = buildSocDocx([["แบบฟอร์ม SOC", ""], ["", ""], ["", ""], ["", ""]]);
+  const draft = build([page("๑.๑ ก\n๑.๒ ข")], [[1, 1]], template);
+  assert.deepEqual(readSocTable(draft.bytes).rows.map((row) => [row.item, row.tor]), [["แบบฟอร์ม SOC", ""], ["๑.๑", "ก"], ["๑.๒", "ข"]]);
 });
 
 test("a draft that the SOC check could not read back is a build error, not a silent draft", () => {
