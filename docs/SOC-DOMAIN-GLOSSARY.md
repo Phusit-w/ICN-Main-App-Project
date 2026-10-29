@@ -5,6 +5,42 @@ Shared vocabulary for the SOC checker and its semantic review layer. Referenced 
 [ADR-SOC-AUTO-PASS-POLICY](adr/ADR-SOC-AUTO-PASS-POLICY.md),
 [SOC-ACCURACY-ACCEPTANCE](SOC-ACCURACY-ACCEPTANCE.md).
 
+## Proposal (โครงการข้อเสนอ)
+
+Decisions: `.scratch/proposal-steps/map.md` (2026-10-29); spec `.scratch/proposal-steps/spec.md`; ADRs 0012, 0013.
+
+**Proposal (โครงการข้อเสนอ)**:
+One piece of proposal preparation work that ties together a TOR, its Proposal Outline, its SOC and the Datasheets the SOC cites. The Proposal holds these files itself (ADR 0012): one TOR, its SOC Versions, and its Datasheets, which can be added or removed at any time within the same limits a SOC job has (200 PDFs, 1 GB, 120 MB each). A SOC Build and a SOC job are runs on the Proposal's files, not their owners. Every user with SOC app access can see and work on it. It is the one way into the SOC app: no SOC job or SOC Build is started outside a Proposal, and SOC jobs and builds made before it stay viewable on their own but can't be attached to one. Its title is unique by the Job Title rule; its creator or an ADMIN can rename it or move it to the trash, and 30 days later it is purged with everything it holds.
+_Avoid_: project (that is a Project Card), Proposal A/B (a bidder's offer folder in a sample)
+
+**Proposal Step**:
+One stage of a Proposal: TOR, โครง Content, สร้าง SOC, กรอกอ้างอิง, ตรวจ TOR ตรงต้นฉบับ, ตรวจหลักฐาน. Each is ยังไม่ทำ, กำลังทำ or เสร็จ. Steps can be done in any order: a step whose input an earlier step would make takes an uploaded file instead.
+_Avoid_: phase, stage, job
+
+**ฉบับ SOC (SOC Version)**:
+One SOC file of a Proposal, numbered in the order it arrived: a Generated SOC Draft, an uploaded SOC, the copy กรอกอ้างอิง writes, or a bidder's corrected SOC. The latest is the current one, which every step works on; older ones stay viewable. Each SOC Version is checked in its own SOC job, so a new version starts ตรวจ TOR ตรงต้นฉบับ and ตรวจหลักฐาน again as ยังไม่ทำ, and the old results stay with the old version.
+_Avoid_: revision, SOC file (alone), SOC_Check (that is a check's output copy)
+
+**รอคนรับ (Waiting for a taker)**:
+Where a Check Request goes when the person asking has no SOC Runner, or chooses to ask for help. Any user with a Runner may take it by their own click; it then runs on the taker's Runner, with the taker's Claude login, and the result names both the asker and the taker. Nothing takes a request automatically (ADR 0013).
+_Avoid_: central account, shared queue, ส่วนกลาง
+
+**โครง Content (Proposal Outline)**:
+The headings a proposal document must have according to the TOR.
+_Avoid_: content (alone), table of contents, SOC
+
+**กรอกอ้างอิง (Reference Fill)**:
+The Proposal Step that suggests, for each SOC row with an empty reference, the Datasheet and PDF page that support it, and for a row that names a document but no page, the page inside that document. A person accepts, edits or rejects each suggestion; the accepted ones are written into a new SOC Version, and rows with a full reference are never overwritten. A row with nothing found stays empty in the SOC.
+_Avoid_: auto reference, page finder
+
+**รูปแบบอ้างอิง (Reference Style)**:
+How กรอกอ้างอิง writes a reference: **แบบไทย** on several lines (`เอกสารส่วนที่ 2` / the sub-folder's name / `หน้า 3`) or **แบบอังกฤษ** on one line (`CASRI Product Brochure, page 1`). One per Proposal, guessed from the SOC's existing references or its language. Every reference it writes must read back to the same file and page through the check's own reader.
+_Avoid_: template (that is a SOC Template), format
+
+**ชื่อที่ใช้อ้างอิง (Citation Name)**:
+The short name a Datasheet goes by in แบบอังกฤษ references, e.g. `CASRI Product Brochure` for `08 CASRI Product brochure - surat-1_….pdf`. It starts as the file name without its leading number and anything after " - ", and can be edited once in the Proposal's Datasheet list.
+_Avoid_: title, label (a label is an item number written on a Datasheet page)
+
 ## สร้าง SOC (SOC Builder)
 
 Decisions: `.scratch/soc-builder/DECISIONS.md` (grill 2026-10-27).
@@ -63,7 +99,7 @@ The program installed on a reviewer's machine. It takes only that reviewer's che
 _Avoid_: worker, agent, bot
 
 **Check Request**:
-A reviewer's click to check one major item, or a whole SOC, in an Imported SOC Check. It belongs to that reviewer, and only that reviewer's SOC Runner may carry it out. A whole-SOC click makes one Check Request per unchecked major item, and a major item has at most one open Check Request at a time (see `docs/SOC-RUNNER.md`).
+A reviewer's click to check one major item, or a whole SOC, in an Imported SOC Check. It belongs to whoever runs it: the reviewer who clicked, or the teammate who took it from รอคนรับ (ADR 0013); only that person's SOC Runner may carry it out. A whole-SOC click makes one Check Request per unchecked major item, and a major item has at most one open Check Request at a time (see `docs/SOC-RUNNER.md`).
 _Avoid_: job (a job is the whole SOC)
 
 **Job Title**:
