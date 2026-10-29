@@ -4,14 +4,15 @@ import { redirect } from "next/navigation";
 import { requireRole, writeAudit } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { loadTaxonomy } from "@/lib/project-card-terms";
-import { translateQuestion } from "@/lib/question-search";
+import { questionNote, translateQuestion } from "@/lib/question-search";
 import { questionSearchModel } from "@/lib/question-search-model";
 
 const MAX_QUESTION = 500;
 
 // ถามด้วยประโยค on ค้นหาโครงการ (Question Search): the question → the
 // ordinary search URL with the filters it produced, plus the question itself
-// (`ask`) so the page can show it. Never adds to the filters in use: the
+// (`ask`) so the page can show it, and `note` when the question asked for
+// a ranking/total/count or couldn't be understood. Never adds to the filters in use: the
 // redirect carries only what this question produced. Admins only during the
 // trial, and only while the model is configured. Every question is logged.
 export async function askProjectCardQuestion(formData: FormData): Promise<void> {
@@ -38,8 +39,10 @@ export async function askProjectCardQuestion(formData: FormData): Promise<void> 
       fellBack: answer.fellBack,
       ...(answer.reason ? { reason: answer.reason } : {}),
       model,
+      askedModel: answer.askedModel,
       ms: Date.now() - started,
     },
   });
-  redirect(`/project-card?${new URLSearchParams({ ...answer.filters, ask: question })}`);
+  const note = questionNote(answer);
+  redirect(`/project-card?${new URLSearchParams({ ...answer.filters, ask: question, ...(note ? { note } : {}) })}`);
 }

@@ -14,6 +14,8 @@ import { CERTIFICATE_AGE_OPTIONS } from "@/lib/project-card-certificate-date";
 import { findProjectCards, parseProjectCardSearch, type ProjectCardSearchParams } from "@/lib/project-card-search";
 import { questionSearchModel } from "@/lib/question-search-model";
 import { askProjectCardQuestion } from "@/actions/projectCardQuestion";
+import ProjectCardAskButton from "@/components/ProjectCardAskButton";
+import type { QuestionNote } from "@/lib/question-search";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +41,19 @@ function clientOptions(rows: { client: string; _count: number }[]): [string, num
   return [...counts].sort(([a], [b]) => a.localeCompare(b));
 }
 
+// The notes askProjectCardQuestion can send back with the filters.
+const QUESTION_NOTES: Record<QuestionNote, string> = {
+  unsupported:
+    "ระบบไม่จัดอันดับ ไม่รวมมูลค่า และไม่นับจำนวนให้ ใช้เฉพาะตัวกรองจากคำถามแล้ว — เรียงลำดับได้ที่หัวตาราง และดูจำนวนโครงการได้ที่ \"พบ … โครงการ\"",
+  fallback: "แปลคำถามไม่สำเร็จ จึงค้นหาทั้งประโยคเป็นคำค้นแทน — ลองถามใหม่ หรือใช้ตัวกรองด้านบน",
+};
+
 export default async function ProjectCardPage({
   searchParams,
 }: {
-  // `ask`: the question Question Search turned into these filters.
-  searchParams: Promise<ProjectCardSearchParams & { ask?: string }>;
+  // `ask`: the question Question Search turned into these filters; `note`:
+  // what else it has to tell the person (QUESTION_NOTES).
+  searchParams: Promise<ProjectCardSearchParams & { ask?: string; note?: string }>;
 }) {
   const actor = await requirePageAccess("project-card");
   const taxonomy = await loadTaxonomy();
@@ -53,6 +63,9 @@ export default async function ProjectCardPage({
   // set up on this server. The ordinary search never waits on it.
   const canAsk = actor.role === "ADMIN" && questionSearchModel() !== null;
   const asked = canAsk ? params.ask?.trim() ?? "" : "";
+  const note = asked && params.note && Object.hasOwn(QUESTION_NOTES, params.note)
+    ? QUESTION_NOTES[params.note as QuestionNote]
+    : undefined;
   const {
     query, client, categoryDisplay, workTypeDisplay, yearFrom, yearTo, budgetMin, budgetMax,
     wantsContract, wantsCertificate, certWithin, chips, currentParams,
@@ -309,9 +322,8 @@ export default async function ProjectCardPage({
                 className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-ink"
               />
             </label>
-            <Button type="submit" variant="dark" className="h-[52px]">
-              {asked ? "ถามอีกครั้ง" : "ถาม"}
-            </Button>
+            <ProjectCardAskButton label={asked ? "ถามอีกครั้ง" : "ถาม"} />
+            {note ? <p className="w-full rounded-field bg-chip px-4 py-2.5 text-sm text-label">{note}</p> : null}
             <p className="w-full text-xs text-muted">
               AI ในเครื่องของบริษัทแปลงคำถามเป็นตัวกรองด้านล่าง แล้วค้นหาตามปกติ ตัวกรองเดิมจะถูกแทนที่
             </p>

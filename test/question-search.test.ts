@@ -28,15 +28,25 @@ mock.module("next/navigation", {
 });
 
 // The model adapter: each test sets the answer (or the error) it gives.
-let answer: Record<string, unknown> | Error = {};
+// HANG never answers; the adapter is then told to stop through its signal.
+const HANG = Symbol("hang");
+type Answer = unknown | Error | typeof HANG;
+let answer: Answer = {};
 let configuredModel: string | null = "qwen3:4b";
 const asked: string[] = [];
+let hanging: (() => void) | null = null;
 mock.module("@/lib/question-search-model", {
   namedExports: {
     questionSearchModel: () => configuredModel,
-    askModel: async (question: string) => {
+    askModel: async (question: string, _year: number, signal: AbortSignal) => {
       asked.push(question);
       if (answer instanceof Error) throw answer;
+      if (answer === HANG) {
+        return new Promise((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason));
+          hanging?.();
+        });
+      }
       return answer;
     },
   },
@@ -88,7 +98,7 @@ async function signIn(role: "ADMIN" | "USER" = "ADMIN") {
 }
 
 // Asks as the signed-in user; returns the search URL's params it redirected to.
-async function ask(question: string, modelAnswer: Record<string, unknown> | Error = {}) {
+async function ask(question: string, modelAnswer: Answer = {}) {
   answer = modelAnswer;
   const form = new FormData();
   form.set("question", question);
@@ -225,9 +235,78 @@ test("each question writes one Activity log row with the filters, the model and 
 test("when the model fails the question is searched as a keyword, never an error page", { skip }, async () => {
   await signIn();
   await seedTerms();
-  assert.deepEqual(await ask("งาน OLT", new Error("connect ECONNREFUSED")), { ask: "งาน OLT", q: "งาน OLT" });
+  assert.deepEqual(await ask("งาน OLT", new Error("connect ECONNREFUSED")), { ask: "งาน OLT", q: "งาน OLT", note: "fallback" });
   const row = await prisma.auditLog.findFirstOrThrow({ where: { action: "project-card.question-search" } });
-  assert.equal((row.metadata as Record<string, unknown>).fellBack, true);
+  const metadata = row.metadata as Record<string, unknown>;
+  assert.equal(metadata.fellBack, true);
+  assert.equal(metadata.reason, "connect ECONNREFUSED");
+});
+
+test("an answer that isn't an object of fields falls back too", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  for (const garbage of [null, "router", [{ k: "router" }], 42]) {
+    assert.deepEqual(await ask("งาน router", garbage), { ask: "งาน router", q: "งาน router", note: "fallback" }, JSON.stringify(garbage));
+  }
+});
+
+test("a model that doesn't answer within 30 s is stopped and the question falls back", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  const called = new Promise<void>((resolve) => (hanging = resolve));
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const result = ask("งาน OLT", HANG);
+    await called;
+    mock.timers.tick(29_999);
+    let settled = false;
+    void result.finally(() => (settled = true));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(settled, false, "still waiting before 30 s");
+    mock.timers.tick(1);
+    assert.deepEqual(await result, { ask: "งาน OLT", q: "งาน OLT", note: "fallback" });
+  } finally {
+    mock.timers.reset();
+    hanging = null;
+  }
+  const row = await prisma.auditLog.findFirstOrThrow({ where: { action: "project-card.question-search" } });
+  assert.match(String((row.metadata as Record<string, unknown>).reason), /30/);
+});
+
+test("a ranking, total or count gets its filter part and a note; the model's sort needs such a word", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  assert.deepEqual(await ask("5 อันดับที่งบสูงสุดของ PEA", { sort: true }), { ask: "5 อันดับที่งบสูงสุดของ PEA", client: "PEA", note: "unsupported" });
+  assert.deepEqual(await ask("รวมมูลค่างานไมโครเวฟ", { sort: true }), { ask: "รวมมูลค่างานไมโครเวฟ", category: "microwave-radio", note: "unsupported" });
+  assert.deepEqual(await ask("how many satellite projects", { sort: true }), { ask: "how many satellite projects", category: "satellite-communications", note: "unsupported" });
+  assert.deepEqual(await ask("PEA มีกี่สัญญา", { sort: true }), { ask: "PEA มีกี่สัญญา", client: "PEA", note: "unsupported" });
+  // No ranking word: the model's sort is invented.
+  assert.deepEqual(await ask("งาน OLT ปี 2565", { k: "OLT", yf: 2565, yt: 2565, sort: true }), { ask: "งาน OLT ปี 2565", q: "OLT", yearFrom: "2022", yearTo: "2022" });
+  const rows = await prisma.auditLog.findMany({ where: { action: "project-card.question-search" }, orderBy: { createdAt: "asc" } });
+  assert.deepEqual(rows.map((r) => (r.metadata as Record<string, unknown>).unsupported), [true, true, true, true, false]);
+});
+
+test("the model isn't asked when it can't add anything", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  await prisma.projectCardClient.create({ data: { code: "CMU", names: ["มหาวิทยาลัยเชียงใหม่", "มช."] } });
+  asked.length = 0;
+  // Only filter names and generic words: code alone answers these.
+  assert.deepEqual(await ask("ผลงานดาวเทียม", new Error("must not be asked")), { ask: "ผลงานดาวเทียม", category: "satellite-communications" });
+  assert.deepEqual(await ask("โครงการของมหาวิทยาลัยเชียงใหม่", new Error("must not be asked")), { ask: "โครงการของมหาวิทยาลัยเชียงใหม่", client: "CMU" });
+  assert.deepEqual(await ask("งานบำรุงรักษาระบบสื่อสัญญาณ", new Error("must not be asked")), {
+    ask: "งานบำรุงรักษาระบบสื่อสัญญาณ", category: "transmission", workType: "ma",
+  });
+  assert.deepEqual(asked, []);
+  const row = await prisma.auditLog.findFirstOrThrow({ where: { action: "project-card.question-search" } });
+  assert.equal((row.metadata as Record<string, unknown>).askedModel, false);
+  // A number, a time/budget/certificate/ranking word or a word left over: asked.
+  await ask("ผลงานดาวเทียม 5 ปี", { within: 5 });
+  await ask("ผลงานดาวเทียมที่แพงที่สุด", { sort: true });
+  await ask("ผลงาน OLT ของ มช.", { k: "OLT" });
+  // Thai written straight on to a client name is still a word to look for.
+  assert.deepEqual(await ask("งานกล้องวงจรปิดของ PEA", { k: "กล้องวงจรปิด" }), { ask: "งานกล้องวงจรปิดของ PEA", q: "กล้องวงจรปิด", client: "PEA" });
+  assert.deepEqual(asked, ["ผลงานดาวเทียม 5 ปี", "ผลงานดาวเทียมที่แพงที่สุด", "ผลงาน OLT ของ มช.", "งานกล้องวงจรปิดของ PEA"]);
 });
 
 test("only an admin may ask, and only while the model is configured", { skip }, async () => {
@@ -273,4 +352,17 @@ test("the asked question is shown above the chips and can be edited and asked ag
   assert.match(html, /หมวดหมู่: Microwave &amp; Radio/);
   assert.ok(html.indexOf("คำถาม:") < html.indexOf("หมวดหมู่: Microwave"));
   assert.equal(asked.length, 0, "rendering the page never calls the model");
+});
+
+test("the page shows the question's note: rankings aren't done, or the question wasn't understood", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  const unsupported = await pageHtml({ ask: "5 อันดับที่งบสูงสุดของ PEA", client: "PEA", note: "unsupported" });
+  assert.match(unsupported, /ไม่จัดอันดับ/);
+  assert.match(unsupported, /หัวตาราง/);
+  const fallback = await pageHtml({ ask: "งาน OLT", q: "งาน OLT", note: "fallback" });
+  assert.match(fallback, /แปลคำถามไม่สำเร็จ/);
+  assert.doesNotMatch(await pageHtml({ ask: "งาน OLT", q: "OLT" }), /ไม่จัดอันดับ|แปลคำถามไม่สำเร็จ/);
+  // A note without a question (a hand-made URL) shows nothing.
+  assert.doesNotMatch(await pageHtml({ note: "fallback" }), /แปลคำถามไม่สำเร็จ/);
 });

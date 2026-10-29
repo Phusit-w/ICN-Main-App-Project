@@ -35,8 +35,6 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const TIMEOUT_MS = 30_000;
-
 // The model, or null when Question Search isn't set up on this server
 // (QUESTION_SEARCH_OLLAMA_URL unset) — the mode is then hidden.
 export function questionSearchModel(): string | null {
@@ -70,16 +68,17 @@ Examples:
 "งาน MA ของ PEA" → {}`;
 }
 
-// Throws when Ollama is unreachable, slower than 30 s, or answers something
-// that isn't a JSON object.
-export async function askModel(question: string, year: number): Promise<ModelAnswer> {
+// The parsed JSON the model answered — lib/question-search.ts checks it's a
+// ModelAnswer. Throws when Ollama is unreachable, errs, answers something
+// that isn't JSON, or `signal` stops it (the caller's 30 s deadline).
+export async function askModel(question: string, year: number, signal: AbortSignal): Promise<unknown> {
   const url = process.env.QUESTION_SEARCH_OLLAMA_URL;
   const model = questionSearchModel();
   if (!url || !model) throw new Error("Question Search is not configured");
   const response = await fetch(`${url.replace(/\/+$/, "")}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal,
     body: JSON.stringify({
       model,
       stream: false,
@@ -98,7 +97,5 @@ export async function askModel(question: string, year: number): Promise<ModelAns
   });
   if (!response.ok) throw new Error(`Ollama ${response.status}`);
   const body = (await response.json()) as { message?: { content?: string } };
-  const parsed: unknown = JSON.parse(body.message?.content ?? "");
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not a JSON object");
-  return parsed as ModelAnswer;
+  return JSON.parse(body.message?.content ?? "");
 }
