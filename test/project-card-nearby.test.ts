@@ -70,14 +70,14 @@ test("a word inside the keyword is tried too; Thai fragments and split codes are
   assert.doesNotMatch(await pageHtml({ q: "CAT-025" }), /ไม่พบโครงการที่ตรงทุกเงื่อนไข/);
 });
 
-test("then the year, budget and certificate-age filters in use are let go, keeping the keyword", { skip }, async () => {
+test("the year, budget and Certificate Date filters are never let go", { skip }, async () => {
   await seed();
+  // WW003 has "server" but costs 156 ล้าน: not near a search over 1,000 ล้าน
+  // (the user, 2026-10-29: a 150 ล้าน card under งบ > 350 ล้าน was wrong).
   const html = await pageHtml({ q: "server", budgetMin: "1000", yearFrom: "2024" });
-  assert.match(html, NEARBY);
-  assert.match(html, /ไม่จำกัดปี \/ งบ/);
-  assert.doesNotMatch(html, /อายุหนังสือรับรอง/);
-  assert.match(html, /True IDC/);
-  assert.doesNotMatch(html, /ประจำศูนย์/);
+  assert.doesNotMatch(html, NEARBY);
+  assert.doesNotMatch(html, /True IDC/);
+  assert.match(html, /ไม่พบโครงการที่ค้นหา/);
 });
 
 test("last, the keyword is let go, keeping the client, Category and Work Type", { skip }, async () => {
@@ -86,10 +86,10 @@ test("last, the keyword is let go, keeping the client, Category and Work Type", 
   assert.match(html, NEARBY);
   assert.match(html, /ไม่ใช้คำค้น &quot;OLT&quot;/);
   assert.match(html, /ขายสายเคเบิลใยแก้วนำแสง/);
-  // And with the budget too, when keeping it finds nothing.
-  const both = await pageHtml({ q: "OLT", client: "PEA", budgetMin: "100" });
-  assert.match(both, /ไม่ใช้คำค้น &quot;OLT&quot; · ไม่จำกัดงบ/);
-  assert.match(both, /ขายสายเคเบิลใยแก้วนำแสง/);
+  // The budget stays: PEA001 (47 ล้าน) isn't near a search over 100 ล้าน.
+  const withBudget = await pageHtml({ q: "OLT", client: "PEA", budgetMin: "100" });
+  assert.doesNotMatch(withBudget, NEARBY);
+  assert.doesNotMatch(withBudget, /ขายสายเคเบิลใยแก้วนำแสง/);
 });
 
 test("nothing nearby is shown when cards match, or when nothing is near", { skip }, async () => {

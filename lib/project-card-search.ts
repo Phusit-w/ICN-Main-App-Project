@@ -209,43 +209,27 @@ export async function findProjectCards(search: ProjectCardSearch) {
 
 // The cards near a search that found none: those of the first looser search
 // that finds some, with what was loosened (`changes`) and that search (for
-// the link to it and the export). Each step keeps the ones before it —
-// 1. a shorter keyword, the other filters kept ("คอมพิวเตอร์แม่ข่าย" →
-//    "คอมพิวเตอร์": a run of its words, longest first);
-// 2. the year, budget and Certificate Date filters in use let go, keyword
-//    kept (whole, then shorter);
-// 3. the keyword let go, then the numbers too, while a client, Category or
-//    Work Type remains.
-// A try left with no filter at all would list every card, so it's skipped.
-// Null when none finds a card. Only rules, no model, and only when nothing
+// the link to it and the export). Only the keyword is loosened —
+// 1. a shorter keyword ("คอมพิวเตอร์แม่ข่าย" → "คอมพิวเตอร์": a run of its
+//    words, longest first);
+// 2. no keyword, while a client, Category or Work Type remains.
+// Every other filter stays: a year, budget or Certificate Date limit is a
+// condition the user set, so a card outside it is never "near" (the user,
+// 2026-10-29: a 150 ล้าน card under งบ > 350 ล้าน was wrong).
+// Each try keeps a keyword or a client/Category/Work Type, so it never lists
+// every card. Null when none finds a card. Only rules, no model, and only when nothing
 // matched, so the ordinary search stays instant: each try is a count, and
 // only the one that wins loads its cards.
 export async function findNearbyProjectCards(params: ProjectCardSearchParams, taxonomy: Taxonomy) {
   const query = params.q?.trim() ?? "";
-  const shorter = shorterKeywords(query).slice(0, MAX_SHORTER_KEYWORDS);
-  const keywordChange = (q: string) => (q === query ? [] : [`คำค้น "${q}" แทน "${query}"`]);
-  const loosened = [
-    ...(params.yearFrom || params.yearTo ? ["ปี"] : []),
-    ...(params.budgetMin || params.budgetMax ? ["งบ"] : []),
-    ...(params.certWithin ? ["อายุหนังสือรับรอง"] : []),
-  ];
-  const unlimited = { ...params, yearFrom: undefined, yearTo: undefined, budgetMin: undefined, budgetMax: undefined, certWithin: undefined };
-  const numbersChange = `ไม่จำกัด${loosened.join(" / ")}`;
-
-  const tries: { params: ProjectCardSearchParams; changes: string[] }[] = shorter.map((q) => ({
-    params: { ...params, q },
-    changes: keywordChange(q),
-  }));
-  if (loosened.length) {
-    for (const q of [query, ...shorter]) tries.push({ params: { ...unlimited, q }, changes: [...keywordChange(q), numbersChange] });
-  }
+  const tries: { params: ProjectCardSearchParams; changes: string[] }[] = shorterKeywords(query)
+    .slice(0, MAX_SHORTER_KEYWORDS)
+    .map((q) => ({ params: { ...params, q }, changes: [`คำค้น "${q}" แทน "${query}"`] }));
   if (query && [params.client, params.category, params.workType].some((v) => v?.trim())) {
     tries.push({ params: { ...params, q: undefined }, changes: [`ไม่ใช้คำค้น "${query}"`] });
-    if (loosened.length) tries.push({ params: { ...unlimited, q: undefined }, changes: [`ไม่ใช้คำค้น "${query}"`, numbersChange] });
   }
   for (const attempt of tries) {
     const search = parseProjectCardSearch(attempt.params, taxonomy);
-    if (!search.filtered || !hasNarrowingFilter(attempt.params)) continue;
     if (await prisma.projectCard.count({ where: search.where })) {
       return { changes: attempt.changes, search, cards: await findProjectCards(search) };
     }
@@ -253,12 +237,7 @@ export async function findNearbyProjectCards(params: ProjectCardSearchParams, ta
   return null;
 }
 
-// A keyword, client, Category, Work Type or number filter: the document
-// boxes alone hold most cards, so they don't make a search "near".
-const hasNarrowingFilter = (p: ProjectCardSearchParams) =>
-  [p.q, p.client, p.category, p.workType, p.yearFrom, p.yearTo, p.budgetMin, p.budgetMax, p.certWithin].some((v) => v?.trim());
-
-// Each is up to two counts; the steps after them always get their turn.
+// Each is one count; dropping the keyword still gets its turn after them.
 const MAX_SHORTER_KEYWORDS = 8;
 
 let segmenter: Intl.Segmenter | null = null;

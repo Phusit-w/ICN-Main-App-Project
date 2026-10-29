@@ -97,5 +97,5 @@ A search where a user types a question in everyday Thai or English (e.g. "งา
 _Avoid_: AI answer, chatbot, AI search
 
 **Nearby Cards**:
-The cards shown when no card meets every condition of a search (ordinary or Question Search): those of the first looser search that finds some — a shorter keyword, then no year/budget/Certificate Date limit, then no keyword while a Client, Category or Work Type remains — always labelled "งานที่ใกล้เคียง" with what was loosened, never mixed in with matching cards. Chosen by rules, never by the AI, and never loosened to no filter at all.
+The cards shown when no card meets every condition of a search (ordinary or Question Search): those of the first looser search that finds some — a shorter keyword, then no keyword while a Client, Category or Work Type remains — always labelled "งานที่ใกล้เคียง" with what was loosened, never mixed in with matching cards. Only the keyword is ever loosened: a year, budget or Certificate Date limit the user set always holds. Chosen by rules, never by the AI.
 _Avoid_: Similar projects, recommendations, fuzzy results
