@@ -21,6 +21,7 @@ mock.module("@/lib/authorization", { namedExports: { requirePageAccess: async ()
 // The ค้นหาโครงการ page's data, for its anchor check at the end.
 mock.module("@/lib/prisma", { namedExports: { prisma: { projectCard: { findMany: async () => [], groupBy: async () => [], count: async () => 0 } } } });
 mock.module("@/actions/projectCard", { namedExports: { updateProjectCardDetails: noop, verifyProjectCardBudget: noop } });
+mock.module("@/actions/projectCardQuestion", { namedExports: { askProjectCardQuestion: noop } });
 mock.module("@/lib/project-card-terms", { namedExports: { loadTaxonomy: async () => ({ categories: [], workTypes: [] }) } });
 mock.module("@/lib/soc", {
   namedExports: {

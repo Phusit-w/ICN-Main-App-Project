@@ -12,6 +12,8 @@ import Link from "next/link";
 import { loadTaxonomy } from "@/lib/project-card-terms";
 import { CERTIFICATE_AGE_OPTIONS } from "@/lib/project-card-certificate-date";
 import { findProjectCards, parseProjectCardSearch, type ProjectCardSearchParams } from "@/lib/project-card-search";
+import { questionSearchModel } from "@/lib/question-search-model";
+import { askProjectCardQuestion } from "@/actions/projectCardQuestion";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +42,17 @@ function clientOptions(rows: { client: string; _count: number }[]): [string, num
 export default async function ProjectCardPage({
   searchParams,
 }: {
-  searchParams: Promise<ProjectCardSearchParams>;
+  // `ask`: the question Question Search turned into these filters.
+  searchParams: Promise<ProjectCardSearchParams & { ask?: string }>;
 }) {
   const actor = await requirePageAccess("project-card");
   const taxonomy = await loadTaxonomy();
-  const search = parseProjectCardSearch(await searchParams, taxonomy);
+  const params = await searchParams;
+  const search = parseProjectCardSearch(params, taxonomy);
+  // ถามด้วยประโยค: admins only during the trial, and only once the model is
+  // set up on this server. The ordinary search never waits on it.
+  const canAsk = actor.role === "ADMIN" && questionSearchModel() !== null;
+  const asked = canAsk ? params.ask?.trim() ?? "" : "";
   const {
     query, client, categoryDisplay, workTypeDisplay, yearFrom, yearTo, budgetMin, budgetMax,
     wantsContract, wantsCertificate, certWithin, chips, currentParams,
@@ -278,6 +286,38 @@ export default async function ProjectCardPage({
           </div>
         </details>
       </form>
+
+      {/* Its own form: the question goes to the action, which redirects back
+          here with the filters it understood (replacing the ones above) and
+          the question, shown here to edit and ask again. */}
+      {canAsk ? (
+        <details open={Boolean(asked)} className="group -mt-3 rounded-card bg-surface shadow-card">
+          <summary className="ui-btn flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-sm font-medium text-label hover:text-ink [&::-webkit-details-marker]:hidden">
+            <span className="transition-transform group-open:rotate-90">▸</span>
+            ถามด้วยประโยค
+            <span className="rounded-full bg-chip px-2 py-0.5 text-xs font-normal text-muted">ทดลอง · ผู้ดูแลระบบ</span>
+          </summary>
+          <form action={askProjectCardQuestion} className="flex flex-wrap items-end gap-3 px-5 pb-4">
+            <label className="flex min-w-[240px] flex-1 flex-col gap-1.5 text-sm text-label">
+              {asked ? "คำถาม:" : "พิมพ์คำถาม"}
+              <input
+                name="question"
+                defaultValue={asked}
+                required
+                maxLength={500}
+                placeholder="เช่น งานติดตั้งที่งบมากกว่า 350 ล้าน เมื่อ 5 ปีที่แล้ว"
+                className="h-[52px] w-full rounded-field border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-ink"
+              />
+            </label>
+            <Button type="submit" variant="dark" className="h-[52px]">
+              {asked ? "ถามอีกครั้ง" : "ถาม"}
+            </Button>
+            <p className="w-full text-xs text-muted">
+              AI ในเครื่องของบริษัทแปลงคำถามเป็นตัวกรองด้านล่าง แล้วค้นหาตามปกติ ตัวกรองเดิมจะถูกแทนที่
+            </p>
+          </form>
+        </details>
+      ) : null}
 
       {chips.length || query ? (
         <div data-tour="active-filters" className="-mt-3 flex flex-wrap items-center gap-2 text-sm">

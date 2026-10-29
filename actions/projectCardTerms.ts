@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, writeAudit } from "@/lib/authorization";
-import { isTermKind, termValueFrom, type Term, type TermKind } from "@/lib/project-card-taxonomy";
+import { isTermKind, termNames, termValueFrom, type Term, type TermKind } from "@/lib/project-card-taxonomy";
 
 // Admin Center's editor for the Project Card lists (ProjectCardTerm): add an
 // entry, rename one's labels, or set its synonyms. There is deliberately no
@@ -51,7 +51,7 @@ function termsOfKind(kind: TermKind) {
 
 // Every word that names an entry: its two labels and its synonyms.
 function wordsNaming(term: Pick<Term, "en" | "th" | "synonyms">): string[] {
-  return [term.en, term.th, ...term.synonyms].map(wordKey);
+  return termNames(term).map(wordKey);
 }
 
 function revalidate() {

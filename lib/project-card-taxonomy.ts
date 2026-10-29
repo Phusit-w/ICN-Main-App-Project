@@ -73,6 +73,24 @@ function matchTerms(
     .map((t) => t.value);
 }
 
+// Whether `name` is written in a sentence (Question Search): a Latin name as
+// whole words, any case ("MA" not inside "Managed"); a Thai one anywhere,
+// since Thai has no spaces between words.
+export function namedIn(text: string, name: string): boolean {
+  if (!name.trim()) return false;
+  if (THAI.test(name)) return text.includes(name);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text);
+}
+
+// The words that name an entry: both labels and its synonyms.
+export const termNames = (t: Pick<Term, "en" | "th" | "synonyms">) => [t.en, t.th, ...t.synonyms];
+
+// The first entry (in list order) a sentence names by a label or synonym.
+export function termNamedIn(list: readonly Term[], text: string): string | undefined {
+  return list.find((t) => termNames(t).some((name) => namedIn(text, name)))?.value;
+}
+
 // The stored `value` for a new list entry, from its English label
 // ("Solar & EV" -> "solar-ev"). Empty when the label has no Latin letters
 // or digits, which the admin form rejects.
