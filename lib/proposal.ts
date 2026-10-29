@@ -134,14 +134,17 @@ export type StepCard = {
 
 export const STEP_STATUS_LABELS: Record<StepStatus, string> = { done: "เสร็จ", doing: "กำลังทำ", todo: "ยังไม่ทำ", stale: "ต้องทำใหม่", reserved: "เร็ว ๆ นี้" };
 
-// What the Proposal holds, as far as step status is concerned. A Proposal
-// has no files yet, so every fact is empty; later tickets fill them in.
-export type ProposalFacts = Record<string, never>;
+// What the Proposal holds, as far as step status is concerned; later
+// tickets add the SOC Versions, Datasheets and runs.
+export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null };
+
+type TorRow = { originalName: string; pageCount: number; scanned: boolean };
+const proposalFacts = ({ tor }: { tor: TorRow | null }): ProposalFacts => ({ tor: tor && { name: tor.originalName, pageCount: tor.pageCount, scanned: tor.scanned } });
 
 // The six steps in order. Statuses come from the facts, never from storage.
-export function proposalSteps(_facts: ProposalFacts): StepCard[] {
+export function proposalSteps({ tor }: ProposalFacts): StepCard[] {
   return [
-    { no: 1, title: "TOR", status: "todo", ai: "ไม่ใช้ AI", needs: "ไฟล์ TOR (PDF)", gives: "TOR ของ Proposal ที่ทุกขั้นใช้ร่วมกัน", now: "ยังไม่มี TOR" },
+    { no: 1, title: "TOR", status: tor ? "done" : "todo", ai: "ไม่ใช้ AI", needs: "ไฟล์ TOR (PDF)", gives: "TOR ของ Proposal ที่ทุกขั้นใช้ร่วมกัน", now: tor ? `${tor.name.split("/").pop()} · ${tor.pageCount} หน้า${tor.scanned ? " · PDF สแกน" : ""}` : "ยังไม่มี TOR" },
     { no: 2, title: "โครง Content", status: "reserved", ai: "ไม่ใช้ AI", needs: "TOR", gives: "โครงเนื้อหาข้อเสนอ", now: "เร็ว ๆ นี้" },
     { no: 3, title: "สร้าง SOC", status: "todo", ai: "ไม่ใช้ AI", needs: "TOR และเทมเพลต SOC", gives: "SOC ฉบับร่างที่เติมเลขข้อและข้อกำหนด TOR", now: "ยังไม่มี SOC" },
     { no: 4, title: "กรอกอ้างอิง", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ Datasheet", gives: "SOC ฉบับใหม่ที่เติมเอกสารและหน้าอ้างอิง", now: "ยังไม่มี SOC" },
@@ -162,22 +165,26 @@ export async function listProposals() {
   await requireSocUser();
   const rows = await prisma.proposal.findMany({
     where: { deletedAt: null },
-    include: { creator: { select: { displayName: true } } },
+    include: { creator: { select: { displayName: true } }, tor: { select: { originalName: true, pageCount: true, scanned: true } } },
     orderBy: { updatedAt: "desc" },
   });
-  const progress = proposalProgress(proposalSteps({}));
   return rows.map((row) => ({
     id: row.id, title: row.title, creatorName: row.creator.displayName, updatedAt: row.updatedAt,
-    progress, currentVersion: null as number | null, waitingCount: 0,
+    progress: proposalProgress(proposalSteps(proposalFacts(row))), currentVersion: null as number | null, waitingCount: 0,
   }));
 }
 
 export async function getProposalPage(id: string) {
   const { actor, proposal } = await authorizeProposal(id);
-  const creator = await prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } });
+  const [creator, tor] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } }),
+    prisma.proposalTor.findUnique({ where: { proposalId: id }, select: { originalName: true, pageCount: true, scanned: true } }),
+  ]);
+  const facts = proposalFacts({ tor });
   return {
     id: proposal.id, viewerId: actor.id, title: proposal.title, creatorName: creator.displayName, updatedAt: proposal.updatedAt,
     canManage: proposal.creatorId === actor.id || actor.role === "ADMIN",
-    steps: proposalSteps({}),
+    tor: facts.tor,
+    steps: proposalSteps(facts),
   };
 }

@@ -147,6 +147,7 @@ model User {
   socTemplatesAdded          SocTemplate[]
   socBuilds                  SocBuild[]
   proposalsCreated           Proposal[]             @relation("ProposalCreator")
+  proposalTorsUploaded       ProposalTor[]          @relation("ProposalTorUploader")
   expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
   auditEvents                AuditLog[]             @relation("AuditActor")
   targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
@@ -786,7 +787,28 @@ model Proposal {
   restoredAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  tor         ProposalTor?
 
   @@index([deletedAt, updatedAt])
   @@index([deletedAt, purgeAfter])
+}
+
+// The one TOR of a Proposal (step TOR). Replacing it swaps this row and
+// deletes the old file: nothing cites an old TOR yet (TOR Match, ticket 06,
+// will). The file lives under SOC_STORAGE_ROOT/proposals/<id>/.
+model ProposalTor {
+  id           String   @id @default(cuid())
+  proposalId   String   @unique
+  proposal     Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  originalName String
+  storageKey   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  checksum     String
+  pageCount    Int
+  // No text layer: read by the outside OCR, which the uploader confirmed.
+  scanned      Boolean  @default(false)
+  uploadedById String
+  uploadedBy   User     @relation("ProposalTorUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
 }

@@ -4,6 +4,7 @@ import { requirePageAccess } from "@/lib/authorization";
 import { getProposalPage, STEP_STATUS_LABELS, type StepStatus } from "@/lib/proposal";
 import { mySocRunner } from "@/lib/soc-runner";
 import ProposalHeaderActions from "@/components/ProposalHeaderActions";
+import ProposalTorForm from "@/components/ProposalTorForm";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       <p className="mt-1 text-sm text-muted">ผู้สร้าง: {proposal.creatorName} · อัปเดตล่าสุด {formatDate(proposal.updatedAt)}</p>
     </div>
     <div className="flex flex-wrap gap-2 text-xs" aria-label="ไฟล์ของ Proposal">
-      <span className="rounded-full bg-chip px-3 py-1.5 text-label">TOR: ยังไม่มี</span>
+      {proposal.tor ? <a href={`/api/proposals/${proposal.id}/tor`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-3 py-1.5 text-label no-underline hover:bg-hover">TOR: {proposal.tor.name.split("/").pop()} · {proposal.tor.pageCount} หน้า</a> : <span className="rounded-full bg-chip px-3 py-1.5 text-label">TOR: ยังไม่มี</span>}
       <span className="rounded-full bg-chip px-3 py-1.5 text-label">SOC ปัจจุบัน: ยังไม่มี</span>
       <span className="rounded-full bg-chip px-3 py-1.5 text-label">Datasheet: ยังไม่มี</span>
     </div>
@@ -50,6 +51,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         </div>
         <p className="mt-2 text-sm">{step.now}</p>
         <dl className="mt-2 grid gap-x-6 gap-y-1 text-xs text-muted sm:grid-cols-2"><div><dt className="inline font-medium text-label">ใช้: </dt><dd className="inline">{step.needs}</dd></div><div><dt className="inline font-medium text-label">ได้: </dt><dd className="inline">{step.gives}</dd></div></dl>
+        {step.no === 1 ? <ProposalTorForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} /> : null}
       </section>
     </li>)}</ol>
   </div>;
