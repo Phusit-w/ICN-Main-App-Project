@@ -1,0 +1,78 @@
+{
+  "_note": "PROTOTYPE test set. asOfYear fixes 'N years ago' so results stay comparable. 'expect' = the final URL filters; 'expectAny' = any of these is right. budget in millions, years ค.ศ., unsupported = question also asked for a sort/total/count. Edit wording to how the team really asks, and add real questions.",
+  "asOfYear": 2026,
+  "questions": [
+    { "id": 1, "text": "หาว่ามีงานติดตั้งระบบคอม ที่มีมูลค่างบประมาณมากกว่า350ล้าน เมื่อ5ปีที่แล้ว",
+      "expectAny": [
+        { "workType": "installation", "q": "คอมพิวเตอร์", "budgetMin": 350, "yearFrom": 2021, "yearTo": 2021 },
+        { "workType": "installation", "q": "ระบบคอม", "budgetMin": 350, "yearFrom": 2021, "yearTo": 2021 },
+        { "workType": "installation", "q": "คอม", "budgetMin": 350, "yearFrom": 2021, "yearTo": 2021 },
+        { "workType": "installation", "category": "data-center-it", "budgetMin": 350, "yearFrom": 2021, "yearTo": 2021 }
+      ] },
+    { "id": 2, "text": "งาน MA ของ PEA ย้อนหลัง 3 ปี",
+      "expect": { "workType": "ma", "client": "PEA", "yearFrom": 2023, "yearTo": 2026 } },
+    { "id": 3, "text": "โครงการไฟเบอร์ออฟติกของการไฟฟ้านครหลวง",
+      "expect": { "category": "fiber-optic", "client": "MEA" } },
+    { "id": 4, "text": "มีงานเช่าใช้วงจรกับ NT บ้างไหม",
+      "expectAny": [
+        { "workType": "rental", "client": "NT" },
+        { "workType": "rental", "client": "NT", "q": "วงจร" }
+      ] },
+    { "id": 5, "text": "ผลงาน teleprotection ที่ได้หนังสือรับรองภายใน 3 ปี",
+      "expect": { "category": "teleprotection", "certWithin": 3 } },
+    { "id": 6, "text": "งานไมโครเวฟ งบไม่เกิน 20 ล้าน",
+      "expect": { "category": "microwave-radio", "budgetMax": 20 } },
+    { "id": 7, "text": "ขอดูโครงการปี 2563 ของ กสท",
+      "expect": { "client": "CAT", "yearFrom": 2020, "yearTo": 2020 } },
+    { "id": 8, "text": "งานจัดหาอุปกรณ์ให้ทีโอที มูลค่า 100-500 ล้านบาท",
+      "expect": { "workType": "supply", "client": "TOT", "budgetMin": 100, "budgetMax": 500 } },
+    { "id": 9, "text": "transmission projects for EGAT over 1 billion baht",
+      "expect": { "category": "transmission", "client": "EGAT", "budgetMin": 1000 } },
+    { "id": 10, "text": "ผลงานด้านอุปกรณ์การเรียนการสอนของ สพฐ.",
+      "expect": { "category": "education-devices", "client": "OBEC" } },
+    { "id": 11, "text": "งานพัฒนาระบบซอฟต์แวร์ ตั้งแต่ปี 2020 ถึง 2023",
+      "expectAny": [
+        { "workType": "system-development", "yearFrom": 2020, "yearTo": 2023 },
+        { "workType": "system-development", "category": "software", "yearFrom": 2020, "yearTo": 2023 }
+      ] },
+    { "id": 12, "text": "5 อันดับโครงการที่งบสูงสุดของ PEA",
+      "expect": { "client": "PEA", "unsupported": true } },
+    { "id": 13, "text": "รวมมูลค่างาน MA ทั้งหมดของ NT เท่าไร",
+      "expect": { "workType": "ma", "client": "NT", "unsupported": true } },
+    { "id": 14, "text": "Managed services projects in the last 5 years",
+      "expect": { "workType": "managed-services", "yearFrom": 2021, "yearTo": 2026 } },
+    { "id": 15, "text": "งานระบบประชุมทางไกล video conference",
+      "expect": { "category": "video-conferencing" } },
+    { "id": 16, "text": "โครงการสถานีฐานมือถือของ True",
+      "expect": { "category": "mobile-base-station", "client": "TRUE" } },
+    { "id": 17, "text": "ผลงานดาวเทียม",
+      "expect": { "category": "satellite-communications" } },
+    { "id": 18, "text": "งานติดตั้งกล้อง CCTV",
+      "expectAny": [
+        { "workType": "installation", "q": "CCTV" },
+        { "workType": "installation", "category": "smart-city-security" }
+      ] },
+    { "id": 19, "text": "ผลงานติดตั้งที่หนังสือรับรองออกไม่เกิน 4 ปี",
+      "expect": { "workType": "installation", "certWithin": 5 } },
+    { "id": 20, "text": "โครงการของมหาวิทยาลัยเชียงใหม่",
+      "expect": { "client": "CMU" } },
+    { "id": 21, "text": "งาน OLT ONU",
+      "expectAny": [ { "q": "OLT" }, { "q": "OLT ONU" }, { "q": "ONU" } ] },
+    { "id": 22, "text": "งานบำรุงรักษาระบบสื่อสัญญาณ เมื่อปีที่แล้ว",
+      "expect": { "workType": "ma", "category": "transmission", "yearFrom": 2025, "yearTo": 2025 } },
+    { "id": 23, "text": "ห้าปีก่อนมีงานอะไรที่เกินพันล้านบ้าง",
+      "expect": { "budgetMin": 1000, "yearFrom": 2021, "yearTo": 2021 } },
+    { "id": 24, "text": "งานศูนย์ข้อมูล data center ของการนิคมอุตสาหกรรม",
+      "expect": { "category": "data-center-it", "client": "IEAT" } },
+    { "id": 25, "text": "IP network งบ 50 ล้านขึ้นไป ย้อนหลัง 10 ปี",
+      "expect": { "category": "ip-network", "budgetMin": 50, "yearFrom": 2016, "yearTo": 2026 } },
+    { "id": 26, "text": "มีผลงานด้านการแพทย์ไหม",
+      "expect": { "category": "medical" } },
+    { "id": 27, "text": "ระบบ billing ของ CAT",
+      "expectAny": [
+        { "client": "CAT", "q": "billing" },
+        { "client": "CAT", "category": "telecom-core" },
+        { "client": "CAT", "category": "telecom-core", "q": "billing" }
+      ] }
+  ]
+}

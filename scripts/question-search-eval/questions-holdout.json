@@ -1,0 +1,39 @@
+{
+  "_note": "PROTOTYPE hold-out set: written AFTER round 3 and never used to tune aliases or rules. Run with QUESTIONS=questions-holdout.json.",
+  "asOfYear": 2026,
+  "questions": [
+    { "id": 101, "text": "ผลงานติดตั้งไฟเบอร์ของ กฟภ. ปี 2566",
+      "expect": { "workType": "installation", "category": "fiber-optic", "client": "PEA", "yearFrom": 2023, "yearTo": 2023 } },
+    { "id": 102, "text": "งานซ่อมบำรุงไมโครเวฟ มูลค่าไม่ต่ำกว่า 30 ล้าน",
+      "expect": { "workType": "ma", "category": "microwave-radio", "budgetMin": 30 } },
+    { "id": 103, "text": "มีโครงการ DWDM ของ NT ที่หนังสือรับรองยังไม่เกิน 5 ปีไหม",
+      "expect": { "category": "transmission", "client": "NT", "certWithin": 5 } },
+    { "id": 104, "text": "งานของ กฟผ. ช่วงปี 2018-2020",
+      "expect": { "client": "EGAT", "yearFrom": 2018, "yearTo": 2020 } },
+    { "id": 105, "text": "Solar rooftop projects",
+      "expectAny": [ { "category": "energy" }, { "category": "energy", "q": "rooftop" } ] },
+    { "id": 106, "text": "ผลงานเช่าระบบของ ทีโอที ย้อนหลัง 7 ปี",
+      "expect": { "workType": "rental", "client": "TOT", "yearFrom": 2019, "yearTo": 2026 } },
+    { "id": 107, "text": "งานจัดหาเครื่องมือแพทย์ให้โรงพยาบาล",
+      "expectAny": [ { "workType": "supply", "category": "medical" }, { "workType": "supply", "category": "medical", "q": "เครื่องมือแพทย์" } ] },
+    { "id": 108, "text": "โครงการ Wi-Fi สพฐ. งบระหว่าง 10 ถึง 100 ล้าน",
+      "expect": { "client": "OBEC", "q": "Wi-Fi", "budgetMin": 10, "budgetMax": 100 } },
+    { "id": 109, "text": "router Cisco ที่ส่งให้ CAT",
+      "expectAny": [ { "client": "CAT", "q": "Cisco" }, { "client": "CAT", "q": "router" } ] },
+    { "id": 110, "text": "งานใหญ่สุดของการไฟฟ้านครหลวงคืองานอะไร",
+      "expect": { "client": "MEA", "unsupported": true } },
+    { "id": 111, "text": "งาน managed service ปี พ.ศ. 2565",
+      "expect": { "workType": "managed-services", "yearFrom": 2022, "yearTo": 2022 } },
+    { "id": 112, "text": "teleprotection ของ กฟภ. เมื่อ 2 ปีก่อน",
+      "expect": { "category": "teleprotection", "client": "PEA", "yearFrom": 2024, "yearTo": 2024 } },
+    { "id": 113, "text": "มีงานกี่โครงการที่ทำให้ True",
+      "expect": { "client": "TRUE", "unsupported": true } },
+    { "id": 114, "text": "ระบบกล้องวงจรปิดในเมือง smart city ของ ดีอี",
+      "expect": { "category": "smart-city-security" } },
+    { "id": 115, "text": "ผลงานพัฒนาซอฟต์แวร์ billing มูลค่าเกิน 100 ล้าน ใน 3 ปีหลัง",
+      "expectAny": [
+        { "category": "software", "q": "billing", "budgetMin": 100, "yearFrom": 2023, "yearTo": 2026 },
+        { "category": "software", "workType": "system-development", "q": "billing", "budgetMin": 100, "yearFrom": 2023, "yearTo": 2026 }
+      ] }
+  ]
+}

@@ -213,6 +213,16 @@ test("the keyword never repeats a filter: Category, Work Type and client names a
   const expected = { ask: question, category: "fiber-optic", client: "MEA" };
   assert.deepEqual(await ask(question, { k: "ไฟเบอร์ออฟติก" }), expected);
   assert.deepEqual(await ask(question, { k: "ไฟเบอร์ออฟติกของการไฟฟ้านครหลวง" }), expected);
+  // Little words stuck to the keyword go; so does a piece of the client name
+  // the question used (evaluation misses #4 and #110, 2026-10-29).
+  assert.deepEqual(await ask("มีงานกล้องกับ NT บ้างไหม", { k: "กล้องกับ" }), { ask: "มีงานกล้องกับ NT บ้างไหม", q: "กล้อง", client: "NT" });
+  assert.deepEqual(await ask("งานใหญ่สุดของการไฟฟ้านครหลวงคืองานอะไร", { k: "ไฟฟ้า", sort: true }), {
+    ask: "งานใหญ่สุดของการไฟฟ้านครหลวงคืองานอะไร", client: "MEA", note: "unsupported",
+  });
+  // …but only of a client the question named.
+  assert.deepEqual(await ask("งานระบบไฟฟ้า ปี 2565", { k: "ไฟฟ้า", yf: 2565, yt: 2565 }), {
+    ask: "งานระบบไฟฟ้า ปี 2565", q: "ไฟฟ้า", yearFrom: "2022", yearTo: "2022",
+  });
   // A Latin keyword glued to a Thai client name keeps the Latin part.
   assert.deepEqual(await ask("งาน OLTของกฟภ.", { k: "OLTของกฟภ." }), { ask: "งาน OLTของกฟภ.", q: "OLT", client: "PEA" });
 });

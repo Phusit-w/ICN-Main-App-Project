@@ -31,6 +31,7 @@
 - [PostgreSQL **16.x** for Windows](https://www.postgresql.org/download/windows/) — ตัวติดตั้งของ EDB จะลงเป็น Windows Service ให้อัตโนมัติ (ขั้นตอนนี้ต้อง admin เสมอไม่ว่าจะเลือกวิธี A หรือ B ในการรันตัวแอปเอง — ปกติ IT เป็นคนติดตั้ง PostgreSQL ให้ครั้งเดียว)
 - ปุ่ม "ดาวน์โหลดผลตรวจ (Excel)" ในหน้างานตรวจ SOC สร้างไฟล์ใน Node (`exceljs`) ไม่ต้องใช้ Python บน server (ตั้งแต่ 2026-10-08 ซึ่งเอาปุ่ม "ดาวน์โหลด SOC_Check" แบบ Word ออก Python และค่า `SOC_PYTHON` ที่เคยติดตั้งไว้ให้ปุ่มนั้นไม่ถูกใช้แล้ว)
 - สำหรับปุ่ม "สร้างคำสั่งติดตั้ง SOC Runner" ในหน้า `/soc`: ไม่ต้อง build อะไรบน server แต่ครั้งแรกต้องเพิ่ม `SOC_RUNNER_SERVER_URL` และ `SOC_RUNNER_CA_CERT_FILE` (cert self-signed ของ IIS export เป็น PEM) ใน `.env` ดูคำสั่งใน "ติดตั้ง" ของ `docs/SOC-RUNNER.md`
+- ถ้าจะเปิด "ถามด้วยประโยค" ในหน้า ค้นหาโครงการ: ติดตั้ง Ollama เป็น service บน server เครื่องนี้ แล้วเพิ่ม `QUESTION_SEARCH_OLLAMA_URL` / `QUESTION_SEARCH_MODEL` ใน environment ของ service แอป ดู `docs/QUESTION-SEARCH-SERVER.md` (ไม่ตั้ง = โหมดนี้ถูกซ่อน)
 - ถ้าต้องอ่าน PDF สแกน: ติดตั้ง Tesseract OCR พร้อม language data `tha` และ `eng` แล้วตั้ง `SOC_OCR_PROVIDER=tesseract`; หากยังไม่พร้อมให้คง `disabled` เพื่อ fail closed
 
 Prisma/Next.js/ไลบรารีอื่นๆ ของแอป **ไม่ต้องติดตั้งแยก** — มากับไฟล์ที่ build เสร็จแล้วในตัวแอปเองทั้งหมด (ดู `FAQ.md`)

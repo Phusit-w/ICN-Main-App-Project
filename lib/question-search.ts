@@ -138,17 +138,25 @@ const CUT = "\u0001";
 // it's the rest of that name's phrase ("ออฟติก" of "ไฟเบอร์ออฟติก") or glue
 // ("ของ" before a client name) that no card's text would match, and there is
 // no telling where a real keyword in it would end.
-function keyword(k: string | undefined, taxonomy: Taxonomy, clients: readonly Client[]): string | undefined {
-  const termWords = [...taxonomy.categories, ...taxonomy.workTypes].flatMap(termNames);
-  const isPartOfTermName = (word: string) => termWords.some((name) => namedIn(name.toLowerCase(), word.toLowerCase()));
+// The model also writes part of the name of a client the question used
+// ("ไฟฟ้า" of "การไฟฟ้านครหลวง") — only those clients': "ไฟฟ้า" on its own is
+// a fair keyword. And it leaves little words stuck on the end ("วงจรกับ"),
+// trimmed off; only ones no Thai word ends with, unlike "ที่" (พื้นที่).
+function keyword(k: string | undefined, taxonomy: Taxonomy, clients: readonly Client[], question: string): string | undefined {
+  const named = clients.flatMap(clientNames).filter((name) => namedIn(question, name));
+  const partOf = [...[...taxonomy.categories, ...taxonomy.workTypes].flatMap(termNames), ...named];
+  const isPartOfFilterName = (word: string) => partOf.some((name) => namedIn(name.toLowerCase(), word.toLowerCase()));
   // Names are cut from the whole keyword (some have spaces: "CAT Telecom"),
   // leaving a mark; a word with a mark loses its Thai and splits there.
   const cut = cutAll(k ?? "", filterNames(taxonomy, clients), CUT);
   return cut
     .split(/\s+/)
     .flatMap((word) => (word.includes(CUT) ? word.replace(THAI_RUN, "").split(CUT) : [word]))
-    .find((word) => /[\p{L}\p{N}]/u.test(word) && !GENERIC_WORDS.includes(word.toLowerCase()) && !isPartOfTermName(word));
+    .map((word) => word.replace(TRAILING_GLUE, ""))
+    .find((word) => /[\p{L}\p{N}]/u.test(word) && !GENERIC_WORDS.includes(word.toLowerCase()) && !isPartOfFilterName(word));
 }
+
+const TRAILING_GLUE = /(?:ของ|กับ|และ|บ้าง|ไหม)+$/;
 
 // `year` is the current year in Bangkok (ค.ศ.).
 export async function translateQuestion(
@@ -181,7 +189,7 @@ export async function translateQuestion(
     if (value !== undefined) filters[key] = String(value);
   };
 
-  set("q", keyword(grounded.k, taxonomy, clients));
+  set("q", keyword(grounded.k, taxonomy, clients, question));
   set("client", clientNamedIn(clients, question));
   set("category", termNamedIn(taxonomy.categories, question));
   set("workType", termNamedIn(taxonomy.workTypes, question));
