@@ -53,13 +53,17 @@ function columns(taxonomy: Taxonomy): Column[] {
 }
 
 // The export of the search named by `params` (the page's own query string
-// plus `sort`), audited as `actor`.
-export async function exportProjectCards(actor: { id: string; displayName: string }, params: URLSearchParams) {
+// plus `sort`), audited as `actor`. `picked`: the Project Codes the user
+// ticked — only those of the search's cards go in; none ticked = all of them.
+export async function exportProjectCards(actor: { id: string; displayName: string }, params: URLSearchParams, picked: string[] = []) {
   const taxonomy = await loadTaxonomy();
   const search = parseProjectCardSearch(searchParamsFrom(params), taxonomy);
   const sort = parseSort(params.get("sort"));
   // The same rows, sorted the same way, as the list on screen.
-  const cards = sortCards(await findProjectCards(search), sort);
+  const found = sortCards(await findProjectCards(search), sort);
+  const pickedCodes = new Set(picked);
+  const cards = pickedCodes.size ? found.filter((card) => pickedCodes.has(card.projectCode)) : found;
+  const pickedLine = pickedCodes.size ? `เลือกเอง ${cards.length.toLocaleString("th-TH")} จาก ${found.length.toLocaleString("th-TH")} โครงการ` : null;
 
   const book = new ExcelJS.Workbook();
   book.creator = "ICN Apps";
@@ -83,7 +87,7 @@ export async function exportProjectCards(actor: { id: string; displayName: strin
   const lines: [string, string][] = [
     ["ส่งออกโดย", actor.displayName],
     ["เวลา", new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(now)],
-    ["จำนวน", `${cards.length.toLocaleString("th-TH")} โครงการ`],
+    ["จำนวน", pickedLine ?? `${cards.length.toLocaleString("th-TH")} โครงการ`],
     ["เรียงตาม", sortDescription(sort)],
     ...(filters.length ? filters.map((f, i): [string, string] => [i === 0 ? "ตัวกรอง" : "", f]) : [["ตัวกรอง", "ไม่มี (ทุกโครงการ)"] as [string, string]]),
   ];
@@ -96,8 +100,10 @@ export async function exportProjectCards(actor: { id: string; displayName: strin
   const bytes = new Uint8Array(await book.xlsx.writeBuffer());
   await writeAudit({
     actorId: actor.id, action: "PROJECT_CARDS_EXPORTED", entityType: "PROJECT_CARD",
-    summary: `ส่งออก Excel ค้นหาโครงการ ${cards.length} โครงการ${filters.length ? ` (${filters.join(", ")})` : " (ทั้งหมด)"}`,
-    metadata: { count: cards.length, filters, sort: sortDescription(sort) },
+    summary:
+      `ส่งออก Excel ค้นหาโครงการ ${cards.length} โครงการ${filters.length ? ` (${filters.join(", ")})` : " (ทั้งหมด)"}` +
+      (pickedLine ? `, ${pickedLine}` : ""),
+    metadata: { count: cards.length, filters, sort: sortDescription(sort), ...(pickedLine ? { picked: cards.length, of: found.length } : {}) },
   });
   return { bytes, fileName: `project-cards-${bangkokDate(now)}.xlsx` };
 }

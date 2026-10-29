@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { updateProjectCardDetails, verifyProjectCardBudget } from "@/actions/projectCard";
 import Modal from "@/components/ui/Modal";
 import CopyButton from "@/components/CopyButton";
@@ -81,7 +81,24 @@ function SortArrow({ dir }: { dir: "asc" | "desc" | null }) {
 // The result count, with ส่งออก Excel for the cards on screen: `exportQuery` is
 // the page's search and filters as a query string, and the list adds its sort.
 // Null when nothing matched: the button is then shown but can't be pressed.
-export function ProjectCardResultBar({ count, exportQuery, sort = null }: { count: number; exportQuery: string | null; sort?: ProjectCardSort }) {
+// With rows ticked (`picked`, their Project Codes), the button sends just
+// those, as form fields (a long list could pass IIS's URL limit); with none,
+// it downloads every card on screen. `selectAll` is the เลือกทั้งหมด box.
+export function ProjectCardResultBar({
+  count,
+  exportQuery,
+  sort = null,
+  picked = [],
+  onClearPicked,
+  selectAll,
+}: {
+  count: number;
+  exportQuery: string | null;
+  sort?: ProjectCardSort;
+  picked?: string[];
+  onClearPicked?: () => void;
+  selectAll?: ReactNode;
+}) {
   let href: string | null = null;
   if (exportQuery !== null) {
     const params = new URLSearchParams(exportQuery);
@@ -91,8 +108,26 @@ export function ProjectCardResultBar({ count, exportQuery, sort = null }: { coun
   }
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-sm text-muted">พบ {count.toLocaleString("th-TH")} โครงการ</p>
-      {href ? (
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+        {selectAll}
+        <p>
+          พบ {count.toLocaleString("th-TH")} โครงการ
+          {picked.length ? ` · เลือก ${picked.length.toLocaleString("th-TH")}` : ""}
+        </p>
+      </div>
+      {href && picked.length ? (
+        <form method="post" action={href} className="flex items-center gap-2">
+          {picked.map((code) => (
+            <input key={code} type="hidden" name="code" value={code} />
+          ))}
+          <Button type="button" variant="ghost" size="sm" onClick={onClearPicked}>
+            ล้างที่เลือก
+          </Button>
+          <Button type="submit" variant="outline" size="sm" data-tour="export">
+            ส่งออก Excel ({picked.length.toLocaleString("th-TH")} ที่เลือก)
+          </Button>
+        </form>
+      ) : href ? (
         <a href={href} download data-tour="export" className={buttonClassName({ variant: "outline", size: "sm" })}>
           ส่งออก Excel
         </a>
@@ -128,12 +163,44 @@ export default function ProjectCardList({
   const openCard = cards.find((c) => c.id === openId) ?? null;
   const [sort, setSort] = useState<ProjectCardSort>(null);
   const sorted = sortCards(cards, sort);
+  // Ticked rows for ส่งออก Excel, by Project Code; only codes still on screen
+  // count, so a new search never exports cards that are no longer listed.
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
+  const picked = sorted.map((c) => c.projectCode).filter((code) => ticked.has(code));
+  const allPicked = picked.length === cards.length;
+  const toggle = (code: string) =>
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(code)) next.add(code);
+      return next;
+    });
 
   return (
     <>
-      <ProjectCardResultBar count={cards.length} exportQuery={exportQuery} sort={sort} />
+      <ProjectCardResultBar
+        count={cards.length}
+        exportQuery={exportQuery}
+        sort={sort}
+        picked={picked}
+        onClearPicked={() => setTicked(new Set())}
+        selectAll={
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="checkbox"
+              aria-label="เลือกทั้งหมด"
+              checked={allPicked}
+              ref={(box) => {
+                if (box) box.indeterminate = picked.length > 0 && !allPicked;
+              }}
+              onChange={() => setTicked(allPicked ? new Set() : new Set(cards.map((c) => c.projectCode)))}
+              className="size-4 accent-ink"
+            />
+            เลือกทั้งหมด
+          </label>
+        }
+      />
       <div data-tour="results" className="overflow-hidden rounded-card bg-surface shadow-card">
-        <div className="hidden grid-cols-[1fr_110px_70px_110px_170px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
+        <div className="hidden grid-cols-[1fr_110px_70px_110px_170px] gap-4 border-b border-line py-3 pl-[52px] pr-5 text-xs font-medium text-muted md:grid">
           {SORT_COLUMNS.map((col) => {
             const dir = sort?.key === col.key ? sort.dir : null;
             return (
@@ -168,11 +235,22 @@ export default function ProjectCardList({
         </div>
         <ul className="divide-y divide-line">
           {sorted.map((card) => (
-            <li key={card.id}>
+            <li key={card.id} className="flex">
+              {/* Outside the row's button: ticking a row never opens its popup. */}
+              {/* The whole strip left of the row ticks, not just the 16px box (phones). */}
+              <label className="flex cursor-pointer items-start self-stretch pl-5 pr-2 pt-[18px]">
+                <input
+                  type="checkbox"
+                  aria-label={`เลือก ${card.projectCode}`}
+                  checked={ticked.has(card.projectCode)}
+                  onChange={() => toggle(card.projectCode)}
+                  className="size-4 accent-ink"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => setOpenId(card.id)}
-                className="ui-btn grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-5 py-4 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none md:grid-cols-[1fr_110px_70px_110px_170px] md:items-center"
+                className="ui-btn grid min-w-0 flex-1 grid-cols-[1fr_auto] gap-x-4 gap-y-1 py-4 pl-2 pr-5 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none md:grid-cols-[1fr_110px_70px_110px_170px] md:items-center"
               >
                 <span className="min-w-0">
                   <span className="block font-medium leading-snug text-ink">{card.projectName}</span>

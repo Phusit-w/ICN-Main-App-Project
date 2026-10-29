@@ -19,7 +19,7 @@ mock.module("@/lib/session", { namedExports: { getCurrentUser: async () => signe
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 mock.module("next/navigation", { namedExports: { useRouter: () => ({ refresh() {} }), redirect: () => { throw new Error("REDIRECT"); } } });
 
-const { GET: exportRoute } = await import("@/app/api/project-card/export/route");
+const { GET: exportRoute, POST: exportPicked } = await import("@/app/api/project-card/export/route");
 const { default: ProjectCardPage } = await import("@/app/(app)/project-card/page");
 
 const CERT = String.raw`\\192.168.99.1\PS\_BID\02 Work Certificate\PEA\PEA001.pdf`;
@@ -130,4 +130,55 @@ test("the page's ส่งออก Excel link carries the filters; with no card
   const none = renderToStaticMarkup(await ProjectCardPage({ searchParams: Promise.resolve({ client: "NOPE" }) }));
   assert.doesNotMatch(none, /\/api\/project-card\/export/);
   assert.match(none, /<button[^>]*disabled[^>]*>ส่งออก Excel/);
+});
+
+// Ticked rows (2026-10-29): sent as form fields, since a long list of codes
+// in the URL could pass IIS's 2,048-character query limit.
+async function downloadPicked(query: string, codes: string[]) {
+  const form = new FormData();
+  for (const code of codes) form.append("code", code);
+  return exportPicked(new Request(`http://localhost/api/project-card/export${query}`, { method: "POST", body: form }));
+}
+
+test("ticked cards download alone, in the picked sort, and the file says they were picked", { skip }, async () => {
+  await signIn(["project-card"]);
+  await seed();
+  // MEA001 isn't in this search: a code outside it is ignored.
+  const response = await downloadPicked("?client=PEA&sort=budget:asc", ["PEA002", "PEA001", "MEA001"]);
+  assert.equal(response.status, 200);
+  const book = await workbook(response);
+  const code = column(book.getWorksheet("โครงการ")!, "รหัสโครงการ");
+  assert.deepEqual([code(2), code(3), code(4)], ["PEA001", "PEA002", null]);
+
+  const one = await workbook(await downloadPicked("?client=PEA", ["PEA002"]));
+  const sheet = one.getWorksheet("โครงการ")!;
+  assert.equal(sheet.rowCount, 2);
+  assert.equal(column(sheet, "รหัสโครงการ")(2), "PEA002");
+  const text = one.getWorksheet("เงื่อนไข")!.getSheetValues().flat().join(" ");
+  assert.match(text, /เลือกเอง 1 จาก 2 โครงการ/);
+
+  const audits = await prisma.auditLog.findMany({ where: { action: "PROJECT_CARDS_EXPORTED" }, orderBy: { createdAt: "asc" } });
+  assert.equal(audits.length, 2);
+  assert.match(audits[1].summary, /เลือกเอง 1 จาก 2/);
+  assert.equal((audits[1].metadata as Record<string, unknown>).picked, 1);
+});
+
+test("a POST with nothing ticked downloads every card on screen; access is checked the same", { skip }, async () => {
+  await signIn(["project-card"]);
+  await seed();
+  const sheet = (await workbook(await downloadPicked("?client=PEA", []))).getWorksheet("โครงการ")!;
+  assert.equal(sheet.rowCount, 3);
+  // Far more codes than any page shows is refused, never cut short silently.
+  assert.equal((await downloadPicked("", Array.from({ length: 5001 }, (_, i) => `X${i}`))).status, 413);
+  signedIn = null;
+  assert.equal((await downloadPicked("", ["PEA001"])).status, 401);
+});
+
+test("the list offers a tick box per card and เลือกทั้งหมด", { skip }, async () => {
+  await signIn(["project-card"]);
+  await seed();
+  const html = renderToStaticMarkup(await ProjectCardPage({ searchParams: Promise.resolve({ client: "PEA" }) }));
+  assert.match(html, /aria-label="เลือกทั้งหมด"/);
+  assert.match(html, /aria-label="เลือก PEA001"/);
+  assert.match(html, /aria-label="เลือก PEA002"/);
 });

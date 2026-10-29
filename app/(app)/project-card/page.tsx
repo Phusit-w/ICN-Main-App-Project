@@ -359,7 +359,9 @@ export default async function ProjectCardPage({
       {/* With cards, the list draws the count, ส่งออก Excel and the results box
           itself, since the export follows the sort picked there. */}
       {cards.length ? (
+        // Keyed by the search, so ticks never carry over to another one.
         <ProjectCardList
+          key={currentParams.toString()}
           taxonomy={taxonomy}
           canEdit={hasAccess(actor, "project-card-edit")}
           exportQuery={currentParams.toString()}
@@ -377,6 +379,7 @@ export default async function ProjectCardPage({
             </p>
           </div>
           <ProjectCardList
+            key={nearby.search.currentParams.toString()}
             taxonomy={taxonomy}
             canEdit={hasAccess(actor, "project-card-edit")}
             exportQuery={nearby.search.currentParams.toString()}
