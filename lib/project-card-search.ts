@@ -5,7 +5,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma, ProjectCard } from "@/lib/generated/prisma/client";
 import type { ProjectCardRow } from "@/components/ProjectCardList";
-import { matchCategories, matchWorkTypes, type Taxonomy, type Term } from "@/lib/project-card-taxonomy";
+import { GENERIC_WORDS, matchCategories, matchWorkTypes, type Taxonomy, type Term } from "@/lib/project-card-taxonomy";
 import { CERTIFICATE_AGE_OPTIONS, certificateDateValue, certificateDatedSince } from "@/lib/project-card-certificate-date";
 
 export type ProjectCardSearchParams = {
@@ -205,6 +205,93 @@ export async function findProjectCards(search: ProjectCardSearch) {
   if (!search.categoryText) return rows;
   const main = (c: ProjectCardRow) => c.category !== null && search.categoryValues.includes(c.category);
   return [...rows.filter(main), ...rows.filter((c) => !main(c))];
+}
+
+// The cards near a search that found none: those of the first looser search
+// that finds some, with what was loosened (`changes`) and that search (for
+// the link to it and the export). Each step keeps the ones before it —
+// 1. a shorter keyword, the other filters kept ("คอมพิวเตอร์แม่ข่าย" →
+//    "คอมพิวเตอร์": a run of its words, longest first);
+// 2. the year, budget and Certificate Date filters in use let go, keyword
+//    kept (whole, then shorter);
+// 3. the keyword let go, then the numbers too, while a client, Category or
+//    Work Type remains.
+// A try left with no filter at all would list every card, so it's skipped.
+// Null when none finds a card. Only rules, no model, and only when nothing
+// matched, so the ordinary search stays instant: each try is a count, and
+// only the one that wins loads its cards.
+export async function findNearbyProjectCards(params: ProjectCardSearchParams, taxonomy: Taxonomy) {
+  const query = params.q?.trim() ?? "";
+  const shorter = shorterKeywords(query).slice(0, MAX_SHORTER_KEYWORDS);
+  const keywordChange = (q: string) => (q === query ? [] : [`คำค้น "${q}" แทน "${query}"`]);
+  const loosened = [
+    ...(params.yearFrom || params.yearTo ? ["ปี"] : []),
+    ...(params.budgetMin || params.budgetMax ? ["งบ"] : []),
+    ...(params.certWithin ? ["อายุหนังสือรับรอง"] : []),
+  ];
+  const unlimited = { ...params, yearFrom: undefined, yearTo: undefined, budgetMin: undefined, budgetMax: undefined, certWithin: undefined };
+  const numbersChange = `ไม่จำกัด${loosened.join(" / ")}`;
+
+  const tries: { params: ProjectCardSearchParams; changes: string[] }[] = shorter.map((q) => ({
+    params: { ...params, q },
+    changes: keywordChange(q),
+  }));
+  if (loosened.length) {
+    for (const q of [query, ...shorter]) tries.push({ params: { ...unlimited, q }, changes: [...keywordChange(q), numbersChange] });
+  }
+  if (query && [params.client, params.category, params.workType].some((v) => v?.trim())) {
+    tries.push({ params: { ...params, q: undefined }, changes: [`ไม่ใช้คำค้น "${query}"`] });
+    if (loosened.length) tries.push({ params: { ...unlimited, q: undefined }, changes: [`ไม่ใช้คำค้น "${query}"`, numbersChange] });
+  }
+  for (const attempt of tries) {
+    const search = parseProjectCardSearch(attempt.params, taxonomy);
+    if (!search.filtered || !hasNarrowingFilter(attempt.params)) continue;
+    if (await prisma.projectCard.count({ where: search.where })) {
+      return { changes: attempt.changes, search, cards: await findProjectCards(search) };
+    }
+  }
+  return null;
+}
+
+// A keyword, client, Category, Work Type or number filter: the document
+// boxes alone hold most cards, so they don't make a search "near".
+const hasNarrowingFilter = (p: ProjectCardSearchParams) =>
+  [p.q, p.client, p.category, p.workType, p.yearFrom, p.yearTo, p.budgetMin, p.budgetMax, p.certWithin].some((v) => v?.trim());
+
+// Each is up to two counts; the steps after them always get their turn.
+const MAX_SHORTER_KEYWORDS = 8;
+
+let segmenter: Intl.Segmenter | null = null;
+
+// Thai letters that sit on another one (vowel and tone marks): "ข่าย" is
+// three letters to a reader, not four.
+const THAI_MARKS = /[ัิ-ฺ็-๎]/g;
+
+// The runs of the keyword's words shorter than the whole, longest first.
+// Thai has no spaces, so its words come from the runtime's Thai word
+// breaking ("ระบบคอมพิวเตอร์แม่ข่าย" → ระบบ | คอมพิวเตอร์ | แม่ | ข่าย); other
+// text splits at spaces only, so a code like "CAT-025" stays whole. A run
+// that is generic ("ระบบ") or shorter than 4 Thai / 3 other letters
+// ("ข่าย" inside every "เครือข่าย") would match nearly anything: skipped.
+function shorterKeywords(query: string): string[] {
+  let words: { index: number; text: string }[];
+  if (/[฀-๿]/.test(query)) {
+    segmenter ??= new Intl.Segmenter("th", { granularity: "word" });
+    words = [...segmenter.segment(query)].filter((s) => s.isWordLike).map((s) => ({ index: s.index, text: s.segment }));
+  } else {
+    words = [...query.matchAll(/\S+/g)].map((m) => ({ index: m.index, text: m[0] }));
+  }
+  const pieces = new Set<string>();
+  for (let from = 0; from < words.length; from++) {
+    for (let to = from; to < words.length; to++) {
+      if (from === 0 && to === words.length - 1) continue;
+      pieces.add(query.slice(words[from].index, words[to].index + words[to].text.length).trim());
+    }
+  }
+  const longEnough = (p: string) => (/[฀-๿]/.test(p) ? p.replace(THAI_MARKS, "").length >= 4 : p.length >= 3);
+  return [...pieces]
+    .filter((p) => longEnough(p) && !GENERIC_WORDS.includes(p.toLowerCase()))
+    .sort((a, b) => b.length - a.length);
 }
 
 // A card as the list and the export read it: Decimal and Date as text, so it

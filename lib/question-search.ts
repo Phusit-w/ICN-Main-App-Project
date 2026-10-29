@@ -10,7 +10,7 @@
 // - the arithmetic (years ago, พ.ศ., certificate age) is done here.
 // Server-only.
 import { askModel, type ModelAnswer } from "@/lib/question-search-model";
-import { cutName, namedIn, termNamedIn, termNames, type Taxonomy } from "@/lib/project-card-taxonomy";
+import { GENERIC_WORDS, cutName, namedIn, termNamedIn, termNames, type Taxonomy } from "@/lib/project-card-taxonomy";
 import { CERTIFICATE_AGE_OPTIONS } from "@/lib/project-card-certificate-date";
 
 export type QuestionAnswer = {
@@ -32,9 +32,6 @@ export type QuestionNote = "unsupported" | "fallback";
 
 export const questionNote = (answer: QuestionAnswer): QuestionNote | null =>
   answer.fellBack ? "fallback" : answer.unsupported ? "unsupported" : null;
-
-// Words that never become the keyword: they'd only narrow the search wrongly.
-const GENERIC = ["งาน", "โครงการ", "ระบบ", "ผลงาน", "อุปกรณ์", "project", "projects"];
 
 // The words that let a model value through, per kind of filter.
 const YEAR_WORDS = ["ปี", "year"];
@@ -126,7 +123,7 @@ const GLUE = ["ของ", "ที่", "กับ", "และ", "ใน", "ม
 // words. Unlike keyword(), Thai written on to a name stays ("กล้องวงจรปิด"
 // of "งานกล้องวงจรปิดของ PEA"): the model may find a keyword in it.
 const saysMore = (question: string, taxonomy: Taxonomy, clients: readonly Client[]) =>
-  /[\p{L}\p{N}]/u.test(cutAll(question, [...filterNames(taxonomy, clients), ...GENERIC, ...GLUE], " "));
+  /[\p{L}\p{N}]/u.test(cutAll(question, [...filterNames(taxonomy, clients), ...GENERIC_WORDS, ...GLUE], " "));
 
 const THAI_RUN = /[฀-๿]+/g;
 // Left where a name was cut out of the keyword; no one types it.
@@ -150,7 +147,7 @@ function keyword(k: string | undefined, taxonomy: Taxonomy, clients: readonly Cl
   return cut
     .split(/\s+/)
     .flatMap((word) => (word.includes(CUT) ? word.replace(THAI_RUN, "").split(CUT) : [word]))
-    .find((word) => /[\p{L}\p{N}]/u.test(word) && !GENERIC.includes(word.toLowerCase()) && !isPartOfTermName(word));
+    .find((word) => /[\p{L}\p{N}]/u.test(word) && !GENERIC_WORDS.includes(word.toLowerCase()) && !isPartOfTermName(word));
 }
 
 // `year` is the current year in Bangkok (ค.ศ.).

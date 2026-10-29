@@ -73,6 +73,10 @@ function matchTerms(
     .map((t) => t.value);
 }
 
+// Words that never make a search keyword on their own: nearly every card
+// would match, so they'd only narrow a search wrongly or not at all.
+export const GENERIC_WORDS = ["งาน", "โครงการ", "ระบบ", "ผลงาน", "อุปกรณ์", "project", "projects"];
+
 // Whether `name` is written in a sentence (Question Search): a Latin name as
 // whole words, any case ("MA" not inside "Managed"); a Thai one anywhere,
 // since Thai has no spaces between words.

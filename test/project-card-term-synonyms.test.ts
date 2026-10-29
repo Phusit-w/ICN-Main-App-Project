@@ -50,6 +50,8 @@ async function seedCards() {
 
 async function codesFor(q: string) {
   const html = renderToStaticMarkup(await ProjectCardPage({ searchParams: Promise.resolve({ q }) }));
+  // Cards shown as nearby (test/project-card-nearby.test.ts) aren't matches.
+  if (html.includes("ไม่พบโครงการที่ตรงทุกเงื่อนไข")) return [];
   return ["C001", "C002", "C003", "C004"].filter((code) => html.includes(code));
 }
 

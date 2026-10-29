@@ -11,7 +11,7 @@ import { CommaNumberField } from "@/components/CommaNumberInput";
 import Link from "next/link";
 import { loadTaxonomy } from "@/lib/project-card-terms";
 import { CERTIFICATE_AGE_OPTIONS } from "@/lib/project-card-certificate-date";
-import { findProjectCards, parseProjectCardSearch, type ProjectCardSearchParams } from "@/lib/project-card-search";
+import { findNearbyProjectCards, findProjectCards, parseProjectCardSearch, type ProjectCardSearchParams } from "@/lib/project-card-search";
 import { questionSearchModel } from "@/lib/question-search-model";
 import { askProjectCardQuestion } from "@/actions/projectCardQuestion";
 import ProjectCardAskButton from "@/components/ProjectCardAskButton";
@@ -94,6 +94,8 @@ export default async function ProjectCardPage({
     // Work Type instead (the list holds only a handful).
     Promise.all(taxonomy.workTypes.map((w) => prisma.projectCard.count({ where: { workTypes: { has: w.value } } }))),
   ]);
+  // Nothing met every condition: the cards of the nearest looser search.
+  const nearby = !cards.length && search.filtered ? await findNearbyProjectCards(params, taxonomy) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -363,6 +365,24 @@ export default async function ProjectCardPage({
           exportQuery={currentParams.toString()}
           cards={cards}
         />
+      ) : nearby ? (
+        <>
+          <div className="rounded-card bg-chip px-5 py-4 text-sm text-label">
+            <div className="font-medium text-ink">ไม่พบโครงการที่ตรงทุกเงื่อนไข — งานที่ใกล้เคียง</div>
+            <p className="mt-1">
+              {nearby.changes.join(" · ")}{" "}
+              <Link href={`/project-card?${nearby.search.currentParams}`} className="font-medium text-ink underline">
+                ค้นด้วยเงื่อนไขนี้
+              </Link>
+            </p>
+          </div>
+          <ProjectCardList
+            taxonomy={taxonomy}
+            canEdit={hasAccess(actor, "project-card-edit")}
+            exportQuery={nearby.search.currentParams.toString()}
+            cards={nearby.cards}
+          />
+        </>
       ) : (
         <>
           <ProjectCardResultBar count={0} exportQuery={null} />
