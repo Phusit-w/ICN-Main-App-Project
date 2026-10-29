@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireRole, writeAudit } from "@/lib/authorization";
+import { prisma } from "@/lib/prisma";
 import { loadTaxonomy } from "@/lib/project-card-terms";
 import { translateQuestion } from "@/lib/question-search";
 import { questionSearchModel } from "@/lib/question-search-model";
@@ -22,7 +23,10 @@ export async function askProjectCardQuestion(formData: FormData): Promise<void> 
 
   const started = Date.now();
   const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric" }).format(new Date()));
-  const answer = await translateQuestion(question, await loadTaxonomy(), year);
+  // Both lists are read per question, so an entry an admin just added in
+  // Admin Center is understood at once.
+  const clients = await prisma.projectCardClient.findMany({ select: { code: true, names: true } });
+  const answer = await translateQuestion(question, await loadTaxonomy(), clients, year);
   await writeAudit({
     actorId: actor.id,
     action: "project-card.question-search",

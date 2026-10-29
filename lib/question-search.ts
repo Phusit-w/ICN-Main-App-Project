@@ -2,19 +2,20 @@
 // Search entry; spec .scratch/question-search/spec.md): a question in
 // everyday Thai or English → ค้นหาโครงการ's ordinary URL filters. What the
 // prototype (branch prototype/question-search) learned lives here:
-// - the model never picks a Category or Work Type — code does, from labels
-//   and synonyms written in the question (round 1, model-picked: 33%);
+// - the model never picks a Category, Work Type or Client — code does, from
+//   labels, synonyms and client names written in the question (round 1,
+//   model-picked: 33%);
 // - every number the model reads must be backed by words in the question
 //   (round 3: 59% → 93%);
 // - the arithmetic (years ago, พ.ศ., certificate age) is done here.
 // Server-only.
 import { askModel, type ModelAnswer } from "@/lib/question-search-model";
-import { namedIn, termNamedIn, termNames, type Taxonomy } from "@/lib/project-card-taxonomy";
+import { cutName, namedIn, termNamedIn, termNames, type Taxonomy } from "@/lib/project-card-taxonomy";
 import { CERTIFICATE_AGE_OPTIONS } from "@/lib/project-card-certificate-date";
 
 export type QuestionAnswer = {
-  // The search page's own params (q, category, workType, yearFrom, yearTo,
-  // budgetMin, budgetMax in millions, certWithin).
+  // The search page's own params (q, client, category, workType, yearFrom,
+  // yearTo, budgetMin, budgetMax in millions, certWithin).
   filters: Record<string, string>;
   // The question also asked for a ranking, total or count.
   unsupported: boolean;
@@ -75,18 +76,62 @@ function ground(digits: string, raw: ModelAnswer): ModelAnswer {
   return grounded;
 }
 
-// The first word of the model's keyword that is neither generic nor the name
-// of a Category or Work Type (those are filters already). The page searches
-// the keyword as one phrase, so "router Cisco" would find nothing.
-function keyword(k: string | undefined, taxonomy: Taxonomy): string | undefined {
-  const names = [...taxonomy.categories, ...taxonomy.workTypes].flatMap(termNames);
-  const isFilterName = (word: string) =>
-    names.some((name) => namedIn(word, name) || namedIn(name.toLowerCase(), word.toLowerCase()));
-  return k?.split(/\s+/).find((word) => word && !GENERIC.includes(word.toLowerCase()) && !isFilterName(word));
+// A client of the names list (ProjectCardClient): its code as written on
+// cards, plus Thai names and abbreviations.
+export type Client = { code: string; names: string[] };
+
+// Its code and names, and each abbreviation also without its dot: people
+// type "กสทช" as often as "กสทช.", and the dotless one must still beat CAT's
+// "กสท" inside it.
+const clientNames = (c: Client) =>
+  [c.code, ...c.names].flatMap((name) => (name.length > 2 && name.endsWith(".") ? [name, name.slice(0, -1)] : [name]));
+
+// The client a question names by code or name. When several do, the longest
+// name wins: "กสทช." is NBTC, not the "กสท" (CAT) written inside it.
+function clientNamedIn(clients: readonly Client[], text: string): string | undefined {
+  let best: { code: string; length: number } | undefined;
+  for (const client of clients) {
+    for (const name of clientNames(client)) {
+      if (namedIn(text, name) && name.length > (best?.length ?? 0)) best = { code: client.code, length: name.length };
+    }
+  }
+  return best?.code;
+}
+
+const THAI_RUN = /[฀-๿]+/g;
+// Left where a name was cut out of the keyword; no one types it.
+const CUT = "\u0001";
+
+// The first word of the model's keyword that isn't generic and doesn't repeat
+// a filter. The page searches the keyword as one phrase, so "router Cisco"
+// would find nothing. Names of Categories, Work Types and clients are cut out
+// of each word ("Wi-Fiสพฐ." → "Wi-Fi"); a word that is only part of a
+// Category or Work Type name ("Fiber" of "Fiber Optic") goes too. When a name
+// was cut out of Thai text, the Thai rest goes with it: Thai has no spaces, so
+// it's the rest of that name's phrase ("ออฟติก" of "ไฟเบอร์ออฟติก") or glue
+// ("ของ" before a client name) that no card's text would match, and there is
+// no telling where a real keyword in it would end.
+function keyword(k: string | undefined, taxonomy: Taxonomy, clients: readonly Client[]): string | undefined {
+  const termWords = [...taxonomy.categories, ...taxonomy.workTypes].flatMap(termNames);
+  // Longest first, so a name is cut whole before a shorter one inside it.
+  const names = [...termWords, ...clients.flatMap(clientNames)].sort((a, b) => b.length - a.length);
+  const isPartOfTermName = (word: string) => termWords.some((name) => namedIn(name.toLowerCase(), word.toLowerCase()));
+  // Names are cut from the whole keyword (some have spaces: "CAT Telecom"),
+  // leaving a mark; a word with a mark loses its Thai and splits there.
+  const cut = names.reduce((text, name) => cutName(text, name, CUT), k ?? "");
+  return cut
+    .split(/\s+/)
+    .flatMap((word) => (word.includes(CUT) ? word.replace(THAI_RUN, "").split(CUT) : [word]))
+    .find((word) => /[\p{L}\p{N}]/u.test(word) && !GENERIC.includes(word.toLowerCase()) && !isPartOfTermName(word));
 }
 
 // `year` is the current year in Bangkok (ค.ศ.).
-export async function translateQuestion(question: string, taxonomy: Taxonomy, year: number): Promise<QuestionAnswer> {
+export async function translateQuestion(
+  question: string,
+  taxonomy: Taxonomy,
+  clients: readonly Client[],
+  year: number,
+): Promise<QuestionAnswer> {
   let raw: ModelAnswer;
   try {
     raw = await askModel(question, year);
@@ -100,7 +145,8 @@ export async function translateQuestion(question: string, taxonomy: Taxonomy, ye
     if (value !== undefined) filters[key] = String(value);
   };
 
-  set("q", keyword(grounded.k, taxonomy));
+  set("q", keyword(grounded.k, taxonomy, clients));
+  set("client", clientNamedIn(clients, question));
   set("category", termNamedIn(taxonomy.categories, question));
   set("workType", termNamedIn(taxonomy.workTypes, question));
   if (grounded.ago) {

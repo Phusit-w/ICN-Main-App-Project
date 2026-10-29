@@ -79,8 +79,22 @@ function matchTerms(
 export function namedIn(text: string, name: string): boolean {
   if (!name.trim()) return false;
   if (THAI.test(name)) return text.includes(name);
+  return latinName(name).test(text);
+}
+
+// `text` with every place `name` is written in it (by namedIn's rules)
+// replaced by `mark`.
+export function cutName(text: string, name: string, mark: string): string {
+  if (!name.trim()) return text;
+  if (THAI.test(name)) return text.split(name).join(mark);
+  return text.replace(latinName(name, "g"), mark);
+}
+
+// The boundaries are lookarounds, so a match never uses up the separator
+// the next one needs ("NT NT").
+function latinName(name: string, flags = ""): RegExp {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text);
+  return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, `i${flags}`);
 }
 
 // The words that name an entry: both labels and its synonyms.

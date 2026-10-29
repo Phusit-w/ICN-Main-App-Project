@@ -58,12 +58,25 @@ async function seedTerms() {
       term("category", "microwave-radio", "Microwave & Radio", "ไมโครเวฟและวิทยุสื่อสาร", ["microwave", "ไมโครเวฟ", "วิทยุสื่อสาร"], 40),
       term("category", "teleprotection", "Teleprotection", "ระบบป้องกันสายส่ง", ["ป้องกันสายส่ง"], 50),
       term("category", "software", "Software", "ซอฟต์แวร์", ["ซอฟแวร์"], 80),
+      term("category", "energy", "Energy", "พลังงาน", ["solar", "โซลาร์"], 110),
       term("category", "satellite-communications", "Satellite Communications", "การสื่อสารผ่านดาวเทียม", ["satellite", "ดาวเทียม"], 150),
       term("workType", "supply", "Supply", "จัดหาอุปกรณ์", ["จัดหา", "จัดซื้อ"], 10),
       term("workType", "installation", "Installation", "ติดตั้ง", ["install"], 20),
       term("workType", "ma", "MA (Maintenance)", "บำรุงรักษา (MA)", ["ma", "maintenance", "บำรุงรักษา", "ซ่อมบำรุง"], 30),
       term("workType", "managed-services", "Managed Services", "บริการบริหารจัดการระบบ", ["managed service", "บริหารจัดการระบบ"], 40),
       term("workType", "system-development", "System Development", "พัฒนาระบบ", [], 60),
+    ],
+  });
+  // Part of the client names list's seed (its migration).
+  await prisma.projectCardClient.createMany({
+    data: [
+      { code: "NT", names: ["บริษัท โทรคมนาคมแห่งชาติ", "โทรคมนาคมแห่งชาติ", "เอ็นที"] },
+      { code: "CAT", names: ["กสท โทรคมนาคม", "กสท", "แคท", "CAT Telecom"] },
+      { code: "PEA", names: ["การไฟฟ้าส่วนภูมิภาค", "กฟภ."] },
+      { code: "MEA", names: ["การไฟฟ้านครหลวง", "กฟน."] },
+      { code: "OBEC", names: ["สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน", "สพฐ."] },
+      { code: "NBTC", names: ["สำนักงาน กสทช.", "กสทช."] },
+      { code: "TRUE", names: ["ทรู", "ทรูมูฟ", "True"] },
     ],
   });
 }
@@ -151,6 +164,47 @@ test("one keyword word is kept; generic words never become the keyword", { skip 
   await seedTerms();
   assert.deepEqual(await ask("งาน router Cisco", { k: "router Cisco" }), { ask: "งาน router Cisco", q: "router" });
   assert.deepEqual(await ask("มีงานอะไรบ้าง", { k: "งาน" }), { ask: "มีงานอะไรบ้าง" });
+});
+
+test("a client named by code, Thai name or abbreviation sets the Client filter; the longest name wins", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  assert.deepEqual(await ask("ผลงานของ กฟภ."), { ask: "ผลงานของ กฟภ.", client: "PEA" });
+  assert.deepEqual(await ask("งานของการไฟฟ้านครหลวง"), { ask: "งานของการไฟฟ้านครหลวง", client: "MEA" });
+  assert.deepEqual(await ask("projects for True"), { ask: "projects for True", client: "TRUE" });
+  assert.deepEqual(await ask("งาน nt"), { ask: "งาน nt", client: "NT" });
+  // "กสทช." (NBTC) contains CAT's "กสท"; the longer name wins.
+  assert.deepEqual(await ask("โครงการของ กสทช."), { ask: "โครงการของ กสทช.", client: "NBTC" });
+  // An abbreviation is also understood without its dot, and still wins.
+  assert.deepEqual(await ask("โครงการของ กสทช"), { ask: "โครงการของ กสทช", client: "NBTC" });
+  assert.deepEqual(await ask("งาน กฟภ"), { ask: "งาน กฟภ", client: "PEA" });
+  // A Latin code matches whole words only: "NT" isn't inside "NTP".
+  assert.deepEqual(await ask("งาน NTP server", { k: "NTP" }), { ask: "งาน NTP server", q: "NTP" });
+});
+
+test("a client added in Admin Center is understood in the next question", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  assert.deepEqual(await ask("งานของ กทพ."), { ask: "งานของ กทพ." });
+  await prisma.projectCardClient.create({ data: { code: "EXAT", names: ["การทางพิเศษแห่งประเทศไทย", "กทพ."] } });
+  assert.deepEqual(await ask("งานของ กทพ."), { ask: "งานของ กทพ.", client: "EXAT" });
+});
+
+test("the keyword never repeats a filter: Category, Work Type and client names are cut out of it", { skip }, async () => {
+  await signIn();
+  await seedTerms();
+  assert.deepEqual(await ask("งาน Wi-Fi สพฐ.", { k: "Wi-Fi สพฐ." }), { ask: "งาน Wi-Fi สพฐ.", q: "Wi-Fi", client: "OBEC" });
+  assert.deepEqual(await ask("โครงการ solar rooftop", { k: "solar rooftop" }), { ask: "โครงการ solar rooftop", q: "rooftop", category: "energy" });
+  assert.deepEqual(await ask("งาน CAT Telecom", { k: "CAT Telecom" }), { ask: "งาน CAT Telecom", client: "CAT" });
+  // A name written twice in a row is cut both times.
+  assert.deepEqual(await ask("งาน NT NT OLT", { k: "NT NT OLT" }), { ask: "งาน NT NT OLT", q: "OLT", client: "NT" });
+  // A name cut out of Thai text takes the Thai rest with it ("ออฟติก" of "ไฟเบอร์ออฟติก").
+  const question = "โครงการไฟเบอร์ออฟติกของการไฟฟ้านครหลวง";
+  const expected = { ask: question, category: "fiber-optic", client: "MEA" };
+  assert.deepEqual(await ask(question, { k: "ไฟเบอร์ออฟติก" }), expected);
+  assert.deepEqual(await ask(question, { k: "ไฟเบอร์ออฟติกของการไฟฟ้านครหลวง" }), expected);
+  // A Latin keyword glued to a Thai client name keeps the Latin part.
+  assert.deepEqual(await ask("งาน OLTของกฟภ.", { k: "OLTของกฟภ." }), { ask: "งาน OLTของกฟภ.", q: "OLT", client: "PEA" });
 });
 
 test("each question writes one Activity log row with the filters, the model and the time", { skip }, async () => {
