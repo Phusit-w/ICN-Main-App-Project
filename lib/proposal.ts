@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { normalizeSocTitle, SOC_TITLE_INVALID, SOC_TITLE_MAX, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 import { socStorageRoot } from "@/lib/soc";
+import { listSocVersions, restartProposalReads, stopProposalReads } from "@/lib/proposal-soc";
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 
@@ -82,6 +83,7 @@ export async function trashProposal(id: string) {
   const { actor, proposal } = await authorizeProposalOwner(id);
   const now = new Date();
   await prisma.proposal.update({ where: { id }, data: { deletedAt: now, deletedById: actor.id, purgeAfter: new Date(now.getTime() + PROPOSAL_TRASH_DAYS * 86400000) } });
+  await stopProposalReads(id); // a scanned SOC being read stops calling the OCR
   await writeAudit({ actorId: actor.id, action: "PROPOSAL_TRASHED", entityType: "PROPOSAL", entityId: id, summary: `ย้าย Proposal ${proposal.title} ไปถังขยะ` });
 }
 
@@ -90,6 +92,7 @@ export async function restoreProposal(id: string, actorId: string) {
   if (!trashed || !trashed.deletedAt) throw new Error("NOT_FOUND");
   const title = await restoredProposalTitle(trashed.title, id);
   await prisma.proposal.update({ where: { id }, data: { title, deletedAt: null, deletedById: null, purgeAfter: null, restoredAt: new Date() } });
+  await restartProposalReads(id); // trashing stopped its OCR reads; they go on from the saved cells
   await writeAudit({ actorId, action: "PROPOSAL_RESTORED", entityType: "PROPOSAL", entityId: id, summary: `กู้คืน Proposal ${title}`, metadata: title === trashed.title ? undefined : { renamedFrom: trashed.title } });
 }
 
@@ -99,6 +102,7 @@ export async function restoreProposal(id: string, actorId: string) {
 export async function deleteTrashedProposal(id: string, actorId: string | null): Promise<boolean> {
   const proposal = await prisma.proposal.findUnique({ where: { id } });
   if (!proposal || !proposal.deletedAt) return false;
+  await stopProposalReads(id);
   await prisma.proposal.delete({ where: { id } });
   await rm(proposalStorageDir(id), { recursive: true, force: true });
   const automatic = actorId === null;
@@ -135,21 +139,26 @@ export type StepCard = {
 export const STEP_STATUS_LABELS: Record<StepStatus, string> = { done: "เสร็จ", doing: "กำลังทำ", todo: "ยังไม่ทำ", stale: "ต้องทำใหม่", reserved: "เร็ว ๆ นี้" };
 
 // What the Proposal holds, as far as step status is concerned; later
-// tickets add the SOC Versions, Datasheets and runs.
-export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null };
+// tickets add the Datasheets and runs. `socVersion`: the number of the
+// current SOC Version (the highest ready one).
+export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null; socVersion: number | null };
 
 type TorRow = { originalName: string; pageCount: number; scanned: boolean };
-const proposalFacts = ({ tor }: { tor: TorRow | null }): ProposalFacts => ({ tor: tor && { name: tor.originalName, pageCount: tor.pageCount, scanned: tor.scanned } });
+const proposalFacts = ({ tor, socVersions }: { tor: TorRow | null; socVersions: { number: number }[] }): ProposalFacts => ({
+  tor: tor && { name: tor.originalName, pageCount: tor.pageCount, scanned: tor.scanned },
+  socVersion: socVersions[0]?.number ?? null,
+});
 
 // The six steps in order. Statuses come from the facts, never from storage.
-export function proposalSteps({ tor }: ProposalFacts): StepCard[] {
+export function proposalSteps({ tor, socVersion }: ProposalFacts): StepCard[] {
+  const socNow = socVersion ? `ใช้ SOC ฉบับ ${socVersion}` : "ยังไม่มี SOC";
   return [
     { no: 1, title: "TOR", status: tor ? "done" : "todo", ai: "ไม่ใช้ AI", needs: "ไฟล์ TOR (PDF)", gives: "TOR ของ Proposal ที่ทุกขั้นใช้ร่วมกัน", now: tor ? `${tor.name.split("/").pop()} · ${tor.pageCount} หน้า${tor.scanned ? " · PDF สแกน" : ""}` : "ยังไม่มี TOR" },
     { no: 2, title: "โครง Content", status: "reserved", ai: "ไม่ใช้ AI", needs: "TOR", gives: "โครงเนื้อหาข้อเสนอ", now: "เร็ว ๆ นี้" },
     { no: 3, title: "สร้าง SOC", status: "todo", ai: "ไม่ใช้ AI", needs: "TOR และเทมเพลต SOC", gives: "SOC ฉบับร่างที่เติมเลขข้อและข้อกำหนด TOR", now: "ยังไม่มี SOC" },
-    { no: 4, title: "กรอกอ้างอิง", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ Datasheet", gives: "SOC ฉบับใหม่ที่เติมเอกสารและหน้าอ้างอิง", now: "ยังไม่มี SOC" },
-    { no: 5, title: "ตรวจ TOR ตรงต้นฉบับ", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ TOR", gives: "ผลเทียบข้อความ TOR ใน SOC กับต้นฉบับ", now: "ยังไม่มี SOC" },
-    { no: 6, title: "ตรวจหลักฐาน", status: "todo", ai: "ใช้ AI", needs: "SOC ปัจจุบันและ Datasheet", gives: "ผลตรวจ SOC เทียบ Datasheet และ SOC_Check", now: "ยังไม่มี SOC" },
+    { no: 4, title: "กรอกอ้างอิง", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ Datasheet", gives: "SOC ฉบับใหม่ที่เติมเอกสารและหน้าอ้างอิง", now: socNow },
+    { no: 5, title: "ตรวจ TOR ตรงต้นฉบับ", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ TOR", gives: "ผลเทียบข้อความ TOR ใน SOC กับต้นฉบับ", now: socNow },
+    { no: 6, title: "ตรวจหลักฐาน", status: "todo", ai: "ใช้ AI", needs: "SOC ปัจจุบันและ Datasheet", gives: "ผลตรวจ SOC เทียบ Datasheet และ SOC_Check", now: socNow },
   ];
 }
 
@@ -165,26 +174,29 @@ export async function listProposals() {
   await requireSocUser();
   const rows = await prisma.proposal.findMany({
     where: { deletedAt: null },
-    include: { creator: { select: { displayName: true } }, tor: { select: { originalName: true, pageCount: true, scanned: true } } },
+    include: { creator: { select: { displayName: true } }, tor: { select: { originalName: true, pageCount: true, scanned: true } }, socVersions: { where: { state: "ready" }, orderBy: { number: "desc" }, take: 1, select: { number: true } } },
     orderBy: { updatedAt: "desc" },
   });
   return rows.map((row) => ({
     id: row.id, title: row.title, creatorName: row.creator.displayName, updatedAt: row.updatedAt,
-    progress: proposalProgress(proposalSteps(proposalFacts(row))), currentVersion: null as number | null, waitingCount: 0,
+    progress: proposalProgress(proposalSteps(proposalFacts(row))), currentVersion: row.socVersions[0]?.number ?? null, waitingCount: 0,
   }));
 }
 
 export async function getProposalPage(id: string) {
   const { actor, proposal } = await authorizeProposal(id);
-  const [creator, tor] = await Promise.all([
+  const [creator, tor, socVersions] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } }),
     prisma.proposalTor.findUnique({ where: { proposalId: id }, select: { originalName: true, pageCount: true, scanned: true } }),
+    listSocVersions(id),
   ]);
-  const facts = proposalFacts({ tor });
+  const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready") });
   return {
     id: proposal.id, viewerId: actor.id, title: proposal.title, creatorName: creator.displayName, updatedAt: proposal.updatedAt,
     canManage: proposal.creatorId === actor.id || actor.role === "ADMIN",
     tor: facts.tor,
+    socVersions,
+    currentVersion: facts.socVersion,
     steps: proposalSteps(facts),
   };
 }

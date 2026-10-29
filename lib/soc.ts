@@ -15,7 +15,7 @@ export * from "@/lib/soc-shared";
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 type Upload = { name: string; bytes: Uint8Array };
 
-const NO_MAJOR_ITEMS = "ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์ลำดับของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1";
+export const NO_MAJOR_ITEMS = "ไม่พบเลขข้อใหญ่ในตาราง SOC กรุณาตรวจว่าคอลัมน์ลำดับของตารางเป็นเลขข้อ เช่น ๑.๑ หรือ 1.1";
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 export function socStorageRoot(): string {
@@ -147,12 +147,7 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
     if (!ocrConfirmed) throw new Error(OCR_CONFIRM_REQUIRED);
     return createReadingSocJob(actor, input, readCell);
   }
-  const pdfSoc = isPdf ? await convertPdfSoc(input.soc.bytes) : null;
-  const withExtension = (extension: string) => input.soc.name.replace(/(\.[^.\/]*)?$/, extension);
-  const soc = pdfSoc ? { name: withExtension(".xlsx"), bytes: pdfSoc.xlsx } : input.soc;
-  const { file: socFile, majorItems, warnings: tableWarnings } = readSocTable(soc.bytes);
-  if (!majorItems.length) throw new Error(NO_MAJOR_ITEMS);
-  const warnings = [...(pdfSoc?.warnings ?? []), ...tableWarnings];
+  const { soc, file: socFile, majorItems, warnings, pdfSoc, withExtension } = await readableSocUpload(input.soc);
   const jobId = randomUUID();
   try {
     const storedSoc = await storeSocFile(jobId, soc.name, socFile.extension, soc.bytes);
@@ -182,6 +177,19 @@ export async function createImportedSocJob(actor: SocActor, input: { title: stri
     throw error;
   }
   return jobId;
+}
+
+// A SOC upload validateUpload() has checked, read as the SOC check reads it:
+// a text PDF becomes the .xlsx made from it (ADR 0009), and a table with no
+// ข้อใหญ่ is refused. `soc` is the file to keep; `pdfSoc` is set for a PDF.
+// A scanned PDF is not handled here (hasScannedTable, ADR 0010).
+export async function readableSocUpload(upload: Upload) {
+  const pdfSoc = isPdfFile(upload.bytes) ? await convertPdfSoc(upload.bytes) : null;
+  const withExtension = (extension: string) => upload.name.replace(/(\.[^.\/]*)?$/, extension);
+  const soc = pdfSoc ? { name: withExtension(".xlsx"), bytes: pdfSoc.xlsx } : upload;
+  const { file, majorItems, warnings: tableWarnings } = readSocTable(soc.bytes);
+  if (!majorItems.length) throw new Error(NO_MAJOR_ITEMS);
+  return { soc, file, majorItems, pdfSoc, withExtension, warnings: [...(pdfSoc?.warnings ?? []), ...tableWarnings] };
 }
 
 async function createReadingSocJob(actor: SocActor, input: { title: string; soc: Upload; evidence: Upload[] }, readCell: CellReader) {

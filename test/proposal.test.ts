@@ -137,7 +137,7 @@ test("purge: early by ADMIN, and automatically after 30 days, removes the row an
 });
 
 test("an empty Proposal has six steps: all ยังไม่ทำ except โครง Content (เร็ว ๆ นี้), progress 0/5", { skip: false }, () => {
-  const steps = proposalSteps({ tor: null });
+  const steps = proposalSteps({ tor: null, socVersion: null });
   assert.deepEqual(steps.map((s) => s.title), ["TOR", "โครง Content", "สร้าง SOC", "กรอกอ้างอิง", "ตรวจ TOR ตรงต้นฉบับ", "ตรวจหลักฐาน"]);
   assert.deepEqual(steps.map((s) => s.status), ["todo", "reserved", "todo", "todo", "todo", "todo"]);
   assert.deepEqual(proposalProgress(steps), { done: 0, total: 5 });

@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createProposal, renameProposal, trashProposal } from "@/lib/proposal";
+import { prisma } from "@/lib/prisma";
+import { authorizeProposal, createProposal, renameProposal, trashProposal } from "@/lib/proposal";
+import { resumeVersionRead } from "@/lib/proposal-soc";
 import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 
 type TitleResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -33,6 +35,21 @@ export async function renameProposalAction(id: string, title: string): Promise<T
   } catch (error) {
     return refusedTitle(error);
   }
+}
+
+// A scanned SOC whose read failed goes on from its saved cells. Any SOC user
+// may, as any may upload the SOC.
+export async function resumeSocVersionReadAction(proposalId: string, versionId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await authorizeProposal(proposalId);
+  const version = await prisma.socVersion.findUnique({ where: { id: versionId }, select: { proposalId: true } });
+  if (!version || version.proposalId !== proposalId) throw new Error("NOT_FOUND");
+  try {
+    if (!(await resumeVersionRead(versionId))) return { ok: false, error: "SOC ฉบับนี้ไม่ได้อยู่ในสถานะอ่านไม่สำเร็จ" };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error && /[฀-๿]/.test(error.message) ? error.message : "อ่านต่อไม่สำเร็จ" };
+  }
+  revalidatePath(`/soc/proposals/${proposalId}`);
+  return { ok: true };
 }
 
 // Creator or ADMIN. ADMIN restores or purges it early from /admin/trash.

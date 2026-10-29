@@ -148,6 +148,7 @@ model User {
   socBuilds                  SocBuild[]
   proposalsCreated           Proposal[]             @relation("ProposalCreator")
   proposalTorsUploaded       ProposalTor[]          @relation("ProposalTorUploader")
+  socVersionsCreated         SocVersion[]           @relation("SocVersionCreator")
   expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
   auditEvents                AuditLog[]             @relation("AuditActor")
   targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
@@ -788,6 +789,7 @@ model Proposal {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   tor         ProposalTor?
+  socVersions SocVersion[]
 
   @@index([deletedAt, updatedAt])
   @@index([deletedAt, purgeAfter])
@@ -811,4 +813,38 @@ model ProposalTor {
   uploadedById String
   uploadedBy   User     @relation("ProposalTorUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   createdAt    DateTime @default(now())
+}
+
+// A SOC Version of a Proposal (ADR 0012): one SOC file in the order it arrived.
+// The highest-numbered READY one is the current SOC. A scanned PDF SOC is
+// numbered at once and stays READING (OCR queue) until its table is read; its
+// `sourceStorageKey` is the PDF a PDF SOC was made from (the file itself is
+// then the .xlsx made from it, `rowPages` = the PDF page of each row).
+// Files live under SOC_STORAGE_ROOT/proposals/<proposalId>/.
+model SocVersion {
+  id               String   @id @default(cuid())
+  proposalId       String
+  proposal         Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  number           Int
+  // "upload" | "build" | "reference_fill"
+  source           String
+  // "reading" | "ready" | "failed"
+  state            String   @default("ready")
+  stage            String?
+  progress         Int      @default(0)
+  errorMessage     String?
+  originalName     String?
+  storageKey       String?  @unique
+  mimeType         String?
+  sizeBytes        Int?
+  checksum         String?
+  sourceName       String?
+  sourceStorageKey String?  @unique
+  warnings         Json?
+  rowPages         Json?
+  createdById      String
+  createdBy        User     @relation("SocVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime @default(now())
+
+  @@unique([proposalId, number])
 }
