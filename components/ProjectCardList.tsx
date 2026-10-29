@@ -335,6 +335,11 @@ function ProjectCardDetail({
             <h2 id="project-card-heading" className="mt-2 font-display text-lg font-semibold leading-snug text-ink">
               {card.projectName}
             </h2>
+            {storedCertificateDate ? (
+              <p className="mt-1 text-sm text-label">
+                หนังสือรับรองลงวันที่ {formatCertificateDate(storedCertificateDate)}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -547,16 +552,7 @@ function ProjectCardDetail({
                 </div>
               )}
               {card.contractPath ? <PathRow label="สัญญา" path={card.contractPath} /> : null}
-              {card.certificatePath ? (
-                <PathRow
-                  label={
-                    storedCertificateDate
-                      ? `หนังสือรับรอง · ลงวันที่ ${formatCertificateDate(storedCertificateDate)}`
-                      : "หนังสือรับรอง"
-                  }
-                  path={card.certificatePath}
-                />
-              ) : null}
+              {card.certificatePath ? <PathRow label="หนังสือรับรอง" path={card.certificatePath} /> : null}
               {editing && card.certificatePath ? (
                 <div>
                   <label htmlFor="project-card-certificate-date" className="mb-1 block text-xs text-muted">
