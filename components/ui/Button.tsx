@@ -45,6 +45,11 @@ const variants: Record<Variant, string> = {
   dangerSolid: "bg-danger text-white hover:bg-[#8f1e17] active:bg-[#7a1a14]",
 };
 
+// The same look on an <a> (e.g. a download link).
+export function buttonClassName({ variant = "primary", size = "md" }: { variant?: Variant; size?: Size } = {}) {
+  return `${base} ${sizes[size]} ${variants[variant]}`;
+}
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: Ref<HTMLButtonElement>;
   variant?: Variant;
@@ -61,7 +66,7 @@ export default function Button({
   return (
     <button
       type={type}
-      className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
+      className={`${buttonClassName({ variant, size })} ${className}`}
       {...rest}
     />
   );

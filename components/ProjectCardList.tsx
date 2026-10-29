@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { updateProjectCardDetails, verifyProjectCardBudget } from "@/actions/projectCard";
 import Modal from "@/components/ui/Modal";
-import Button from "@/components/ui/Button";
 import CopyButton from "@/components/CopyButton";
 import CommaNumberInput, { withCommas } from "@/components/CommaNumberInput";
 import { fmt } from "@/lib/format";
 import { descriptionSourceLabel, termLabel, type Taxonomy } from "@/lib/project-card-taxonomy";
 import { formatCertificateDate, parseCertificateDate } from "@/lib/project-card-certificate-date";
+import { SORT_LABEL, SORT_OPTIONS, parseSort, sortCards, sortParam, type ProjectCardSort, type ProjectCardSortKey } from "@/lib/project-card-sort";
+import Button, { buttonClassName } from "@/components/ui/Button";
 
 export type ProjectCardRow = {
   id: string;
@@ -53,49 +54,16 @@ function formatBudget(amount: string | null): string {
   return amount ? fmt(amount, 2) : "-";
 }
 
-type SortKey = "name" | "client" | "year" | "certificate" | "budget";
-type Sort = { key: SortKey; dir: "asc" | "desc" } | null;
-
-const SORT_COLUMNS: { key: SortKey; label: string; className?: string }[] = [
-  { key: "name", label: "โครงการ" },
-  { key: "client", label: "ลูกค้า" },
-  { key: "year", label: "ปี" },
-  { key: "certificate", label: "หนังสือรับรอง" },
-  { key: "budget", label: "งบประมาณ (บาท)", className: "justify-end" },
+const SORT_COLUMNS: { key: ProjectCardSortKey; className?: string }[] = [
+  { key: "name" },
+  { key: "client" },
+  { key: "year" },
+  { key: "certificate" },
+  { key: "budget", className: "justify-end" },
 ];
 
-function sortValue(card: ProjectCardRow, key: SortKey): string | number | null {
-  switch (key) {
-    case "name":
-      return card.projectName;
-    case "client":
-      return card.client;
-    case "year":
-      return card.year;
-    case "certificate":
-      return card.certificateDate;
-    case "budget":
-      return card.budgetAmount === null ? null : Number(card.budgetAmount);
-  }
-}
-
-// Sorted on the client, over the rows already filtered by the page. Cards
-// with no value (no year, no budget) stay at the bottom in either direction;
-// ties keep the page's own order (main-Category matches first).
-function sortCards(cards: ProjectCardRow[], sort: Sort): ProjectCardRow[] {
-  if (!sort) return cards;
-  const sign = sort.dir === "asc" ? 1 : -1;
-  return [...cards].sort((a, b) => {
-    const va = sortValue(a, sort.key);
-    const vb = sortValue(b, sort.key);
-    if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
-    const diff = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb), "th");
-    return diff * sign;
-  });
-}
-
 // Click a column: น้อย→มาก, then มาก→น้อย, then back to the page's order.
-function nextSort(sort: Sort, key: SortKey): Sort {
+function nextSort(sort: ProjectCardSort, key: ProjectCardSortKey): ProjectCardSort {
   if (sort?.key !== key) return { key, dir: "asc" };
   return sort.dir === "asc" ? { key, dir: "desc" } : null;
 }
@@ -110,6 +78,33 @@ function SortArrow({ dir }: { dir: "asc" | "desc" | null }) {
   return <span className={`text-[10px] ${dir ? "text-ink" : "text-line"}`}>{dir === "desc" ? "▼" : "▲"}</span>;
 }
 
+// The result count, with ส่งออก Excel for the cards on screen: `exportQuery` is
+// the page's search and filters as a query string, and the list adds its sort.
+// Null when nothing matched: the button is then shown but can't be pressed.
+export function ProjectCardResultBar({ count, exportQuery, sort = null }: { count: number; exportQuery: string | null; sort?: ProjectCardSort }) {
+  let href: string | null = null;
+  if (exportQuery !== null) {
+    const params = new URLSearchParams(exportQuery);
+    if (sort) params.set("sort", sortParam(sort));
+    const qs = params.toString();
+    href = qs ? `/api/project-card/export?${qs}` : "/api/project-card/export";
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-sm text-muted">พบ {count.toLocaleString("th-TH")} โครงการ</p>
+      {href ? (
+        <a href={href} download data-tour="export" className={buttonClassName({ variant: "outline", size: "sm" })}>
+          ส่งออก Excel
+        </a>
+      ) : (
+        <Button variant="outline" size="sm" disabled data-tour="export">
+          ส่งออก Excel
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // The list stays deliberately sparse — name, client, year, budget — so a
 // search result reads at a glance; everything else (description, note,
 // file paths, editing) lives in the popup opened by clicking a row.
@@ -119,109 +114,106 @@ export default function ProjectCardList({
   cards,
   taxonomy,
   canEdit,
+  exportQuery,
 }: {
   cards: ProjectCardRow[];
   taxonomy: Taxonomy;
   canEdit: boolean;
+  exportQuery: string;
 }) {
   const categoryLabel = (value: string) => termLabel(taxonomy.categories, value);
   const [openId, setOpenId] = useState<string | null>(null);
   // Looked up from the latest props (not a copy held in state) so the popup
   // shows the saved values once revalidatePath re-renders the page.
   const openCard = cards.find((c) => c.id === openId) ?? null;
-  const [sort, setSort] = useState<Sort>(null);
+  const [sort, setSort] = useState<ProjectCardSort>(null);
   const sorted = sortCards(cards, sort);
 
   return (
     <>
-      <div className="hidden grid-cols-[1fr_110px_70px_110px_170px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
-        {SORT_COLUMNS.map((col) => {
-          const dir = sort?.key === col.key ? sort.dir : null;
-          return (
-            <button
-              key={col.key}
-              type="button"
-              onClick={() => setSort(nextSort(sort, col.key))}
-              title={dir === "asc" ? "น้อย → มาก (คลิกเพื่อเรียง มาก → น้อย)" : dir === "desc" ? "มาก → น้อย (คลิกเพื่อกลับลำดับเดิม)" : "คลิกเพื่อเรียง น้อย → มาก"}
-              className={`ui-btn flex items-center gap-1 text-left hover:text-ink ${dir ? "text-ink" : ""} ${col.className ?? ""}`}
-            >
-              {col.label}
-              <SortArrow dir={dir} />
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-2 border-b border-line px-5 py-2.5 text-xs text-muted md:hidden">
-        <label htmlFor="project-card-sort">เรียงตาม</label>
-        <select
-          id="project-card-sort"
-          value={sort ? `${sort.key}:${sort.dir}` : ""}
-          onChange={(e) => {
-            const [key, dir] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
-            setSort(e.target.value ? { key, dir } : null);
-          }}
-          className="rounded-input border border-line bg-surface px-2 py-1 text-xs text-ink"
-        >
-          <option value="">ลำดับเดิม</option>
-          <option value="year:desc">ปี มาก → น้อย</option>
-          <option value="year:asc">ปี น้อย → มาก</option>
-          <option value="certificate:desc">หนังสือรับรอง ใหม่ → เก่า</option>
-          <option value="certificate:asc">หนังสือรับรอง เก่า → ใหม่</option>
-          <option value="budget:desc">งบ มาก → น้อย</option>
-          <option value="budget:asc">งบ น้อย → มาก</option>
-          <option value="name:asc">ชื่อโครงการ ก → ฮ</option>
-          <option value="name:desc">ชื่อโครงการ ฮ → ก</option>
-          <option value="client:asc">ลูกค้า ก → ฮ</option>
-          <option value="client:desc">ลูกค้า ฮ → ก</option>
-        </select>
-      </div>
-      <ul className="divide-y divide-line">
-        {sorted.map((card) => (
-          <li key={card.id}>
-            <button
-              type="button"
-              onClick={() => setOpenId(card.id)}
-              className="ui-btn grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-5 py-4 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none md:grid-cols-[1fr_110px_70px_110px_170px] md:items-center"
-            >
-              <span className="min-w-0">
-                <span className="block font-medium leading-snug text-ink">{card.projectName}</span>
-                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                  {card.projectCode}
-                  {/* Main Category dark, secondary ones (Tags) light — same as the popup. */}
-                  {card.category ? (
-                    <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium text-surface">
-                      {categoryLabel(card.category)}
-                    </span>
-                  ) : null}
-                  {card.tags.map((t) => (
-                    <span key={t} className="rounded-full bg-chip px-2 py-0.5 text-[11px] text-muted">
-                      {categoryLabel(t)}
-                    </span>
-                  ))}
-                  {/* Outlined, unlike the Category chips: it says which document the project has, not what it's about. */}
-                  {card.contractPath ? (
-                    <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">สัญญา</span>
+      <ProjectCardResultBar count={cards.length} exportQuery={exportQuery} sort={sort} />
+      <div data-tour="results" className="overflow-hidden rounded-card bg-surface shadow-card">
+        <div className="hidden grid-cols-[1fr_110px_70px_110px_170px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
+          {SORT_COLUMNS.map((col) => {
+            const dir = sort?.key === col.key ? sort.dir : null;
+            return (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => setSort(nextSort(sort, col.key))}
+                title={dir === "asc" ? "น้อย → มาก (คลิกเพื่อเรียง มาก → น้อย)" : dir === "desc" ? "มาก → น้อย (คลิกเพื่อกลับลำดับเดิม)" : "คลิกเพื่อเรียง น้อย → มาก"}
+                className={`ui-btn flex items-center gap-1 text-left hover:text-ink ${dir ? "text-ink" : ""} ${col.className ?? ""}`}
+              >
+                {SORT_LABEL[col.key]}
+                <SortArrow dir={dir} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 border-b border-line px-5 py-2.5 text-xs text-muted md:hidden">
+          <label htmlFor="project-card-sort">เรียงตาม</label>
+          <select
+            id="project-card-sort"
+            value={sortParam(sort)}
+            onChange={(e) => setSort(parseSort(e.target.value))}
+            className="rounded-input border border-line bg-surface px-2 py-1 text-xs text-ink"
+          >
+            <option value="">ลำดับเดิม</option>
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <ul className="divide-y divide-line">
+          {sorted.map((card) => (
+            <li key={card.id}>
+              <button
+                type="button"
+                onClick={() => setOpenId(card.id)}
+                className="ui-btn grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-5 py-4 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none md:grid-cols-[1fr_110px_70px_110px_170px] md:items-center"
+              >
+                <span className="min-w-0">
+                  <span className="block font-medium leading-snug text-ink">{card.projectName}</span>
+                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                    {card.projectCode}
+                    {/* Main Category dark, secondary ones (Tags) light — same as the popup. */}
+                    {card.category ? (
+                      <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium text-surface">
+                        {categoryLabel(card.category)}
+                      </span>
+                    ) : null}
+                    {card.tags.map((t) => (
+                      <span key={t} className="rounded-full bg-chip px-2 py-0.5 text-[11px] text-muted">
+                        {categoryLabel(t)}
+                      </span>
+                    ))}
+                    {/* Outlined, unlike the Category chips: it says which document the project has, not what it's about. */}
+                    {card.contractPath ? (
+                      <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">สัญญา</span>
+                    ) : null}
+                  </span>
+                </span>
+                <span className="hidden text-sm text-label md:block">{card.client}</span>
+                <span className="hidden text-sm text-label md:block">{card.year ?? "-"}</span>
+                <span className="hidden text-sm text-label md:block">{certificateDateLabel(card) ?? "-"}</span>
+                <span className="text-right">
+                  <span className="block font-medium tabular-nums text-ink">{formatBudget(card.budgetAmount)}</span>
+                  {card.budgetAmount && !card.budgetVerified ? (
+                    <span className="block text-[11px] text-amber-600">ยังไม่ยืนยัน</span>
                   ) : null}
                 </span>
-              </span>
-              <span className="hidden text-sm text-label md:block">{card.client}</span>
-              <span className="hidden text-sm text-label md:block">{card.year ?? "-"}</span>
-              <span className="hidden text-sm text-label md:block">{certificateDateLabel(card) ?? "-"}</span>
-              <span className="text-right">
-                <span className="block font-medium tabular-nums text-ink">{formatBudget(card.budgetAmount)}</span>
-                {card.budgetAmount && !card.budgetVerified ? (
-                  <span className="block text-[11px] text-amber-600">ยังไม่ยืนยัน</span>
-                ) : null}
-              </span>
-              <span className="col-span-2 text-xs text-muted md:hidden">
-                {card.client}
-                {card.year ? ` · ปี ${card.year}` : ""}
-                {card.certificateDate ? ` · รับรอง ${certificateDateLabel(card)}` : ""}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+                <span className="col-span-2 text-xs text-muted md:hidden">
+                  {card.client}
+                  {card.year ? ` · ปี ${card.year}` : ""}
+                  {card.certificateDate ? ` · รับรอง ${certificateDateLabel(card)}` : ""}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
       {openCard ? <ProjectCardDetail key={openCard.id} card={openCard} taxonomy={taxonomy} canEdit={canEdit} onClose={() => setOpenId(null)} /> : null}
     </>
   );

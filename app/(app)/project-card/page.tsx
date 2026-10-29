@@ -1,22 +1,17 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/lib/generated/prisma/client";
 import { requirePageAccess } from "@/lib/authorization";
 import { hasAccess } from "@/lib/access";
 import Field from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons";
-import ProjectCardList from "@/components/ProjectCardList";
+import ProjectCardList, { ProjectCardResultBar } from "@/components/ProjectCardList";
 import SocGuidedTour from "@/components/SocGuidedTour";
 import { PROJECT_CARD_TOUR } from "@/lib/project-card-tours";
 import { CommaNumberField } from "@/components/CommaNumberInput";
 import Link from "next/link";
-import { matchCategories, matchWorkTypes, type Term } from "@/lib/project-card-taxonomy";
 import { loadTaxonomy } from "@/lib/project-card-terms";
-import {
-  CERTIFICATE_AGE_OPTIONS,
-  certificateDateValue,
-  certificateDatedSince,
-} from "@/lib/project-card-certificate-date";
+import { CERTIFICATE_AGE_OPTIONS } from "@/lib/project-card-certificate-date";
+import { findProjectCards, parseProjectCardSearch, type ProjectCardSearchParams } from "@/lib/project-card-search";
 
 export const dynamic = "force-dynamic";
 
@@ -28,34 +23,6 @@ export const dynamic = "force-dynamic";
 // Flat access (docs/adr/0006-project-card-flat-access-control.md): any
 // signed-in user, no extra role check — same as every other screen in this
 // app.
-// Parses a query-string number param, returning undefined for anything
-// blank or non-numeric rather than throwing — a stray/garbled filter value
-// should just be ignored, not 500 the page.
-function parseIntParam(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const n = Number.parseInt(value, 10);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function parseFloatParam(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const n = Number.parseFloat(value);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
-
-// The Category and Work Type boxes are typed or picked from a datalist, so
-// each may arrive as a stored value ("fiber-optic"), an English or Thai label
-// ("Fiber Optic", "เคเบิลใยแก้วนำแสง"), or part of a label ("fiber", "ระบบ"),
-// which filters by every entry it fits. Text that fits none matches no cards.
-function resolveTerms(terms: readonly Term[], text: string): Term[] {
-  const needle = text.toLowerCase();
-  if (!needle) return [];
-  const exact = terms.find(
-    (c) => c.value === needle || c.en.toLowerCase() === needle || c.th.toLowerCase() === needle,
-  );
-  if (exact) return [exact];
-  return terms.filter((c) => c.en.toLowerCase().includes(needle) || c.th.includes(needle));
-}
 
 // Datalist options for the client filter. "PEA (BBTEC)" is split so the card
 // counts toward both PEA and BBTEC, matching how the filter above finds it.
@@ -73,158 +40,18 @@ function clientOptions(rows: { client: string; _count: number }[]): [string, num
 export default async function ProjectCardPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    q?: string;
-    client?: string;
-    category?: string;
-    workType?: string;
-    yearFrom?: string;
-    yearTo?: string;
-    budgetMin?: string;
-    budgetMax?: string;
-    // Ticked "เอกสารที่มี" boxes: contract and/or certificate.
-    doc?: string | string[];
-    certWithin?: string;
-  }>;
+  searchParams: Promise<ProjectCardSearchParams>;
 }) {
   const actor = await requirePageAccess("project-card");
-  const {
-    q,
-    client: clientParam,
-    category: categoryParam,
-    workType: workTypeParam,
-    yearFrom: yearFromParam,
-    yearTo: yearToParam,
-    budgetMin: budgetMinParam,
-    budgetMax: budgetMaxParam,
-    doc: docParam,
-    certWithin: certWithinParam,
-  } = await searchParams;
   const taxonomy = await loadTaxonomy();
-  const query = q?.trim() ?? "";
-  const client = clientParam?.trim() ?? "";
-  const categoryText = categoryParam?.trim() ?? "";
-  const categoryTerms = resolveTerms(taxonomy.categories, categoryText);
-  // One Category shows its English label in the box; otherwise keep what was typed.
-  const categoryDisplay = categoryTerms.length === 1 ? categoryTerms[0].en : categoryText;
-  const workTypeText = workTypeParam?.trim() ?? "";
-  const workTypeTerms = resolveTerms(taxonomy.workTypes, workTypeText);
-  const workTypeDisplay = workTypeTerms.length === 1 ? workTypeTerms[0].en : workTypeText;
-  // Year range, inclusive on both ends; either side may be left blank.
-  const yearFrom = parseIntParam(yearFromParam);
-  const yearTo = parseIntParam(yearToParam);
-  // The budget filter is typed in millions of baht (ล้านบาท) so users enter
-  // "10" rather than "10000000"; the DB still stores full baht.
-  const budgetMin = parseFloatParam(budgetMinParam);
-  const budgetMax = parseFloatParam(budgetMaxParam);
-  const toBaht = (millions: number) => Math.round(millions * 1_000_000);
-  // "เอกสารที่มี": every ticked document must be on the card. Read from the
-  // card's own Folder Paths — a path means the project has that document.
-  const docs = new Set([docParam ?? []].flat());
-  const wantsContract = docs.has("contract");
-  const wantsCertificate = docs.has("certificate");
-  // "หนังสือรับรองออกภายใน N ปี": only the listed choices; anything else is ignored.
-  const certWithin = CERTIFICATE_AGE_OPTIONS.find((years) => String(years) === certWithinParam);
+  const search = parseProjectCardSearch(await searchParams, taxonomy);
+  const {
+    query, client, categoryDisplay, workTypeDisplay, yearFrom, yearTo, budgetMin, budgetMax,
+    wantsContract, wantsCertificate, certWithin, chips, currentParams,
+  } = search;
 
-  const filters: Prisma.ProjectCardWhereInput[] = [];
-  const matchedCategories = matchCategories(taxonomy.categories, query);
-  const matchedWorkTypes = matchWorkTypes(taxonomy.workTypes, query);
-  if (query) {
-    filters.push({
-      OR: [
-        { projectCode: { contains: query, mode: "insensitive" } },
-        { client: { contains: query, mode: "insensitive" } },
-        { projectName: { contains: query, mode: "insensitive" } },
-        { descriptionTh: { contains: query, mode: "insensitive" } },
-        { descriptionEn: { contains: query, mode: "insensitive" } },
-        // A query naming a technology area ("fiber", "ใยแก้ว") also finds
-        // cards with that Category or Tag — see lib/project-card-taxonomy.ts.
-        ...(matchedCategories.length
-          ? [{ category: { in: matchedCategories } }, { tags: { hasSome: matchedCategories } }]
-          : []),
-        // Likewise a Work Type ("MA", "เช่า") finds every card delivered that way.
-        ...(matchedWorkTypes.length ? [{ workTypes: { hasSome: matchedWorkTypes } }] : []),
-      ],
-    });
-  }
-  // Client is typed or picked from the datalist. Exact match, case-insensitive
-  // ("pea" finds PEA): a partial match would let "AT" pull in CAT, EGAT, ATD.
-  // A subcontracted card stores "OWNER (CONTRACTOR)", e.g. "PEA (BBTEC)", so
-  // either name finds it.
-  if (client) {
-    filters.push({
-      OR: [
-        { client: { equals: client, mode: "insensitive" } },
-        { client: { startsWith: `${client} (`, mode: "insensitive" } },
-        { client: { endsWith: `(${client})`, mode: "insensitive" } },
-      ],
-    });
-  }
-  // A Category filter finds cards with it as the main Category or as a
-  // secondary one (a Tag); main-Category matches are listed first below.
-  const categoryValues = categoryTerms.map((c) => c.value);
-  if (categoryText) {
-    filters.push({ OR: [{ category: { in: categoryValues } }, { tags: { hasSome: categoryValues } }] });
-  }
-  // A card lists one or more Work Types; it matches if any is among those picked.
-  if (workTypeText) filters.push({ workTypes: { hasSome: workTypeTerms.map((w) => w.value) } });
-  if (yearFrom !== undefined) filters.push({ year: { gte: yearFrom } });
-  if (yearTo !== undefined) filters.push({ year: { lte: yearTo } });
-  if (budgetMin !== undefined) filters.push({ budgetAmount: { gte: toBaht(budgetMin) } });
-  if (budgetMax !== undefined) filters.push({ budgetAmount: { lte: toBaht(budgetMax) } });
-  if (wantsContract) filters.push({ contractPath: { not: null } });
-  if (wantsCertificate) filters.push({ certificatePath: { not: null } });
-  // A card with no Certificate Date can't be shown to be recent enough, so it drops out.
-  if (certWithin !== undefined) filters.push({ certificateDate: { gte: certificateDatedSince(certWithin) } });
-
-  // The filters in use, each as a chip whose × drops just that filter and
-  // keeps the rest (the search box itself isn't a chip: it stays in view).
-  const currentParams = new URLSearchParams();
-  for (const [key, value] of Object.entries({
-    q: query, client, category: categoryText, workType: workTypeText,
-    yearFrom: yearFromParam, yearTo: yearToParam, budgetMin: budgetMinParam, budgetMax: budgetMaxParam,
-    certWithin: certWithin !== undefined ? String(certWithin) : undefined,
-  })) {
-    if (value) currentParams.set(key, value);
-  }
-  for (const d of docs) currentParams.append("doc", d);
-  const without = (key: string, value?: string) => {
-    const next = new URLSearchParams(currentParams);
-    next.delete(key, value);
-    const qs = next.toString();
-    return qs ? `/project-card?${qs}` : "/project-card";
-  };
-  const withoutRange = (from: string, to: string) => {
-    const next = new URLSearchParams(currentParams);
-    next.delete(from);
-    next.delete(to);
-    const qs = next.toString();
-    return qs ? `/project-card?${qs}` : "/project-card";
-  };
-  const range = (from: number | undefined, to: number | undefined, unit: string, fromWord: string, toWord: string) =>
-    from !== undefined && to !== undefined ? `${unit} ${from}–${to}` : from !== undefined ? `${fromWord} ${from}` : `${toWord} ${to}`;
-  const chips: { label: string; href: string }[] = [
-    ...(client ? [{ label: `ลูกค้า: ${client}`, href: without("client") }] : []),
-    ...(categoryText ? [{ label: `หมวดหมู่: ${categoryDisplay}`, href: without("category") }] : []),
-    ...(workTypeText ? [{ label: `ลักษณะงาน: ${workTypeDisplay}`, href: without("workType") }] : []),
-    ...(yearFrom !== undefined || yearTo !== undefined
-      ? [{ label: range(yearFrom, yearTo, "ปี", "ตั้งแต่ปี", "ถึงปี"), href: withoutRange("yearFrom", "yearTo") }]
-      : []),
-    ...(budgetMin !== undefined || budgetMax !== undefined
-      ? [{ label: `${range(budgetMin, budgetMax, "งบ", "งบมากกว่า", "งบน้อยกว่า")} ล้านบาท`, href: withoutRange("budgetMin", "budgetMax") }]
-      : []),
-    ...(wantsContract ? [{ label: "มีสัญญา", href: without("doc", "contract") }] : []),
-    ...(wantsCertificate ? [{ label: "มีหนังสือรับรอง", href: without("doc", "certificate") }] : []),
-    ...(certWithin !== undefined ? [{ label: `หนังสือรับรองออกภายใน ${certWithin} ปี`, href: without("certWithin") }] : []),
-  ];
-
-  const [matchedCards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
-    prisma.projectCard.findMany({
-      where: filters.length ? { AND: filters } : undefined,
-      // Stable order (not updatedAt) so saving an edit in the popup doesn't
-      // make that row jump to the top of the list.
-      orderBy: [{ year: { sort: "desc", nulls: "last" } }, { projectCode: "asc" }],
-    }),
+  const [cards, availableYears, availableClients, categoryCounts, workTypeCounts] = await Promise.all([
+    findProjectCards(search),
     prisma.projectCard.findMany({
       where: { year: { not: null } },
       distinct: ["year"],
@@ -246,14 +73,6 @@ export default async function ProjectCardPage({
     // Work Type instead (the list holds only a handful).
     Promise.all(taxonomy.workTypes.map((w) => prisma.projectCard.count({ where: { workTypes: { has: w.value } } }))),
   ]);
-  // Stable sort: cards whose main Category was filtered for come before those
-  // that only have it as a secondary one, each group keeping the year order.
-  const cards = categoryText
-    ? [
-        ...matchedCards.filter((c) => c.category !== null && categoryValues.includes(c.category)),
-        ...matchedCards.filter((c) => c.category === null || !categoryValues.includes(c.category)),
-      ]
-    : matchedCards;
 
   return (
     <div className="flex flex-col gap-6">
@@ -483,47 +302,30 @@ export default async function ProjectCardPage({
         </div>
       ) : null}
 
-      <p className="text-sm text-muted">พบ {cards.length.toLocaleString("th-TH")} โครงการ</p>
-
-      <div data-tour="results" className="overflow-hidden rounded-card bg-surface shadow-card">
-        {cards.length ? (
-          <ProjectCardList
-            taxonomy={taxonomy}
-            canEdit={hasAccess(actor, "project-card-edit")}
-            cards={cards.map((card) => ({
-              id: card.id,
-              projectCode: card.projectCode,
-              client: card.client,
-              projectName: card.projectName,
-              descriptionTh: card.descriptionTh,
-              descriptionEn: card.descriptionEn,
-              descriptionSource: card.descriptionSource,
-              contractPath: card.contractPath,
-              certificatePath: card.certificatePath,
-              projectFolderPath: card.projectFolderPath,
-              budgetAmount: card.budgetAmount ? card.budgetAmount.toString() : null,
-              budgetSource: card.budgetSource,
-              vatStatus: card.vatStatus,
-              budgetNote: card.budgetNote,
-              budgetVerified: card.budgetVerified,
-              year: card.year,
-              certificateDate: certificateDateValue(card.certificateDate),
-              category: card.category,
-              tags: card.tags,
-              workTypes: card.workTypes,
-            }))}
-          />
-        ) : (
-          <div className="p-12 text-center">
-            <div className="font-display text-lg font-semibold">
-              {filters.length ? "ไม่พบโครงการที่ค้นหา" : "ยังไม่มีข้อมูลโครงการ"}
+      {/* With cards, the list draws the count, ส่งออก Excel and the results box
+          itself, since the export follows the sort picked there. */}
+      {cards.length ? (
+        <ProjectCardList
+          taxonomy={taxonomy}
+          canEdit={hasAccess(actor, "project-card-edit")}
+          exportQuery={currentParams.toString()}
+          cards={cards}
+        />
+      ) : (
+        <>
+          <ProjectCardResultBar count={0} exportQuery={null} />
+          <div data-tour="results" className="overflow-hidden rounded-card bg-surface shadow-card">
+            <div className="p-12 text-center">
+              <div className="font-display text-lg font-semibold">
+                {search.filtered ? "ไม่พบโครงการที่ค้นหา" : "ยังไม่มีข้อมูลโครงการ"}
+              </div>
+              <p className="mt-2 text-sm text-muted">
+                {search.filtered ? "ลองปรับคำค้นหรือตัวกรอง" : "รันสคริปต์ crawler เพื่อดึงข้อมูลจาก share ก่อน"}
+              </p>
             </div>
-            <p className="mt-2 text-sm text-muted">
-              {filters.length ? "ลองปรับคำค้นหรือตัวกรอง" : "รันสคริปต์ crawler เพื่อดึงข้อมูลจาก share ก่อน"}
-            </p>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

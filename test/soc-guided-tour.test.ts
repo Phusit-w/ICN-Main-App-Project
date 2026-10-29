@@ -276,7 +276,7 @@ test("every control the ค้นหาโครงการ tour points at is o
   const { default: ProjectCardPage } = await import("@/app/(app)/project-card/page");
   // A filter in use, so its chip (the active-filters step) is on the page too.
   const view = render(await ProjectCardPage({ searchParams: Promise.resolve({ client: "PEA" }) }));
-  assert.equal(PROJECT_CARD_TOUR.length, 5);
+  assert.equal(PROJECT_CARD_TOUR.length, 6);
   assertTourTargets(view.container, PROJECT_CARD_TOUR.map((step) => step.target));
   assert.ok(view.getByRole("button", { name: "แนะนำการใช้งาน" }));
 });
