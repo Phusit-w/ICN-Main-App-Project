@@ -9,13 +9,12 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { writeAudit } from "@/lib/authorization";
-import { NO_MAJOR_ITEMS, OCR_CONFIRM_REQUIRED, readableSocUpload, resolveStorageKey, storeSocFile } from "@/lib/soc";
+import { NO_MAJOR_ITEMS, OCR_CONFIRM_REQUIRED, readableSocUpload, resolveStorageKey, socStorageRoot, storeSocFile } from "@/lib/soc";
 import { hasScannedTable, type CellReader } from "@/lib/soc-pdf-soc";
 import { queueOcrRead, stopOcrRead, type OcrRun } from "@/lib/soc-ocr-queue";
 import { readScannedSoc } from "@/lib/soc-scan-read";
 import { isPdfFile, readSocTable } from "@/lib/soc-table";
 import { configuredOcrReader, OCR_NOT_SET_UP } from "@/lib/soc-typhoon";
-import { socStorageRoot } from "@/lib/soc";
 
 type Upload = { name: string; bytes: Uint8Array };
 type Actor = { id: string };
@@ -82,7 +81,7 @@ export async function attachSocVersion(
       actorId: actor.id, action: "PROPOSAL_SOC_VERSION_ADDED", entityType: "PROPOSAL", entityId: proposal.id,
       summary: `เพิ่ม SOC ฉบับ ${version.number} (อัปโหลด) ใน Proposal ${proposal.title}${scanned ? " (PDF สแกน อ่านด้วย OCR)" : ""}`,
       metadata: { versionId: version.id, number: version.number, scanned },
-    });
+    }).catch((error) => console.error("Audit of a Proposal SOC version failed", error)); // the version exists: its files must stay
     if (scanned) void startVersionRead(version.id, readCell!);
     return { versionId: version.id, number: version.number, state: version.state };
   } catch (error) {
