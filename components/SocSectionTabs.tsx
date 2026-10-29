@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-// The two parts of the SOC app: checking a SOC against datasheets, and
-// building a SOC from a TOR (สร้าง SOC, ADR 0011). Both need SOC access.
+// The parts of the SOC app: Proposals (ADR 0012, the way in), and the SOC
+// jobs and SOC Builds made before them. All need SOC access.
 const TABS = [
-  { key: "check", href: "/soc", label: "ตรวจสอบ SOC" },
-  { key: "build", href: "/soc/builds", label: "สร้าง SOC" },
+  { key: "proposal", href: "/soc", label: "Proposal" },
+  { key: "check", href: "/soc/jobs", label: "งานตรวจเดิม" },
+  { key: "build", href: "/soc/builds", label: "สร้าง SOC เดิม" },
 ] as const;
 
 export default function SocSectionTabs({ active }: { active: (typeof TABS)[number]["key"] }) {

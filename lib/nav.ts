@@ -84,7 +84,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/soc",
-    label: "ตรวจสอบ SOC",
+    label: "Proposal & SOC",
     icon: ClipboardCheckIcon,
     match: (p) => p.startsWith("/soc"),
     access: "soc",

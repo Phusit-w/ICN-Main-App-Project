@@ -10,6 +10,7 @@ import { deleteTrashedSocJob } from "@/lib/soc-trash";
 import { restoredSocTitle, startScanRead } from "@/lib/soc";
 import { startTorRead } from "@/lib/soc-tor";
 import { configuredOcrReader } from "@/lib/soc-typhoon";
+import { deleteTrashedProposal, restoreProposal } from "@/lib/proposal";
 
 function temporaryPassword() {
   return `Icn-${randomBytes(9).toString("base64url")}7`;
@@ -152,5 +153,18 @@ export async function restoreSocJob(id: string) {
   if (readPage && row.status === "READING") void startScanRead(id, readPage);
   if (readPage && (await prisma.socTorMatch.count({ where: { jobId: id, state: "reading" } }))) void startTorRead(id, readPage);
   await writeAudit({ actorId: actor.id, action: "SOC_RESTORED", entityType: "SOC_JOB", entityId: id, summary: `กู้คืนงาน SOC ${row.title}`, metadata: title === trashed.title ? undefined : { renamedFrom: trashed.title } });
+  revalidatePath("/admin/trash"); revalidatePath("/soc");
+}
+
+// ลบถาวร / กู้คืน a Proposal in the trash (lib/proposal.ts purges it on its own after 30 days).
+export async function purgeProposal(id: string) {
+  const actor = await requireRole("ADMIN");
+  if (!(await deleteTrashedProposal(id, actor.id))) throw new Error("ลบถาวรได้เฉพาะ Proposal ที่อยู่ในถังขยะ");
+  revalidatePath("/admin/trash"); revalidatePath("/soc");
+}
+
+export async function restoreProposalAction(id: string) {
+  const actor = await requireRole("ADMIN");
+  await restoreProposal(id, actor.id);
   revalidatePath("/admin/trash"); revalidatePath("/soc");
 }

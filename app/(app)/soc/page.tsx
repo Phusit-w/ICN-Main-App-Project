@@ -1,37 +1,24 @@
-import { requirePageAccess } from "@/lib/authorization";
 import Link from "next/link";
-import { listSocJobs, requireSocActor, SOC_STATUS_LABELS } from "@/lib/soc";
+import { requirePageAccess } from "@/lib/authorization";
+import { listProposals, requireSocUser } from "@/lib/proposal";
 import { mySocRunner } from "@/lib/soc-runner";
 import { latestSocRunnerVersion } from "@/lib/soc-runner-install";
 import SocRunnerPanel from "@/components/SocRunnerPanel";
-import SocTrashJobButton from "@/components/SocTrashJobButton";
 import SocSectionTabs from "@/components/SocSectionTabs";
-import SocGuidedTour from "@/components/SocGuidedTour";
-import { SOC_JOB_LIST_TOUR } from "@/lib/soc-tours";
+import ProposalCreateForm from "@/components/ProposalCreateForm";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(value);
-}
+const formatDate = (value: Date) => new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(value);
 
-export default async function SocJobsPage() {
+export default async function ProposalListPage() {
   await requirePageAccess("soc");
-  const actor = await requireSocActor();
-  const [jobs, runner, latestVersion] = await Promise.all([listSocJobs(actor), mySocRunner(actor.id), latestSocRunnerVersion()]);
+  const actor = await requireSocUser();
+  const [proposals, runner, latestVersion] = await Promise.all([listProposals(), mySocRunner(actor.id), latestSocRunnerVersion()]);
   return <div className="flex flex-col gap-6">
-    <SocSectionTabs active="check" />
-    <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="font-display text-[28px] font-bold">ตรวจสอบ SOC</h1><p className="mt-1 text-sm text-muted">ตรวจ SOC (Word หรือ Excel) เทียบ Datasheet และยืนยันผลก่อนสร้างเอกสาร</p></div><div className="flex items-center gap-3"><SocGuidedTour tourId="soc-jobs" steps={SOC_JOB_LIST_TOUR} /><Link href="/soc/new" data-tour="new-job" className="rounded-input bg-accent px-5 py-3 font-display text-sm font-bold text-black no-underline hover:bg-[#f08d10]">+ สร้างงานตรวจ</Link></div></div>
+    <SocSectionTabs active="proposal" />
+    <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="font-display text-[28px] font-bold">Proposal & SOC</h1><p className="mt-1 text-sm text-muted">เตรียมข้อเสนอตั้งแต่ TOR ถึงตรวจหลักฐาน ทุกคนที่ใช้แอปนี้เห็นและช่วยกันทำ Proposal เดียวกันได้</p></div><ProposalCreateForm /></div>
     <SocRunnerPanel runner={runner} latestVersion={latestVersion} showConfigDownload={actor.role === "ADMIN"} />
-    <div className="overflow-hidden rounded-card bg-surface shadow-card">{jobs.length ? <div data-tour="jobs-table" className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">โครงการ</th><th className="px-5 py-3">เจ้าของ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ความคืบหน้า</th><th className="px-5 py-3">จำนวนข้อ</th><th className="px-5 py-3">อัปเดตล่าสุด</th><th className="px-5 py-3" aria-label="ลบ" /></tr></thead><tbody>{jobs.map((job) => <tr key={job.id} className="border-t border-line hover:bg-hover"><td className="px-5 py-4"><Link href={`/soc/${job.id}`} className="font-medium text-ink no-underline hover:underline">{job.title}</Link><div className="mt-1 text-xs text-muted">{job.stage}</div></td><td className="px-5 py-4">{job.owner.displayName}</td><td className="px-5 py-4"><span className="rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></td><td className="px-5 py-4">{job.majorItemProgress ? <MajorItemProgress {...job.majorItemProgress} /> : <ProgressBar percent={job.progress} />}</td><td className="px-5 py-4 tabular-nums">{job._count.results}</td><td className="whitespace-nowrap px-5 py-4 text-xs text-muted">{formatDate(job.updatedAt)}</td><td className="px-5 py-4 text-right">{job.ownerId === actor.id || actor.role === "ADMIN" ? <SocTrashJobButton jobId={job.id} title={job.title} /> : null}</td></tr>)}</tbody></table></div> : <div className="p-12 text-center"><div className="font-display text-lg font-semibold">ยังไม่มีงานตรวจ SOC</div><p className="mt-2 text-sm text-muted">เริ่มต้นด้วยไฟล์ SOC (Word หรือ Excel) หนึ่งไฟล์และ PDF หลักฐานอย่างน้อยหนึ่งไฟล์</p></div>}</div>
-    <p className="text-xs text-muted">ไฟล์จะถูกลบอัตโนมัติหลัง 90 วัน · AI ภายนอกถูกปิดเป็นค่าเริ่มต้น</p>
+    <div className="overflow-hidden rounded-card bg-surface shadow-card">{proposals.length ? <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">Proposal</th><th className="px-5 py-3">ผู้สร้าง</th><th className="px-5 py-3">ความคืบหน้า</th><th className="px-5 py-3">SOC ปัจจุบัน</th><th className="px-5 py-3">รอคนรับ</th><th className="px-5 py-3">อัปเดตล่าสุด</th></tr></thead><tbody>{proposals.map((proposal) => <tr key={proposal.id} className="border-t border-line hover:bg-hover"><td className="px-5 py-4"><Link href={`/soc/proposals/${proposal.id}`} className="font-medium text-ink no-underline hover:underline">{proposal.title}</Link></td><td className="px-5 py-4">{proposal.creatorName}</td><td className="whitespace-nowrap px-5 py-4 tabular-nums">เสร็จ {proposal.progress.done}/{proposal.progress.total}</td><td className="px-5 py-4 tabular-nums">{proposal.currentVersion ? `ฉบับ ${proposal.currentVersion}` : "—"}</td><td className="px-5 py-4 tabular-nums">{proposal.waitingCount}</td><td className="whitespace-nowrap px-5 py-4 text-xs text-muted">{formatDate(proposal.updatedAt)}</td></tr>)}</tbody></table></div> : <div className="p-12 text-center"><div className="font-display text-lg font-semibold">ยังไม่มี Proposal</div><p className="mt-2 text-sm text-muted">กด “+ Proposal ใหม่” แล้วตั้งชื่อเพื่อเริ่มเตรียมข้อเสนอ</p></div>}</div>
   </div>;
-}
-
-function ProgressBar({ percent }: { percent: number }) {
-  return <div className="h-2 w-28 overflow-hidden rounded-full bg-chip"><div className="h-full bg-accent" style={{ width: `${percent}%` }} /></div>;
-}
-
-function MajorItemProgress({ checked, total, percent }: { checked: number; total: number; percent: number }) {
-  return <div className="flex flex-col gap-1.5"><span className="whitespace-nowrap text-xs tabular-nums">ตรวจแล้ว {checked}/{total} ข้อใหญ่</span><ProgressBar percent={percent} /></div>;
 }

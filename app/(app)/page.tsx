@@ -79,8 +79,8 @@ const TILES: Tile[] = [
   },
   {
     href: "/soc",
-    title: "ตรวจสอบ SOC",
-    desc: "ตรวจสอบเอกสารอ้างอิงและ Statement of Compliance",
+    title: "Proposal & SOC",
+    desc: "เตรียมข้อเสนอตั้งแต่ TOR ถึงตรวจหลักฐาน",
     cta: "เปิดเครื่องมือ →",
     icon: ClipboardCheckIcon,
     tile: "bg-chip text-ink",

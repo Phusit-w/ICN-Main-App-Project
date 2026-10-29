@@ -1,0 +1,42 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createProposal, renameProposal, trashProposal } from "@/lib/proposal";
+import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
+
+type TitleResult<T> = ({ ok: true } & T) | { ok: false; error: string };
+
+// A refused title comes back as { ok: false, error } for the form (a thrown
+// message is hidden from the browser in production).
+function refusedTitle(error: unknown): { ok: false; error: string } {
+  const message = error instanceof Error ? error.message : "";
+  if (message === SOC_TITLE_TAKEN || message === SOC_TITLE_INVALID) return { ok: false, error: message };
+  throw error;
+}
+
+export async function createProposalAction(title: string): Promise<TitleResult<{ id: string }>> {
+  try {
+    const proposal = await createProposal(title);
+    revalidatePath("/soc");
+    return { ok: true, id: proposal.id };
+  } catch (error) {
+    return refusedTitle(error);
+  }
+}
+
+// Creator or ADMIN.
+export async function renameProposalAction(id: string, title: string): Promise<TitleResult<{ title: string }>> {
+  try {
+    const renamed = await renameProposal(id, title);
+    revalidatePath(`/soc/proposals/${id}`); revalidatePath("/soc");
+    return { ok: true, title: renamed };
+  } catch (error) {
+    return refusedTitle(error);
+  }
+}
+
+// Creator or ADMIN. ADMIN restores or purges it early from /admin/trash.
+export async function trashProposalAction(id: string) {
+  await trashProposal(id);
+  revalidatePath("/soc"); revalidatePath(`/soc/proposals/${id}`);
+}

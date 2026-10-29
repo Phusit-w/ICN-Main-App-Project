@@ -6,7 +6,6 @@
 export type SocTourStep = { target: string; title: string; body: string };
 
 export const SOC_JOB_LIST_TOUR: SocTourStep[] = [
-  { target: "new-job", title: "เริ่มงานตรวจใหม่", body: "กด “+ สร้างงานตรวจ” เพื่ออัปโหลดไฟล์ SOC และ PDF หลักฐาน แล้วเริ่มตรวจ" },
   { target: "runner-status", title: "SOC Runner ของคุณ", body: "Claude ตรวจได้ก็ต่อเมื่อติดตั้ง SOC Runner บนเครื่องของคุณแล้ว จุดสีเขียว = พร้อมตรวจ" },
   { target: "runner-install", title: "ติดตั้ง SOC Runner", body: "กดปุ่มนี้เพื่อสร้างคำสั่งติดตั้ง คัดลอกคำสั่งแล้ววางใน Windows PowerShell บนเครื่องของคุณ" },
   { target: "jobs-table", title: "งานตรวจของคุณ", body: "กดชื่องาน (Job Title) เพื่อเปิดงาน แถบความคืบหน้าบอกว่าตรวจข้อใหญ่ไปแล้วกี่ข้อ" },

@@ -146,6 +146,7 @@ model User {
   socCheckRequests           SocCheckRequest[]
   socTemplatesAdded          SocTemplate[]
   socBuilds                  SocBuild[]
+  proposalsCreated           Proposal[]             @relation("ProposalCreator")
   expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
   auditEvents                AuditLog[]             @relation("AuditActor")
   targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
@@ -766,4 +767,26 @@ model ProjectCardClient {
   names     String[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A Proposal (โครงการข้อเสนอ, ADR 0012): one piece of proposal work, the way
+// into the SOC app. Every user with `soc` access may open it; rename and
+// trash stay with its creator and ADMIN. A trashed Proposal holds no title and
+// is purged at `purgeAfter` (30 days) with everything it owns. Step statuses
+// are derived (lib/proposal.ts), never stored. Its files live under
+// SOC_STORAGE_ROOT/proposals/<id>/.
+model Proposal {
+  id          String    @id @default(cuid())
+  title       String
+  creatorId   String
+  creator     User      @relation("ProposalCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  deletedAt   DateTime?
+  deletedById String?
+  purgeAfter  DateTime?
+  restoredAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([deletedAt, updatedAt])
+  @@index([deletedAt, purgeAfter])
 }

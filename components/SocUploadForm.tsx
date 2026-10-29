@@ -80,7 +80,7 @@ export default function SocUploadForm() {
       </UploadSection>
       {error ? <p role="alert" className="rounded-input border border-danger-border bg-surface px-4 py-3 text-sm text-danger">{error}{partialJobId ? <> <Link href={`/soc/${partialJobId}`} className="font-medium text-danger underline">เปิดหน้างานเพื่อเพิ่มไฟล์ที่เหลือ</Link></> : null}</p> : null}
       <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={() => router.push("/soc")} disabled={pending}>ยกเลิก</Button>
+        <Button variant="outline" onClick={() => router.push("/soc/jobs")} disabled={pending}>ยกเลิก</Button>
         <Button type="submit" data-tour="create-job" disabled={pending}>{pending ? progress || "กำลังอัปโหลด…" : "สร้างงานตรวจ"}</Button>
       </div>
       {confirmDialog}

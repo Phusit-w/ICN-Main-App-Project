@@ -14,7 +14,7 @@ export default function SocTrashJobButton({ jobId, title, goToList = false }: { 
     if (!window.confirm(`ย้ายงาน "${title}" ไปถังขยะ? กู้คืนได้ภายใน 30 วันที่ผู้ดูแลระบบ > ถังขยะ หลังจากนั้นจะลบถาวรพร้อมไฟล์`)) return;
     start(async () => {
       await trashSocJob(jobId);
-      if (goToList) router.push("/soc");
+      if (goToList) router.push("/soc/jobs");
       router.refresh();
     });
   }}>{pending ? "กำลังลบ…" : "ลบ"}</Button>;

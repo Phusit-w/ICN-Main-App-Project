@@ -250,11 +250,11 @@ const assertTourTargets = (container: HTMLElement, targets: string[]) => {
   for (const target of targets) assert.ok(container.querySelector(`[data-tour="${target}"]`), `missing data-tour="${target}"`);
 };
 
-test("every control the job-list tour points at is on /soc", async () => {
+test("every control the job-list tour points at is on /soc/jobs", async () => {
   const { render } = await setup();
   const { SOC_JOB_LIST_TOUR } = await import("@/lib/soc-tours");
   setWidth(800); // keep the tour itself out of the way
-  const { default: SocJobsPage } = await import("@/app/(app)/soc/page");
+  const { default: SocJobsPage } = await import("@/app/(app)/soc/jobs/page");
   const view = render(await SocJobsPage());
   assertTourTargets(view.container, SOC_JOB_LIST_TOUR.map((step) => step.target));
 });
