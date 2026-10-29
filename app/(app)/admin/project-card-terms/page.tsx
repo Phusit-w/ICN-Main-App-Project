@@ -1,15 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import AdminProjectCardTerms, { type AdminTerm } from "@/components/AdminProjectCardTerms";
+import AdminProjectCardClients from "@/components/AdminProjectCardClients";
 import { isTermKind } from "@/lib/project-card-taxonomy";
 
 // Admin Center: the Category/Tag and Work Type lists Project Cards are
-// classified from (ProjectCardTerm). The admin layout already restricts
+// classified from (ProjectCardTerm), and the client names list Question
+// Search reads (ProjectCardClient). The admin layout already restricts
 // this page to ADMIN; the actions check again.
 export default async function AdminProjectCardTermsPage() {
   const terms = await prisma.projectCardTerm.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: { id: true, kind: true, value: true, en: true, th: true, synonyms: true },
   });
+  const clients = await prisma.projectCardClient.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, names: true } });
   // How many cards use each entry (as Category or Tag / as a Work Type), so
   // an admin sees what a rename will touch.
   const cards = await prisma.projectCard.findMany({ select: { category: true, tags: true, workTypes: true } });
@@ -35,6 +38,9 @@ export default async function AdminProjectCardTermsPage() {
         เพราะมีคำนี้อยู่ในชื่อภาษาอังกฤษ) เพิ่มคำพ้องเมื่อคนมักเรียกด้วยคำอื่น เช่น &quot;ไฟเบอร์&quot; สำหรับ Fiber Optic
       </p>
       <AdminProjectCardTerms terms={rows} />
+      <div className="pt-4">
+        <AdminProjectCardClients clients={clients} />
+      </div>
     </section>
   );
 }

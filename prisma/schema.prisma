@@ -753,3 +753,17 @@ model ProjectCardTerm {
 
   @@unique([kind, value])
 }
+
+// Client codes as written on Project Cards ("PEA", "W&W") with the Thai
+// names and abbreviations people call them by ("การไฟฟ้าส่วนภูมิภาค",
+// "กฟภ."), kept by admins in Admin Center. Read only by Question Search to
+// recognise a client in a question: it never validates or changes a card's
+// Client, and the ingest doesn't read it — so, unlike ProjectCardTerm, an
+// entry can be renamed or removed freely.
+model ProjectCardClient {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  names     String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

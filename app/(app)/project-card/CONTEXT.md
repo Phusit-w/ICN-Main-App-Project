@@ -56,6 +56,10 @@ _Avoid_: Service type, contract type
 A further word that names a Category or Work Type besides its English and Thai labels (e.g. "ไฟเบอร์" and "fibre" for Fiber Optic, "ซ่อมบำรุง" for MA), kept by admins in Admin Center beside the labels. Only free-text matching reads them — a keyword search for a synonym finds cards with that Category, Tag or Work Type — and they never change what a card stores. A word names at most one entry of a list.
 _Avoid_: Alias, keyword
 
+**Client Name**:
+A Thai name or abbreviation people use for a Client code (e.g. "การไฟฟ้าส่วนภูมิภาค" and "กฟภ." for `PEA`), kept by admins in Admin Center's client names list. Only Question Search reads it, to recognise a Client in a question; the list never validates, changes or suggests a card's Client, and a push with a Client not in the list is accepted as before. A word — code or name — names at most one Client.
+_Avoid_: Client alias, organization name
+
 **Project Folder**:
 The project's own folder in the wider project archive (`_Project …` on the `PS` share), where its TOR and other working files live. A third Folder Path on the card besides the Contract and Work Certificate paths; blank when the project has no folder there, or when no single folder can be identified with confidence — blank, never a guess.
 _Avoid_: Archive path, TOR path
@@ -87,3 +91,7 @@ _Avoid_: Revision, amendment, latest version
 **Folder Path**:
 The UNC path back to a project's files on the `PS` share, kept on the Project Card so a user can navigate to the originals by hand. A card carries up to three: one for the project's Contract and one for its Work Certificate under `_BID`, since the two live in different places, plus its Project Folder; each is blank when the project has no such file or folder. Search inside the files themselves is explicitly out of scope (see ADR 0003).
 _Avoid_: Location, share path
+
+**Question Search**:
+A search where a user types a question in everyday Thai or English (e.g. "งานติดตั้งที่งบเกิน 350 ล้านเมื่อ 5 ปีที่แล้ว") and it is turned into the card search's ordinary filters and keywords, shown as the usual filter chips so the user can see and change what was understood. The AI only chooses filters; it never states an answer itself, so every result is a real card the ordinary search would also return. Asked separately from the ordinary keyword search, which never waits on the AI.
+_Avoid_: AI answer, chatbot, AI search
