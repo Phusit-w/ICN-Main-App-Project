@@ -234,3 +234,12 @@ test("a draft that the SOC check could not read back is a build error, not a sil
   // The SOC reader only sees tables with a dotted item number; a TOR numbered "๑." "๒." alone has none.
   assert.throws(() => build([page("๑. ก\n๒. ข")]), /สร้าง SOC ไม่สำเร็จ/);
 });
+
+test("autoPageRanges starts at the first page with a ผนวก or specification heading and runs to the last page", async () => {
+  const { autoPageRanges } = await import("@/lib/soc-builder");
+  const pages = [page("1. เงื่อนไขทั่วไป"), page("สารบัญ"), page("เอกสาร ผนวก ข\n1. ระบบ"), page("1.1 รายการ")];
+  assert.deepEqual(autoPageRanges(pages), { ranges: [[3, 4]], found: true });
+  assert.deepEqual(autoPageRanges([page("ข้อความ"), page("คุณลักษณะเฉพาะ\n1. กล้อง")]), { ranges: [[2, 2]], found: true });
+  // A numbered line that mentions the words is a condition, not a heading; a picture page is not read.
+  assert.deepEqual(autoPageRanges([page("5. คุณลักษณะเฉพาะของผู้ยื่น"), page("เอกสาร ผนวก ก", true)]), { ranges: [[1, 2]], found: false });
+});

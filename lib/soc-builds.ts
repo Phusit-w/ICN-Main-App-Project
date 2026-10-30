@@ -10,7 +10,7 @@ import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
-import { assertSocTemplate, buildSocDraft, pageNumbers, type PageRange } from "@/lib/soc-builder";
+import { assertSocTemplate, autoPageRanges, buildSocDraft, pageNumbers, type PageRange } from "@/lib/soc-builder";
 import { cleanSocTitle, OCR_CONFIRM_REQUIRED, requireSocActor, resolveStorageKey, socStorageRoot, storeSocFile } from "@/lib/soc";
 import { createVersion } from "@/lib/proposal-soc";
 import { queueOcrRead, stopOcrRead, type OcrRun } from "@/lib/soc-ocr-queue";
@@ -24,7 +24,8 @@ type SocActor = Awaited<ReturnType<typeof requireAccess>>;
 type Upload = { name: string; bytes: Uint8Array };
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-const NO_TEMPLATE = "ไม่พบเทมเพลตนี้ในรายการ กรุณาเลือกเทมเพลตใหม่";
+const SCANNED_NEEDS_RANGES = "TOR นี้เป็น PDF แบบสแกน ต้องระบุช่วงหน้าที่ต้องการ เช่น 12-40, 55-60 เพราะระบบไม่รู้ว่าหน้าไหนเป็นข้อกำหนดจนกว่าจะอ่านด้วย OCR (ซึ่งเสียเวลาและโควตาทุกหน้า)";
+const NO_TEMPLATE ="ไม่พบเทมเพลตนี้ในรายการ กรุณาเลือกเทมเพลตใหม่";
 const READING_STAGE = "กำลังอ่าน TOR";
 const WAITING_STAGE = "รอคิว";
 export const OPEN_STATES = ["QUEUED", "READING"];
@@ -77,7 +78,15 @@ export async function createSocBuild(
 ) {
   const title = buildTitle(input.title, input.tor.name);
   const tor = readTextTor(input.tor.bytes);
-  const ranges = parsePageRanges(input.pageRanges, tor.pageCount);
+  // No pages chosen: a text TOR gets them picked from its headings; a scanned one must be told.
+  const chosenText = input.pageRanges.trim();
+  const auto = !chosenText && tor.pages ? autoPageRanges(tor.pages) : null;
+  if (!chosenText && !auto) throw new Error(SCANNED_NEEDS_RANGES);
+  const ranges = auto?.ranges ?? parsePageRanges(chosenText, tor.pageCount);
+  const pageRanges = auto ? ranges.map(([from, to]) => (from === to ? String(from) : `${from}-${to}`)).join(", ") : chosenText;
+  const autoNote = !auto ? [] : auto.found
+    ? [`ไม่ได้ระบุช่วงหน้า ระบบเลือกหน้า ${pageRanges} ให้ (เริ่มที่หน้าที่มีหัวเอกสารผนวกหรือส่วนข้อกำหนด) กรุณาตรวจว่าครบและไม่เกินส่วนที่ต้องการ`]
+    : [`ไม่ได้ระบุช่วงหน้า และไม่พบหัวเอกสารผนวกหรือส่วนข้อกำหนดใน TOR ระบบใช้ทุกหน้า (${pageRanges}) ข้อกำหนดทั่วไปอาจปนเข้ามา กรุณาลบแถวที่ไม่ใช่ข้อกำหนดเอง`];
   if (!tor.pages) {
     if (!readPage) throw new Error(OCR_NOT_SET_UP);
     if (!ocrConfirmed) throw new Error(OCR_CONFIRM_REQUIRED);
@@ -96,8 +105,8 @@ export async function createSocBuild(
     const build = await prisma.socBuild.create({
       data: {
         id, title, ownerId: actor.id, status: draft ? "READY" : "QUEUED", scanned: !draft, stage: draft ? null : WAITING_STAGE,
-        pageRanges: input.pageRanges.trim(), pageRangeList: ranges.map(([from, to]) => [from, to]),
-        pagesDone: draft ? tor.pageCount : 0, pagesTotal: draft ? tor.pageCount : chosen, warnings: draft?.warnings ?? [], rowCount: draft?.rowCount ?? null,
+        pageRanges, pageRangeList: ranges.map(([from, to]) => [from, to]),
+        pagesDone: draft ? tor.pageCount : 0, pagesTotal: draft ? tor.pageCount : chosen, warnings: [...autoNote, ...(draft?.warnings ?? [])], rowCount: draft?.rowCount ?? null,
         torName: torFile.originalName, torStorageKey: torFile.storageKey, templateName: template.name, templateStorageKey: templateStored.storageKey,
         outputStorageKey: output?.storageKey ?? null, proposalId: input.proposalId ?? null, purgeAfter: new Date(Date.now() + RETENTION_MS),
       },

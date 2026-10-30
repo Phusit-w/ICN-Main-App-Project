@@ -375,6 +375,21 @@ function assertReadsBack(draft: Uint8Array, rows: Row[]): void {
   if (!same) throw new Error(NOT_READABLE_BACK);
 }
 
+// A heading line of the TOR's specification part, for a build with no chosen
+// pages: "เอกสาร ผนวก ข" (a TOR document) or a heading that names the
+// specification ("คุณลักษณะเฉพาะ", "คุณสมบัติทางเทคนิค", "ขอบเขตของงาน") with no
+// item number before it (a numbered line is a condition inside some other part).
+const SPEC_HEADING = /^[#*\s]*(?:เอกสาร\s*(?:ภาค)?\s*ผนวก\s*(?:[ก-ฮ]|[0-9๐-๙]+)|(?:คุณลักษณะเฉพาะ|คุณสมบัติทางเทคนิค|ขอบเขตของงาน)(?:\s|$))/;
+
+// The pages a build takes when the user chose none, from a text TOR: from the
+// first page with a specification heading to the last page (the splitter itself
+// stops where another TOR document starts). `found` is false when no heading
+// was found and every page is taken.
+export function autoPageRanges(pages: TorPage[]): { ranges: PageRange[]; found: boolean } {
+  const start = pages.findIndex((page) => !page.picture && thaiText(page.text).split("\n").some((line) => SPEC_HEADING.test(line.trim())));
+  return start < 0 ? { ranges: [[1, pages.length]], found: false } : { ranges: [[start + 1, pages.length]], found: true };
+}
+
 // Fills the first SOC table of `template` with one row per numbered item of
 // the TOR pages in `ranges` (1-based, `pages[0]` is TOR page 1). The rest of
 // the template is copied unchanged. Throws, with a message for the user, for

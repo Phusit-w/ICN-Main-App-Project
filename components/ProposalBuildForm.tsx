@@ -32,7 +32,6 @@ export default function ProposalBuildForm({ proposalId, hasTor, templates, build
   // Not in a transition: a transition would hold the confirm dialog back until it ended.
   async function submit() {
     setError("");
-    if (!pageRanges.trim()) return setError("กรุณาใส่ช่วงหน้าของ TOR ที่ต้องการ เช่น 12-40, 55-60");
     if (!fromList && !uploaded.length) return setError("กรุณาเลือกเทมเพลต SOC จากรายการ หรืออัปโหลดไฟล์เทมเพลต");
     setPending(true);
     try {
@@ -74,8 +73,8 @@ export default function ProposalBuildForm({ proposalId, hasTor, templates, build
     {hasTor ? <form onSubmit={(event) => { event.preventDefault(); void submit(); }} className="flex flex-col gap-3">
       <p className="text-xs text-muted">สร้างจาก TOR ของ Proposal นี้ ไม่ต้องอัปโหลด TOR อีก เมื่อสร้างเสร็จ ระบบเพิ่มเป็นฉบับ SOC ใหม่ให้เอง</p>
       <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium">ช่วงหน้าของ TOR
-          <input value={pageRanges} onChange={(event) => setPageRanges(event.target.value)} disabled={pending} placeholder="เช่น 12-40, 55-60" className={`${INPUT} w-56`} />
+        <label className="flex flex-col gap-1 text-xs font-medium">ช่วงหน้าของ TOR (เว้นว่างให้ระบบเลือก)
+          <input value={pageRanges} onChange={(event) => setPageRanges(event.target.value)} disabled={pending} placeholder="เว้นว่าง = ให้ระบบเลือก เช่น 12-40, 55-60" className={`${INPUT} w-72`} />
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-xs font-medium">ชื่อ (ไม่บังคับ)
           <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={pending} maxLength={120} placeholder="ใช้ชื่อไฟล์ TOR" className={`${INPUT} w-64 max-w-full`} />

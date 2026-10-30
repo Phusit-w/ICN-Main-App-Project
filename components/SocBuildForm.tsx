@@ -30,7 +30,6 @@ export default function SocBuildForm({ templates }: { templates: Template[] }) {
     setError("");
     if (!tor.length) return setError("กรุณาเลือกไฟล์ PDF ของ TOR");
     if (tor[0].size > MAX_EVIDENCE_FILE_BYTES) return setError(`ไฟล์ ${tor[0].name} ต้องมีขนาดไม่เกิน ${MAX_EVIDENCE_FILE_BYTES / 1024 / 1024} MB`);
-    if (!pageRanges.trim()) return setError("กรุณาใส่ช่วงหน้าของ TOR ที่ต้องการ เช่น 12-40, 55-60");
     if (mode === "list" && !templateId) return setError("กรุณาเลือกเทมเพลตจากรายการ");
     if (mode === "upload" && !uploaded.length) return setError("กรุณาเลือกไฟล์เทมเพลต SOC (.docx)");
     if (mode === "upload" && saveToList && !templateName.trim()) return setError("กรุณาตั้งชื่อเทมเพลตที่จะบันทึกในรายการกลาง");
@@ -82,11 +81,11 @@ export default function SocBuildForm({ templates }: { templates: Template[] }) {
   return (
     <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="flex flex-col gap-6">
       {confirmDialog}
-      <Section number="1" title="TOR และช่วงหน้า" description="PDF ข้อความ หรือ PDF สแกน (อ่านด้วย OCR ภายนอก Beta จะถามยืนยันก่อน) พิมพ์ช่วงหน้าที่เป็นส่วนข้อกำหนด เช่น 12-40, 55-60">
+      <Section number="1" title="TOR และช่วงหน้า" description="PDF ข้อความ หรือ PDF สแกน (อ่านด้วย OCR ภายนอก Beta จะถามยืนยันก่อน) พิมพ์ช่วงหน้าที่เป็นส่วนข้อกำหนด เช่น 12-40, 55-60 (PDF ข้อความเว้นว่างได้ ระบบหาหน้าเริ่มจากหัวเอกสารผนวก ส่วน PDF สแกนต้องกรอก)">
         <div className="flex flex-col gap-5">
           <SocFilePicker files={tor} onChange={setTor} disabled={pending} label="เลือกไฟล์ PDF ของ TOR" accept=".pdf,application/pdf" />
-          <label className="flex max-w-md flex-col gap-2 text-sm font-medium">ช่วงหน้าของ TOR
-            <input value={pageRanges} onChange={(e) => setPageRanges(e.target.value)} disabled={pending} placeholder="เช่น 12-40, 55-60" className={INPUT} />
+          <label className="flex max-w-md flex-col gap-2 text-sm font-medium">ช่วงหน้าของ TOR (เว้นว่างให้ระบบเลือก)
+            <input value={pageRanges} onChange={(e) => setPageRanges(e.target.value)} disabled={pending} placeholder="เว้นว่าง = ให้ระบบเลือก เช่น 12-40, 55-60" className={INPUT} />
           </label>
         </div>
       </Section>

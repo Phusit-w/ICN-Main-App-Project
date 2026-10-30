@@ -113,7 +113,7 @@ test("a bad range, a range past the last page, no range, a scanned or broken TOR
     [{ template: TEMPLATE, pageRanges: "3-2" }, 400, /ไม่ถูกต้อง/],
     [{ template: TEMPLATE, pageRanges: "abc" }, 400, /ไม่ถูกต้อง/],
     [{ template: TEMPLATE, pageRanges: "2-9" }, 400, /เกินหน้าสุดท้ายของ TOR \(TOR มี 3 หน้า\)/],
-    [{ template: TEMPLATE, pageRanges: "" }, 400, /กรุณาใส่ช่วงหน้า/],
+    [{ template: TEMPLATE, pageRanges: " ", tor: buildTablePdf([1, 2, 3].map(() => ({ columns: [], rows: [], scanned: true }))) }, 400, /ต้องระบุช่วงหน้า/], // a scanned TOR must be told its pages (OCR reads every page it is given)
     [{ template: buildSocDocx([["ลำดับ", "ข้อกำหนด TOR"]]) }, 400, /ไม่พบตาราง SOC ในเทมเพลต/],
     [{ template: new TextEncoder().encode("hello") }, 400, /Word \(\.docx\)/],
     [{ templateId: "no-such-template" }, 400, /ไม่พบเทมเพลต/],
@@ -197,4 +197,32 @@ test("builds 30 days old are purged with their files; a younger one and the shar
   const [entry] = await prisma.auditLog.findMany({ where: { action: "SOC_BUILD_DELETED", entityId: old.id } });
   assert.equal(entry.actorId, null);
   assert.match(entry.summary, /อัตโนมัติ/);
+});
+
+test("with no pages chosen a text TOR starts at its first ผนวก / specification heading, and the pages picked are shown and warned about", { skip }, async () => {
+  const anna = (signedIn = await user("anna"));
+  const tor = buildTablePdf([
+    torPage("1. ผู้ยื่นข้อเสนอต้องมีคุณสมบัติครบถ้วน", "2. ผู้ยื่นข้อเสนอต้องไม่เป็นผู้ทิ้งงาน"),
+    torPage("เอกสาร ผนวก ข", "1. ระบบกล้องวงจรปิด", "1.1 กล้องต้องมีความละเอียดไม่น้อยกว่า 4 ล้านพิกเซล"),
+    torPage("2. ระบบเครือข่าย", "2.1 สวิตช์ต้องมีพอร์ตไม่น้อยกว่า 24 พอร์ต"),
+  ]);
+  const response = await create({ template: TEMPLATE, tor, pageRanges: "" });
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const body = await response.json();
+  assert.match(body.warnings[0], /ไม่ได้ระบุช่วงหน้า ระบบเลือกหน้า 2-3/);
+  const stored = await prisma.socBuild.findUniqueOrThrow({ where: { id: body.id } });
+  assert.equal(stored.pageRanges, "2-3");
+  assert.equal(stored.ownerId, anna.id);
+  const rows = readSocTable(new Uint8Array(await (await download(body.id)).arrayBuffer())).rows.slice(1);
+  assert.ok(rows.every((row) => !row.tor.includes("ผู้ยื่นข้อเสนอ")), "the conditions on page 1 are not in the SOC");
+  assert.deepEqual(rows.filter((row) => /^[0-9.]+$/.test(row.item)).map((row) => row.item), ["1.", "1.1", "2.", "2.1"]);
+});
+
+test("with no pages chosen and no heading found a text TOR takes every page and says so", { skip }, async () => {
+  signedIn = await user("anna");
+  const response = await create({ template: TEMPLATE, pageRanges: "" }); // the default 3-page TOR has no ผนวก heading
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.match(body.warnings[0], /ไม่พบหัวเอกสารผนวกหรือส่วนข้อกำหนดใน TOR ระบบใช้ทุกหน้า \(1-3\)/);
+  assert.equal((await prisma.socBuild.findUniqueOrThrow({ where: { id: body.id } })).pageRanges, "1-3");
 });
