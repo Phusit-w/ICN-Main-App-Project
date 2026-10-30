@@ -9,7 +9,7 @@
 import path from "node:path";
 import { annexKeysOfRows, majorItemKey, majorItemsOfRows, normalItem, sameItem, type SocMajorItemSpec } from "@/lib/soc-major-items";
 import { DOCX_MIME, magicIsDocx, NOT_A_SOC_FILE, socFileNameProblem, toArabicDigits as toArabic, XLSX_MIME } from "@/lib/soc-shared";
-import { isExcelSocPart, ITEM_NAME, readExcelSoc, REMARK_NAME } from "@/lib/soc-table-excel";
+import { isExcelSocPart, ITEM_NAME, readExcelSoc, REFERENCE_NAME, REMARK_NAME } from "@/lib/soc-table-excel";
 import { decodeXml } from "@/lib/xml";
 import { readZip, type ZipEntry } from "@/lib/zip";
 
@@ -26,7 +26,8 @@ export type SocRowImage = { name: string; data: Uint8Array; mimeType: string | n
 
 // A SOC row as TOR Match reads it. `position`: 1-based across the whole SOC
 // (as `rowPosition`); `majorItem`: as `majorItemOfRow`.
-export type SocTableRow = { position: number; item: string; tor: string; image: boolean; majorItem: string | null };
+// `reference`: the text of the row's reference cell ("" when empty or the SOC has no reference column).
+export type SocTableRow = { position: number; item: string; tor: string; image: boolean; majorItem: string | null; reference: string };
 
 export type SocTable = {
   file: { extension: string; mimeType: string }; // how to store the SOC file
@@ -99,7 +100,7 @@ export function readSocTable(soc: Uint8Array): SocTable {
     let last = 0;
     return excel.sheets.find((sheet) => row <= (last += sheet.rowCount))?.name ?? null;
   };
-  return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows.map(({ cells, remark }) => ({ cells, proposal: cells[2] ?? null, remark: moreThanTicks(remark) ? remark : "" }))], [
+  return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows.map(({ cells, remark, reference }) => ({ cells, proposal: cells[2] ?? null, remark: moreThanTicks(remark) ? remark : "", reference }))], [
     ...(quoted ? [`ไม่ได้รวมชีต ${quoted} เพราะไม่พบหัวตาราง SOC (ลำดับ, ข้อกำหนด TOR, ข้อเสนอ) ชีตนี้จะไม่ถูกตรวจ`] : []),
     ...(excel.imageCount ? [`มีรูป ${excel.imageCount} รูปในไฟล์ Excel ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
   ], sheetOfRow, () => null);
@@ -112,7 +113,7 @@ const WORD_RELATIONSHIPS = "word/_rels/document.xml.rels";
 // proposal and Bidder Remark ("" when none), and for an Image Row the id its
 // image has in the SOC file (Word: a relationship id). `tor` when the TOR is
 // not just cells[1] (a Word SOC with no offer column: the TOR may run over cells).
-type SocRow = { cells: string[]; tor?: string; proposal: string | null; remark: string; imageId?: string };
+type SocRow = { cells: string[]; tor?: string; proposal: string | null; remark: string; reference?: string; imageId?: string };
 
 const hasNumber = (cell: string) => /\d/.test(toArabic(cell));
 
@@ -162,7 +163,7 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
       const row = findRow(rowNumber, itemNumber);
       return row ? rowKeys[allRows.indexOf(row)] : null;
     },
-    rows: allRows.map((row, index) => ({ position: index + 1, item: itemOf(row), tor: row.tor ?? row.cells[1] ?? "", image: !!row.imageId, majorItem: rowKeys[index] })),
+    rows: allRows.map((row, index) => ({ position: index + 1, item: itemOf(row), tor: row.tor ?? row.cells[1] ?? "", image: !!row.imageId, majorItem: rowKeys[index], reference: row.reference ?? "" })),
     warnings,
   };
 }
@@ -235,6 +236,12 @@ function wordSocRows(rows: WordRow[]): SocRow[] {
   const noOffer = offerColumn !== null && !numbered.some((row) => moreThanTicks(textAt(row, [offerColumn])));
 
   const aboveNumbered = rows.slice(0, Math.max(0, rows.indexOf(numbered[0])));
+  // The reference column: the one a header row names (อ้างอิง, Reference …), else the one most reference-like cells sit in.
+  const referenceNamed = aboveNumbered.some((row) => ITEM_NAME.test(row.cells[0]?.text ?? ""))
+    ? aboveNumbered.flatMap((row) => row.cells.slice(2)).find((cell) => REFERENCE_NAME.test(cell.text) && !REMARK_NAME.test(cell.text))
+    : undefined;
+  const referenceLike = mostCommon(numbered.flatMap((row) => row.cells.slice(2)).filter((cell) => REFERENCE_LIKE.test(toArabic(cell.text))).map((cell) => cell.column));
+  const referenceColumns = referenceNamed ? Array.from({ length: referenceNamed.span }, (_, i) => referenceNamed.column + i) : referenceLike === null ? [] : [referenceLike];
   let remarkColumns: number[] = [];
   if (aboveNumbered.some((row) => ITEM_NAME.test(row.cells[0]?.text ?? ""))) {
     const named = aboveNumbered.flatMap((row) => row.cells.slice(2)).find((cell) => REMARK_NAME.test(cell.text));
@@ -249,7 +256,7 @@ function wordSocRows(rows: WordRow[]): SocRow[] {
     const remark = textAt(row, remarkColumns);
     // No offer column: every cell before the tick box is the TOR ("ความยาว" | ": ≤ 580 มิลลิเมตร").
     const tor = noOffer ? row.cells.slice(1).filter((cell) => cell.column < offerColumn && cell.text).map((cell) => cell.text).join(" ") : undefined;
-    return { cells: row.cells.map((cell) => cell.text), ...(tor !== undefined ? { tor } : {}), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", ...(row.imageId ? { imageId: row.imageId } : {}) };
+    return { cells: row.cells.map((cell) => cell.text), ...(tor !== undefined ? { tor } : {}), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", reference: textAt(row, referenceColumns), ...(row.imageId ? { imageId: row.imageId } : {}) };
   });
 }
 

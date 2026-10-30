@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** done (browser check left to user; not deployed)
 
 - [ ] One public code-step function: SOC table + Proposal Datasheets → per-row suggestions or ไม่พบ; reuses the SOC table reader and ports the Evidence Packet builder's reference-column finder, item-label extraction and page mapping (one shared implementation, not a second copy per caller).
 - [ ] Label match (item label on a Datasheet page), spec-value match against the row's TOR text, title-only rows searched only in the named document, full references skipped, heading rows and ไม่ต้องตรวจ major items left out; PDF page numbers.

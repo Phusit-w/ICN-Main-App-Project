@@ -10,7 +10,7 @@ const HEADER = ["ลำดับ", "ข้อกำหนด TOR", "ข้อเ
 type Row = [item: string, tor: string, majorItem: string] | { image: string };
 function soc(rows: Row[], { annexed = false } = {}): TorMatchSoc {
   const tableRows: SocTableRow[] = rows.map((row, i) =>
-    Array.isArray(row) ? { position: i + 1, item: row[0], tor: row[1], image: false, majorItem: row[2] } : { position: i + 1, item: "", tor: "", image: true, majorItem: row.image });
+    Array.isArray(row) ? { position: i + 1, item: row[0], tor: row[1], image: false, majorItem: row[2], reference: "" } : { position: i + 1, item: "", tor: "", image: true, majorItem: row.image, reference: "" });
   const keys = [...new Set(tableRows.map((row) => row.majorItem!))];
   return { rows: tableRows, majorItems: keys.map((key) => ({ key, label: annexed ? `ผนวก ${key}` : key, groupLabel: null })) };
 }

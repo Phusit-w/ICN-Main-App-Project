@@ -1,0 +1,160 @@
+// กรอกอ้างอิง of a Proposal (proposal-build 08): runs the code step
+// (lib/reference-fill-search.ts) over the current SOC Version and the live
+// Datasheets, keeps the run's suggestions, and keeps what people decide on each
+// row so they can work in passes. Nothing is written to a SOC file here; the
+// accepted rows are written into a new SOC Version by ticket 09.
+import { readFile } from "node:fs/promises";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/lib/generated/prisma/client";
+import { writeAudit } from "@/lib/authorization";
+import { authorizeProposal } from "@/lib/proposal";
+import { resolveStorageKey } from "@/lib/soc";
+import { readSocTable } from "@/lib/soc-table";
+import { readDatasheetPages, suggestReferences, type RowSuggestions, type Suggestion } from "@/lib/reference-fill-search";
+
+export const FILL_NO_SOC = "ยังไม่มี SOC ที่อ่านได้ใน Proposal นี้ กรุณาเพิ่ม SOC ก่อน";
+export const FILL_NO_DATASHEETS = "Proposal นี้ยังไม่มี Datasheet กรุณาเพิ่ม Datasheet ก่อน";
+export const FILL_BAD_PAGES = "เลขหน้าไม่ถูกต้อง ใส่เป็น 3 หรือ 3, 6 หรือ 12-13 (เลขหน้าของไฟล์ PDF)";
+const NOT_FOUND = "ไม่พบผลกรอกอ้างอิงนี้";
+
+export type FillDecisionInput =
+  | { status: "accepted"; choice: number }
+  | { status: "edited"; datasheetId: string; pages: string }
+  | { status: "rejected" }
+  | { status: "undecided" }; // takes a decision back
+
+// "3", "3, 6", "12-13" → "3, 6" / "12-13": positive PDF pages, a range going up.
+export function cleanPages(raw: unknown): string {
+  const parts = String(raw ?? "").replace(/[–—]/g, "-").split(/[,\s]+/).filter(Boolean);
+  const ok = parts.length > 0 && parts.every((part) => {
+    const range = /^(\d{1,5})(?:-(\d{1,5}))?$/.exec(part);
+    return range && Number(range[1]) >= 1 && (range[2] === undefined || Number(range[2]) > Number(range[1]));
+  });
+  if (!ok) throw new Error(FILL_BAD_PAGES);
+  return parts.join(", ");
+}
+
+async function currentVersion(proposalId: string) {
+  return prisma.socVersion.findFirst({ where: { proposalId, state: "ready", storageKey: { not: null } }, orderBy: { number: "desc" } });
+}
+
+// Runs the code search on the current SOC Version; a new run each time.
+export async function startReferenceFill(proposalId: string) {
+  const { actor, proposal } = await authorizeProposal(proposalId);
+  const version = await currentVersion(proposalId);
+  if (!version?.storageKey) throw new Error(FILL_NO_SOC);
+  const sheets = await prisma.proposalDatasheet.findMany({ where: { proposalId, removedAt: null }, orderBy: { originalName: "asc" } });
+  if (!sheets.length) throw new Error(FILL_NO_DATASHEETS);
+  const table = readSocTable(new Uint8Array(await readFile(resolveStorageKey(version.storageKey))));
+  const datasheets = [];
+  for (const sheet of sheets) {
+    const pages = readDatasheetPages(new Uint8Array(await readFile(resolveStorageKey(sheet.storageKey))));
+    datasheets.push({ id: sheet.id, name: sheet.originalName, pages });
+  }
+  const suggestions = suggestReferences(table, datasheets);
+  const run = await prisma.referenceFillRun.create({
+    data: { proposalId, versionId: version.id, createdById: actor.id, suggestions: suggestions as unknown as Prisma.InputJsonValue },
+  });
+  const found = suggestions.filter((row) => row.suggestions.length).length;
+  await writeAudit({
+    actorId: actor.id, action: "PROPOSAL_REFERENCE_FILL_STARTED", entityType: "PROPOSAL", entityId: proposalId,
+    summary: `กรอกอ้างอิง SOC ฉบับ ${version.number} ใน Proposal ${proposal.title}: พบ ${found} ไม่พบ ${suggestions.length - found}`,
+    metadata: { runId: run.id, versionId: version.id, found, notFound: suggestions.length - found },
+  });
+  return { runId: run.id, found, notFound: suggestions.length - found };
+}
+
+export type FillRowView = Omit<RowSuggestions, "suggestions"> & {
+  suggestions: (Suggestion & { documentName: string })[];
+  decision: { status: "accepted" | "edited" | "rejected"; choice: number | null; datasheetId: string | null; pages: string | null } | null;
+};
+export type ReferenceFillView = {
+  runId: string; versionNumber: number; createdAt: Date;
+  rows: FillRowView[];
+  found: number; notFound: number; undecided: number; certainUndecided: number;
+  datasheets: { id: string; name: string }[]; // to pick from when a row is edited
+};
+
+const documentLabel = (sheet: { citationName: string; originalName: string }) => sheet.originalName.split("/").pop()?.replace(/\.pdf$/i, "") ?? sheet.citationName;
+
+// The newest run on the current SOC Version, or null (no run yet, or the
+// SOC Version has moved on since: its rows are not the current SOC's).
+export async function getReferenceFill(proposalId: string): Promise<ReferenceFillView | null> {
+  await authorizeProposal(proposalId);
+  return loadReferenceFill(proposalId);
+}
+
+async function loadReferenceFill(proposalId: string): Promise<ReferenceFillView | null> {
+  const version = await currentVersion(proposalId);
+  if (!version) return null;
+  const run = await prisma.referenceFillRun.findFirst({ where: { versionId: version.id }, orderBy: { createdAt: "desc" }, include: { decisions: true } });
+  if (!run) return null;
+  const sheets = await prisma.proposalDatasheet.findMany({ where: { proposalId }, select: { id: true, originalName: true, citationName: true, removedAt: true } });
+  const byId = new Map(sheets.map((sheet) => [sheet.id, sheet]));
+  const decisions = new Map(run.decisions.map((decision) => [decision.position, decision]));
+  const rows = (run.suggestions as unknown as RowSuggestions[]).map((row): FillRowView => {
+    const decision = decisions.get(row.position);
+    return {
+      ...row,
+      suggestions: row.suggestions.map((suggestion) => ({ ...suggestion, documentName: documentLabel(byId.get(suggestion.datasheetId) ?? { citationName: "?", originalName: "?" }) })),
+      decision: decision ? { status: decision.status as "accepted" | "edited" | "rejected", choice: decision.choice, datasheetId: decision.datasheetId, pages: decision.pages } : null,
+    };
+  });
+  const found = rows.filter((row) => row.suggestions.length).length;
+  const undecided = rows.filter((row) => row.suggestions.length && !row.decision).length;
+  return {
+    runId: run.id, versionNumber: version.number, createdAt: run.createdAt, rows, found, notFound: rows.length - found, undecided,
+    certainUndecided: rows.filter((row) => row.certain && row.suggestions[0]?.source === "label" && !row.decision).length,
+    datasheets: sheets.filter((sheet) => !sheet.removedAt).map((sheet) => ({ id: sheet.id, name: documentLabel(sheet) })),
+  };
+}
+
+// Rows with a suggestion that nobody has decided yet: while there are any the
+// step is กำลังทำ. Zero for a Proposal with no run on the current SOC Version.
+// For the Proposal page, which has authorized the viewer already.
+export async function undecidedFillRows(proposalId: string): Promise<number> {
+  return (await loadReferenceFill(proposalId))?.undecided ?? 0;
+}
+
+async function ownRun(proposalId: string, runId: string) {
+  const run = await prisma.referenceFillRun.findUnique({ where: { id: runId } });
+  if (!run || run.proposalId !== proposalId) throw new Error(NOT_FOUND);
+  return run;
+}
+
+// รับ / แก้ / ไม่รับ one row, or take the decision back. Any SOC user may.
+export async function decideReferenceFillRow(proposalId: string, runId: string, position: number, input: FillDecisionInput) {
+  const { actor } = await authorizeProposal(proposalId);
+  const run = await ownRun(proposalId, runId);
+  const row = (run.suggestions as unknown as RowSuggestions[]).find((candidate) => candidate.position === position);
+  if (!row) throw new Error(NOT_FOUND);
+  if (input.status === "undecided") {
+    await prisma.referenceFillDecision.deleteMany({ where: { runId, position } });
+    return;
+  }
+  let data: { choice: number | null; datasheetId: string | null; pages: string | null } = { choice: null, datasheetId: null, pages: null };
+  if (input.status === "accepted") {
+    if (!Number.isInteger(input.choice) || !row.suggestions[input.choice]) throw new Error(NOT_FOUND);
+    data = { choice: input.choice, datasheetId: null, pages: null };
+  } else if (input.status === "edited") {
+    const sheet = await prisma.proposalDatasheet.findUnique({ where: { id: input.datasheetId } });
+    if (!sheet || sheet.proposalId !== proposalId || sheet.removedAt) throw new Error(NOT_FOUND);
+    data = { choice: null, datasheetId: sheet.id, pages: cleanPages(input.pages) };
+  }
+  const values = { status: input.status, ...data, decidedById: actor.id, decidedAt: new Date() };
+  await prisma.referenceFillDecision.upsert({ where: { runId_position: { runId, position } }, create: { runId, position, ...values }, update: values });
+}
+
+// "รับทั้งหมดที่พบจากเลขข้อกำกับ": every undecided row whose label is on exactly
+// one page takes that page. Returns how many rows it accepted.
+export async function acceptAllFromLabels(proposalId: string, runId: string): Promise<number> {
+  const { actor } = await authorizeProposal(proposalId);
+  const run = await ownRun(proposalId, runId);
+  const decided = new Set((await prisma.referenceFillDecision.findMany({ where: { runId }, select: { position: true } })).map((decision) => decision.position));
+  const rows = (run.suggestions as unknown as RowSuggestions[]).filter((row) => row.certain && row.suggestions[0]?.source === "label" && !decided.has(row.position));
+  const { count } = await prisma.referenceFillDecision.createMany({
+    data: rows.map((row) => ({ runId, position: row.position, status: "accepted", choice: 0, decidedById: actor.id })),
+    skipDuplicates: true,
+  });
+  return count;
+}

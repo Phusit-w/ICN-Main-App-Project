@@ -9,6 +9,7 @@ import { normalizeSocTitle, SOC_TITLE_INVALID, SOC_TITLE_MAX, SOC_TITLE_TAKEN } 
 import { socStorageRoot } from "@/lib/soc";
 import { listSocVersions, restartProposalReads, stopProposalReads } from "@/lib/proposal-soc";
 import { loadProposalChecks, NO_CHECKS, removeProposalJobs, type CheckStatus, type ProposalChecks } from "@/lib/proposal-check";
+import { getReferenceFill } from "@/lib/proposal-reference-fill";
 import { proposalWaitingRequests } from "@/lib/soc-check-requests";
 import { addMissingBuildVersions, listProposalBuilds, OPEN_STATES as OPEN_BUILD_STATES, removeProposalBuilds, stopProposalBuildReads } from "@/lib/soc-builds";
 
@@ -151,26 +152,27 @@ export const STEP_STATUS_LABELS: Record<StepStatus, string> = { done: "เสร
 // tickets add the Datasheets and runs. `socVersion`: the number of the
 // current SOC Version (the highest ready one). `building`: a SOC Build of the
 // Proposal is waiting or being read; `buildVersion`: a ready SOC Version came from a build.
-export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null; socVersion: number | null; building: boolean; buildVersion: boolean; checks?: ProposalChecks };
+export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null; socVersion: number | null; building: boolean; buildVersion: boolean; fillUndecided?: number; checks?: ProposalChecks };
 
 type TorRow = { originalName: string; pageCount: number; scanned: boolean };
-const proposalFacts = ({ tor, socVersions, building, checks }: { tor: TorRow | null; socVersions: { number: number; source: string }[]; building: boolean; checks?: ProposalChecks }): ProposalFacts => ({
+const proposalFacts = ({ tor, socVersions, building, checks, fillUndecided }: { tor: TorRow | null; socVersions: { number: number; source: string }[]; building: boolean; checks?: ProposalChecks; fillUndecided?: number }): ProposalFacts => ({
   tor: tor && { name: tor.originalName, pageCount: tor.pageCount, scanned: tor.scanned },
   socVersion: socVersions[0]?.number ?? null,
   building,
   buildVersion: socVersions.some((version) => version.source === "build"),
   checks,
+  fillUndecided,
 });
 
 // The six steps in order. Statuses come from the facts, never from storage.
-export function proposalSteps({ tor, socVersion, building, buildVersion, checks = NO_CHECKS }: ProposalFacts): StepCard[] {
+export function proposalSteps({ tor, socVersion, building, buildVersion, fillUndecided = 0, checks = NO_CHECKS }: ProposalFacts): StepCard[] {
   const socNow = socVersion ? `ใช้ SOC ฉบับ ${socVersion}` : "ยังไม่มี SOC";
   const checkNow: Record<CheckStatus, string> = { todo: socNow, doing: `กำลังตรวจ ${socNow}`, done: `ตรวจแล้ว ${socNow}`, stale: `มีผลเก่า ต้องตรวจ ${socNow} ใหม่` };
   return [
     { no: 1, title: "TOR", status: tor ? "done" : "todo", ai: "ไม่ใช้ AI", needs: "ไฟล์ TOR (PDF)", gives: "TOR ของ Proposal ที่ทุกขั้นใช้ร่วมกัน", now: tor ? `${tor.name.split("/").pop()} · ${tor.pageCount} หน้า${tor.scanned ? " · PDF สแกน" : ""}` : "ยังไม่มี TOR" },
     { no: 2, title: "โครง Content", status: "reserved", ai: "ไม่ใช้ AI", needs: "TOR", gives: "โครงเนื้อหาข้อเสนอ", now: "เร็ว ๆ นี้" },
     { no: 3, title: "สร้าง SOC", status: building ? "doing" : buildVersion ? "done" : "todo", ai: "ไม่ใช้ AI", needs: "TOR และเทมเพลต SOC", gives: "SOC ฉบับร่างที่เติมเลขข้อและข้อกำหนด TOR", now: building ? "กำลังสร้าง SOC" : buildVersion ? "สร้าง SOC แล้ว" : "ยังไม่ได้สร้าง SOC" },
-    { no: 4, title: "กรอกอ้างอิง", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ Datasheet", gives: "SOC ฉบับใหม่ที่เติมเอกสารและหน้าอ้างอิง", now: socNow },
+    { no: 4, title: "กรอกอ้างอิง", status: fillUndecided ? "doing" : "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ Datasheet", gives: "SOC ฉบับใหม่ที่เติมเอกสารและหน้าอ้างอิง", now: fillUndecided ? `รอตัดสิน ${fillUndecided} แถว` : socNow },
     { no: 5, title: "ตรวจ TOR ตรงต้นฉบับ", status: checks.tor.status, ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ TOR", gives: "ผลเทียบข้อความ TOR ใน SOC กับต้นฉบับ", now: checkNow[checks.tor.status], jobId: checks.tor.jobId, staleJobId: checks.tor.staleJobId },
     { no: 6, title: "ตรวจหลักฐาน", status: checks.evidence.status, ai: "ใช้ AI", needs: "SOC ปัจจุบันและ Datasheet", gives: "ผลตรวจ SOC เทียบ Datasheet และ SOC_Check", now: checkNow[checks.evidence.status], jobId: checks.evidence.jobId, staleJobId: checks.evidence.staleJobId },
   ];
@@ -200,7 +202,7 @@ export async function listProposals() {
 
 export async function getProposalPage(id: string) {
   const { actor, proposal } = await authorizeProposal(id);
-  const [creator, tor, socVersions, datasheets, builds, checks, waiting] = await Promise.all([
+  const [creator, tor, socVersions, datasheets, builds, checks, waiting, referenceFill] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } }),
     prisma.proposalTor.findUnique({ where: { proposalId: id }, select: { originalName: true, pageCount: true, scanned: true } }),
     listSocVersions(id),
@@ -208,8 +210,9 @@ export async function getProposalPage(id: string) {
     listProposalBuilds(id),
     loadProposalChecks([id]),
     proposalWaitingRequests(id),
+    getReferenceFill(id),
   ]);
-  const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready"), building: builds.some((build) => OPEN_BUILD_STATES.includes(build.status)), checks: checks.get(id) });
+  const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready"), building: builds.some((build) => OPEN_BUILD_STATES.includes(build.status)), checks: checks.get(id), fillUndecided: referenceFill?.undecided });
   return {
     id: proposal.id, viewerId: actor.id, viewerIsAdmin: actor.role === "ADMIN", waiting, title: proposal.title, creatorName: creator.displayName, updatedAt: proposal.updatedAt,
     canManage: proposal.creatorId === actor.id || actor.role === "ADMIN",
@@ -218,6 +221,7 @@ export async function getProposalPage(id: string) {
     datasheets,
     builds,
     currentVersion: facts.socVersion,
+    referenceFill,
     steps: proposalSteps(facts),
   };
 }

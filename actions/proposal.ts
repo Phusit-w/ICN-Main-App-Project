@@ -6,6 +6,7 @@ import { authorizeProposal, createProposal, renameProposal, trashProposal } from
 import { DATASHEET_RUNNER_BUSY, removeProposalDatasheet, renameDatasheetCitation } from "@/lib/proposal-datasheet";
 import { startEvidenceCheck, startTorCheck } from "@/lib/proposal-check";
 import { resumeVersionRead } from "@/lib/proposal-soc";
+import { acceptAllFromLabels, decideReferenceFillRow, startReferenceFill, type FillDecisionInput } from "@/lib/proposal-reference-fill";
 import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 
 type TitleResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -98,4 +99,32 @@ export async function startProposalCheckAction(proposalId: string, kind: "tor" |
     if (error instanceof Error && /[฀-๿]/.test(error.message)) return { ok: false, error: error.message };
     throw error;
   }
+}
+
+// ---- กรอกอ้างอิง (proposal-build 08). Any SOC user may run it and decide rows.
+// A message for the user comes back as { ok: false, error }.
+
+type FillResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+
+async function fillAction<T>(proposalId: string, run: () => Promise<T>): Promise<FillResult<T extends object ? T : object>> {
+  try {
+    const result = await run();
+    revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
+    return { ok: true, ...(result as object) } as FillResult<T extends object ? T : object>;
+  } catch (error) {
+    if (error instanceof Error && /[฀-๿]/.test(error.message)) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+export async function startReferenceFillAction(proposalId: string) {
+  return fillAction(proposalId, () => startReferenceFill(proposalId));
+}
+
+export async function decideReferenceFillRowAction(proposalId: string, runId: string, position: number, input: FillDecisionInput) {
+  return fillAction(proposalId, async () => { await decideReferenceFillRow(proposalId, runId, position, input); return {}; });
+}
+
+export async function acceptFillFromLabelsAction(proposalId: string, runId: string) {
+  return fillAction(proposalId, async () => ({ accepted: await acceptAllFromLabels(proposalId, runId) }));
 }

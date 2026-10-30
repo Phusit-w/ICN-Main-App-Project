@@ -117,44 +117,46 @@ model ExpenseRecord {
 // the app itself was explicitly out of scope when this was added; approval
 // is still a paper signature after printing).
 model User {
-  id                         String                 @id @default(cuid())
-  username                   String                 @unique
+  id                         String                  @id @default(cuid())
+  username                   String                  @unique
   // PBKDF2-SHA256, see lib/auth.ts's hashPassword — never plaintext.
   passwordHash               String
   displayName                String
-  role                       String                 @default("USER") // "USER" | "ADMIN"
-  isActive                   Boolean                @default(true)
-  mustChangePassword         Boolean                @default(false)
-  sessionVersion             Int                    @default(1)
+  role                       String                  @default("USER") // "USER" | "ADMIN"
+  isActive                   Boolean                 @default(true)
+  mustChangePassword         Boolean                 @default(false)
+  sessionVersion             Int                     @default(1)
   passwordChangedAt          DateTime?
   disabledAt                 DateTime?
   // Which apps a USER may open — values in lib/access.ts (APP_ACCESS). ADMIN
   // ignores this and may open everything. The default grants everything, so
   // accounts that existed before per-app access keep what they had.
-  appAccess                  String[]               @default(["expense", "soc", "project-card-edit"])
-  createdAt                  DateTime               @default(now())
-  updatedAt                  DateTime               @updatedAt
+  appAccess                  String[]                @default(["expense", "soc", "project-card-edit"])
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
   socJobs                    SocJob[]
   socAuditEvents             SocAuditEvent[]
-  socMajorItemsRequested     SocMajorItem[]         @relation("SocMajorItemRequestedBy")
-  socMajorItemsRan           SocMajorItem[]         @relation("SocMajorItemRanBy")
+  socMajorItemsRequested     SocMajorItem[]          @relation("SocMajorItemRequestedBy")
+  socMajorItemsRan           SocMajorItem[]          @relation("SocMajorItemRanBy")
   socCheckRunsImported       SocCheckRun[]
   socSkillPackagesUploaded   SocSkillPackage[]
-  socRunnerLinks             SocRunnerLink[]        @relation("SocRunnerLinkUser")
-  socRunnerLinksRevoked      SocRunnerLink[]        @relation("SocRunnerLinkRevokedBy")
+  socRunnerLinks             SocRunnerLink[]         @relation("SocRunnerLinkUser")
+  socRunnerLinksRevoked      SocRunnerLink[]         @relation("SocRunnerLinkRevokedBy")
   socRunnerInstallCodes      SocRunnerInstallCode[]
-  socCheckRequests           SocCheckRequest[]      @relation("SocCheckRequestAsker")
-  socCheckRequestsTaken      SocCheckRequest[]      @relation("SocCheckRequestTaker")
+  socCheckRequests           SocCheckRequest[]       @relation("SocCheckRequestAsker")
+  socCheckRequestsTaken      SocCheckRequest[]       @relation("SocCheckRequestTaker")
   socTemplatesAdded          SocTemplate[]
   socBuilds                  SocBuild[]
-  proposalsCreated           Proposal[]             @relation("ProposalCreator")
-  proposalTorsUploaded       ProposalTor[]          @relation("ProposalTorUploader")
-  socVersionsCreated         SocVersion[]           @relation("SocVersionCreator")
-  proposalDatasheetsUploaded ProposalDatasheet[]    @relation("ProposalDatasheetUploader")
-  expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
-  auditEvents                AuditLog[]             @relation("AuditActor")
-  targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
-  verifiedProjectCardBudgets ProjectCard[]          @relation("ProjectCardBudgetVerifier")
+  proposalsCreated           Proposal[]              @relation("ProposalCreator")
+  proposalTorsUploaded       ProposalTor[]           @relation("ProposalTorUploader")
+  socVersionsCreated         SocVersion[]            @relation("SocVersionCreator")
+  proposalDatasheetsUploaded ProposalDatasheet[]     @relation("ProposalDatasheetUploader")
+  referenceFillRuns          ReferenceFillRun[]      @relation("ReferenceFillRunCreator")
+  referenceFillDecisions     ReferenceFillDecision[] @relation("ReferenceFillDecider")
+  expenseRecords             ExpenseRecord[]         @relation("ExpenseOwner")
+  auditEvents                AuditLog[]              @relation("AuditActor")
+  targetedAuditEvents        AuditLog[]              @relation("AuditTarget")
+  verifiedProjectCardBudgets ProjectCard[]           @relation("ProjectCardBudgetVerifier")
 }
 
 // A durable SOC audit job. PostgreSQL doubles as the low-volume work queue:
@@ -807,21 +809,22 @@ model ProjectCardClient {
 // are derived (lib/proposal.ts), never stored. Its files live under
 // SOC_STORAGE_ROOT/proposals/<id>/.
 model Proposal {
-  id          String              @id @default(cuid())
-  title       String
-  creatorId   String
-  creator     User                @relation("ProposalCreator", fields: [creatorId], references: [id], onDelete: Restrict)
-  deletedAt   DateTime?
-  deletedById String?
-  purgeAfter  DateTime?
-  restoredAt  DateTime?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  tor         ProposalTor?
-  socVersions SocVersion[]
-  datasheets  ProposalDatasheet[]
-  builds      SocBuild[]
-  jobs        SocJob[]
+  id                String              @id @default(cuid())
+  title             String
+  creatorId         String
+  creator           User                @relation("ProposalCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  deletedAt         DateTime?
+  deletedById       String?
+  purgeAfter        DateTime?
+  restoredAt        DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  tor               ProposalTor?
+  socVersions       SocVersion[]
+  datasheets        ProposalDatasheet[]
+  builds            SocBuild[]
+  jobs              SocJob[]
+  referenceFillRuns ReferenceFillRun[]
 
   @@index([deletedAt, updatedAt])
   @@index([deletedAt, purgeAfter])
@@ -855,17 +858,17 @@ model ProposalTor {
 // `removedAt` set and so does the file (proposal-build 06).
 // Files live under SOC_STORAGE_ROOT/proposals/<proposalId>/.
 model ProposalDatasheet {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   proposalId   String
-  proposal     Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposal     Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   originalName String
   citationName String
-  storageKey   String   @unique
+  storageKey   String    @unique
   sizeBytes    Int
   checksum     String
   uploadedById String
-  uploadedBy   User     @relation("ProposalDatasheetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  createdAt    DateTime @default(now())
+  uploadedBy   User      @relation("ProposalDatasheetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime  @default(now())
   // Taken off the list while a check result of the Proposal exists: the file
   // stays so the review page can still open what a result cites.
   removedAt    DateTime?
@@ -880,33 +883,74 @@ model ProposalDatasheet {
 // then the .xlsx made from it, `rowPages` = the PDF page of each row).
 // Files live under SOC_STORAGE_ROOT/proposals/<proposalId>/.
 model SocVersion {
-  id               String    @id @default(cuid())
-  proposalId       String
-  proposal         Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  number           Int
+  id                String             @id @default(cuid())
+  proposalId        String
+  proposal          Proposal           @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  number            Int
   // "upload" | "build" | "reference_fill"
-  source           String
+  source            String
   // "reading" | "ready" | "failed"
-  state            String    @default("ready")
-  stage            String?
-  progress         Int       @default(0)
-  errorMessage     String?
-  originalName     String?
-  storageKey       String?   @unique
-  mimeType         String?
-  sizeBytes        Int?
-  checksum         String?
-  sourceName       String?
-  sourceStorageKey String?   @unique
-  warnings         Json?
-  rowPages         Json?
+  state             String             @default("ready")
+  stage             String?
+  progress          Int                @default(0)
+  errorMessage      String?
+  originalName      String?
+  storageKey        String?            @unique
+  mimeType          String?
+  sizeBytes         Int?
+  checksum          String?
+  sourceName        String?
+  sourceStorageKey  String?            @unique
+  warnings          Json?
+  rowPages          Json?
   // The SOC Build this version was made from (source "build"); null once that build is purged.
-  buildId          String?   @unique
-  build            SocBuild? @relation(fields: [buildId], references: [id], onDelete: SetNull)
-  createdById      String
-  createdBy        User      @relation("SocVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt        DateTime  @default(now())
-  job              SocJob?
+  buildId           String?            @unique
+  build             SocBuild?          @relation(fields: [buildId], references: [id], onDelete: SetNull)
+  createdById       String
+  createdBy         User               @relation("SocVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt         DateTime           @default(now())
+  job               SocJob?
+  referenceFillRuns ReferenceFillRun[]
 
   @@unique([proposalId, number])
+}
+
+// One กรอกอ้างอิง run on a SOC Version (proposal-build 08): the code step's
+// suggestions per row (`suggestions`: RowSuggestions[] of lib/reference-fill-search.ts,
+// rows that need a reference only) and, in ReferenceFillDecision, what people
+// decided so far, so the user can work in passes. A new run replaces nothing:
+// the newest run of a version is the one the Proposal page shows.
+model ReferenceFillRun {
+  id          String                  @id @default(cuid())
+  proposalId  String
+  proposal    Proposal                @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  versionId   String
+  version     SocVersion              @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User                    @relation("ReferenceFillRunCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime                @default(now())
+  suggestions Json
+  decisions   ReferenceFillDecision[]
+
+  @@index([versionId, createdAt])
+  @@index([proposalId])
+}
+
+// A person's decision on one row of a run: "accepted" (`choice` = index into
+// the row's suggestions), "edited" (`datasheetId` + `pages` typed by the user),
+// or "rejected". No row = not decided. `position` is the SOC row's position.
+model ReferenceFillDecision {
+  id          String           @id @default(cuid())
+  runId       String
+  run         ReferenceFillRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  position    Int
+  status      String
+  choice      Int?
+  datasheetId String?
+  pages       String?
+  decidedById String
+  decidedBy   User             @relation("ReferenceFillDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt   DateTime         @default(now())
+
+  @@unique([runId, position])
 }
