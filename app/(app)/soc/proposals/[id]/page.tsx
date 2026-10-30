@@ -4,7 +4,9 @@ import { requirePageAccess } from "@/lib/authorization";
 import { getProposalPage, STEP_STATUS_LABELS, type StepStatus } from "@/lib/proposal";
 import { mySocRunner } from "@/lib/soc-runner";
 import ProposalHeaderActions from "@/components/ProposalHeaderActions";
+import ProposalDatasheetPanel from "@/components/ProposalDatasheetPanel";
 import ProposalSocPanel from "@/components/ProposalSocPanel";
+import { formatFileSize } from "@/lib/soc-upload";
 import ProposalTorForm from "@/components/ProposalTorForm";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +39,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     <div className="flex flex-wrap gap-2 text-xs" aria-label="ไฟล์ของ Proposal">
       {proposal.tor ? <a href={`/api/proposals/${proposal.id}/tor`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-3 py-1.5 text-label no-underline hover:bg-hover">TOR: {proposal.tor.name.split("/").pop()} · {proposal.tor.pageCount} หน้า</a> : <span className="rounded-full bg-chip px-3 py-1.5 text-label">TOR: ยังไม่มี</span>}
       <span className="rounded-full bg-chip px-3 py-1.5 text-label">SOC ปัจจุบัน: {proposal.currentVersion ? `ฉบับ ${proposal.currentVersion}` : "ยังไม่มี"}</span>
-      <span className="rounded-full bg-chip px-3 py-1.5 text-label">Datasheet: ยังไม่มี</span>
+      <span className="rounded-full bg-chip px-3 py-1.5 text-label">{proposal.datasheets.length ? `Datasheet ${proposal.datasheets.length} ไฟล์ · ${formatFileSize(proposal.datasheets.reduce((sum, datasheet) => sum + datasheet.sizeBytes, 0))}` : "Datasheet: ยังไม่มี"}</span>
     </div>
     <ol className="flex flex-col">{proposal.steps.map((step, index) => <li key={step.no} className="flex gap-4">
       <div className="flex flex-col items-center">
@@ -55,6 +57,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         {step.no === 1 ? <ProposalTorForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} /> : null}
       </section>
     </li>)}</ol>
+    <ProposalDatasheetPanel proposalId={proposal.id} datasheets={proposal.datasheets} />
     <ProposalSocPanel proposalId={proposal.id} versions={proposal.socVersions.map((version) => ({ ...version, createdAt: version.createdAt.toISOString() }))} />
   </div>;
 }

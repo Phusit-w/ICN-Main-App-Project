@@ -50,7 +50,7 @@ export default function SocUploadForm() {
         }
         if (!response.ok || !body.id) throw new Error(body.error || "ไม่สามารถสร้างงานตรวจได้");
         jobId = body.id;
-        await sendEvidenceBatches(jobId, rest.flat(), (done, total) => setProgress(`กำลังอัปโหลดชุดที่ ${Math.min(done + 2, total + 1)}/${total + 1}…`));
+        await sendEvidenceBatches(`/api/soc/jobs/${jobId}/evidence`, rest.flat(), (done, total) => setProgress(`กำลังอัปโหลดชุดที่ ${Math.min(done + 2, total + 1)}/${total + 1}…`));
         router.push(`/soc/${jobId}`);
         router.refresh();
       } catch (cause) {

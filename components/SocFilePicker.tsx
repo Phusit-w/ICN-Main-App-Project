@@ -6,7 +6,7 @@
 // An <input type="file"> can't drop one of its files, so the choice lives in
 // the caller's state and the caller sends it.
 import { useRef, useState, type DragEvent } from "react";
-import { droppedFiles, uploadBatches, type DropEntry } from "@/lib/soc-upload";
+import { droppedFiles, formatFileSize, uploadBatches, type DropEntry } from "@/lib/soc-upload";
 
 // A dragged-in file's path, which (unlike a folder pick's) the File can't carry.
 const droppedPath = new WeakMap<File, string>();
@@ -36,14 +36,14 @@ export function appendEvidence(form: FormData, files: readonly File[]) {
 // Sends evidence to a job in batches that each fit through IIS, one after
 // another. `onBatch(done, total)` reports progress. Throws on the first
 // batch the server refuses, naming how many files were already added.
-export async function sendEvidenceBatches(jobId: string, files: readonly File[], onBatch: (done: number, total: number) => void = () => {}) {
+export async function sendEvidenceBatches(url: string, files: readonly File[], onBatch: (done: number, total: number) => void = () => {}) {
   const batches = uploadBatches(files);
   let sent = 0;
   for (const [i, batch] of batches.entries()) {
     onBatch(i, batches.length);
     const form = new FormData();
     appendEvidence(form, batch);
-    const response = await fetch(`/api/soc/jobs/${jobId}/evidence`, { method: "POST", body: form });
+    const response = await fetch(url, { method: "POST", body: form });
     const body = await readUploadResponse<{ error?: string }>(response);
     if (!response.ok) throw new Error(`${body.error || "เพิ่มเอกสารไม่สำเร็จ"}${sent ? ` (เพิ่มไปแล้ว ${sent} ไฟล์)` : ""}`);
     sent += batch.length;
@@ -51,10 +51,7 @@ export async function sendEvidenceBatches(jobId: string, files: readonly File[],
   onBatch(batches.length, batches.length);
 }
 
-export function formatFileSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
+export { formatFileSize };
 
 // An upload response's JSON body. A proxy in front of the app (IIS) answers a
 // too-large upload with an HTML page, which would otherwise surface as

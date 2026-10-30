@@ -149,6 +149,7 @@ model User {
   proposalsCreated           Proposal[]             @relation("ProposalCreator")
   proposalTorsUploaded       ProposalTor[]          @relation("ProposalTorUploader")
   socVersionsCreated         SocVersion[]           @relation("SocVersionCreator")
+  proposalDatasheetsUploaded ProposalDatasheet[]    @relation("ProposalDatasheetUploader")
   expenseRecords             ExpenseRecord[]        @relation("ExpenseOwner")
   auditEvents                AuditLog[]             @relation("AuditActor")
   targetedAuditEvents        AuditLog[]             @relation("AuditTarget")
@@ -790,6 +791,7 @@ model Proposal {
   updatedAt   DateTime  @updatedAt
   tor         ProposalTor?
   socVersions SocVersion[]
+  datasheets  ProposalDatasheet[]
 
   @@index([deletedAt, updatedAt])
   @@index([deletedAt, purgeAfter])
@@ -813,6 +815,28 @@ model ProposalTor {
   uploadedById String
   uploadedBy   User     @relation("ProposalTorUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   createdAt    DateTime @default(now())
+}
+
+// A Datasheet of a Proposal: one PDF the SOC cites, uploaded once and kept for
+// every check. `originalName` is its path with the folders kept
+// ("บทที่ 2/2.5/tc22.pdf"); `citationName` (ชื่อที่ใช้อ้างอิง) is what English
+// references call it and can be edited. Removing one deletes the row and the
+// file; once a check result cites a Datasheet (ticket 06) the file stays.
+// Files live under SOC_STORAGE_ROOT/proposals/<proposalId>/.
+model ProposalDatasheet {
+  id           String   @id @default(cuid())
+  proposalId   String
+  proposal     Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  originalName String
+  citationName String
+  storageKey   String   @unique
+  sizeBytes    Int
+  checksum     String
+  uploadedById String
+  uploadedBy   User     @relation("ProposalDatasheetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+
+  @@index([proposalId])
 }
 
 // A SOC Version of a Proposal (ADR 0012): one SOC file in the order it arrived.

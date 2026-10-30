@@ -365,7 +365,7 @@ function DocumentsPanel({ jobId, documents }: { jobId: string; documents: Docume
     if (problem) return setError(problem);
     startTransition(async () => {
       try {
-        await sendEvidenceBatches(jobId, files, (done, total) => setProgress(total > 1 ? `กำลังอัปโหลดชุดที่ ${Math.min(done + 1, total)}/${total}…` : ""));
+        await sendEvidenceBatches(`/api/soc/jobs/${jobId}/evidence`, files, (done, total) => setProgress(total > 1 ? `กำลังอัปโหลดชุดที่ ${Math.min(done + 1, total)}/${total}…` : ""));
         setFiles([]);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "เพิ่มเอกสารไม่สำเร็จ");

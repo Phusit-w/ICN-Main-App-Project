@@ -8,6 +8,11 @@
 export const UPLOAD_BATCH_FILES = 50;
 export const UPLOAD_BATCH_BYTES = 200 * 1024 * 1024;
 
+export function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 const MAX_NAME = 240;
 
 // A picked file's place in the job, as "folder/sub-folder/file.pdf": no drive,

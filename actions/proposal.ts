@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { authorizeProposal, createProposal, renameProposal, trashProposal } from "@/lib/proposal";
+import { removeProposalDatasheet, renameDatasheetCitation } from "@/lib/proposal-datasheet";
 import { resumeVersionRead } from "@/lib/proposal-soc";
 import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 
@@ -56,4 +57,22 @@ export async function resumeSocVersionReadAction(proposalId: string, versionId: 
 export async function trashProposalAction(id: string) {
   await trashProposal(id);
   revalidatePath("/soc"); revalidatePath(`/soc/proposals/${id}`);
+}
+
+// Any SOC user may rename a Datasheet's ชื่อที่ใช้อ้างอิง or remove a Datasheet,
+// as any may add one. A refused name comes back as { ok: false, error }.
+export async function renameDatasheetCitationAction(proposalId: string, datasheetId: string, name: string): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  try {
+    const renamed = await renameDatasheetCitation(proposalId, datasheetId, name);
+    revalidatePath(`/soc/proposals/${proposalId}`);
+    return { ok: true, name: renamed };
+  } catch (error) {
+    if (error instanceof Error && /[฀-๿]/.test(error.message)) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+export async function removeProposalDatasheetAction(proposalId: string, datasheetId: string) {
+  await removeProposalDatasheet(proposalId, datasheetId);
+  revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
 }

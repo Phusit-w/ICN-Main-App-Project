@@ -185,10 +185,11 @@ export async function listProposals() {
 
 export async function getProposalPage(id: string) {
   const { actor, proposal } = await authorizeProposal(id);
-  const [creator, tor, socVersions] = await Promise.all([
+  const [creator, tor, socVersions, datasheets] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } }),
     prisma.proposalTor.findUnique({ where: { proposalId: id }, select: { originalName: true, pageCount: true, scanned: true } }),
     listSocVersions(id),
+    prisma.proposalDatasheet.findMany({ where: { proposalId: id }, orderBy: { originalName: "asc" }, select: { id: true, originalName: true, citationName: true, sizeBytes: true } }),
   ]);
   const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready") });
   return {
@@ -196,6 +197,7 @@ export async function getProposalPage(id: string) {
     canManage: proposal.creatorId === actor.id || actor.role === "ADMIN",
     tor: facts.tor,
     socVersions,
+    datasheets,
     currentVersion: facts.socVersion,
     steps: proposalSteps(facts),
   };
