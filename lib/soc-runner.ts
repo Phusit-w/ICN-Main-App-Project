@@ -135,6 +135,18 @@ function socRunnerView(link: SocRunnerLinkRow, now = new Date()): SocRunnerView 
   };
 }
 
+// Whether the user has a SOC Runner of their own (not revoked): without one,
+// what they ask goes to รอคนรับ (ADR 0013).
+export async function hasActiveRunnerLink(userId: string): Promise<boolean> {
+  return (await prisma.socRunnerLink.count({ where: { userId, revokedAt: null } })) > 0;
+}
+
+// Whether what the user asks goes to รอคนรับ: they chose ขอให้คนอื่นตรวจแทน
+// (`toPool`), or have no Runner of their own to run it on.
+export async function sendsToPool(userId: string, toPool: boolean): Promise<boolean> {
+  return toPool || !(await hasActiveRunnerLink(userId));
+}
+
 // The user's latest link for /soc: the active one, or the revoked one when
 // an admin revoked it (so the page can say so). null if they never linked.
 export async function mySocRunner(userId: string): Promise<SocRunnerView | null> {

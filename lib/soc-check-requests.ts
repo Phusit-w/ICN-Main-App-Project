@@ -4,7 +4,9 @@
 // download the job's files and the current Skill Package, report progress
 // and submit results, which go through importLocalCheckRun (seam 1). The
 // major item's state mirrors its open request. A running request whose
-// runner goes quiet returns to `requested`. See docs/SOC-RUNNER.md.
+// runner goes quiet returns to `requested`. A request sent to รอคนรับ
+// (ADR 0013) is taken by a teammate's own click and then runs only on that
+// taker's Runner. See docs/SOC-RUNNER.md.
 import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -14,6 +16,8 @@ import { importLocalCheckRun, jobSocDocument, type ConfirmedRow, type LocalCheck
 import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
 import { jobEvidenceFile, jobEvidenceFiles } from "@/lib/soc-evidence";
+import { UNTAKEN } from "@/lib/soc-request-pool";
+import { sendsToPool } from "@/lib/soc-runner";
 import { importTorJudge, torJudgeRunnerInput, TOR_JUDGE_REQUEST } from "@/lib/soc-tor-judge";
 import {
   SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, SOC_RUNNER_FOR_TOR_JUDGE, XLSX_MIME, isExcelSoc, isRequestableItemState,
@@ -57,7 +61,7 @@ export type CheckRequestResult =
 // request had acknowledged. The skill checks those rows as unverifiable, and
 // the import keeps the names on the item for the banner.
 export async function requestMajorItemCheck(
-  actor: Actor, job: Job, majorItemId: string, replaceConfirmed: number[] = [], { continueWithoutMissing = false } = {},
+  actor: Actor, job: Job, majorItemId: string, replaceConfirmed: number[] = [], { continueWithoutMissing = false, toPool = false }: { continueWithoutMissing?: boolean; toPool?: boolean } = {},
 ): Promise<CheckRequestResult> {
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const item = await prisma.socMajorItem.findFirst({ where: { id: majorItemId, jobId: job.id } });
@@ -78,17 +82,17 @@ export async function requestMajorItemCheck(
   if (confirmed.some((r) => !replaceConfirmed.includes(r.rowNumber))) {
     return { ok: false, confirmedRows: confirmed, error: `${majorItemName(item.label)} มี ${confirmed.length} แถวที่ยืนยันผลแล้ว การตรวจซ้ำจะแทนที่แถวเหล่านี้` };
   }
-  const created = await createRequests(actor, job, [{ ...item, replaceConfirmed: confirmed.map((r) => r.rowNumber), acknowledgedMissing }]);
+  const created = await createRequests(actor, job, [{ ...item, replaceConfirmed: confirmed.map((r) => r.rowNumber), acknowledgedMissing }], toPool);
   return created ? { ok: true, requested: created } : { ok: false, error: `${majorItemName(item.label)} เพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่` };
 }
 
 // ตรวจทั้งชุด: a request for every major item that hasn't been checked yet,
 // except those set to ไม่ต้องตรวจ.
-export async function requestAllUncheckedChecks(actor: Actor, job: Job): Promise<CheckRequestResult> {
+export async function requestAllUncheckedChecks(actor: Actor, job: Job, { toPool = false } = {}): Promise<CheckRequestResult> {
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const items = await prisma.socMajorItem.findMany({ where: { jobId: job.id, state: "not_checked", skipped: false }, orderBy: { position: "asc" } });
   if (!items.length) return { ok: false, error: "ไม่มีข้อใหญ่ที่ยังไม่ได้ตรวจ" };
-  const created = await createRequests(actor, job, items.map((item) => ({ ...item, replaceConfirmed: [], acknowledgedMissing: [] })));
+  const created = await createRequests(actor, job, items.map((item) => ({ ...item, replaceConfirmed: [], acknowledgedMissing: [] })), toPool);
   return { ok: true, requested: created };
 }
 
@@ -96,7 +100,7 @@ export async function requestAllUncheckedChecks(actor: Actor, job: Job): Promise
 // rows, one request per major item they belong to, in SOC order. Picking a
 // row with a Final Decision is the agreement to replace it (the page asks
 // first). Every item must be requestable, or nothing is requested.
-export async function requestRowRechecks(actor: Actor, job: Job, resultIds: string[]): Promise<CheckRequestResult> {
+export async function requestRowRechecks(actor: Actor, job: Job, resultIds: string[], { toPool = false } = {}): Promise<CheckRequestResult> {
   if (job.kind !== "IMPORTED") return { ok: false, error: "ขอตรวจได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const rows = (await prisma.socCheckResult.findMany({
     where: { jobId: job.id, id: { in: [...new Set(resultIds)] }, majorItemId: { not: null } },
@@ -116,34 +120,37 @@ export async function requestRowRechecks(actor: Actor, job: Job, resultIds: stri
       rowNumbers: picked.map((r) => r.rowNumber),
       replaceConfirmed: picked.filter((r) => r.reviewedAt !== null && r.finalDecision !== PENDING_FIX).map((r) => r.rowNumber),
     };
-  }));
+  }), toPool);
   return created === items.length ? { ok: true, requested: created } : { ok: false, error: "บางข้อเพิ่งเปลี่ยนสถานะ กรุณาโหลดหน้าใหม่" };
 }
 
 // One request per item, in position order so that claims (oldest first)
 // follow the SOC. An item whose state changed since it was read is skipped.
-async function createRequests(actor: Actor, job: Job, items: { id: string; label: string; state: string; replaceConfirmed: number[]; acknowledgedMissing: string[]; rowNumbers?: number[] }[]) {
+// `toPool` (ขอให้คนอื่นตรวจแทน), or having no Runner, sends them to รอคนรับ.
+async function createRequests(actor: Actor, job: Job, items: { id: string; label: string; state: string; replaceConfirmed: number[]; acknowledgedMissing: string[]; rowNumbers?: number[] }[], toPool = false) {
+  const waiting = await sendsToPool(actor.id, toPool);
   const labels: string[] = [];
   await prisma.$transaction(async (tx) => {
     for (const item of items) {
       const { count } = await tx.socMajorItem.updateMany({ where: { id: item.id, state: item.state, skipped: false }, data: { state: "requested" } });
       if (!count) continue;
       const request = await tx.socCheckRequest.create({
-        data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, priorState: item.state, replaceConfirmed: item.replaceConfirmed, acknowledgedMissing: item.acknowledgedMissing, rowNumbers: item.rowNumbers ?? [] },
+        data: { jobId: job.id, majorItemId: item.id, requestedById: actor.id, waiting, priorState: item.state, replaceConfirmed: item.replaceConfirmed, acknowledgedMissing: item.acknowledgedMissing, rowNumbers: item.rowNumbers ?? [] },
       });
       await tx.socAuditEvent.create({
-        data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUESTED", detail: { checkRequestId: request.id, majorItemId: item.id, majorItem: item.label, priorState: item.state, replaceConfirmed: item.replaceConfirmed, ...(item.acknowledgedMissing.length ? { acknowledgedMissing: item.acknowledgedMissing } : {}), ...(item.rowNumbers?.length ? { rowNumbers: item.rowNumbers } : {}) } },
+        data: { jobId: job.id, actorId: actor.id, action: "CHECK_REQUESTED", detail: { checkRequestId: request.id, majorItemId: item.id, majorItem: item.label, priorState: item.state, waiting, replaceConfirmed: item.replaceConfirmed, ...(item.acknowledgedMissing.length ? { acknowledgedMissing: item.acknowledgedMissing } : {}), ...(item.rowNumbers?.length ? { rowNumbers: item.rowNumbers } : {}) } },
       });
       labels.push(item.label);
     }
     if (labels.length) {
       // "ข้อ ๑, ๒", or "ผนวก 7, ผนวก 8" in a SOC divided into ผนวก.
+      const via = waiting ? "ส่งไปรอคนรับ" : "ด้วย SOC Runner";
       const names = labels.every(isAnnexLabel) ? labels.join(", ") : `ข้อ ${labels.join(", ")}`;
       await writeAudit({
         actorId: actor.id, action: "SOC_CHECK_REQUESTED", entityType: "SOC_JOB", entityId: job.id,
         summary: items.some((i) => i.rowNumbers?.length)
-          ? `ขอตรวจใหม่ ${items.reduce((n, i) => n + (i.rowNumbers?.length ?? 0), 0)} แถวใน${names} ด้วย SOC Runner ในงาน ${job.title}`
-          : `ขอตรวจ${names} ด้วย SOC Runner ในงาน ${job.title}`,
+          ? `ขอตรวจใหม่ ${items.reduce((n, i) => n + (i.rowNumbers?.length ?? 0), 0)} แถวใน${names} ${via} ในงาน ${job.title}`
+          : `ขอตรวจ${names} ${via} ในงาน ${job.title}`,
         metadata: { majorItems: labels },
       }, tx);
     }
@@ -204,7 +211,7 @@ export async function cancelCheckRequest(actor: Actor, job: Job, requestId: stri
 // runner stops the one Claude is checking and clears a paused one's folder.
 export async function cancelledCheckRequestIds(userId: string, now = new Date()) {
   const since = new Date(now.getTime() - 60 * 60 * 1000);
-  const requests = await prisma.socCheckRequest.findMany({ where: { requestedById: userId, state: "cancelled", finishedAt: { gte: since } }, select: { id: true } });
+  const requests = await prisma.socCheckRequest.findMany({ where: { ...heldBy(userId), state: "cancelled", finishedAt: { gte: since } }, select: { id: true } });
   return requests.map((request) => request.id);
 }
 
@@ -233,13 +240,15 @@ export async function resumeCheckRequestNow(actor: Actor, job: Job, requestId: s
 // Whether a request of this user still waits for its quota resume time. A
 // runner that paused itself keeps waiting only while this is true.
 export async function hasQuotaPausedCheckRequest(userId: string, now = new Date()) {
-  return (await prisma.socCheckRequest.count({ where: { requestedById: userId, state: "paused_quota", resumeAt: { gt: now }, job: { deletedAt: null } } })) > 0;
+  return (await prisma.socCheckRequest.count({ where: { ...heldBy(userId), state: "paused_quota", resumeAt: { gt: now }, job: { deletedAt: null } } })) > 0;
 }
 
 // ---- Stale claims -----------------------------------------------------------------
 
 // Running requests whose runner has been quiet for SOC_CHECK_REQUEST_STALE_MS
-// go back to `requested`, so that the same user's runner picks them up again.
+// go back to `requested`, so that the same user's runner picks them up again;
+// a taker who went quiet is cleared and the request waits in รอคนรับ again
+// (it never expires). So does a taken request its taker's Runner never claimed.
 // Called lazily: on every claim and when a job page loads.
 export async function releaseStaleCheckRequests(now = new Date()) {
   const cutoff = new Date(now.getTime() - SOC_CHECK_REQUEST_STALE_MS);
@@ -251,16 +260,95 @@ export async function releaseStaleCheckRequests(now = new Date()) {
     await prisma.$transaction(async (tx) => {
       const { count } = await tx.socCheckRequest.updateMany({
         where: { id: request.id, state: "running", lastSeenAt: request.lastSeenAt },
-        data: { state: "requested", claimedByLinkId: null, claimedAt: null, progressNote: null },
+        data: { state: "requested", claimedByLinkId: null, claimedAt: null, progressNote: null, ...(request.takerId ? { takerId: null, takenAt: null } : {}) },
       });
       if (!count) return;
       if (request.majorItemId) await tx.socMajorItem.updateMany({ where: { id: request.majorItemId, state: "running" }, data: { state: "requested" } });
       await tx.socAuditEvent.create({
-        data: { jobId: request.jobId, action: "CHECK_REQUEST_RELEASED", detail: { checkRequestId: request.id, ...subjectDetail(request), lastSeenAt: request.lastSeenAt?.toISOString() ?? null } },
+        data: { jobId: request.jobId, action: "CHECK_REQUEST_RELEASED", detail: { checkRequestId: request.id, ...subjectDetail(request), lastSeenAt: request.lastSeenAt?.toISOString() ?? null, ...(request.takerId ? { takerId: request.takerId } : {}) } },
       });
     });
   }
+  // Taken, but the taker's Runner has not claimed it in that time.
+  await prisma.socCheckRequest.updateMany({ where: { state: "requested", takerId: { not: null }, claimedByLinkId: null, takenAt: { lt: cutoff } }, data: { takerId: null, takenAt: null } });
   return stale.length;
+}
+
+// ---- รอคนรับ (ADR 0013) -----------------------------------------------------------
+
+export type TakeResult = { ok: true; taken: number } | { ok: false; error: string };
+
+export const TAKE_NEEDS_CONFIRM = "ต้องยืนยันก่อนว่าจะใช้โควตา Claude ของคุณตรวจงานนี้";
+
+// Takes waiting requests for the actor's own Runner: one (`requestId`) or every
+// waiting request of a job ("รับทั้งชุด", `jobId`). Only this server action
+// takes a request, and only with the actor's explicit confirm (the page's
+// quota popup) and an online Runner of their own: nothing takes automatically
+// (ADR 0013). A request the actor's Runner version can't carry out is left.
+// From here only the taker's Runner may claim it.
+export async function takeCheckRequests(actor: Actor, target: { requestId: string } | { jobId: string }, { confirmed }: { confirmed: boolean }): Promise<TakeResult> {
+  if (!confirmed) return { ok: false, error: TAKE_NEEDS_CONFIRM };
+  const link = await prisma.socRunnerLink.findFirst({ where: { userId: actor.id, revokedAt: null }, orderBy: { createdAt: "desc" } });
+  if (!link) return { ok: false, error: "ต้องเชื่อม SOC Runner ของคุณก่อนจึงจะรับงานได้" };
+  if (socRunnerState(link.lastSeenAt) !== "online") return { ok: false, error: "SOC Runner ของคุณยังไม่ออนไลน์ เปิดโปรแกรมก่อนแล้วลองรับงานอีกครั้ง" };
+  const candidates = await prisma.socCheckRequest.findMany({
+    where: { ...carriedBy(link.runnerVersion), ..."requestId" in target ? { id: target.requestId } : { jobId: target.jobId }, waiting: true, takerId: null, state: "requested" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    include: { majorItem: { select: { label: true } }, job: { select: { title: true } } },
+  });
+  const taken: typeof candidates = [];
+  const now = new Date();
+  for (const request of candidates) {
+    const done = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.socCheckRequest.updateMany({ where: { id: request.id, waiting: true, takerId: null, state: "requested" }, data: { takerId: actor.id, takenAt: now } });
+      if (!count) return false;
+      await tx.socAuditEvent.create({ data: { jobId: request.jobId, actorId: actor.id, action: "CHECK_REQUEST_TAKEN", detail: { checkRequestId: request.id, ...subjectDetail(request), askerId: request.requestedById } } });
+      await writeAudit({
+        actorId: actor.id, targetUserId: request.requestedById, action: "SOC_CHECK_REQUEST_TAKEN", entityType: "SOC_JOB", entityId: request.jobId,
+        summary: `รับตรวจ${subjectName(request)} ในงาน ${request.job.title} ด้วย SOC Runner ของตัวเอง`, metadata: { checkRequestId: request.id },
+      }, tx);
+      return true;
+    });
+    if (done) taken.push(request);
+  }
+  return taken.length
+    ? { ok: true, taken: taken.length }
+    : { ok: false, error: "ไม่มีคำขอที่รับได้ อาจมีคนรับไปแล้ว ถูกยกเลิก หรือ SOC Runner ของคุณเป็นรุ่นเก่าเกินไปสำหรับงานนี้" };
+}
+
+export type WaitingRequestView = {
+  id: string; jobId: string; jobTitle: string; proposalId: string | null; proposalTitle: string | null;
+  step: string; item: string; rowCount: number; askerId: string; askerName: string; takerName: string | null; state: string; createdAt: string;
+};
+
+const WAITING_INCLUDE = {
+  requestedBy: { select: { displayName: true } },
+  taker: { select: { displayName: true } },
+  majorItem: { select: { label: true } },
+  job: { select: { id: true, title: true, proposal: { select: { id: true, title: true } } } },
+} satisfies Prisma.SocCheckRequestInclude;
+
+type WaitingRow = Prisma.SocCheckRequestGetPayload<{ include: typeof WAITING_INCLUDE }>;
+const waitingView = (r: WaitingRow): WaitingRequestView => ({
+  id: r.id, jobId: r.job.id, jobTitle: r.job.title, proposalId: r.job.proposal?.id ?? null, proposalTitle: r.job.proposal?.title ?? null,
+  step: r.kind === TOR_JUDGE_REQUEST ? "ตรวจ TOR ตรงต้นฉบับ" : "ตรวจหลักฐาน", item: subjectName(r), rowCount: r.rowNumbers.length,
+  askerId: r.requestedById, askerName: r.requestedBy.displayName, takerName: r.taker?.displayName ?? null, state: r.state, createdAt: r.createdAt.toISOString(),
+});
+
+// The รอคนรับ list: waiting requests nobody has taken, oldest first.
+export async function waitingCheckRequests(): Promise<WaitingRequestView[]> {
+  await releaseStaleCheckRequests();
+  return (await prisma.socCheckRequest.findMany({ where: UNTAKEN, orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: WAITING_INCLUDE })).map(waitingView);
+}
+
+// A Proposal's own รอคนรับ panel: its sent-away requests still open, taken or not.
+export async function proposalWaitingRequests(proposalId: string): Promise<WaitingRequestView[]> {
+  await releaseStaleCheckRequests();
+  const rows = await prisma.socCheckRequest.findMany({
+    where: { waiting: true, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES] }, job: { deletedAt: null, proposalId } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: WAITING_INCLUDE,
+  });
+  return rows.map(waitingView);
 }
 
 // ---- Job page ---------------------------------------------------------------------
@@ -273,6 +361,7 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
     orderBy: { createdAt: "desc" },
     include: {
       requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
+      taker: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
       majorItem: { select: { imageRowCount: true } },
     },
   });
@@ -280,7 +369,7 @@ export async function majorItemRequestViews(jobId: string, now = new Date()) {
   const views = new Map<string, { request: SocCheckRequestView | null; failureReason: string | null }>();
   for (const r of requests) {
     if (!r.majorItemId || views.has(r.majorItemId)) continue; // the latest one per item
-    const link = r.requestedBy.socRunnerLinks[0];
+    const link = (r.taker ?? r.requestedBy).socRunnerLinks[0];
     const tooOldFor = link?.runnerVersion ? runnerTooOldFor(link.runnerVersion, { excelSoc, imageRows: r.majorItem?.imageRowCount ?? 0 }) : null;
     views.set(r.majorItemId, r.state === "failed"
       ? { request: null, failureReason: r.failureReason }
@@ -295,20 +384,23 @@ export async function torJudgeRequestView(torMatchId: string, now = new Date()) 
   const r = await prisma.socCheckRequest.findFirst({
     where: { torMatchId, kind: TOR_JUDGE_REQUEST },
     orderBy: { createdAt: "desc" },
-    include: { requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } } },
+    include: {
+      requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
+      taker: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
+    },
   });
   if (!r) return null;
-  const link = r.requestedBy.socRunnerLinks[0];
+  const link = (r.taker ?? r.requestedBy).socRunnerLinks[0];
   const tooOld = link?.runnerVersion && !socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_TOR_JUDGE) ? "tor_judge" as const : null;
   return { ...requestView(r, link, now, tooOld), failureReason: r.state === "failed" ? r.failureReason : null, lineCount: r.torLineIds.length };
 }
 
 function requestView(
-  r: { id: string; state: string; requestedById: string; requestedBy: { displayName: string }; progressNote: string | null; resumeAt: Date | null; rowNumbers: number[] },
+  r: { id: string; state: string; requestedById: string; requestedBy: { displayName: string }; waiting: boolean; taker: { displayName: string } | null; progressNote: string | null; resumeAt: Date | null; rowNumbers: number[] },
   link: { lastSeenAt: Date | null } | undefined, now: Date, tooOldFor: SocRunnerNeed | null,
 ): SocCheckRequestView {
   return {
-    id: r.id, state: r.state, requestedById: r.requestedById, requestedByName: r.requestedBy.displayName,
+    id: r.id, state: r.state, requestedById: r.requestedById, requestedByName: r.requestedBy.displayName, waiting: r.waiting, takerName: r.taker?.displayName ?? null,
     runnerState: link ? socRunnerState(link.lastSeenAt, now) : null,
     progressNote: r.progressNote, resumeAt: r.resumeAt?.toISOString() ?? null, rowCount: r.rowNumbers.length,
     // A runner that has never reported shows as not connected instead.
@@ -410,12 +502,20 @@ function runnerTooOldFor(runnerVersion: string, request: { excelSoc: boolean; im
 
 // A runner is handed only the requests its version can carry out (runnerTooOld,
 // and no tor_judge request before SOC_RUNNER_FOR_TOR_JUDGE).
-const CLAIMABLE = (userId: string, now: Date, runnerVersion: string | null): Prisma.SocCheckRequestWhereInput => ({
-  requestedById: userId,
+const carriedBy = (runnerVersion: string | null): Prisma.SocCheckRequestWhereInput => ({
   job: { deletedAt: null, ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC) ? {} : { documents: { none: { type: "SOC", mimeType: XLSX_MIME } } }) },
   ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_IMAGE_ROWS) ? {} : { majorItem: { imageRowCount: 0 } }),
   ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_TOR_JUDGE) ? {} : { kind: "check" }),
-  OR: [{ state: { in: ["requested", "needs_login"] } }, { state: "paused_quota", resumeAt: { lte: now } }],
+});
+
+// The requests a user's Runner holds: its own that were not sent to รอคนรับ,
+// and the ones the user took (ADR 0013). A request sent to รอคนรับ and not yet
+// taken is held by nobody, and a taken one only by its taker.
+const heldBy = (userId: string): Prisma.SocCheckRequestWhereInput => ({ OR: [{ requestedById: userId, waiting: false }, { takerId: userId }] });
+
+const CLAIMABLE = (userId: string, now: Date, runnerVersion: string | null): Prisma.SocCheckRequestWhereInput => ({
+  ...carriedBy(runnerVersion),
+  AND: [heldBy(userId), { OR: [{ state: { in: ["requested", "needs_login"] } }, { state: "paused_quota", resumeAt: { lte: now } }] }],
 });
 
 // The next request for the runner's own user, oldest first, now `running`
@@ -462,7 +562,7 @@ export async function claimNextCheckRequest(link: RunnerLink): Promise<RunnerChe
 // doesn't run is NOT_CLAIMED.
 async function claimedRequest(link: RunnerLink, requestId: string) {
   const request = await prisma.socCheckRequest.findFirst({
-    where: { id: requestId, requestedById: link.userId, job: { deletedAt: null } },
+    where: { id: requestId, ...heldBy(link.userId), job: { deletedAt: null } },
     include: { majorItem: { select: { label: true } }, job: { select: { title: true } } },
   });
   if (!request) throw new Error("NOT_FOUND");

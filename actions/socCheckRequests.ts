@@ -1,51 +1,51 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { authorizeSocJob } from "@/lib/soc";
-import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck, requestRowRechecks, resumeCheckRequestNow, setMajorItemSkipped } from "@/lib/soc-check-requests";
+import { authorizeSocJob, requireSocActor } from "@/lib/soc";
+import { cancelCheckRequest, requestAllUncheckedChecks, requestMajorItemCheck, requestRowRechecks, resumeCheckRequestNow, setMajorItemSkipped, takeCheckRequests } from "@/lib/soc-check-requests";
 import { requestTorJudge } from "@/lib/soc-tor-judge";
 
 // Check Requests (ticket 13). Any user who may open the job may ask for a
 // check; it runs only on their own SOC Runner.
 
-export async function requestSocCheck(jobId: string, majorItemId: string, replaceConfirmed: number[] = []) {
+export async function requestSocCheck(jobId: string, majorItemId: string, replaceConfirmed: number[] = [], toPool = false) {
   const { actor, job } = await authorizeSocJob(jobId);
-  const result = await requestMajorItemCheck(actor, job, majorItemId, replaceConfirmed.filter(Number.isInteger));
+  const result = await requestMajorItemCheck(actor, job, majorItemId, replaceConfirmed.filter(Number.isInteger), { toPool: toPool === true });
   revalidatePath(`/soc/${jobId}`);
   return result;
 }
 
 // [ตรวจต่อโดยไม่มีไฟล์นี้]: the same request again, acknowledging the
 // documents its runner reported missing.
-export async function continueSocCheckWithoutMissing(jobId: string, majorItemId: string, replaceConfirmed: number[] = []) {
+export async function continueSocCheckWithoutMissing(jobId: string, majorItemId: string, replaceConfirmed: number[] = [], toPool = false) {
   const { actor, job } = await authorizeSocJob(jobId);
-  const result = await requestMajorItemCheck(actor, job, majorItemId, replaceConfirmed.filter(Number.isInteger), { continueWithoutMissing: true });
+  const result = await requestMajorItemCheck(actor, job, majorItemId, replaceConfirmed.filter(Number.isInteger), { continueWithoutMissing: true, toPool: toPool === true });
   revalidatePath(`/soc/${jobId}`);
   return result;
 }
 
-export async function requestAllSocChecks(jobId: string) {
+export async function requestAllSocChecks(jobId: string, toPool = false) {
   const { actor, job } = await authorizeSocJob(jobId);
   // A scanned PDF SOC still being read has only its first items; ตรวจทั้งชุด waits for the whole table.
   if (job.status === "READING" || job.status === "READ_FAILED") return { ok: false as const, error: "ตรวจทั้งชุดได้เมื่ออ่านตารางครบทั้งไฟล์ ตอนนี้ตรวจรายข้อที่อ่านแล้วได้" };
-  const result = await requestAllUncheckedChecks(actor, job);
+  const result = await requestAllUncheckedChecks(actor, job, { toPool: toPool === true });
   revalidatePath(`/soc/${jobId}`);
   return result;
 }
 
 // ส่งให้ Claude ตรวจใหม่: the rows picked on the review page.
-export async function requestSocRowRechecks(jobId: string, resultIds: string[]) {
+export async function requestSocRowRechecks(jobId: string, resultIds: string[], toPool = false) {
   const { actor, job } = await authorizeSocJob(jobId);
-  const result = await requestRowRechecks(actor, job, Array.isArray(resultIds) ? resultIds.filter((id) => typeof id === "string").slice(0, 5000) : []);
+  const result = await requestRowRechecks(actor, job, Array.isArray(resultIds) ? resultIds.filter((id) => typeof id === "string").slice(0, 5000) : [], { toPool: toPool === true });
   revalidatePath(`/soc/${jobId}`);
   return result;
 }
 
 // ส่งให้ Claude ตัดสิน in TOR Match: the lines code could not settle, as one
 // request on the clicking user's SOC Runner.
-export async function requestSocTorJudge(jobId: string) {
+export async function requestSocTorJudge(jobId: string, toPool = false) {
   const { actor, job } = await authorizeSocJob(jobId);
-  const result = await requestTorJudge(actor, job);
+  const result = await requestTorJudge(actor, job, { toPool: toPool === true });
   revalidatePath(`/soc/${jobId}`);
   return result;
 }
@@ -72,5 +72,16 @@ export async function setSocMajorItemSkipped(jobId: string, majorItemId: string,
   const result = await setMajorItemSkipped(actor, job, majorItemId, skipped === true);
   revalidatePath(`/soc/${jobId}`);
   revalidatePath("/soc");
+  return result;
+}
+
+// รับ / รับทั้งชุด from the รอคนรับ list: the clicking user takes the waiting
+// request(s) for their own SOC Runner, after the page's quota popup
+// (`confirmed`). Nothing else takes a request (ADR 0013).
+export async function takeSocCheckRequests(target: { requestId: string } | { jobId: string }, confirmed: boolean) {
+  const actor = await requireSocActor();
+  const picked = "requestId" in target ? { requestId: String(target.requestId) } : { jobId: String(target.jobId) };
+  const result = await takeCheckRequests(actor, picked, { confirmed: confirmed === true });
+  revalidatePath("/soc/waiting"); revalidatePath("/soc");
   return result;
 }

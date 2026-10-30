@@ -34,6 +34,7 @@ mock.module("@/lib/soc", {
   },
 });
 mock.module("@/lib/soc-runner", { namedExports: { mySocRunner: async () => null } });
+mock.module("@/lib/soc-waiting-tab", { namedExports: { waitingTab: async () => null } }); // the SOC menu asks who is signed in, for the รอคนรับ tab
 mock.module("@/lib/soc-runner-install", { namedExports: { latestSocRunnerVersion: async () => "0.8.0" } });
 
 let dom: JSDOM;

@@ -5,6 +5,7 @@ import { SOC_BUILD_OCR_BETA_NOTE, SOC_BUILD_STATUS_LABELS } from "@/lib/soc-shar
 import { authorizeSocBuild } from "@/lib/soc-builds";
 import SocBuildDeleteButton from "@/components/SocBuildDeleteButton";
 import SocBuildReadPanel from "@/components/SocBuildReadPanel";
+import { waitingTab } from "@/lib/soc-waiting-tab";
 import SocSectionTabs from "@/components/SocSectionTabs";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function SocBuildPage({ params }: { params: Promise<{ id: s
   const warnings = Array.isArray(build.warnings) ? build.warnings.filter((w): w is string => typeof w === "string") : [];
   const facts: [string, string][] = [["TOR", build.torName], ["ช่วงหน้า", build.pageRanges], ["เทมเพลต", build.templateName], ["จำนวนแถว", String(build.rowCount ?? "-")], ["สร้างเมื่อ", formatDate(build.createdAt)], ["ลบอัตโนมัติ", formatDate(build.purgeAfter)]];
   return <div className="flex flex-col gap-6">
-    <SocSectionTabs active="build" />
+    <SocSectionTabs active="build" waiting={await waitingTab()} />
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div><Link href="/soc/builds" className="text-xs text-muted no-underline hover:underline">← รายการ SOC ที่สร้าง</Link><h1 className="mt-1 font-display text-[28px] font-bold">{build.title}</h1><span className="mt-2 inline-block rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_BUILD_STATUS_LABELS[build.status] || build.status}</span></div>
       <div className="flex items-center gap-3">{build.status === "READY" ? <a href={`/api/soc/builds/${build.id}/download`} className="rounded-input bg-accent px-5 py-3 font-display text-sm font-bold text-black no-underline hover:bg-[#f08d10]">ดาวน์โหลด SOC-{build.title}.docx</a> : null}<SocBuildDeleteButton buildId={build.id} title={build.title} goToList /></div>

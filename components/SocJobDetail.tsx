@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import { useCheckChoice, ViewerHasRunner } from "@/components/CheckChoice";
 import { useRouter } from "next/navigation";
 import { cancelSocRead, renameSocJobAction, resumeSocRead, confirmSocJob, retrySocJob, updateSocResult } from "@/actions/soc";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
@@ -26,13 +27,17 @@ type ResultItem = {
   aiReferenceCheck: string; aiHeadingTitleCheck: string; aiDetail: string; aiConfidence: string;
   finalReferenceCheck: string; finalHeadingTitleCheck: string; finalDetail: string; reviewed: boolean;
 };
-type MajorItem = { id: string; label: string; title: string | null; groupLabel: string | null; groupTitle: string | null; large: boolean; skipped: boolean; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
-type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; proposal: { id: string; title: string } | null; torMatch: TorMatchView | null; majorItems: MajorItem[]; currentSkillVersion: string | null; socWarnings: string[]; excelSoc: boolean };
+type MajorItem = { id: string; label: string; title: string | null; groupLabel: string | null; groupTitle: string | null; large: boolean; skipped: boolean; state: string; skillVersion: string | null; skillVersionStatus: SkillVersionStatus | null; model: string | null; runSource: string | null; ranByName: string | null; requestedByName: string | null; hasResults: boolean; missingDocuments: string[]; confirmed: boolean; request: SocCheckRequestView | null; failureReason: string | null };
+type Job = { id: string; kind: string; title: string; status: string; stage: string; progress: number; errorMessage: string | null; ownerName: string; canTrash: boolean; viewerId: string; viewerIsAdmin: boolean; viewerHasRunner: boolean; results: ResultItem[]; reviewRows: SocReviewRow[]; documents: DocumentItem[]; proposal: { id: string; title: string } | null; torMatch: TorMatchView | null; majorItems: MajorItem[]; currentSkillVersion: string | null; socWarnings: string[]; excelSoc: boolean };
 
 const ACTIVE = new Set(["QUEUED", "PROCESSING", "CONFIRMED", "EXPORTING", "READING"]);
 const FILTERS = ["all", "match", "mismatch", "review", "not_found", "unverifiable", "not_applicable"];
 
 export default function SocJobDetail({ job }: { job: Job }) {
+  return <ViewerHasRunner.Provider value={job.viewerHasRunner}><SocJobDetailBody job={job} /></ViewerHasRunner.Provider>;
+}
+
+function SocJobDetailBody({ job }: { job: Job }) {
   const router = useRouter();
   const [filter, setFilter] = useState("all");
   const filtered = useMemo(() => job.results.filter((r) => filter === "all" || r.finalReferenceCheck === filter), [filter, job.results]);
@@ -143,7 +148,7 @@ function MajorItemRow({ jobId, excelSoc, item, first, marked, viewerId, viewerIs
   const canCancel = isOpenCheckRequestState(item.state) && request && (request.requestedById === viewerId || viewerIsAdmin);
   const canResumeNow = item.state === "paused_quota" && request && (request.requestedById === viewerId || viewerIsAdmin);
   return <>
-    <tr id={`soc-major-item-${item.id}`} className={`border-t border-line ${item.skipped ? "text-muted" : ""} ${marked ? "bg-hover shadow-[inset_3px_0_0_var(--color-accent,#f7931e)]" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>{majorItemName(item.label)}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจ${majorItemName(item.label)} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span data-tour={first ? "item-actions" : undefined} className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" onClick={() => writeStoredFlag(OPEN_DOCUMENTS_KEY, true)} className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} item={item} requestId={request.id} /> : null}{canResumeNow ? <ResumeNowButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
+    <tr id={`soc-major-item-${item.id}`} className={`border-t border-line ${item.skipped ? "text-muted" : ""} ${marked ? "bg-hover shadow-[inset_3px_0_0_var(--color-accent,#f7931e)]" : ""}`}><td className={`py-3 pr-5 font-medium tabular-nums ${item.groupLabel ? "pl-10" : "pl-5"}`}>{majorItemName(item.label)}</td><td className="px-5 py-3 text-muted"><span className="line-clamp-2">{item.title || "—"}</span>{item.large ? <p className="mt-1 text-xs text-danger" title={`ข้อใหญ่เกิน ${SPLIT_MAJOR_ITEM_ROWS} แถวที่ไม่มีข้อย่อยให้แบ่ง ตรวจทั้งข้อในครั้งเดียว`}>ข้อนี้ใหญ่ อาจใช้โควตามาก</p> : null}</td><td className="px-5 py-3"><span className="whitespace-nowrap rounded-full bg-chip px-3 py-1 text-xs font-medium">{state.label}</span>{state.detail ? <p className={`mt-1.5 max-w-[260px] text-xs ${problem ? "text-danger" : "text-muted"}`}>{state.detail}</p> : null}</td><td className="px-5 py-3 text-xs text-muted">{request ? <p>ขอตรวจโดย {request.requestedById === viewerId ? "คุณ" : request.requestedByName}{request.rowCount ? ` · ตรวจใหม่ ${request.rowCount} แถว` : ""}</p> : null}{item.requestedByName && item.ranByName && item.requestedByName !== item.ranByName ? <p>ขอโดย {item.requestedByName} · ตรวจโดย {item.ranByName} (บัญชีของ {item.ranByName})</p> : null}{item.ranByName ? <>{item.ranByName}{item.model ? ` · ${item.model}` : ""}{item.skillVersion ? ` · skill ${item.skillVersion}` : ""}<SkillVersionFlag status={item.skillVersionStatus} />{item.runSource ? ` · ${SOC_RUN_SOURCE_LABELS[item.runSource] || item.runSource}` : ""}{item.hasResults ? <> · <a href={`/api/soc/jobs/${jobId}/results-excel?item=${item.id}`} title={`ผลตรวจ${majorItemName(item.label)} เป็น Excel`}>Excel</a></> : null}</> : request ? null : "—"}</td><td className="whitespace-nowrap px-5 py-3 text-right"><span data-tour={first ? "item-actions" : undefined} className="inline-flex items-center gap-2">{item.state === "needs_documents" ? <><a href="#soc-documents" onClick={() => writeStoredFlag(OPEN_DOCUMENTS_KEY, true)} className="rounded-input border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline hover:bg-hover" title="เพิ่ม PDF ที่ขาด แล้วกดตรวจใหม่">อัปโหลดเพิ่ม</a>{item.missingDocuments.length ? <RequestCheckButton jobId={jobId} item={item} continueWithoutMissing /> : null}</> : null}{item.skipped ? <SkipButton jobId={jobId} item={item} /> : null}{!item.skipped && isRequestableItemState(item.state) ? <RequestCheckButton jobId={jobId} item={item} /> : null}{canSkip ? <SkipButton jobId={jobId} item={item} /> : null}{canCancel ? <CancelRequestButton jobId={jobId} item={item} requestId={request.id} /> : null}{canResumeNow ? <ResumeNowButton jobId={jobId} requestId={request.id} /> : null}{canImport ? <Button size="sm" variant="outline" onClick={onToggle}>{open ? "ปิด" : recheck ? "นำเข้าผลใหม่" : "นำเข้าผล"}</Button> : null}</span></td></tr>
     {open && canImport ? <tr className="border-t border-line bg-ground"><td colSpan={5} className="px-5 py-4"><ImportRunForm jobId={jobId} item={item} excelSoc={excelSoc} onDone={onDone} /></td></tr> : null}
   </>;
 }
@@ -208,22 +213,23 @@ function SkipButton({ jobId, item }: { jobId: string; item: MajorItem }) {
 function RequestCheckButton({ jobId, item, continueWithoutMissing = false }: { jobId: string; item: MajorItem; continueWithoutMissing?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [dialog, confirm] = useConfirmDialog();
+  const [dialog, decide] = useCheckChoice();
+  const [replaceDialog, confirm] = useConfirmDialog();
   const name = majorItemName(item.label);
-  const ask = (replaceConfirmed?: number[]) => continueWithoutMissing ? continueSocCheckWithoutMissing(jobId, item.id, replaceConfirmed) : requestSocCheck(jobId, item.id, replaceConfirmed);
+  const ask = (toPool: boolean, replaceConfirmed?: number[]) => continueWithoutMissing ? continueSocCheckWithoutMissing(jobId, item.id, replaceConfirmed, toPool) : requestSocCheck(jobId, item.id, replaceConfirmed, toPool);
   const label = continueWithoutMissing ? "ตรวจต่อโดยไม่มีไฟล์นี้" : item.state === "checked" ? "ตรวจซ้ำ" : item.state === "failed" ? "ลองใหม่" : item.state === "needs_documents" ? "ตรวจใหม่" : "ตรวจ";
   async function request() {
     const asked = continueWithoutMissing
-      ? await confirm({ title: `ตรวจ${name} ต่อโดยไม่มีไฟล์?`, message: `ไม่มีไฟล์ ${item.missingDocuments.join(", ")} แถวที่อ้างไฟล์นี้จะเป็น "ยืนยันไม่ได้" SOC Runner บนเครื่องของคุณจะตรวจด้วยโควตา Claude ของคุณ`, confirmLabel: "ตรวจต่อ" })
-      : await confirm({ title: `${label}${name}?`, message: `SOC Runner บนเครื่องของคุณจะตรวจ${name}${item.title ? ` (${item.title})` : ""} ด้วยโควตา Claude ของคุณ`, confirmLabel: label });
+      ? await decide({ title: `ตรวจ${name} ต่อโดยไม่มีไฟล์?`, message: `ไม่มีไฟล์ ${item.missingDocuments.join(", ")} แถวที่อ้างไฟล์นี้จะเป็น "ยืนยันไม่ได้" SOC Runner บนเครื่องของคุณจะตรวจด้วยโควตา Claude ของคุณ`, confirmLabel: "ตรวจต่อ" })
+      : await decide({ title: `${label}${name}?`, message: `SOC Runner บนเครื่องของคุณจะตรวจ${name}${item.title ? ` (${item.title})` : ""} ด้วยโควตา Claude ของคุณ`, confirmLabel: label });
     if (!asked) return;
     setBusy(true);
     try {
-      let result = await ask();
+      let result = await ask(asked.toPool);
       if (!result.ok && result.confirmedRows?.length) {
         const rows = result.confirmedRows;
         if (!(await confirm({ title: "แทนที่ผลที่ยืนยันแล้ว?", message: `${name} มี ${rows.length} แถวที่ยืนยันผลแล้ว (${rows.map((r) => `ข้อ ${r.item}`).join(", ")}) ผลตรวจใหม่จะแทนที่แถวเหล่านี้`, confirmLabel: "ตรวจซ้ำ", danger: true }))) return;
-        result = await ask(rows.map((r) => r.rowNumber));
+        result = await ask(asked.toPool, rows.map((r) => r.rowNumber));
       }
       if (!result.ok) window.alert(result.error);
       router.refresh();
@@ -234,18 +240,19 @@ function RequestCheckButton({ jobId, item, continueWithoutMissing = false }: { j
     }
   }
   const title = continueWithoutMissing ? "ตรวจต่อ แถวที่อ้างไฟล์ที่ขาดจะเป็น ยืนยันไม่ได้" : item.state === "needs_documents" ? "หลังอัปโหลดไฟล์ที่ขาดแล้ว ตรวจด้วย SOC Runner บนเครื่องของคุณ" : "ตรวจด้วย SOC Runner บนเครื่องของคุณ";
-  return <>{dialog}<Button size="sm" variant={continueWithoutMissing ? "outline" : undefined} disabled={busy} onClick={request} title={title}>{busy ? "กำลังขอตรวจ…" : label}</Button></>;
+  return <>{dialog}{replaceDialog}<Button size="sm" variant={continueWithoutMissing ? "outline" : undefined} disabled={busy} onClick={request} title={title}>{busy ? "กำลังขอตรวจ…" : label}</Button></>;
 }
 
 function RequestAllButton({ jobId, count }: { jobId: string; count: number }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [dialog, confirm] = useConfirmDialog();
+  const [dialog, decide] = useCheckChoice();
   async function request() {
-    if (!(await confirm({ title: `ตรวจทั้งชุด ${count} ข้อ?`, message: `SOC Runner บนเครื่องของคุณจะตรวจข้อใหญ่ที่ยังไม่ได้ตรวจทั้ง ${count} ข้อ ทีละข้อ ด้วยโควตา Claude ของคุณ ยกเลิกทีละข้อได้ภายหลัง`, confirmLabel: "ตรวจทั้งชุด" }))) return;
+    const asked = await decide({ title: `ตรวจทั้งชุด ${count} ข้อ?`, message: `SOC Runner บนเครื่องของคุณจะตรวจข้อใหญ่ที่ยังไม่ได้ตรวจทั้ง ${count} ข้อ ทีละข้อ ด้วยโควตา Claude ของคุณ ยกเลิกทีละข้อได้ภายหลัง`, confirmLabel: "ตรวจทั้งชุด" });
+    if (!asked) return;
     setBusy(true);
     try {
-      const result = await requestAllSocChecks(jobId);
+      const result = await requestAllSocChecks(jobId, asked.toPool);
       if (!result.ok) window.alert(result.error);
       router.refresh();
     } catch {

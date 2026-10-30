@@ -12,7 +12,7 @@ Work blockers-first, one ticket per fresh session (`/implement`), `/clear` betwe
 | 04 | ฉบับ SOC จากการ upload | 01 | done |
 | 05 | สร้าง SOC ใน Proposal | 02, 04 | done |
 | 06 | ตรวจ TOR ตรงต้นฉบับ และตรวจหลักฐาน ต่อฉบับ | 02, 03, 04 | done (browser check left; not deployed) |
-| 07 | รอคนรับ | 06 | ready-for-agent |
+| 07 | รอคนรับ | 06 | done (browser check left; not deployed) |
 | 08 | กรอกอ้างอิง: ขั้นโค้ดและตารางรับ/แก้ | 03, 04 | ready-for-agent |
 | 09 | กรอกอ้างอิง: เขียนฉบับ SOC ใหม่ | 08 | ready-for-agent |
 | 10 | กรอกอ้างอิง: ขั้น AI บน Runner | 07, 08 | ready-for-agent |

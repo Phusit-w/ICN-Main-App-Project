@@ -143,7 +143,8 @@ model User {
   socRunnerLinks             SocRunnerLink[]        @relation("SocRunnerLinkUser")
   socRunnerLinksRevoked      SocRunnerLink[]        @relation("SocRunnerLinkRevokedBy")
   socRunnerInstallCodes      SocRunnerInstallCode[]
-  socCheckRequests           SocCheckRequest[]
+  socCheckRequests           SocCheckRequest[]      @relation("SocCheckRequestAsker")
+  socCheckRequestsTaken      SocCheckRequest[]      @relation("SocCheckRequestTaker")
   socTemplatesAdded          SocTemplate[]
   socBuilds                  SocBuild[]
   proposalsCreated           Proposal[]             @relation("ProposalCreator")
@@ -518,7 +519,15 @@ model SocCheckRequest {
   torMatch            SocTorMatch?     @relation(fields: [torMatchId], references: [id], onDelete: SetNull)
   torLineIds          String[]         @default([])
   requestedById       String
-  requestedBy         User             @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  requestedBy         User             @relation("SocCheckRequestAsker", fields: [requestedById], references: [id], onDelete: Cascade)
+  // Sent to รอคนรับ (ADR 0013): the asker's own Runner does not take it; a
+  // teammate takes it by their own click, which sets `takerId`, and only that
+  // taker's Runner may claim it. A taker whose Runner goes quiet is cleared and
+  // it waits again; it never expires.
+  waiting             Boolean          @default(false)
+  takerId             String?
+  taker               User?            @relation("SocCheckRequestTaker", fields: [takerId], references: [id], onDelete: SetNull)
+  takenAt             DateTime?
   state               String           @default("requested")
   // The major item's state before the request, restored on cancel.
   priorState          String
@@ -547,6 +556,7 @@ model SocCheckRequest {
   updatedAt           DateTime         @updatedAt
 
   @@index([requestedById, state, createdAt])
+  @@index([waiting, takerId, state])
   @@index([majorItemId, createdAt])
   @@index([state, lastSeenAt])
   @@index([torMatchId])

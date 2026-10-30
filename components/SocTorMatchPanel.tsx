@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { cancelSocTorRead, resumeSocTorRead } from "@/actions/soc";
 import { cancelSocCheckRequest, requestSocTorJudge, resumeSocCheckRequestNow } from "@/actions/socCheckRequests";
 import Button from "@/components/ui/Button";
+import { useContext } from "react";
+import { ASK_OTHERS, POOL_NOTE, ViewerHasRunner } from "@/components/CheckChoice";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import SocFilePicker from "@/components/SocFilePicker";
 import type { TorMatchCounts, TorMatchView } from "@/lib/soc-tor";
@@ -171,7 +173,8 @@ function ReadFailed({ jobId, message }: { jobId: string; message: string | null 
 // each line below.
 function ClaudeJudge({ jobId, judgeable, judge, viewerId, viewerIsAdmin }: { jobId: string; judgeable: number; judge: TorMatchView["judge"]; viewerId: string; viewerIsAdmin: boolean }) {
   const router = useRouter();
-  const [dialog, confirm] = useConfirmDialog();
+  const [dialog, confirm, choose] = useConfirmDialog();
+  const hasRunner = useContext(ViewerHasRunner);
   // The button whose action is running, for its label; every button waits meanwhile.
   const [busy, setBusy] = useState<"send" | "cancel" | "resume" | null>(null);
   const [error, setError] = useState("");
@@ -190,8 +193,12 @@ function ClaudeJudge({ jobId, judgeable, judge, viewerId, viewerIsAdmin }: { job
     }
   }
   async function send() {
-    if (!(await confirm({ title: `ส่ง ${judgeable} แถวให้ Claude ตัดสิน?`, message: "SOC Runner บนเครื่องของคุณจะให้ Claude ดูแถวที่ระบบเทียบเองแล้วสรุปไม่ได้ (ความหมายต่าง และยืนยันไม่ได้) พร้อมภาพหน้า TOR ต้นฉบับเมื่อเป็น PDF สแกนหรือหน้าที่เป็นรูป ใช้โควตา Claude ของคุณ ผลของระบบยังแสดงไว้คู่กัน", confirmLabel: "ส่งให้ Claude" }))) return;
-    await act("send", () => requestSocTorJudge(jobId));
+    const question = { title: `ส่ง ${judgeable} แถวให้ Claude ตัดสิน?`, message: "SOC Runner บนเครื่องของคุณจะให้ Claude ดูแถวที่ระบบเทียบเองแล้วสรุปไม่ได้ (ความหมายต่าง และยืนยันไม่ได้) พร้อมภาพหน้า TOR ต้นฉบับเมื่อเป็น PDF สแกนหรือหน้าที่เป็นรูป ใช้โควตา Claude ของคุณ ผลของระบบยังแสดงไว้คู่กัน" };
+    const picked = hasRunner
+      ? await choose({ ...question, confirmLabel: "ส่งให้ Claude", alternateLabel: ASK_OTHERS })
+      : (await confirm({ ...question, message: POOL_NOTE, confirmLabel: "ส่งไปรอคนรับ" })) ? "alternate" : null;
+    if (!picked) return;
+    await act("send", () => requestSocTorJudge(jobId, picked === "alternate"));
   }
   async function cancel() {
     if (!judge || !(await confirm({ title: "ยกเลิกให้ Claude ตัดสิน?", message: judge.state === "requested" ? "คำขอนี้จะถูกยกเลิก" : "SOC Runner จะหยุดภายในประมาณ 30 วินาที โควตา Claude ที่ใช้ไปแล้วจะไม่ได้คืน", confirmLabel: "ยืนยันยกเลิก", cancelLabel: "ไม่ยกเลิก", danger: true }))) return;

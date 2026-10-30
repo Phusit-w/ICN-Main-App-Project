@@ -8,6 +8,7 @@
 // reason; the import stores them beside the code outcome, which stays.
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
+import { sendsToPool } from "@/lib/soc-runner";
 import type { LocalCheckRunImport } from "@/lib/soc-import";
 import { SOC_CHECK_REQUEST_OPEN_STATES } from "@/lib/soc-shared";
 import type { TorMatchOutcome, TorPage } from "@/lib/soc-tor-match";
@@ -26,7 +27,7 @@ const MAX_ERRORS = 20;
 // ส่งให้ Claude ตัดสิน: one request for every line the code left as
 // ความหมายต่าง or ยืนยันไม่ได้, pinned by id. One open request per TOR Match;
 // sending again after it is done judges the same lines again.
-export async function requestTorJudge(actor: Actor, job: Job): Promise<{ ok: true; lines: number } | { ok: false; error: string }> {
+export async function requestTorJudge(actor: Actor, job: Job, { toPool = false } = {}): Promise<{ ok: true; lines: number } | { ok: false; error: string }> {
   if (job.kind !== "IMPORTED") return { ok: false, error: "ใช้ได้เฉพาะงานตรวจแบบนำเข้าผล" };
   const match = await prisma.socTorMatch.findUnique({
     where: { jobId: job.id },
@@ -34,14 +35,16 @@ export async function requestTorJudge(actor: Actor, job: Job): Promise<{ ok: tru
   });
   if (!match || match.state !== "ready") return { ok: false, error: "ส่งให้ Claude ได้เมื่อเทียบ TOR ต้นฉบับเสร็จแล้ว" };
   if (!match.lines.length) return { ok: false, error: "ไม่มีแถวที่ต้องให้ Claude ตัดสิน" };
+  // ขอให้คนอื่นตรวจแทน, or no Runner of their own: it waits in รอคนรับ (ADR 0013).
+  const waiting = await sendsToPool(actor.id, toPool);
   const created = await prisma.$transaction(async (tx) => {
     // Touching the TOR Match first locks it: of two clicks at once only one gets past.
     const { count } = await tx.socTorMatch.updateMany({ where: { id: match.id, updatedAt: match.updatedAt }, data: { updatedAt: new Date() } });
     if (!count || await tx.socCheckRequest.count({ where: { torMatchId: match.id, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES] } } })) return false;
     const request = await tx.socCheckRequest.create({
-      data: { jobId: job.id, kind: TOR_JUDGE_REQUEST, torMatchId: match.id, torLineIds: match.lines.map((l) => l.id), requestedById: actor.id, priorState: "" },
+      data: { jobId: job.id, kind: TOR_JUDGE_REQUEST, torMatchId: match.id, torLineIds: match.lines.map((l) => l.id), requestedById: actor.id, waiting, priorState: "" },
     });
-    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "TOR_JUDGE_REQUESTED", detail: { checkRequestId: request.id, lines: match.lines.length } } });
+    await tx.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: "TOR_JUDGE_REQUESTED", detail: { checkRequestId: request.id, lines: match.lines.length, waiting } } });
     await writeAudit({
       actorId: actor.id, action: "SOC_TOR_JUDGE_REQUESTED", entityType: "SOC_JOB", entityId: job.id,
       summary: `ส่ง ${match.lines.length} แถวของผลเทียบ TOR ต้นฉบับให้ Claude ตัดสินด้วย SOC Runner ในงาน ${job.title}`, metadata: { checkRequestId: request.id },

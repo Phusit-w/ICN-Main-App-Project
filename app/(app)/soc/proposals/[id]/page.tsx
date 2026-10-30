@@ -10,6 +10,7 @@ import type { CheckStatus } from "@/lib/proposal-check";
 import ProposalCheckStart from "@/components/ProposalCheckStart";
 import ProposalDatasheetPanel from "@/components/ProposalDatasheetPanel";
 import ProposalSocPanel from "@/components/ProposalSocPanel";
+import ProposalWaitingPanel from "@/components/ProposalWaitingPanel";
 import { formatFileSize } from "@/lib/soc-upload";
 import ProposalTorForm from "@/components/ProposalTorForm";
 
@@ -64,6 +65,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         {step.no === 3 ? <ProposalBuildForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} templates={templates} builds={proposal.builds.map((build) => ({ ...build, createdAt: build.createdAt.toISOString() }))} /> : null}
       </section>
     </li>)}</ol>
+    <ProposalWaitingPanel requests={proposal.waiting} viewerId={proposal.viewerId} viewerIsAdmin={proposal.viewerIsAdmin} />
     <ProposalDatasheetPanel proposalId={proposal.id} datasheets={proposal.datasheets} />
     <ProposalSocPanel proposalId={proposal.id} versions={proposal.socVersions.map((version) => ({ ...version, createdAt: version.createdAt.toISOString() }))} />
   </div>;

@@ -5,19 +5,24 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 
 type ConfirmOptions = { title: string; message: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean };
+type ChooseOptions = ConfirmOptions & { alternateLabel: string };
+export type Choice = "confirm" | "alternate";
 
 // ConfirmDialog as an awaitable question, for flows that confirm more than
 // once or decide after a server reply: `if (!(await confirm({...}))) return;`.
 // Render `dialog` once in the component.
-export function useConfirmDialog(): [dialog: ReactNode, confirm: (options: ConfirmOptions) => Promise<boolean>] {
-  const [asked, setAsked] = useState<(ConfirmOptions & { answer: (yes: boolean) => void }) | null>(null);
-  const confirm = (options: ConfirmOptions) => new Promise<boolean>((resolve) => setAsked({ ...options, answer: resolve }));
-  const close = (yes: boolean) => {
-    asked?.answer(yes);
+// `choose` is the same question with a second way to say yes (alternateLabel):
+// it answers which one was picked, or null for cancel.
+export function useConfirmDialog(): [dialog: ReactNode, confirm: (options: ConfirmOptions) => Promise<boolean>, choose: (options: ChooseOptions) => Promise<Choice | null>] {
+  const [asked, setAsked] = useState<(ConfirmOptions & { alternateLabel?: string; answer: (choice: Choice | null) => void }) | null>(null);
+  const confirm = (options: ConfirmOptions) => new Promise<boolean>((resolve) => setAsked({ ...options, answer: (choice) => resolve(choice === "confirm") }));
+  const choose = (options: ChooseOptions) => new Promise<Choice | null>((resolve) => setAsked({ ...options, answer: resolve }));
+  const close = (choice: Choice | null) => {
+    asked?.answer(choice);
     setAsked(null);
   };
-  const dialog = <ConfirmDialog open={!!asked} title={asked?.title ?? ""} message={asked?.message ?? ""} confirmLabel={asked?.confirmLabel} cancelLabel={asked?.cancelLabel} danger={asked?.danger} onConfirm={() => close(true)} onCancel={() => close(false)} />;
-  return [dialog, confirm];
+  const dialog = <ConfirmDialog open={!!asked} title={asked?.title ?? ""} message={asked?.message ?? ""} confirmLabel={asked?.confirmLabel} cancelLabel={asked?.cancelLabel} danger={asked?.danger} alternateLabel={asked?.alternateLabel} onAlternate={() => close("alternate")} onConfirm={() => close("confirm")} onCancel={() => close(null)} />;
+  return [dialog, confirm, choose];
 }
 
 // Generic yes/no modal — used in place of window.confirm() wherever a
@@ -32,6 +37,8 @@ export default function ConfirmDialog({
   cancelLabel = "ยกเลิก",
   danger,
   busy,
+  alternateLabel,
+  onAlternate,
   onConfirm,
   onCancel,
 }: {
@@ -42,6 +49,8 @@ export default function ConfirmDialog({
   cancelLabel?: string;
   danger?: boolean;
   busy?: boolean;
+  alternateLabel?: string;
+  onAlternate?: () => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -58,6 +67,7 @@ export default function ConfirmDialog({
         <Button variant="outline" size="sm" onClick={onCancel} disabled={busy}>
           {cancelLabel}
         </Button>
+        {alternateLabel && onAlternate ? <Button variant="outline" size="sm" onClick={onAlternate} disabled={busy}>{alternateLabel}</Button> : null}
         <Button
           variant={danger ? "dangerSolid" : "dark"}
           size="sm"

@@ -53,7 +53,10 @@ export const SOC_CHECK_REQUEST_STALE_MS = 2 * 60 * 1000;
 // The open request on a major item, as the job page shows it.
 export type SocCheckRequestView = {
   id: string; state: string; requestedById: string; requestedByName: string;
-  // The requester's SOC Runner, or null when they have no active link.
+  // Sent to รอคนรับ (ADR 0013), and the teammate who took it, if anyone has.
+  waiting?: boolean; takerName?: string | null;
+  // The runner that runs it: the taker's once taken, else the requester's. The
+  // requester's SOC Runner, or null when they have no active link.
   runnerState: SocRunnerState | null;
   progressNote: string | null; resumeAt: string | null;
   // Rows of a re-check of picked rows; 0 = the whole major item.
@@ -112,6 +115,10 @@ export function majorItemStateText(
   const machine = `เครื่องของ${self ? "คุณ" : ` ${request.requestedByName}`}`;
   switch (item.state) {
     case "requested":
+      if (request?.waiting) {
+        if (!request.takerName) return { label: "รอคนรับ", detail: self ? "รอเพื่อนที่มี SOC Runner มารับงานนี้ ยกเลิกได้ทุกเมื่อ" : `${request.requestedByName} ขอให้คนอื่นตรวจแทน` };
+        return { label: `${request.takerName} รับแล้ว`, detail: request.runnerState === "online" ? `ตรวจบนเครื่องของ ${request.takerName}` : `รอเครื่องของ ${request.takerName}เปิด` };
+      }
       if (request?.runnerTooOld) {
         const { what, version } = SOC_RUNNER_NEEDS[request.runnerTooOld];
         return { label: "รอติดตั้ง SOC Runner รุ่นใหม่", detail: `SOC Runner บน${machine}เป็นรุ่นเก่า ตรวจ${what}ไม่ได้ (ต้องเป็นรุ่น ${version} ขึ้นไป) ติดตั้งใหม่ด้วยคำสั่งติดตั้งจากหน้า SOC แล้วคำขอนี้จะเริ่มตรวจเอง` };

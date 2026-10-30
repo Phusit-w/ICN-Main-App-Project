@@ -9,6 +9,7 @@ import { normalizeSocTitle, SOC_TITLE_INVALID, SOC_TITLE_MAX, SOC_TITLE_TAKEN } 
 import { socStorageRoot } from "@/lib/soc";
 import { listSocVersions, restartProposalReads, stopProposalReads } from "@/lib/proposal-soc";
 import { loadProposalChecks, NO_CHECKS, removeProposalJobs, type CheckStatus, type ProposalChecks } from "@/lib/proposal-check";
+import { proposalWaitingRequests } from "@/lib/soc-check-requests";
 import { addMissingBuildVersions, listProposalBuilds, OPEN_STATES as OPEN_BUILD_STATES, removeProposalBuilds, stopProposalBuildReads } from "@/lib/soc-builds";
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
@@ -199,17 +200,18 @@ export async function listProposals() {
 
 export async function getProposalPage(id: string) {
   const { actor, proposal } = await authorizeProposal(id);
-  const [creator, tor, socVersions, datasheets, builds, checks] = await Promise.all([
+  const [creator, tor, socVersions, datasheets, builds, checks, waiting] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } }),
     prisma.proposalTor.findUnique({ where: { proposalId: id }, select: { originalName: true, pageCount: true, scanned: true } }),
     listSocVersions(id),
     prisma.proposalDatasheet.findMany({ where: { proposalId: id, removedAt: null }, orderBy: { originalName: "asc" }, select: { id: true, originalName: true, citationName: true, sizeBytes: true } }),
     listProposalBuilds(id),
     loadProposalChecks([id]),
+    proposalWaitingRequests(id),
   ]);
   const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready"), building: builds.some((build) => OPEN_BUILD_STATES.includes(build.status)), checks: checks.get(id) });
   return {
-    id: proposal.id, viewerId: actor.id, title: proposal.title, creatorName: creator.displayName, updatedAt: proposal.updatedAt,
+    id: proposal.id, viewerId: actor.id, viewerIsAdmin: actor.role === "ADMIN", waiting, title: proposal.title, creatorName: creator.displayName, updatedAt: proposal.updatedAt,
     canManage: proposal.creatorId === actor.id || actor.role === "ADMIN",
     tor: facts.tor,
     socVersions,

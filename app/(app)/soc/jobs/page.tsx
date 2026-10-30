@@ -5,6 +5,7 @@ import { mySocRunner } from "@/lib/soc-runner";
 import { latestSocRunnerVersion } from "@/lib/soc-runner-install";
 import SocRunnerPanel from "@/components/SocRunnerPanel";
 import SocTrashJobButton from "@/components/SocTrashJobButton";
+import { waitingTab } from "@/lib/soc-waiting-tab";
 import SocSectionTabs from "@/components/SocSectionTabs";
 import SocGuidedTour from "@/components/SocGuidedTour";
 import { SOC_JOB_LIST_TOUR } from "@/lib/soc-tours";
@@ -20,7 +21,7 @@ export default async function SocJobsPage() {
   const actor = await requireSocActor();
   const [jobs, runner, latestVersion] = await Promise.all([listSocJobs(actor), mySocRunner(actor.id), latestSocRunnerVersion()]);
   return <div className="flex flex-col gap-6">
-    <SocSectionTabs active="check" />
+    <SocSectionTabs active="check" waiting={await waitingTab()} />
     <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="font-display text-[28px] font-bold">งานตรวจเดิม</h1><p className="mt-1 text-sm text-muted">งานตรวจ SOC ที่สร้างก่อนมี Proposal ยังเปิดดู ตรวจ และดาวน์โหลดผลได้ตามเดิม</p></div><div className="flex items-center gap-3"><SocGuidedTour tourId="soc-jobs" steps={SOC_JOB_LIST_TOUR} /></div></div>
     <SocRunnerPanel runner={runner} latestVersion={latestVersion} showConfigDownload={actor.role === "ADMIN"} />
     <div className="overflow-hidden rounded-card bg-surface shadow-card">{jobs.length ? <div data-tour="jobs-table" className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead className="bg-chip text-left text-xs text-label"><tr><th className="px-5 py-3">โครงการ</th><th className="px-5 py-3">เจ้าของ</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3">ความคืบหน้า</th><th className="px-5 py-3">จำนวนข้อ</th><th className="px-5 py-3">อัปเดตล่าสุด</th><th className="px-5 py-3" aria-label="ลบ" /></tr></thead><tbody>{jobs.map((job) => <tr key={job.id} className="border-t border-line hover:bg-hover"><td className="px-5 py-4"><Link href={`/soc/${job.id}`} className="font-medium text-ink no-underline hover:underline">{job.title}</Link><div className="mt-1 text-xs text-muted">{job.stage}</div></td><td className="px-5 py-4">{job.owner.displayName}</td><td className="px-5 py-4"><span className="rounded-full bg-chip px-3 py-1 text-xs font-medium">{SOC_STATUS_LABELS[job.status] || job.status}</span></td><td className="px-5 py-4">{job.majorItemProgress ? <MajorItemProgress {...job.majorItemProgress} /> : <ProgressBar percent={job.progress} />}</td><td className="px-5 py-4 tabular-nums">{job._count.results}</td><td className="whitespace-nowrap px-5 py-4 text-xs text-muted">{formatDate(job.updatedAt)}</td><td className="px-5 py-4 text-right">{job.ownerId === actor.id || actor.role === "ADMIN" ? <SocTrashJobButton jobId={job.id} title={job.title} /> : null}</td></tr>)}</tbody></table></div> : <div className="p-12 text-center"><div className="font-display text-lg font-semibold">ไม่มีงานตรวจเดิม</div><p className="mt-2 text-sm text-muted">งานตรวจใหม่เริ่มจาก Proposal</p></div>}</div>
