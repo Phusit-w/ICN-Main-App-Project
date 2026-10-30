@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Batch upload with folder paths kept; per-Proposal limits 200 PDFs / 1 GB / 120 MB each; per-request batch limits as today.
 - [ ] Citation Name defaults to the file name without its leading number and anything after " - " (`08 CASRI Product brochure - surat-1_….pdf` → `CASRI Product brochure`); editable in the list.
