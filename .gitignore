@@ -93,3 +93,8 @@ soc-runner.json
 # SOC Runner run from source: its lock and log next to soc-runner.json
 /soc-runner/runner.lock
 /soc-runner/runner.log*
+
+# ticket 13: customers real SOC copies (never push)
+.scratch/proposal-build/fixtures/13-real-soc/
+.scratch/proposal-build/fixtures/survey.txt
+.scratch/proposal-build/fixtures/summary.txt
