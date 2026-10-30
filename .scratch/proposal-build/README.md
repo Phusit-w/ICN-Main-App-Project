@@ -21,5 +21,6 @@ Work blockers-first, one ticket per fresh session (`/implement`), `/clear` betwe
 | 13 | สร้าง SOC รองรับ TOR หลายรูปแบบ (จากตัวอย่างจริง) | 05; comparison needs 12 | survey + scope decided; fixes wait for 12 |
 | 14 | สร้าง SOC หลายไฟล์จาก TOR ชุดเดียว | 13, 12 | needs-triage |
 | 15 | สร้าง SOC เป็นไฟล์ Excel | 05 (best after 13) | needs-triage |
+| 16 | แปลง .doc เป็น .docx อัตโนมัติตอน upload | best after 13, 12; needs IT | needs-triage |
 
 Repo rules: large unrelated uncommitted WIP — stage only this ticket's files, never `git add -A`; fresh test DB name each run (see memory); browser check light/dark/narrow for UI.
