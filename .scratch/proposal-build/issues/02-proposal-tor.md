@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Upload stores the TOR in the Proposal's folder with the existing write-once storage helper and EVIDENCE PDF limits (≤120 MB, real PDF).
 - [ ] Scanned TOR requires the OCR confirm; without OCR set up it is refused as today.

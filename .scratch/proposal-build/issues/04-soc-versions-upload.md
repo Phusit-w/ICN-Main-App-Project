@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] SOC Version model (number, source upload/build/reference_fill, created at, SOC file; PDF SOC keeps its source PDF and row pages; scanned PDF SOC reads through the existing OCR queue before it counts as current).
 - [ ] A SOC whose table can't be read is refused as today.

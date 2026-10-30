@@ -6,10 +6,10 @@ Work blockers-first, one ticket per fresh session (`/implement`), `/clear` betwe
 
 | # | Ticket | Blocked by | Status |
 |---|---|---|---|
-| 01 | Proposal: รายการ หน้า step และถังขยะ | — | ready-for-agent |
-| 02 | TOR ของ Proposal | 01 | ready-for-agent |
-| 03 | Datasheet ของ Proposal | 01 | ready-for-agent |
-| 04 | ฉบับ SOC จากการ upload | 01 | ready-for-agent |
+| 01 | Proposal: รายการ หน้า step และถังขยะ | — | done |
+| 02 | TOR ของ Proposal | 01 | done |
+| 03 | Datasheet ของ Proposal | 01 | done |
+| 04 | ฉบับ SOC จากการ upload | 01 | done |
 | 05 | สร้าง SOC ใน Proposal | 02, 04 | ready-for-agent |
 | 06 | ตรวจ TOR ตรงต้นฉบับ และตรวจหลักฐาน ต่อฉบับ | 02, 03, 04 | ready-for-agent |
 | 07 | รอคนรับ | 06 | ready-for-agent |

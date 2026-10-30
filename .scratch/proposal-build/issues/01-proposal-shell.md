@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Proposal model + additive migration; title unique among live Proposals by the Job Title rule (create and rename), refused with a clear Thai message.
 - [ ] `/soc` lists all Proposals to every SOC user with title, creator, เสร็จ N/5, current SOC Version (— when none), รอคนรับ count (0 for now), last update; "+ Proposal ใหม่".
