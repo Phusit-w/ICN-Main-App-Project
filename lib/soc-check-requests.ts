@@ -19,8 +19,9 @@ import { jobEvidenceFile, jobEvidenceFiles } from "@/lib/soc-evidence";
 import { UNTAKEN } from "@/lib/soc-request-pool";
 import { sendsToPool } from "@/lib/soc-runner";
 import { importTorJudge, torJudgeRunnerInput, TOR_JUDGE_REQUEST } from "@/lib/soc-tor-judge";
+import { importReferenceFill, referenceFillRunnerInput, REFERENCE_FILL_REQUEST } from "@/lib/reference-fill-ai";
 import {
-  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, SOC_RUNNER_FOR_TOR_JUDGE, XLSX_MIME, isExcelSoc, isRequestableItemState,
+  SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, SOC_RUNNER_FOR_REFERENCE_FILL, SOC_RUNNER_FOR_TOR_JUDGE, XLSX_MIME, isExcelSoc, isRequestableItemState,
   isAnnexLabel, majorItemName, socRunnerAtLeast, socRunnerState,
   type SocCheckRequestView, type SocRunnerNeed,
 } from "@/lib/soc-shared";
@@ -37,11 +38,12 @@ const MAX_MISSING_NAME = 300;
 const MAX_PAUSE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // A request's subject, as the audit names it: its major item, or the TOR
-// Match lines of a tor_judge request (lib/soc-tor-judge.ts), which has none.
+// Match lines of a tor_judge request (lib/soc-tor-judge.ts) or the rows of a
+// reference_fill request (lib/reference-fill-ai.ts), which have none.
 // Only a request with a major item moves that item's state.
-type Subject = { majorItemId: string | null; majorItem: { label: string } | null };
-const subjectName = (request: Subject) => (request.majorItem ? majorItemName(request.majorItem.label) : "ผลเทียบ TOR ต้นฉบับ");
-const subjectDetail = (request: Subject) => (request.majorItem ? { majorItemId: request.majorItemId, majorItem: request.majorItem.label } : { kind: TOR_JUDGE_REQUEST });
+type Subject = { kind: string; majorItemId: string | null; majorItem: { label: string } | null };
+const subjectName = (request: Subject) => (request.majorItem ? majorItemName(request.majorItem.label) : request.kind === REFERENCE_FILL_REQUEST ? "กรอกอ้างอิง (Claude หา)" : "ผลเทียบ TOR ต้นฉบับ");
+const subjectDetail = (request: Subject) => (request.majorItem ? { majorItemId: request.majorItemId, majorItem: request.majorItem.label } : { kind: request.kind });
 
 // ---- Requesting (web) -----------------------------------------------------------
 
@@ -331,7 +333,7 @@ const WAITING_INCLUDE = {
 type WaitingRow = Prisma.SocCheckRequestGetPayload<{ include: typeof WAITING_INCLUDE }>;
 const waitingView = (r: WaitingRow): WaitingRequestView => ({
   id: r.id, jobId: r.job.id, jobTitle: r.job.title, proposalId: r.job.proposal?.id ?? null, proposalTitle: r.job.proposal?.title ?? null,
-  step: r.kind === TOR_JUDGE_REQUEST ? "ตรวจ TOR ตรงต้นฉบับ" : "ตรวจหลักฐาน", item: subjectName(r), rowCount: r.rowNumbers.length,
+  step: r.kind === TOR_JUDGE_REQUEST ? "ตรวจ TOR ตรงต้นฉบับ" : r.kind === REFERENCE_FILL_REQUEST ? "กรอกอ้างอิง" : "ตรวจหลักฐาน", item: subjectName(r), rowCount: r.rowNumbers.length,
   askerId: r.requestedById, askerName: r.requestedBy.displayName, takerName: r.taker?.displayName ?? null, state: r.state, createdAt: r.createdAt.toISOString(),
 });
 
@@ -395,6 +397,27 @@ export async function torJudgeRequestView(torMatchId: string, now = new Date()) 
   return { ...requestView(r, link, now, tooOld), failureReason: r.state === "failed" ? r.failureReason : null, lineCount: r.torLineIds.length };
 }
 
+// The latest reference_fill request per major item (key) of a กรอกอ้างอิง run,
+// open or closed, as the review table shows it next to that item's ไม่พบ rows.
+export async function referenceFillRequestViews(runId: string, now = new Date()) {
+  const requests = await prisma.socCheckRequest.findMany({
+    where: { referenceFillRunId: runId, kind: REFERENCE_FILL_REQUEST },
+    orderBy: { createdAt: "desc" },
+    include: {
+      requestedBy: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
+      taker: { select: { displayName: true, socRunnerLinks: { where: { revokedAt: null }, select: { lastSeenAt: true, runnerVersion: true } } } },
+    },
+  });
+  const views: Record<string, SocCheckRequestView & { jobId: string; failureReason: string | null }> = {};
+  for (const r of requests) {
+    if (!r.majorItemKey || views[r.majorItemKey]) continue; // the latest one per item
+    const link = (r.taker ?? r.requestedBy).socRunnerLinks[0];
+    const tooOld = link?.runnerVersion && !socRunnerAtLeast(link.runnerVersion, SOC_RUNNER_FOR_REFERENCE_FILL) ? "reference_fill" as const : null;
+    views[r.majorItemKey] = { ...requestView(r, link, now, tooOld), jobId: r.jobId, failureReason: r.state === "failed" ? r.failureReason : null };
+  }
+  return views;
+}
+
 function requestView(
   r: { id: string; state: string; requestedById: string; requestedBy: { displayName: string }; waiting: boolean; taker: { displayName: string } | null; progressNote: string | null; resumeAt: Date | null; rowNumbers: number[] },
   link: { lastSeenAt: Date | null } | undefined, now: Date, tooOldFor: SocRunnerNeed | null,
@@ -423,7 +446,7 @@ const requestFiles = (id: string) => `/api/soc-runner/requests/${id}`;
 // an Excel SOC). The runner takes it from here, not from the SOC's file name.
 async function runnerView(requestId: string) {
   const { kind } = await prisma.socCheckRequest.findUniqueOrThrow({ where: { id: requestId }, select: { kind: true } });
-  return kind === TOR_JUDGE_REQUEST ? torJudgeRunnerView(requestId) : checkRunnerView(requestId);
+  return kind === TOR_JUDGE_REQUEST ? torJudgeRunnerView(requestId) : kind === REFERENCE_FILL_REQUEST ? referenceFillRunnerView(requestId) : checkRunnerView(requestId);
 }
 export type RunnerCheckRequest = Awaited<ReturnType<typeof runnerView>>;
 
@@ -476,6 +499,24 @@ async function torJudgeRunnerView(requestId: string) {
   };
 }
 
+// A reference_fill request (lib/reference-fill-ai.ts): the ไม่พบ rows of one
+// major item and the Proposal's Datasheets Claude may cite. `rows` is null
+// when the run was deleted since the request.
+async function referenceFillRunnerView(requestId: string) {
+  const request = await prisma.socCheckRequest.findUniqueOrThrow({ where: { id: requestId }, include: { job: { select: { id: true, title: true } }, skillPackage: true } });
+  const input = await referenceFillRunnerInput(request);
+  return {
+    id: request.id,
+    kind: "reference_fill" as const,
+    claimedAt: request.claimedAt?.toISOString() ?? null,
+    job: { id: request.job.id, title: request.job.title },
+    needsRunner: SOC_RUNNER_FOR_REFERENCE_FILL,
+    skill: runnerSkill(request.id, request.skillPackage),
+    rows: input?.rows ?? null,
+    documents: (input?.datasheets ?? []).map((d) => runnerDocument(request.id, { id: d.id, type: "EVIDENCE", originalName: d.originalName, sizeBytes: d.sizeBytes, checksum: d.checksum })),
+  };
+}
+
 const runnerSkill = (requestId: string, skill: { version: string; rootDir: string; sizeBytes: number; checksum: string } | null) =>
   skill ? { version: skill.version, fileName: socSkillDownloadName(skill), sizeBytes: skill.sizeBytes, checksum: skill.checksum, url: `${requestFiles(requestId)}/skill` } : null;
 
@@ -501,11 +542,12 @@ function runnerTooOldFor(runnerVersion: string, request: { excelSoc: boolean; im
 }
 
 // A runner is handed only the requests its version can carry out (runnerTooOld,
-// and no tor_judge request before SOC_RUNNER_FOR_TOR_JUDGE).
+// and no tor_judge or reference_fill request before SOC_RUNNER_FOR_TOR_JUDGE
+// and SOC_RUNNER_FOR_REFERENCE_FILL).
 const carriedBy = (runnerVersion: string | null): Prisma.SocCheckRequestWhereInput => ({
   job: { deletedAt: null, ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_EXCEL_SOC) ? {} : { documents: { none: { type: "SOC", mimeType: XLSX_MIME } } }) },
   ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_IMAGE_ROWS) ? {} : { majorItem: { imageRowCount: 0 } }),
-  ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_TOR_JUDGE) ? {} : { kind: "check" }),
+  kind: { in: ["check", ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_TOR_JUDGE) ? [TOR_JUDGE_REQUEST] : []), ...(socRunnerAtLeast(runnerVersion, SOC_RUNNER_FOR_REFERENCE_FILL) ? [REFERENCE_FILL_REQUEST] : [])] },
 });
 
 // The requests a user's Runner holds: its own that were not sent to รอคนรับ,
@@ -701,7 +743,9 @@ export async function submitCheckRequest(
       replaceConfirmed: request.replaceConfirmed,
       checkRequest: { id: request.id, requestedById: request.requestedById, acknowledgedMissing: request.acknowledgedMissing, rowNumbers: request.rowNumbers },
     })
-    : await importTorJudge(request, input.results, { skillVersion, model: input.model });
+    : request.kind === REFERENCE_FILL_REQUEST
+      ? await importReferenceFill(request, input.results, { skillVersion, model: input.model })
+      : await importTorJudge(request, input.results, { skillVersion, model: input.model });
   if (!imported.ok) {
     const reason = `ผลตรวจที่ SOC Runner ส่งกลับมาไม่ผ่านการตรวจสอบ: ${imported.errors.slice(0, 3).join(" / ")}`.slice(0, MAX_REASON);
     // Best effort: the request may have been released meanwhile.

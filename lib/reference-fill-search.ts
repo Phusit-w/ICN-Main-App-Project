@@ -18,12 +18,15 @@ import { thaiText } from "@/lib/soc-tor-match";
 import type { SocTable, SocTableRow } from "@/lib/soc-table";
 
 export type Datasheet = { id: string; name: string; pages: string[] };
-export type SuggestionSource = "label" | "value";
+// "ai": found by Claude on the Runner (lib/reference-fill-ai.ts), not by the code step.
+export type SuggestionSource = "label" | "value" | "ai";
 export type Suggestion = { datasheetId: string; page: number; snippet: string; source: SuggestionSource };
 // `kind`: what the row's reference cell holds now. `suggestions[0]` is the
 // suggestion; the others are its alternatives (at most two).
 export type RowSuggestions = {
   position: number; item: string; tor: string; reference: string;
+  // The major item the row lies in: its key and its label as the SOC writes it (null above the first). Runs made before ticket 10 have neither.
+  majorItem?: string | null; majorItemLabel?: string | null;
   kind: "empty" | "title_only";
   suggestions: Suggestion[];
   // The only page that carries the row's label: what "รับทั้งหมดที่พบจากเลขข้อกำกับ" accepts.
@@ -116,7 +119,8 @@ export function suggestReferences(table: Pick<SocTable, "rows" | "majorItems">, 
     const kind = blank(row.reference) ? "empty" : "title_only";
     const searched = kind === "empty" ? datasheets : namedDatasheets(row.reference, datasheets);
     const { suggestions, certain } = search(row, searched.flatMap((datasheet) => pages.get(datasheet.id) ?? []));
-    results.push({ position: row.position, item: row.item, tor: row.tor, reference: row.reference, kind, suggestions, certain });
+    const majorItemLabel = table.majorItems.find((item) => item.key === row.majorItem)?.label ?? null;
+    results.push({ position: row.position, item: row.item, tor: row.tor, reference: row.reference, majorItem: row.majorItem, majorItemLabel, kind, suggestions, certain });
   });
   return results;
 }

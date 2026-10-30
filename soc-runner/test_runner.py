@@ -1370,6 +1370,99 @@ class TorJudgeTest(unittest.TestCase):
         self.assertIn("ผลเทียบ TOR ต้นฉบับ", logged[0])
 
 
+FILL_DOC = "# หาอ้างอิงใน Datasheet\nกติกาการหา\n"
+FILL_ANSWER = {"rows": [{"row": 12, "suggestions": [{"document_id": "d1", "page": 3, "snippet": "5.3.1 Memory 16 GB"}]},
+                        {"row": 15, "suggestions": []}]}
+
+
+def fill_request(skill: bytes, sheets: dict[str, bytes], rows: list[dict] | None = None) -> tuple[dict, dict]:
+    request = {
+        "id": "req-f", "kind": "reference_fill", "claimedAt": "2026-10-30T10:00:00.000Z",
+        "job": {"id": "job-1", "title": "MOF RFID"}, "needsRunner": "0.9.0",
+        "skill": {"version": "v9", "fileName": "tor.skill", "sizeBytes": len(skill), "checksum": sha256(skill),
+                  "url": "/api/soc-runner/requests/req-f/skill"},
+        "rows": [{"row": 12, "item": "5.3.1", "tor": "Memory 16 GB", "reference": "", "kind": "empty", "majorItem": "๕"},
+                 {"row": 15, "item": "5.3.4", "tor": "Fan", "reference": "Datasheet RFID", "kind": "title_only", "majorItem": "๕"}] if rows is None else rows,
+        "documents": [{"id": doc_id, "type": "EVIDENCE", "name": name, "sizeBytes": len(data), "checksum": sha256(data),
+                       "url": f"/api/soc-runner/requests/req-f/documents/{doc_id}"} for doc_id, (name, data) in sheets.items()],
+    }
+    files = {request["skill"]["url"]: FakeDownload(skill, {"X-Soc-Skill-Version": "v9"})}
+    for document, (_, data) in zip(request["documents"], sheets.values()):
+        files[document["url"]] = FakeDownload(data)
+    return request, files
+
+
+class ReferenceFillTest(unittest.TestCase):
+    """A reference_fill request (Proposal ticket 10): Claude looks for the Datasheet page of the SOC rows the
+    server's code search left ไม่พบ, and only finds pages."""
+
+    def setUp(self):
+        self.work_root = Path(tempfile.mkdtemp(prefix="soc-runner-fill-"))
+        self.skill = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD,
+                                "tor-word-compliance-check/references/reference-fill.md": FILL_DOC})
+        self.sheets = {"d1": ("2-Datasheet/RFID Reader.pdf", b"%PDF-1.4 one"), "d2": ("Antenna.pdf", b"%PDF-1.4 two")}
+        self.claude = FakeClaude(writes={"reference-fill.json": json.dumps(FILL_ANSWER, ensure_ascii=False).encode("utf-8")})
+        self.seen: list[dict] = []  # out/reference-rows.json as Claude found it
+        self.claude.during_run = lambda: self.seen.append(
+            json.loads((self.claude.tasks[-1].out_dir / "reference-rows.json").read_text(encoding="utf-8")))
+
+    def tearDown(self):
+        shutil.rmtree(self.work_root, ignore_errors=True)
+
+    def run_request(self, request: dict, files: dict):
+        server = FakeServer(request, files)
+        return carry_out(request, server, self.claude, self.work_root, quiet), server
+
+    def test_the_datasheets_and_rows_are_laid_out_for_claude_and_the_answer_is_submitted(self):
+        request, files = fill_request(self.skill, self.sheets)
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "submitted")
+        task = self.claude.tasks[0]
+        self.assertIn("reference-rows.json", task.prompt)
+        self.assertIn("reference-fill.json", task.prompt)
+        self.assertIn("ห้ามตัดสินว่าผ่านหรือไม่ผ่าน TOR", task.prompt)
+        self.assertIn(FILL_DOC.encode("utf-8"), self.claude.seen_system[0])
+        self.assertEqual([(d["document_id"], d["file"]) for d in self.seen[0]["documents"]],
+                         [("d1", "inputs/2-Datasheet/RFID Reader.pdf"), ("d2", "inputs/Antenna.pdf")])
+        self.assertEqual([row["row"] for row in self.seen[0]["rows"]], [12, 15])
+        self.assertEqual(server.submits[0]["results"], FILL_ANSWER)
+        self.assertIsNone(server.submits[0]["socCheckName"])
+        self.assertEqual(server.submits[0]["skillVersion"], "v9")
+        self.assertFalse((self.work_root / "req-f").exists(), "the request's folder goes once submitted")
+
+    def test_a_skill_without_the_instructions_fails_before_claude_runs(self):
+        old = skill_zip({"tor-word-compliance-check/SKILL.md": SKILL_MD})
+        request, files = fill_request(old, self.sheets)
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "failed")
+        self.assertEqual(self.claude.tasks, [])
+        self.assertIn("คำแนะนำการหาอ้างอิง", server.reports[-1][1]["reason"])
+
+    def test_a_deleted_run_no_rows_or_no_datasheets_fail_the_request(self):
+        for change, expected in (({"rows": None}, "ถูกลบ"), ({"rows": []}, "ไม่มีแถว"), ({"documents": []}, "ไม่มี Datasheet")):
+            request, files = fill_request(self.skill, self.sheets)
+            request.update(change)
+            outcome, server = self.run_request(request, files)
+            self.assertEqual(outcome, "failed")
+            self.assertIn(expected, server.reports[-1][1]["reason"])
+        self.assertEqual(self.claude.tasks, [])
+
+    def test_a_datasheet_that_arrives_damaged_fails_the_request(self):
+        request, files = fill_request(self.skill, self.sheets)
+        files[request["documents"][0]["url"]] = FakeDownload(b"%PDF-1.4 changed")
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "failed")
+        self.assertIn("checksum", server.reports[-1][1]["reason"])
+        self.assertEqual(self.claude.tasks, [])
+
+    def test_a_missing_answer_fails_the_request(self):
+        self.claude = FakeClaude(writes={})
+        request, files = fill_request(self.skill, self.sheets)
+        outcome, server = self.run_request(request, files)
+        self.assertEqual(outcome, "failed")
+        self.assertIn("reference-fill.json", server.reports[-1][1]["reason"])
+
+
 class ClaudeCancelTest(unittest.TestCase):
     """ยกเลิกตรวจ kills the real `claude` process tree and the run says it was cancelled."""
 

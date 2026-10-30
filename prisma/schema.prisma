@@ -507,55 +507,62 @@ model SocRunnerInstallCode {
 // item. Only the requester's own SOC Runner may claim it. Open states:
 // requested | running | paused_quota | needs_login. Closed: needs_documents |
 // failed | done | cancelled. See lib/soc-check-requests.ts.
+// `kind` "reference_fill" (proposal-build 10): Claude looks for the references the
+// code step left ไม่พบ (lib/reference-fill-ai.ts); it has no major item either.
 // `kind` "tor_judge" (TOR Match 07): Claude judges the TOR Match lines code
 // could not settle (lib/soc-tor-judge.ts); it has no major item.
 model SocCheckRequest {
-  id                  String           @id @default(cuid())
+  id                  String            @id @default(cuid())
   jobId               String
-  job                 SocJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  kind                String           @default("check")
+  job                 SocJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  kind                String            @default("check")
   majorItemId         String?
-  majorItem           SocMajorItem?    @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
+  majorItem           SocMajorItem?     @relation(fields: [majorItemId], references: [id], onDelete: Cascade)
   // tor_judge: the TOR Match and its lines (ids) sent to Claude, pinned at request.
   torMatchId          String?
-  torMatch            SocTorMatch?     @relation(fields: [torMatchId], references: [id], onDelete: SetNull)
-  torLineIds          String[]         @default([])
+  torMatch            SocTorMatch?      @relation(fields: [torMatchId], references: [id], onDelete: SetNull)
+  torLineIds          String[]          @default([])
+  // reference_fill (proposal-build 10): the กรอกอ้างอิง run whose ไม่พบ rows of one
+  // major item (`rowNumbers`: their positions, `majorItemKey`) Claude looks for.
+  referenceFillRunId  String?
+  referenceFillRun    ReferenceFillRun? @relation(fields: [referenceFillRunId], references: [id], onDelete: SetNull)
+  majorItemKey        String?
   requestedById       String
-  requestedBy         User             @relation("SocCheckRequestAsker", fields: [requestedById], references: [id], onDelete: Cascade)
+  requestedBy         User              @relation("SocCheckRequestAsker", fields: [requestedById], references: [id], onDelete: Cascade)
   // Sent to รอคนรับ (ADR 0013): the asker's own Runner does not take it; a
   // teammate takes it by their own click, which sets `takerId`, and only that
   // taker's Runner may claim it. A taker whose Runner goes quiet is cleared and
   // it waits again; it never expires.
-  waiting             Boolean          @default(false)
+  waiting             Boolean           @default(false)
   takerId             String?
-  taker               User?            @relation("SocCheckRequestTaker", fields: [takerId], references: [id], onDelete: SetNull)
+  taker               User?             @relation("SocCheckRequestTaker", fields: [takerId], references: [id], onDelete: SetNull)
   takenAt             DateTime?
-  state               String           @default("requested")
+  state               String            @default("requested")
   // The major item's state before the request, restored on cancel.
   priorState          String
   // Row numbers with a Final Decision the requester agreed to replace (re-check).
-  replaceConfirmed    Int[]            @default([])
+  replaceConfirmed    Int[]             @default([])
   // Missing documents the requester chose to check without (ticket 15).
-  acknowledgedMissing String[]         @default([])
+  acknowledgedMissing String[]          @default([])
   // A re-check of only these SOC table rows, picked on the review page; empty
   // = the whole major item. The import replaces just these rows.
-  rowNumbers          Int[]            @default([])
+  rowNumbers          Int[]             @default([])
   claimedByLinkId     String?
-  claimedByLink       SocRunnerLink?   @relation(fields: [claimedByLinkId], references: [id], onDelete: SetNull)
+  claimedByLink       SocRunnerLink?    @relation(fields: [claimedByLinkId], references: [id], onDelete: SetNull)
   claimedAt           DateTime?
   // Last sign of life from the claiming runner: claim, report or heartbeat.
   lastSeenAt          DateTime?
   // The Skill Package served for this request, pinned at claim.
   skillPackageId      String?
-  skillPackage        SocSkillPackage? @relation(fields: [skillPackageId], references: [id], onDelete: SetNull)
+  skillPackage        SocSkillPackage?  @relation(fields: [skillPackageId], references: [id], onDelete: SetNull)
   progressNote        String?
   resumeAt            DateTime?
-  missingDocuments    String[]         @default([])
+  missingDocuments    String[]          @default([])
   failureReason       String?
   runId               String?
   finishedAt          DateTime?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([requestedById, state, createdAt])
   @@index([waiting, takerId, state])
@@ -935,6 +942,7 @@ model ReferenceFillRun {
   // The Reference Style guessed from the SOC when the run started ("thai" | "english")
   styleGuess  String                  @default("thai")
   decisions   ReferenceFillDecision[]
+  aiRequests  SocCheckRequest[]
 
   @@index([versionId, createdAt])
   @@index([proposalId])

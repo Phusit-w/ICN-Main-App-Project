@@ -2,9 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { acceptFillFromLabelsAction, createReferenceFillVersionAction, decideReferenceFillRowAction, startReferenceFillAction } from "@/actions/proposal";
+import { acceptFillFromLabelsAction, createReferenceFillVersionAction, decideReferenceFillRowAction, requestReferenceFillAiAction, startReferenceFillAction } from "@/actions/proposal";
+import { cancelSocCheckRequest, resumeSocCheckRequestNow } from "@/actions/socCheckRequests";
+import { useCheckChoice } from "@/components/CheckChoice";
 import Button from "@/components/ui/Button";
-import type { FillRowView } from "@/lib/proposal-reference-fill";
+import { isOpenCheckRequestState, majorItemStateText } from "@/lib/soc-shared";
+import type { FillRowView, ReferenceFillView } from "@/lib/proposal-reference-fill";
 import { REFERENCE_STYLE_LABELS, REFERENCE_STYLES, type ReferenceStyle } from "@/lib/reference-fill-text";
 
 export type FillViewData = {
@@ -13,9 +16,10 @@ export type FillViewData = {
   found: number; notFound: number; undecided: number; certainUndecided: number;
   style: ReferenceStyle; toWrite: number;
   datasheets: { id: string; name: string }[];
+  aiRequests: ReferenceFillView["aiRequests"];
 };
 
-const SOURCE_LABELS = { label: "เลขข้อกำกับ", value: "ค่าสเปก" } as const;
+const SOURCE_LABELS = { label: "เลขข้อกำกับ", value: "ค่าสเปก", ai: "Claude หา" } as const;
 const small = "inline-flex h-8 items-center rounded-input bg-chip px-3 text-xs font-medium text-ink hover:bg-hover disabled:opacity-60";
 
 // A page of a Datasheet in the viewer the review page uses (one PNG per page).
@@ -85,10 +89,74 @@ function FillRow({ proposalId, runId, row, datasheets, onChanged }: { proposalId
   </li>;
 }
 
+type NoneGroup = { key: string | null; label: string | null; rows: FillRowView[] };
+
+// The ไม่พบ rows by the major item they lie in, in SOC order (runs made before
+// ticket 10 carry no major item: one group, which Claude can't be asked about).
+function noneByItem(rows: FillRowView[]): NoneGroup[] {
+  const groups: NoneGroup[] = [];
+  for (const row of rows) {
+    const key = row.majorItem ?? null;
+    let group = groups.find((g) => g.key === key);
+    if (!group) groups.push((group = { key, label: row.majorItemLabel ?? null, rows: [] }));
+    group.rows.push(row);
+  }
+  return groups;
+}
+
+// ให้ Claude หาอ้างอิง for one major item's ไม่พบ rows that nobody has decided:
+// one request on the viewer's SOC Runner (or รอคนรับ), state read like a check's.
+// What Claude finds lands in these rows as suggestions to รับ / แก้ / ไม่รับ.
+function AiFill({ proposalId, view, group, viewerId, viewerIsAdmin }: { proposalId: string; view: FillViewData; group: NoneGroup; viewerId: string; viewerIsAdmin: boolean }) {
+  const router = useRouter();
+  const [dialog, decide] = useCheckChoice();
+  const [busy, setBusy] = useState<"send" | "cancel" | "resume" | null>(null);
+  const [error, setError] = useState("");
+  const request = group.key ? view.aiRequests[group.key] ?? null : null;
+  const open = request !== null && isOpenCheckRequestState(request.state);
+  const asked = group.rows.filter((row) => !row.decision).length;
+  const name = group.label ? `ข้อ ${group.label}` : "ข้อนี้";
+  async function act(button: "send" | "cancel" | "resume", run: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+    setBusy(button); setError("");
+    try {
+      const result = await run();
+      if (!result.ok) setError(result.error);
+    } catch {
+      setError("ทำรายการไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      router.refresh(); setBusy(null);
+    }
+  }
+  async function send() {
+    const picked = await decide({ title: `ให้ Claude หาอ้างอิง ${asked} แถวของ${name}?`, message: "SOC Runner บนเครื่องของคุณจะให้ Claude หาหน้าใน Datasheet ของแถวที่ระบบหาไม่พบ ใช้โควตา Claude ของคุณ Claude หาหน้าให้เท่านั้น ไม่ตัดสินว่าผ่าน TOR และทุกแถวต้องรับ / แก้ / ไม่รับ เองอีกครั้ง", confirmLabel: "ให้ Claude หา" });
+    if (!picked || !group.key) return;
+    await act("send", () => requestReferenceFillAiAction(proposalId, view.runId, group.key!, picked.toPool));
+  }
+  async function cancel() {
+    if (!request) return;
+    await act("cancel", () => cancelSocCheckRequest(request.jobId, request.id));
+  }
+  const status = request ? majorItemStateText({ state: request.state, request: open ? request : null, failureReason: request.failureReason }, viewerId) : null;
+  const mine = request !== null && (request.requestedById === viewerId || viewerIsAdmin);
+  return <div className="flex flex-wrap items-center gap-3 rounded-input bg-ground p-3 text-sm">
+    {dialog}
+    <span className="font-medium">{group.label ? `ข้อ ${group.label}` : "ไม่ทราบข้อ"}: ไม่พบ {group.rows.length} แถว</span>
+    {open && status ? <span role="status" className="text-label">Claude หาอ้างอิง: {status.label}{status.detail ? <span className="text-xs text-muted"> · {status.detail}</span> : null}</span>
+      : request?.state === "done" ? <span className="text-xs text-muted">Claude หาแล้ว แถวที่เจอแสดงเป็นข้อเสนอ “Claude หา” ด้านบน</span>
+        : request?.state === "failed" ? <span role="alert" className="text-xs text-danger">Claude หาไม่สำเร็จ: {request.failureReason || "ไม่ทราบสาเหตุ"}</span> : null}
+    <span className="ml-auto flex gap-2">
+      {open && request.state === "paused_quota" && mine ? <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("resume", () => resumeSocCheckRequestNow(request.jobId, request.id))}>{busy === "resume" ? "กำลังสั่ง…" : "ตรวจต่อเลย"}</Button> : null}
+      {open && mine ? <Button size="sm" variant="outline" disabled={busy !== null} onClick={cancel}>{busy === "cancel" ? "กำลังยกเลิก…" : "ยกเลิก"}</Button> : null}
+      {!open && group.key && asked ? <Button size="sm" disabled={busy !== null} onClick={send} title="หาด้วย SOC Runner บนเครื่องของคุณ">{busy === "send" ? "กำลังส่ง…" : `ให้ Claude หาอ้างอิง (${asked} แถว)`}</Button> : null}
+    </span>
+    {error ? <p role="alert" className="w-full text-xs text-danger">{error}</p> : null}
+  </div>;
+}
+
 // The กรอกอ้างอิง step's review table: the code step's suggestion per row with
 // รับ / แก้ / ไม่รับ, the counts on top, and "รับทั้งหมดที่พบจากเลขข้อกำกับ".
 // Nothing is written to a SOC file here.
-export default function ProposalReferenceFill({ proposalId, currentVersion, blocked, view }: { proposalId: string; currentVersion: number | null; blocked: string | null; view: FillViewData | null }) {
+export default function ProposalReferenceFill({ proposalId, currentVersion, blocked, view, viewerId, viewerIsAdmin }: { proposalId: string; currentVersion: number | null; blocked: string | null; view: FillViewData | null; viewerId: string; viewerIsAdmin: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -134,8 +202,11 @@ export default function ProposalReferenceFill({ proposalId, currentVersion, bloc
         <span className="text-xs text-muted">เขียนเฉพาะแถวที่รับหรือแก้ แถวอื่นเว้นว่างไว้ ไม่ต้องตัดสินครบทุกแถว</span>
       </div>
       {found.length ? <ul className="flex flex-col gap-2">{found.map((row) => <FillRow key={`${view.runId}-${row.position}`} proposalId={proposalId} runId={view.runId} row={row} datasheets={view.datasheets} onChanged={(message) => { setError(message ?? ""); router.refresh(); }} />)}</ul> : null}
-      {none.length ? <details className="text-sm"><summary className="cursor-pointer text-label">แถวที่ไม่พบ ({none.length}) — แก้เองได้</summary>
-        <ul className="mt-2 flex flex-col gap-2">{none.map((row) => <FillRow key={`${view.runId}-${row.position}`} proposalId={proposalId} runId={view.runId} row={row} datasheets={view.datasheets} onChanged={(message) => { setError(message ?? ""); router.refresh(); }} />)}</ul>
+      {none.length ? <details className="text-sm"><summary className="cursor-pointer text-label">แถวที่ไม่พบ ({none.length}) — แก้เองได้ หรือให้ Claude หาให้ทีละข้อ</summary>
+        <div className="mt-2 flex flex-col gap-4">{noneByItem(none).map((group) => <section key={group.key ?? "none"} className="flex flex-col gap-2">
+          <AiFill proposalId={proposalId} view={view} group={group} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
+          <ul className="flex flex-col gap-2">{group.rows.map((row) => <FillRow key={`${view.runId}-${row.position}`} proposalId={proposalId} runId={view.runId} row={row} datasheets={view.datasheets} onChanged={(message) => { setError(message ?? ""); router.refresh(); }} />)}</ul>
+        </section>)}</div>
       </details> : null}
       {!view.rows.length ? <p className="text-sm text-muted">ไม่มีแถวที่ต้องกรอกอ้างอิงใน SOC ฉบับ {currentVersion}</p> : null}
     </> : null}

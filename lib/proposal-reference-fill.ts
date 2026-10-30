@@ -16,6 +16,7 @@ import {
   chapterWording, citedPages, guessReferenceStyle, pageAddition, readBackProblem, referenceBlocks, referenceText, REFERENCE_STYLES, REFERENCE_STYLE_LABELS,
   type CitedDocument, type DocSheet, type ReferenceStyle,
 } from "@/lib/reference-fill-text";
+import { referenceFillRequestViews } from "@/lib/soc-check-requests";
 import { readDatasheetPages, suggestReferences, type RowSuggestions, type Suggestion } from "@/lib/reference-fill-search";
 
 export const FILL_NO_SOC = "ยังไม่มี SOC ที่อ่านได้ใน Proposal นี้ กรุณาเพิ่ม SOC ก่อน";
@@ -81,6 +82,7 @@ export type ReferenceFillView = {
   style: ReferenceStyle; // the Proposal's Reference Style, else the one guessed from the SOC
   toWrite: number; // rows accepted or edited, which "สร้างฉบับ SOC ใหม่" writes
   datasheets: { id: string; name: string }[]; // to pick from when a row is edited
+  aiRequests: Awaited<ReturnType<typeof referenceFillRequestViews>>; // ให้ Claude หาอ้างอิง, latest per major item key
 };
 
 const documentLabel = (sheet: { citationName: string; originalName: string }) => sheet.originalName.split("/").pop()?.replace(/\.pdf$/i, "") ?? sheet.citationName;
@@ -117,6 +119,7 @@ async function loadReferenceFill(proposalId: string): Promise<ReferenceFillView 
     toWrite: run.decisions.filter((decision) => decision.status !== "rejected").length,
     certainUndecided: rows.filter((row) => row.certain && row.suggestions[0]?.source === "label" && !row.decision).length,
     datasheets: sheets.filter((sheet) => !sheet.removedAt).map((sheet) => ({ id: sheet.id, name: documentLabel(sheet) })),
+    aiRequests: await referenceFillRequestViews(run.id),
   };
 }
 

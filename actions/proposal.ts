@@ -6,6 +6,7 @@ import { authorizeProposal, createProposal, renameProposal, trashProposal } from
 import { DATASHEET_RUNNER_BUSY, removeProposalDatasheet, renameDatasheetCitation } from "@/lib/proposal-datasheet";
 import { startEvidenceCheck, startTorCheck } from "@/lib/proposal-check";
 import { resumeVersionRead } from "@/lib/proposal-soc";
+import { requestReferenceFillAi } from "@/lib/reference-fill-ai";
 import { acceptAllFromLabels, createReferenceFillVersion, decideReferenceFillRow, ReferenceFillBlocked, startReferenceFill, type FillDecisionInput } from "@/lib/proposal-reference-fill";
 import type { ReferenceStyle } from "@/lib/reference-fill-text";
 import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
@@ -124,6 +125,14 @@ export async function startReferenceFillAction(proposalId: string) {
 
 export async function decideReferenceFillRowAction(proposalId: string, runId: string, position: number, input: FillDecisionInput) {
   return fillAction(proposalId, async () => { await decideReferenceFillRow(proposalId, runId, position, input); return {}; });
+}
+
+// ให้ Claude หาอ้างอิง: the ไม่พบ rows of one major item, as one request on the
+// clicking user's SOC Runner (or รอคนรับ).
+export async function requestReferenceFillAiAction(proposalId: string, runId: string, majorItemKey: string, toPool = false): Promise<{ ok: true; rows: number } | { ok: false; error: string }> {
+  const result = await requestReferenceFillAi(proposalId, String(runId), String(majorItemKey), { toPool: toPool === true });
+  revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
+  return result;
 }
 
 export async function acceptFillFromLabelsAction(proposalId: string, runId: string) {

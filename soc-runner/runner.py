@@ -13,8 +13,9 @@ runs `claude -p` with the skill in full mode on one major item, and submits
 results.json and the SOC_Check document (an Excel SOC has no SOC_Check). A
 request of kind "tor_judge" (TOR Match 07) instead has Claude judge the TOR
 Match lines the server could not settle, with the TOR pages rendered as images
-where the TOR is scanned or the page is a picture. It only polls; it opens no
-port.
+where the TOR is scanned or the page is a picture. A request of kind
+"reference_fill" (Proposal ticket 10) has Claude look for the Datasheet pages of
+the SOC rows the server's code search left ไม่พบ. It only polls; it opens no port.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ from pathlib import Path, PurePosixPath
 from claude_cli import NO_WINDOW, ClaudeBusy, ClaudeCancelled, ClaudeCli, ClaudeFailed, ClaudeLoggedOut, ClaudeQuotaExhausted, ClaudeSessionMissing, ClaudeTask
 from server_client import Forbidden, HttpServerClient, NoSkillPackage, NotClaimed, ServerError, SubmitRejected, Unauthorized
 
-RUNNER_VERSION = "0.8.0"
+RUNNER_VERSION = "0.9.0"
 CONFIG_FORMAT = "soc-runner-config/1"
 HEADLESS_MARKER = "SOC_RUNNER_HEADLESS=1"
 DEFAULT_SKILL_NAME = "tor-word-compliance-check"
@@ -81,6 +82,11 @@ TOR_JUDGE_FILE = "tor-judge.json"  # under out/: Claude's answer, submitted as t
 TOR_PAGES_DIR = "tor-pages"  # under out/: the TOR pages Claude must Read, p<N>.png
 TOR_PAGE_DPI = 150
 TOR_PAGE_MAX_SIDE = 1568  # pixels; Claude scales a larger image down anyway, at the same token cost
+# A reference_fill request (proposal-build 10): Claude looks for the Datasheet page of SOC rows the code search left ไม่พบ.
+REFERENCE_FILL_KIND = "reference_fill"
+REFERENCE_FILL_DOC = "references/reference-fill.md"  # in the skill package: the instructions, Claude's system prompt
+REFERENCE_ROWS_FILE = "reference-rows.json"  # under out/: the rows to find and the Datasheets they may cite
+REFERENCE_FILL_FILE = "reference-fill.json"  # under out/: Claude's answer, submitted as the results
 # A request id from the server, before it names a folder under work/.
 SAFE_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
@@ -164,6 +170,8 @@ def _carry_out(request: dict, server, claude, work: Path, log, on_pause, clock, 
         skill_name, skill_version = _install_skill(request, server, work)
         if request.get("kind") == TOR_JUDGE_KIND:
             submitted = _judge_tor(request, server, claude, work, log, skill_name, skill_version, busy_wait, render_pages)
+        elif request.get("kind") == REFERENCE_FILL_KIND:
+            submitted = _fill_references(request, server, claude, work, log, skill_name, skill_version, busy_wait)
         else:
             item = request["majorItem"]
             documents = _download_documents(request, server, work / "inputs")
@@ -330,12 +338,22 @@ def _judge_tor(request: dict, server, claude, work: Path, log, skill_name: str, 
     images = sum(1 for entry in entries if "page_image" in entry)
     server.report(request_id, {"state": "running", "progress": f"Claude กำลังตัดสิน {len(entries)} แถว"})
     log(f"[{request_id}] Claude ตัดสินผลเทียบ TOR ต้นฉบับ {len(entries)} แถว (ภาพ {len(rendered)} หน้า) ด้วย skill {skill_version}")
-    prompt = build_judge_prompt(skill_name, len(entries), images)
+    run = _run_short(request_id, server, claude, work, out_dir, build_judge_prompt(skill_name, len(entries), images), system_prompt, log, busy_wait)
+    answer = out_dir / TOR_JUDGE_FILE
+    if not answer.is_file():
+        said = f" Claude ตอบว่า: {run.summary[:300]}" if run.summary else ""
+        raise RunFailed(f"Claude ตัดสินจบแต่ไม่ได้สร้างไฟล์ {TOR_JUDGE_FILE}." + said)
+    server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตัดสิน"})
+    return server.submit(request_id, answer, None, run.model, skill_version)
+
+
+def _run_short(request_id: str, server, claude, work: Path, out_dir: Path, prompt: str, system_prompt: Path, log, busy_wait):
+    """One new Claude session for a short request (tor_judge, reference_fill): the run is cheap, so a pause or
+    lost login starts it again. Waits and retries while Claude is busy."""
     retries = BUSY_RETRIES
     while True:
         try:
-            run = claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=str(uuid.uuid4()), system_prompt_file=system_prompt))
-            break
+            return claude.run(ClaudeTask(prompt=prompt, cwd=work, out_dir=out_dir, session_id=str(uuid.uuid4()), system_prompt_file=system_prompt))
         except ClaudeBusy as error:
             if not retries:
                 raise
@@ -343,12 +361,60 @@ def _judge_tor(request: dict, server, claude, work: Path, log, skill_name: str, 
             log(f"[{request_id}] Claude ยังไม่พร้อม จะลองใหม่ใน {BUSY_RETRY_SECONDS} วินาที ({error})")
             server.report(request_id, {"state": "running", "progress": "Claude ยังไม่พร้อม กำลังรอเพื่อลองใหม่"})
             busy_wait(BUSY_RETRY_SECONDS)
-    answer = out_dir / TOR_JUDGE_FILE
+
+
+def _fill_references(request: dict, server, claude, work: Path, log, skill_name: str, skill_version: str, busy_wait) -> dict:
+    """A reference_fill request: downloads the Proposal's Datasheets, writes the rows to find to
+    out/reference-rows.json (each Datasheet by its id and its path under inputs/), and has Claude look for the
+    page of every row by the skill's reference-fill instructions into out/reference-fill.json, which is
+    submitted. Claude only finds pages; it never judges compliance."""
+    request_id = request["id"]
+    rows, documents = request.get("rows"), request.get("documents") or []
+    if rows is None:
+        raise RunFailed("ผลกรอกอ้างอิงที่ส่งคำขอไว้ถูกลบแล้ว กรุณากดให้ Claude หาอ้างอิงใหม่")
+    if not rows:
+        raise RunFailed("คำขอนี้ไม่มีแถวให้ Claude หา")
+    if not documents:
+        raise RunFailed("Proposal นี้ไม่มี Datasheet ให้ Claude หาอ้างอิง")
+    skill_dir = work / ".claude" / "skills" / skill_name
+    if not (skill_dir / REFERENCE_FILL_DOC).is_file():
+        raise RunFailed("Skill Package รุ่นนี้ยังไม่มีคำแนะนำการหาอ้างอิง ให้ admin อัปโหลด Skill Package รุ่นใหม่")
+    out_dir, inputs = work / "out", work / "inputs"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
+    inputs.mkdir(parents=True, exist_ok=True)
+    files, used = [], set()
+    for document in documents:
+        name = _unique(_safe_path(document["name"], MAX_WINDOWS_PATH - len(str(inputs)) - 1), used)
+        download = server.download(document["url"])
+        if hashlib.sha256(download.content).hexdigest() != document.get("checksum"):
+            raise RunFailed(f"ดาวน์โหลดไฟล์ {name} ไม่สมบูรณ์ (checksum ไม่ตรง)")
+        (inputs / name).parent.mkdir(parents=True, exist_ok=True)
+        (inputs / name).write_bytes(download.content)
+        files.append({"document_id": document["id"], "file": f"inputs/{name}"})
+    (out_dir / REFERENCE_ROWS_FILE).write_text(json.dumps({"documents": files, "rows": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
+    system_prompt = write_instructions_system_prompt(work, skill_dir, skill_name, REFERENCE_FILL_DOC, "คำแนะนำการหาอ้างอิง")
+    server.report(request_id, {"state": "running", "progress": f"Claude กำลังหาอ้างอิง {len(rows)} แถว"})
+    log(f"[{request_id}] Claude หาอ้างอิง {len(rows)} แถวใน Datasheet {len(files)} ไฟล์ ด้วย skill {skill_version}")
+    run = _run_short(request_id, server, claude, work, out_dir, build_reference_fill_prompt(skill_name, len(rows), len(files)), system_prompt, log, busy_wait)
+    answer = out_dir / REFERENCE_FILL_FILE
     if not answer.is_file():
         said = f" Claude ตอบว่า: {run.summary[:300]}" if run.summary else ""
-        raise RunFailed(f"Claude ตัดสินจบแต่ไม่ได้สร้างไฟล์ {TOR_JUDGE_FILE}." + said)
-    server.report(request_id, {"state": "running", "progress": "กำลังส่งผลตัดสิน"})
+        raise RunFailed(f"Claude หาจบแต่ไม่ได้สร้างไฟล์ {REFERENCE_FILL_FILE}." + said)
+    server.report(request_id, {"state": "running", "progress": "กำลังส่งผลที่หาได้"})
     return server.submit(request_id, answer, None, run.model, skill_version)
+
+
+def build_reference_fill_prompt(skill_name: str, rows: int, documents: int) -> str:
+    """The reference-fill run's prompt; the instructions themselves are the system prompt."""
+    return "\n".join([
+        HEADLESS_MARKER,
+        "",
+        f"หาหน้าอ้างอิงใน Datasheet ให้แถว SOC ตามคำแนะนำของ skill `{skill_name}` ที่โหลดไว้ใน system prompt แล้ว ห้ามถามผู้ใช้",
+        f"- แถวที่ต้องหา และรายการ Datasheet ({documents} ไฟล์): `out/{REFERENCE_ROWS_FILE}` ({rows} แถว)",
+        f"- เขียนผลที่ `out/{REFERENCE_FILL_FILE}` ให้ครบทุกแถวตามเลข `row` ห้ามเพิ่มหรือตัดแถว แถวที่หาไม่เจอให้ส่ง suggestions ว่าง",
+        "- หาหน้าเท่านั้น ห้ามตัดสินว่าผ่านหรือไม่ผ่าน TOR และห้ามแก้ไขไฟล์ใน `inputs/`",
+    ]) + "\n"
 
 
 def build_judge_prompt(skill_name: str, lines: int, images: int) -> str:
@@ -368,11 +434,16 @@ def build_judge_prompt(skill_name: str, lines: int, images: int) -> str:
 
 def write_judge_system_prompt(work: Path, skill_dir: Path, skill_name: str) -> Path:
     """.claude/runner-system.md of a judge run: the skill's judge instructions."""
-    header = (f"# skill `{skill_name}`: คำแนะนำการตัดสินผลเทียบ TOR ต้นฉบับ ที่ SOC Runner โหลดไว้ให้แล้ว\n\n"
-              f"เนื้อหาของ `.claude/skills/{skill_name}/{TOR_JUDGE_DOC}` อยู่ด้านล่างครบทั้งไฟล์ ห้ามเปิดไฟล์นี้ด้วย tool Read อีก\n\n")
+    return write_instructions_system_prompt(work, skill_dir, skill_name, TOR_JUDGE_DOC, "คำแนะนำการตัดสินผลเทียบ TOR ต้นฉบับ")
+
+
+def write_instructions_system_prompt(work: Path, skill_dir: Path, skill_name: str, doc: str, what: str) -> Path:
+    """.claude/runner-system.md of a short run: the skill's instructions file `doc`, whole."""
+    header = (f"# skill `{skill_name}`: {what} ที่ SOC Runner โหลดไว้ให้แล้ว\n\n"
+              f"เนื้อหาของ `.claude/skills/{skill_name}/{doc}` อยู่ด้านล่างครบทั้งไฟล์ ห้ามเปิดไฟล์นี้ด้วย tool Read อีก\n\n")
     path = work / ".claude" / SYSTEM_PROMPT_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(header.encode("utf-8") + (skill_dir / TOR_JUDGE_DOC).read_bytes())
+    path.write_bytes(header.encode("utf-8") + (skill_dir / doc).read_bytes())
     return path
 
 
@@ -908,7 +979,7 @@ class SocRunner:
         request = self.server.claim()
         if not request:
             return None
-        what = "ผลเทียบ TOR ต้นฉบับ" if request.get("kind") == TOR_JUDGE_KIND else f"ข้อ {request['majorItem']['label']}"
+        what = {TOR_JUDGE_KIND: "ผลเทียบ TOR ต้นฉบับ", REFERENCE_FILL_KIND: "กรอกอ้างอิง"}.get(request.get("kind")) or f"ข้อ {request['majorItem']['label']}"
         self.log(f"รับคำขอ {request['id']}: {request['job'].get('title', '')} {what}")
         with self._lock:
             self.current_request_id = request["id"]
