@@ -9,7 +9,7 @@
 import path from "node:path";
 import { annexKeysOfRows, majorItemKey, majorItemsOfRows, normalItem, sameItem, type SocMajorItemSpec } from "@/lib/soc-major-items";
 import { DOCX_MIME, magicIsDocx, NOT_A_SOC_FILE, socFileNameProblem, toArabicDigits as toArabic, XLSX_MIME } from "@/lib/soc-shared";
-import { isExcelSocPart, ITEM_NAME, readExcelSoc, REFERENCE_NAME, REMARK_NAME } from "@/lib/soc-table-excel";
+import { isExcelSocPart, ITEM_NAME, readExcelSoc, REFERENCE_NAME, REMARK_NAME, type ExcelCellAt } from "@/lib/soc-table-excel";
 import { decodeXml } from "@/lib/xml";
 import { readZip, type ZipEntry } from "@/lib/zip";
 
@@ -27,7 +27,10 @@ export type SocRowImage = { name: string; data: Uint8Array; mimeType: string | n
 // A SOC row as TOR Match reads it. `position`: 1-based across the whole SOC
 // (as `rowPosition`); `majorItem`: as `majorItemOfRow`.
 // `reference`: the text of the row's reference cell ("" when empty or the SOC has no reference column).
-export type SocTableRow = { position: number; item: string; tor: string; image: boolean; majorItem: string | null; reference: string };
+// `referenceAt`: where that cell is in the file, for writing a reference into it (absent when the SOC has no reference column there).
+export type WordCellAt = { table: number; row: number; cell: number }; // top-level table, its row, the cell, all 0-based
+export type ReferenceAt = ({ kind: "word" } & WordCellAt) | ({ kind: "excel" } & ExcelCellAt);
+export type SocTableRow = { position: number; item: string; tor: string; image: boolean; majorItem: string | null; reference: string; referenceAt?: ReferenceAt };
 
 export type SocTable = {
   file: { extension: string; mimeType: string }; // how to store the SOC file
@@ -100,7 +103,7 @@ export function readSocTable(soc: Uint8Array): SocTable {
     let last = 0;
     return excel.sheets.find((sheet) => row <= (last += sheet.rowCount))?.name ?? null;
   };
-  return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows.map(({ cells, remark, reference }) => ({ cells, proposal: cells[2] ?? null, remark: moreThanTicks(remark) ? remark : "", reference }))], [
+  return socTable({ extension: ".xlsx", mimeType: XLSX_MIME }, [excel.rows.map(({ cells, remark, reference, referenceAt }) => ({ cells, proposal: cells[2] ?? null, remark: moreThanTicks(remark) ? remark : "", reference, ...(referenceAt ? { referenceAt: { kind: "excel" as const, ...referenceAt } } : {}) }))], [
     ...(quoted ? [`ไม่ได้รวมชีต ${quoted} เพราะไม่พบหัวตาราง SOC (ลำดับ, ข้อกำหนด TOR, ข้อเสนอ) ชีตนี้จะไม่ถูกตรวจ`] : []),
     ...(excel.imageCount ? [`มีรูป ${excel.imageCount} รูปในไฟล์ Excel ที่ยังไม่อ่าน ระบบตรวจเฉพาะข้อความในเซลล์ กรุณาดูรูปเหล่านี้เอง`] : []),
   ], sheetOfRow, () => null);
@@ -113,7 +116,7 @@ const WORD_RELATIONSHIPS = "word/_rels/document.xml.rels";
 // proposal and Bidder Remark ("" when none), and for an Image Row the id its
 // image has in the SOC file (Word: a relationship id). `tor` when the TOR is
 // not just cells[1] (a Word SOC with no offer column: the TOR may run over cells).
-type SocRow = { cells: string[]; tor?: string; proposal: string | null; remark: string; reference?: string; imageId?: string };
+type SocRow = { cells: string[]; tor?: string; proposal: string | null; remark: string; reference?: string; referenceAt?: ReferenceAt; imageId?: string };
 
 const hasNumber = (cell: string) => /\d/.test(toArabic(cell));
 
@@ -163,7 +166,7 @@ function socTable(file: SocTable["file"], tables: SocRow[][], warnings: string[]
       const row = findRow(rowNumber, itemNumber);
       return row ? rowKeys[allRows.indexOf(row)] : null;
     },
-    rows: allRows.map((row, index) => ({ position: index + 1, item: itemOf(row), tor: row.tor ?? row.cells[1] ?? "", image: !!row.imageId, majorItem: rowKeys[index], reference: row.reference ?? "" })),
+    rows: allRows.map((row, index) => ({ position: index + 1, item: itemOf(row), tor: row.tor ?? row.cells[1] ?? "", image: !!row.imageId, majorItem: rowKeys[index], reference: row.reference ?? "", ...(row.referenceAt ? { referenceAt: row.referenceAt } : {}) })),
     warnings,
   };
 }
@@ -215,7 +218,7 @@ function readWordSocTables(documentXml: string): SocRow[][] {
 // it covers (w:gridSpan), so a row whose TOR cell spans several columns or is
 // split in two (MEA Y69) still lines up with the other rows.
 type WordCell = { text: string; column: number; span: number };
-type WordRow = { cells: WordCell[]; imageId?: string };
+type WordRow = { cells: WordCell[]; imageId?: string; at: { table: number; row: number } };
 
 // A tick box typed as text (Wingdings ü/þ, ☑ …); one Word draws as a symbol has no text.
 const TICK_ONLY = /^[\s☒☑☐✓✔■□●√üþ]*$/;
@@ -254,9 +257,10 @@ function wordSocRows(rows: WordRow[]): SocRow[] {
   }
   return rows.map((row) => {
     const remark = textAt(row, remarkColumns);
+    const referenceCell = row.cells.findIndex((cell, position) => position >= 2 && referenceColumns.includes(cell.column));
     // No offer column: every cell before the tick box is the TOR ("ความยาว" | ": ≤ 580 มิลลิเมตร").
     const tor = noOffer ? row.cells.slice(1).filter((cell) => cell.column < offerColumn && cell.text).map((cell) => cell.text).join(" ") : undefined;
-    return { cells: row.cells.map((cell) => cell.text), ...(tor !== undefined ? { tor } : {}), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", reference: textAt(row, referenceColumns), ...(row.imageId ? { imageId: row.imageId } : {}) };
+    return { cells: row.cells.map((cell) => cell.text), ...(tor !== undefined ? { tor } : {}), proposal: noOffer ? null : row.cells[2]?.text ?? null, remark: moreThanTicks(remark) ? remark : "", reference: textAt(row, referenceColumns), ...(referenceCell >= 0 ? { referenceAt: { kind: "word" as const, ...row.at, cell: referenceCell } } : {}), ...(row.imageId ? { imageId: row.imageId } : {}) };
   });
 }
 
@@ -314,7 +318,7 @@ function readTables(xml: string): WordRow[][] {
       continue;
     } else if (tag === "tr") {
       if (closing && row) rows.push(row);
-      row = closing ? null : { cells: [] };
+      row = closing ? null : { cells: [], at: { table: tables.length, row: rows.length } };
       column = 0;
     } else if (tag === "tc") {
       if (closing && row && cell) {

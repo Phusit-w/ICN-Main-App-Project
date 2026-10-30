@@ -43,7 +43,7 @@ const STOP_WORDS = new Set(["with", "than", "from", "that", "this", "type", "lea
 const flat = (text: string) => toArabicDigits(thaiText(text)).toLowerCase();
 
 // Words of a reference or a file path that can tell documents apart.
-function nameWords(text: string): string[] {
+export function nameWords(text: string): string[] {
   return [...new Set((flat(text).match(/[a-z0-9ก-๎]{3,}/g) ?? []).filter((word) => !GENERIC_WORDS.has(word)))];
 }
 

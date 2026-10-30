@@ -817,6 +817,8 @@ model Proposal {
   deletedById       String?
   purgeAfter        DateTime?
   restoredAt        DateTime?
+  // "thai" | "english": how กรอกอ้างอิง writes references (proposal-build 09); null = not chosen yet, guessed from the SOC
+  referenceStyle    String?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   tor               ProposalTor?
@@ -930,6 +932,8 @@ model ReferenceFillRun {
   createdBy   User                    @relation("ReferenceFillRunCreator", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt   DateTime                @default(now())
   suggestions Json
+  // The Reference Style guessed from the SOC when the run started ("thai" | "english")
+  styleGuess  String                  @default("thai")
   decisions   ReferenceFillDecision[]
 
   @@index([versionId, createdAt])

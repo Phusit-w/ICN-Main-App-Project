@@ -4,7 +4,7 @@
 
 **Blocked by:** 08
 
-**Status:** ready-for-agent
+**Status:** done (browser check left to user; not deployed)
 
 - [ ] Reference Style guess (existing references → แบบไทย/แบบอังกฤษ; else TOR text language), switch on the page, stored on the Proposal.
 - [ ] แบบไทย: `เอกสารส่วนที่ N` (N from the numbered top folder; wording copied from existing rows; omitted without such folder) / sub-folder name / file-name line when the folder has >1 PDF / `หน้า 3, 6` or `หน้า 12-13`; several documents as separate blocks. Expected text matches the MOF RFID sample.

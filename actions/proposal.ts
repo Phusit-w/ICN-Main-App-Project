@@ -6,7 +6,8 @@ import { authorizeProposal, createProposal, renameProposal, trashProposal } from
 import { DATASHEET_RUNNER_BUSY, removeProposalDatasheet, renameDatasheetCitation } from "@/lib/proposal-datasheet";
 import { startEvidenceCheck, startTorCheck } from "@/lib/proposal-check";
 import { resumeVersionRead } from "@/lib/proposal-soc";
-import { acceptAllFromLabels, decideReferenceFillRow, startReferenceFill, type FillDecisionInput } from "@/lib/proposal-reference-fill";
+import { acceptAllFromLabels, createReferenceFillVersion, decideReferenceFillRow, ReferenceFillBlocked, startReferenceFill, type FillDecisionInput } from "@/lib/proposal-reference-fill";
+import type { ReferenceStyle } from "@/lib/reference-fill-text";
 import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 
 type TitleResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -127,4 +128,18 @@ export async function decideReferenceFillRowAction(proposalId: string, runId: st
 
 export async function acceptFillFromLabelsAction(proposalId: string, runId: string) {
   return fillAction(proposalId, async () => ({ accepted: await acceptAllFromLabels(proposalId, runId) }));
+}
+
+// สร้างฉบับ SOC ใหม่ from the rows accepted or edited. A refusal of the
+// read-back guard comes back with `problems`, one line per row.
+export async function createReferenceFillVersionAction(proposalId: string, runId: string, style: ReferenceStyle): Promise<{ ok: true; versionNumber: number; written: number } | { ok: false; error: string; problems?: string[] }> {
+  try {
+    const created = await createReferenceFillVersion(proposalId, runId, style);
+    revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
+    return { ok: true, ...created };
+  } catch (error) {
+    if (error instanceof ReferenceFillBlocked) return { ok: false, error: error.message, problems: error.problems };
+    if (error instanceof Error && /[฀-๿]/.test(error.message)) return { ok: false, error: error.message };
+    throw error;
+  }
 }

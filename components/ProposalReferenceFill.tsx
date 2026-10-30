@@ -2,14 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { acceptFillFromLabelsAction, decideReferenceFillRowAction, startReferenceFillAction } from "@/actions/proposal";
+import { acceptFillFromLabelsAction, createReferenceFillVersionAction, decideReferenceFillRowAction, startReferenceFillAction } from "@/actions/proposal";
 import Button from "@/components/ui/Button";
 import type { FillRowView } from "@/lib/proposal-reference-fill";
+import { REFERENCE_STYLE_LABELS, REFERENCE_STYLES, type ReferenceStyle } from "@/lib/reference-fill-text";
 
 export type FillViewData = {
   runId: string; versionNumber: number; createdAt: string;
   rows: FillRowView[];
   found: number; notFound: number; undecided: number; certainUndecided: number;
+  style: ReferenceStyle; toWrite: number;
   datasheets: { id: string; name: string }[];
 };
 
@@ -90,6 +92,18 @@ export default function ProposalReferenceFill({ proposalId, currentVersion, bloc
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [style, setStyle] = useState<ReferenceStyle | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const [made, setMade] = useState("");
+  function create(runId: string, chosen: ReferenceStyle) {
+    setError(""); setProblems([]); setMade("");
+    startTransition(async () => {
+      const result = await createReferenceFillVersionAction(proposalId, runId, chosen);
+      if (result.ok) setMade(`สร้าง SOC ฉบับ ${result.versionNumber} แล้ว (เขียน ${result.written} แถว)`);
+      else { setError(result.error); setProblems(result.problems ?? []); }
+      router.refresh();
+    });
+  }
   function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setError("");
     startTransition(async () => {
@@ -107,8 +121,18 @@ export default function ProposalReferenceFill({ proposalId, currentVersion, bloc
       {view && view.certainUndecided > 0 ? <button type="button" className={small} disabled={pending} onClick={() => run(() => acceptFillFromLabelsAction(proposalId, view.runId))}>รับทั้งหมดที่พบจากเลขข้อกำกับ ({view.certainUndecided})</button> : null}
     </div>
     {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
+    {problems.length ? <ul className="list-disc pl-5 text-xs text-danger">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul> : null}
+    {made ? <p role="status" className="text-xs text-label">{made}</p> : null}
     {view ? <>
       <p className="text-sm" aria-live="polite">SOC ฉบับ {view.versionNumber}: <strong>พบ {view.found}</strong> / <strong>ไม่พบ {view.notFound}</strong>{view.found ? ` · รอตัดสิน ${view.undecided} แถว` : ""}</p>
+      <div className="flex flex-wrap items-center gap-3 rounded-input bg-chip p-3 text-sm">
+        <fieldset className="flex items-center gap-3"><legend className="sr-only">รูปแบบอ้างอิง</legend>
+          <span className="text-label">รูปแบบ:</span>
+          {REFERENCE_STYLES.map((option) => <label key={option} className="flex items-center gap-1"><input type="radio" name={`style-${view.runId}`} checked={(style ?? view.style) === option} onChange={() => setStyle(option)} />{REFERENCE_STYLE_LABELS[option]}</label>)}
+        </fieldset>
+        <Button size="sm" disabled={pending || view.toWrite === 0} onClick={() => create(view.runId, style ?? view.style)}>สร้างฉบับ SOC ใหม่ ({view.toWrite} แถว)</Button>
+        <span className="text-xs text-muted">เขียนเฉพาะแถวที่รับหรือแก้ แถวอื่นเว้นว่างไว้ ไม่ต้องตัดสินครบทุกแถว</span>
+      </div>
       {found.length ? <ul className="flex flex-col gap-2">{found.map((row) => <FillRow key={`${view.runId}-${row.position}`} proposalId={proposalId} runId={view.runId} row={row} datasheets={view.datasheets} onChanged={(message) => { setError(message ?? ""); router.refresh(); }} />)}</ul> : null}
       {none.length ? <details className="text-sm"><summary className="cursor-pointer text-label">แถวที่ไม่พบ ({none.length}) — แก้เองได้</summary>
         <ul className="mt-2 flex flex-col gap-2">{none.map((row) => <FillRow key={`${view.runId}-${row.position}`} proposalId={proposalId} runId={view.runId} row={row} datasheets={view.datasheets} onChanged={(message) => { setError(message ?? ""); router.refresh(); }} />)}</ul>

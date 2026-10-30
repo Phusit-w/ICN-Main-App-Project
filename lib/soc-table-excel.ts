@@ -21,7 +21,7 @@ import { decodeXml } from "@/lib/xml";
 import type { ZipEntry } from "@/lib/zip";
 
 export type ExcelSoc = {
-  rows: { cells: string[]; remark: string; reference: string }[]; // per SOC row: item number, TOR text, proposal text; the remarks column's text; the reference column's text ("" with no such column)
+  rows: { cells: string[]; remark: string; reference: string; referenceAt?: ExcelCellAt }[]; // per SOC row: item number, TOR text, proposal text; the remarks column's text; the reference column's text ("" with no such column)
   sheets: { name: string; rowCount: number }[]; // the sheets the rows come from, in order
   skippedSheets: string[]; // visible sheets with text but no header row
   imageCount: number; // floating pictures, which are not read
@@ -47,7 +47,9 @@ type Merge = { top: number; left: number; bottom: number; right: number };
 // A sheet's cells, or a PDF SOC page's table (lib/soc-pdf-soc.ts). Rows and
 // cells may have holes; a merged cell's text is at its top left.
 export type SocGrid = { rows: string[][]; merges: Merge[] };
-type Sheet = SocGrid & { name: string; hidden: boolean };
+type Sheet = SocGrid & { name: string; hidden: boolean; part: string };
+// Where a SOC row's reference cell is in the workbook: the sheet part, the 0-based row and column.
+export type ExcelCellAt = { part: string; row: number; column: number };
 export type SocColumns = { item: number; tor: number; proposal: number; reference: number; remark: number; comply: number; better: number }; // -1: no such column
 
 // `parts`: the workbook's entries that isExcelSocPart names. Throws, with a
@@ -80,7 +82,7 @@ function socRowsOfSheet(sheet: Sheet): ExcelSoc["rows"] | null {
   const tracked = [columns.item, columns.tor, columns.proposal, columns.reference, columns.remark, columns.comply, columns.better].filter((column) => column >= 0);
   const rows: ExcelSoc["rows"] = [];
   for (let row = last + 1; row < sheet.rows.length; row++) {
-    if (tracked.some((column) => own(row, column))) rows.push({ cells: [own(row, columns.item), own(row, columns.tor), own(row, columns.proposal)], remark: own(row, columns.remark), reference: own(row, columns.reference) });
+    if (tracked.some((column) => own(row, column))) rows.push({ cells: [own(row, columns.item), own(row, columns.tor), own(row, columns.proposal)], remark: own(row, columns.remark), reference: own(row, columns.reference), ...(columns.reference >= 0 ? { referenceAt: { part: sheet.part, row, column: columns.reference } } : {}) });
   }
   return rows;
 }
@@ -159,9 +161,10 @@ function readSheets(text: (name: string) => string | undefined, shared: string[]
   }
   const sheets: Sheet[] = [];
   for (const { attributes } of elements(text("xl/workbook.xml") ?? "", "sheet")) {
-    const xml = text(targets.get(attribute(attributes, "r:id")) ?? "");
+    const part = targets.get(attribute(attributes, "r:id")) ?? "";
+    const xml = text(part);
     if (xml === undefined) continue; // a chart sheet
-    sheets.push({ name: decodeXml(attribute(attributes, "name")), hidden: /hidden/i.test(attribute(attributes, "state")), rows: sheetRows(xml, shared, decimals), merges: sheetMerges(xml) });
+    sheets.push({ name: decodeXml(attribute(attributes, "name")), hidden: /hidden/i.test(attribute(attributes, "state")), part, rows: sheetRows(xml, shared, decimals), merges: sheetMerges(xml) });
   }
   return sheets;
 }
