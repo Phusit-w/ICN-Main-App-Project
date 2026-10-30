@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { acceptFillFromLabelsAction, createReferenceFillVersionAction, decideReferenceFillRowAction, requestReferenceFillAiAction, startReferenceFillAction } from "@/actions/proposal";
 import { cancelSocCheckRequest, resumeSocCheckRequestNow } from "@/actions/socCheckRequests";
-import { useCheckChoice } from "@/components/CheckChoice";
+import { useCheckChoice, ViewerHasRunner } from "@/components/CheckChoice";
 import Button from "@/components/ui/Button";
 import { isOpenCheckRequestState, majorItemStateText } from "@/lib/soc-shared";
 import type { FillRowView, ReferenceFillView } from "@/lib/proposal-reference-fill";
@@ -156,7 +156,7 @@ function AiFill({ proposalId, view, group, viewerId, viewerIsAdmin }: { proposal
 // The กรอกอ้างอิง step's review table: the code step's suggestion per row with
 // รับ / แก้ / ไม่รับ, the counts on top, and "รับทั้งหมดที่พบจากเลขข้อกำกับ".
 // Nothing is written to a SOC file here.
-export default function ProposalReferenceFill({ proposalId, currentVersion, blocked, view, viewerId, viewerIsAdmin }: { proposalId: string; currentVersion: number | null; blocked: string | null; view: FillViewData | null; viewerId: string; viewerIsAdmin: boolean }) {
+export default function ProposalReferenceFill({ proposalId, currentVersion, blocked, view, viewerId, viewerIsAdmin, hasRunner }: { proposalId: string; currentVersion: number | null; blocked: string | null; view: FillViewData | null; viewerId: string; viewerIsAdmin: boolean; hasRunner: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -182,7 +182,7 @@ export default function ProposalReferenceFill({ proposalId, currentVersion, bloc
   }
   const found = view?.rows.filter((row) => row.suggestions.length) ?? [];
   const none = view?.rows.filter((row) => !row.suggestions.length) ?? [];
-  return <div className="mt-3 flex flex-col gap-3">
+  return <ViewerHasRunner.Provider value={hasRunner}><div className="mt-3 flex flex-col gap-3">
     <div className="flex flex-wrap items-center gap-3">
       <Button size="sm" disabled={pending || Boolean(blocked)} onClick={() => run(() => startReferenceFillAction(proposalId))}>{pending ? "กำลังค้นหา…" : view ? "ค้นหาใหม่" : "ค้นหาอ้างอิง"}</Button>
       {blocked ? <span className="text-xs text-muted">{blocked}</span> : null}
@@ -210,5 +210,5 @@ export default function ProposalReferenceFill({ proposalId, currentVersion, bloc
       </details> : null}
       {!view.rows.length ? <p className="text-sm text-muted">ไม่มีแถวที่ต้องกรอกอ้างอิงใน SOC ฉบับ {currentVersion}</p> : null}
     </> : null}
-  </div>;
+  </div></ViewerHasRunner.Provider>;
 }
