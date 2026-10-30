@@ -105,7 +105,7 @@ export default function ProposalReferenceFill({ proposalId, currentVersion, bloc
     });
   }
   function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>) {
-    setError("");
+    setError(""); setProblems([]); setMade("");
     startTransition(async () => {
       const result = await action();
       if (!result.ok) setError(result.error);

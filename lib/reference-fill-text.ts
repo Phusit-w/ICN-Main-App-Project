@@ -9,8 +9,18 @@
 // reader does (build_evidence_packet.py: the chapter, a dotted folder number,
 // at least 60% of a name's words, the page parts) and accepts it only when that
 // reading lands on the intended file and pages.
-import { nameWords } from "@/lib/reference-fill-search";
+// No server-only import here: the review table (a client component) takes the
+// style names from this file.
 import { toArabicDigits } from "@/lib/soc-shared";
+import { thaiText } from "@/lib/soc-tor-match";
+
+const GENERIC_WORDS = new Set(["เอกสาร", "ส่วนที่", "บทที่", "ภาคผนวก", "หน้า", "ที่", "page", "pages", "pdf", "document", "section"]);
+
+// Words of a reference or a file path that can tell documents apart.
+export function nameWords(text: string): string[] {
+  const flat = toArabicDigits(thaiText(text)).toLowerCase();
+  return [...new Set((flat.match(/[a-z0-9ก-๎]{3,}/g) ?? []).filter((word) => !GENERIC_WORDS.has(word)))];
+}
 
 export type ReferenceStyle = "thai" | "english";
 export const REFERENCE_STYLES: readonly ReferenceStyle[] = ["thai", "english"];

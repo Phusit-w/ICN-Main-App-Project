@@ -12,6 +12,7 @@
 // only in the document it names. A full reference (it has a page) is never
 // touched; heading rows, Image Rows and ไม่ต้องตรวจ major items are left out.
 import * as mupdf from "mupdf";
+import { nameWords } from "@/lib/reference-fill-text";
 import { toArabicDigits } from "@/lib/soc-shared";
 import { thaiText } from "@/lib/soc-tor-match";
 import type { SocTable, SocTableRow } from "@/lib/soc-table";
@@ -37,15 +38,10 @@ const SNIPPET_MAX = 160;
 
 // The same shape the check reads a page out of a reference with.
 export const PAGE_PART = /(?:หน้า(?:ที่)?|\bpages?\b\.?|\bpp?\.)\s*\d/i;
-const GENERIC_WORDS = new Set(["เอกสาร", "ส่วนที่", "บทที่", "ภาคผนวก", "หน้า", "ที่", "page", "pages", "pdf", "document", "section"]);
 const STOP_WORDS = new Set(["with", "than", "from", "that", "this", "type", "least", "support", "supports", "minimum", "maximum", "must", "have", "more", "less", "each", "and", "the", "for"]);
 
 const flat = (text: string) => toArabicDigits(thaiText(text)).toLowerCase();
 
-// Words of a reference or a file path that can tell documents apart.
-export function nameWords(text: string): string[] {
-  return [...new Set((flat(text).match(/[a-z0-9ก-๎]{3,}/g) ?? []).filter((word) => !GENERIC_WORDS.has(word)))];
-}
 
 // The label a row's item number gives to look for on a page: "๕.๓.๑" → "5.3.1".
 // A number with no dot ("5", "(1)") is too common on a page to mean anything.
