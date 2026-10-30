@@ -1,29 +1,51 @@
 # 12: Claude อ่าน TOR แบบสแกน (แทน OCR ภายนอก)
 
-**What to build:** When the uploaded TOR is a scanned PDF, the user chooses how it is read: the outside OCR (Typhoon, with today's confirm popup) or Claude on their own Runner (or through รอคนรับ when they have none). Choosing Claude sends nothing outside the system, needs no OCR key and no OCR confirm, and uses the quota of whoever runs it. The pages' text lands in the Proposal exactly where the OCR read would put it, so สร้าง SOC and ตรวจ TOR ตรงต้นฉบับ use it unchanged. Raised by the user 2026-10-29 while checking ticket 02 ("ตอนสแกน TOR อยากให้ใช้ Claude ตรวจได้ด้วย" → "ให้ Claude อ่านแทน OCR").
+**What to build:** สร้าง SOC ใน Proposal เอาข้อมูล TOR จาก TOR สแกนจริงโดยให้ Claude (บน Runner ของผู้กด หรือผ่านรอคนรับ) ดูหน้าที่เลือก แทน OCR ภายนอก ไม่ส่งข้อมูลออกนอกระบบ ไม่ต้องมี OCR key ไม่ต้องกด confirm OCR และใช้โควตาของผู้รัน ข้อความหน้าที่ได้ลง **Page Text Store** ที่เดียวกับที่ OCR ใช้ ตัวสร้างแถวเดิมและ ตรวจ TOR ตรงต้นฉบับใช้ต่อได้โดยไม่แก้ Raised by the user 2026-10-29; grilled 2026-10-30.
 
-**Blocked by:** 02, 07 (the claim rule and รอคนรับ); 05/06 are the consumers and can start with OCR-only first.
+**Blocked by:** 02, 07 (done); 05/06 are the consumers.
 
-**Status:** ready-for-agent (needs a short grill: how Claude's read output is validated, and whether a scanned-TOR read may be split per page range)
+**Status:** ready-for-agent (grill done 2026-10-30; first box is a spike)
 
-- [ ] ProposalTor records how a scanned TOR is read (`ocr` | `claude`) and its read state (waiting, reading, ready, failed); the TOR step shows it ("กำลังอ่านด้วย Claude", "รอคนรับ") and stays เสร็จ only when readable.
-- [ ] The upload form asks which reader for a scanned TOR; `claude` skips the OCR key and OCR confirm checks of ticket 02; `ocr` behaves as today.
-- [ ] New Check Request kind for reading TOR pages, obeying the 07 claim rule (own Runner by default, รอคนรับ without one, cancel by asker); Runner handles it: downloads the TOR PDF, runs the skill page by page, submits page text in the shape `scannedTorPages` produces; Runner version bump (reviewers re-paste the install command after deploy).
-- [ ] Skill addition for reading scanned TOR pages (transcribe only, no judging); uploaded as a new Skill Package.
-- [ ] Import rejects malformed output (page count mismatch, empty pages); the result records who ran it ("อ่านโดย ข (บัญชีของ ข)").
-- [ ] Marked Beta like the OCR read; a Claude-read TOR shows the same "อ่านด้วยเครื่อง อาจผิด" note.
-- [ ] Tests at seams A/B; Runner test in `soc-runner/test_runner.py`; one live run on a real scanned TOR to measure quota.
+## กฎแข็ง
 
-## Quota plan (asked by the user 2026-10-29: "ลดโควตาแต่ความแม่นยำเท่าเดิมให้มากที่สุด")
+ข้อความที่ลงใน SOC ต้องตรง TOR ทุกตัวอักษร Claude ห้ามแก้ ห้ามเดา ห้ามเติม ห้ามแปลงเลขไทย↔อารบิก ห้ามขยายคำย่อ ข้อความที่ดูเหมือนพิมพ์ผิดคัดลอกตามที่เห็น ตัวอักษรอ่านไม่ออกใส่ `[อ่านไม่ออก]` ตรงตำแหน่ง ห้ามเดา
 
-Reading a scanned TOR is transcription, not judgement, so the aim is: Claude sees as few page images as possible, once, and code (free) checks the result. Levers, biggest saving first; each is measured against the baseline in the last box before it is kept (the rule from the evidence-packet work: a saving that costs accuracy is dropped, quality is the gate).
+## Decisions (grill 2026-10-30)
 
-- [ ] **Read once, reuse everywhere.** Store the page text per Proposal TOR (keyed by the file's sha256) and let สร้าง SOC, ตรวจ TOR ตรงต้นฉบับ and กรอกอ้างอิง all use it; a replace invalidates it, the same file in another Proposal copies it. No consumer ever asks Claude to read the same page twice.
-- [ ] **Send only pages that need Claude.** Pages with a text layer (`readTextTor` per page) are extracted by code for free; cover, contents, signature and boilerplate pages (the header/footer detection `scannedTorPages` already has, plus a cheap "page is almost blank / mostly picture" test) are skipped or marked picture. A consumer that needs a page range (สร้าง SOC) reads only that range, lazily, and caches it per page.
-- [ ] **Make each image cheap.** Code renders each page once at the smallest size that keeps Thai readable (about 150 dpi, grayscale, margins and repeated header/footer cropped, long edge ≤ 1568 px: more pixels cost tokens and add no accuracy). Pick the size by test on Thai digits and small table text.
-- [ ] **Several pages per call, one session.** Reuse the shared prompt cache (Runner 0.4.0): the skill text is paid once, pages go in batches of about 5–10, so the context stays small (growing context is re-read on every turn). Find the batch size by measuring points per page.
-- [ ] **Cheapest model that holds accuracy.** Transcription may not need the model used for judging: measure Haiku / Sonnet / Opus on the same pages (previous measurement: Sonnet equal to Opus at lower quota). The Runner takes the model per request kind.
-- [ ] **Free pre-pass, Claude only where it is unsure** (to try, may be dropped): a local OCR that needs no quota reads first; Claude re-reads only pages where the local read fails the code checks below. Drop it if Thai digits or table text lose accuracy.
-- [ ] **Code checks, then re-read only what failed.** Instead of reading everything twice: page count matches; item numbers run in sequence (๑.๑, ๑.๒ … no gap, no repeat, Thai digits kept); no empty page that has ink; for a Proposal that already has a SOC, the TOR text of each SOC row is found in the read (TOR Match's own matcher). A failing page is re-read alone, once.
-- [ ] **Short output.** The skill returns plain page text only (no description of figures, no commentary), one block per page; output tokens cost more than input.
-- [ ] **Measure before keeping each lever.** On one real scanned TOR (ask the user for one; MOF/Apron TORs are text), record quota points and the character/number error count against a hand-checked page set for: baseline (all pages, one image per call, Opus) vs each lever alone vs all kept. Write the table into this ticket; keep a lever only when accuracy is equal.
+1. Claude **ถอดข้อความต่อหน้าเท่านั้น**; โค้ดเดิมแบ่งข้อและสร้างแถว (ไม่ให้ Claude แบ่งข้อ: output แพงกว่า input และการแบ่งด้วยโค้ดตรวจซ้ำฟรี)
+2. Output เป็น JSON ต่อชุดหน้า: ข้อความตามบรรทัดจริงในภาพ ตาราง = บรรทัด `เซลล์ | เซลล์` หน้ามีแต่รูป = null ไม่มีคำอธิบาย/markdown/สรุป รูปเดียวกับ input ของ `scannedTorPages` (ตัวสร้างแถวไม่ต้องแก้)
+3. `[อ่านไม่ออก]` → แถวนั้นติดคำเตือน งานทำต่อได้ ผู้ใช้เห็นรายการแถวพร้อมเลขหน้าต้นทาง (`rowPages`)
+4. **ความแม่นยำเท่าเดิม** = เลขข้อ ตัวเลข หน่วย ตรงทุกตัว (ศูนย์ที่ต่าง); ข้อความไทยทั่วไปผิดไม่มากกว่า baseline เดิม (OCR Typhoon + ตัวสร้างแถว) วัดกับหน้าที่ตรวจมือ ≥ ~10 หน้า (ตาราง + ตัวเลขเล็ก) จาก MOF/Apron (TOR สแกนทั้งคู่; prior art `.scratch/soc-builder/DECISIONS.md` ข้อ 28)
+5. ตรวจความตรง: prompt เข้ม + code checks ฟรี + คนเห็นหน้าต้นทาง; อ่านหน้าเสี่ยงซ้ำเปิดเฉพาะเมื่อวัดแล้วเห็นเลข/หน่วยผิดแม้ตัวเดียว (กิน ~2 เท่าของหน้านั้น)
+6. ตัด pre-pass OCR local ออก; ชั้นแกนทำก่อน; batch size กับเลือกโมเดล (Haiku/Sonnet/Opus) วัดหลัง live run แรก
+7. **Lazy ต่อหน้า** ตามช่วงที่การสร้าง SOC เลือก ไม่อ่านทั้งไฟล์ตอน upload; read state เป็นระดับหน้า; TOR step แสดง "อ่านแล้ว N/M หน้า" และเป็นเสร็จทันทีหลัง upload
+8. **Page Text Store** ต่อ ProposalTor (key = checksum) ใช้ร่วม OCR กับ Claude; `soc-builds.ts` และ `soc-tor.ts` อ่านจากที่นี่เท่านั้น; ไฟล์ jsonl เก่าต่อ job ไม่ backfill (อ่านใหม่ถ้าไม่เจอ)
+9. reader (`ocr` | `claude`) เก็บต่อ ProposalTor เปลี่ยนทีหลังได้ (หน้าที่อ่านแล้วใช้ต่อ); ไม่มี OCR key → default `claude` ซ่อนตัวเลือก OCR; มี key → ผู้ใช้เลือกเอง ไม่มี default
+10. ตรวจผลที่ Runner ส่ง: **ปฏิเสธ** (ไม่เก็บอะไรจากชุดนั้น) เมื่อหน้าไม่ครบ/เกิน เลขหน้าไม่ตรง หรือว่างทั้งที่หน้ามีหมึก; **เตือน + อ่านซ้ำหน้านั้นหนึ่งครั้ง** เมื่อเลขข้อกระโดด/ซ้ำ หรือ (Proposal มี SOC แล้ว) ข้อความ TOR ของแถว SOC หาไม่เจอ (matcher ของ TOR Match); ถ้ายังไม่ผ่านเก็บพร้อมธง ไม่บล็อก
+11. flow: งานเดียวต่อเนื่อง ยืนยันโควตา → Claude อ่านหน้าที่เลือก → โค้ดสร้างแถว → SOC Version; กฎ 07 (Runner ตัวเอง / รอคนรับ); ยกเลิกได้; อ่านค้างต่อจากหน้าที่เก็บไว้
+12. รูปหน้า: เซิร์ฟเวอร์เรนเดอร์ครั้งเดียวต่อหน้า (เทา ~150 dpi ครอบขอบ ด้านยาว ≤ 1568 px; cache ตาม checksum) Runner ดาวน์โหลด PNG; ขนาดเลือกจากการทดสอบเลขไทยและตารางเล็ก
+13. คำสั่งของ Claude: prompt เล็กเฉพาะถอดข้อความ ไม่โหลด skill ตรวจเต็ม (ลด context เหมือนตั๋ว 11) แพ็กใน Skill Package ใหม่; ตามแบบ HEADLESS
+14. ค่าเริ่มต้น: Check Request kind `tor_read`, หนึ่ง request = ช่วงหน้าติดกัน ~8 หน้า (ปรับจากการวัด); Runner bump version (ผู้ตรวจ re-paste คำสั่งติดตั้งหลัง deploy); บันทึก "อ่านโดย ข (บัญชีของ ข)"; ป้าย Beta + "อ่านด้วยเครื่อง อาจผิด" เหมือน OCR
+15. ทวนข้อความ OCR (DECISIONS ข้อ 28) ถูกแทนที่ด้วยตั๋วนี้ ไม่สร้าง
+
+## Checklist
+
+- [ ] **Spike ก่อน (กล่องแรก):** ถอดด้วย Claude ใน session ปกติ ~10 หน้า MOF/Apron (รวมตาราง ตัวเลขเล็ก) ด้วยภาพขนาดที่ตั้งใจใช้ เทียบกับหน้าที่ตรวจมือและกับ OCR; ถ้าเลข/หน่วยผิด ตัดสินใจก่อนสร้างต่อ (ขนาดภาพ, อ่านซ้ำหน้าเสี่ยง); บันทึกตารางลงตั๋ว
+- [ ] Page Text Store ต่อ ProposalTor (migration); consumer สองจุดอ่านจากที่นี่; OCR เขียนลงที่นี่ด้วย
+- [ ] `ProposalTor.reader` (`ocr` | `claude`) + ฟอร์ม upload ถาม reader; `claude` ข้าม OCR key/confirm ของตั๋ว 02; ปุ่มเปลี่ยนวิธีอ่าน; TOR step แสดง "อ่านแล้ว N/M หน้า"
+- [ ] เรนเดอร์หน้าฝั่งเซิร์ฟเวอร์ (ขนาดตามผล spike) cache ตาม checksum
+- [ ] Check Request kind `tor_read` ตามกฎ 07; Runner ดาวน์โหลดรูป รัน prompt ถอดข้อความ ส่งผล; Runner version bump; `soc-runner/test_runner.py`
+- [ ] Prompt/skill ถอดข้อความ (verbatim, `[อ่านไม่ออก]`, รูปแบบ output) อัปโหลดเป็น Skill Package ใหม่
+- [ ] Import: ปฏิเสธ/เตือน/อ่านซ้ำตามข้อ 10; บันทึกผู้อ่านและแสดง Beta note; แถวที่มี `[อ่านไม่ออก]` ติดคำเตือนพร้อมเลขหน้า
+- [ ] สร้าง SOC ใน Proposal ใช้ flow เดียวต่อเนื่อง (ข้อ 11) รวมรอคนรับ
+- [ ] Tests seam A/B; live run หนึ่งครั้งบน MOF หรือ Apron วัดโควตา (baseline เดิม ~20–40 pts/40 หน้า ตามประเมิน)
+
+## ตารางวัด (กรอกเมื่อวัด)
+
+เทียบ: baseline (OCR) vs Claude ตั้งต้น vs แต่ละ lever ทีละข้อ vs ทั้งหมด: quota points, เลขข้อ/ตัวเลข/หน่วยผิด, ตัวอักษรไทยผิด เก็บ lever เมื่อความแม่นยำไม่ต่ำกว่า baseline เท่านั้น
+
+| ชุด | หน้า | points | เลข/หน่วยผิด | ตัวอักษรผิด |
+|---|---|---|---|---|
+| | | | | |
+
+Levers ที่รอวัด: ขนาดภาพ, batch size, โมเดล (Haiku/Sonnet/Opus), อ่านหน้าเสี่ยงซ้ำ

@@ -50,7 +50,7 @@ One run that turns the chosen pages of a TOR PDF into a Generated SOC Draft usin
 _Avoid_: SOC Build Job, build mode, SOC check
 
 **TOR PDF**:
-The PDF, text or scanned, that a SOC Build reads its requirements from. Only the page ranges the user types are read; a scanned one is read by the external OCR after the user confirms.
+The PDF, text or scanned, that a SOC Build reads its requirements from. Only the page ranges the user types are read; a scanned one is read by the external OCR after the user confirms, or (Proposal, ticket 12) by Claude on a Runner with no data leaving the system.
 _Avoid_: TOR ต้นฉบับ (that is the TOR attached to a check job), Evidence PDF, catalog
 
 **SOC Template**:
@@ -62,8 +62,12 @@ The Word file a SOC Build produces: the template with one row per numbered TOR i
 _Avoid_: Checked SOC, approved SOC
 
 **ทวนข้อความ OCR (OCR proofread)**:
-An optional step on a SOC Build from a scanned TOR: the user's SOC Runner shows AI the page images with the OCR text, the AI returns only corrections, and the build applies them and lists each one.
+An optional step on a SOC Build from a scanned TOR: the user's SOC Runner shows AI the page images with the OCR text, the AI returns only corrections, and the build applies them and lists each one. Superseded in a Proposal by the Claude TOR read (ticket 12), which transcribes the pages itself; this proofread is not built.
 _Avoid_: TOR Match, AI OCR
+
+**Page Text Store (ข้อความต่อหน้าของ TOR)**:
+The text of a Proposal's scanned TOR kept per page, keyed by the file's checksum, shared by both readers (the external OCR and Claude on a Runner). Every consumer (สร้าง SOC, ตรวจ TOR ตรงต้นฉบับ, กรอกอ้างอิง) reads only from it, so a page is read once; pages are read lazily, only for the range a consumer asks. Text kept in it matches the TOR character for character: unreadable text is the marker `[อ่านไม่ออก]`, never a guess.
+_Avoid_: OCR cache, page file
 
 ## Reviewer-run checks (ADR 0008)
 
