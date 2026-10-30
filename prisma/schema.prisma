@@ -566,35 +566,43 @@ model SocTemplate {
 // under SOC_STORAGE_ROOT/builds/<id>/. Deleted for good 30 days after it was
 // created (`purgeAfter`).
 model SocBuild {
-  id                  String    @id @default(cuid())
-  title               String
-  ownerId             String
-  owner               User      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  id                 String      @id @default(cuid())
+  title              String
+  ownerId            String
+  owner              User        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   // "QUEUED" (waiting in the OCR queue) | "READING" (scanned TOR, pagesDone
   // of pagesTotal) | "READY" (draft built) | "FAILED" (read failed, can
   // resume) | "CANCELLED" (can resume)
-  status              String    @default("QUEUED")
-  scanned             Boolean   @default(false)
+  status             String      @default("QUEUED")
+  scanned            Boolean     @default(false)
   // The chosen pages as typed ("12-40, 55-60") and as [from, to] pairs.
-  pageRanges          String
-  pageRangeList       Json
-  pagesDone           Int       @default(0)
-  pagesTotal          Int?
+  pageRanges         String
+  pageRangeList      Json
+  pagesDone          Int         @default(0)
+  pagesTotal         Int?
   // What a read in progress is doing: "รอคิวที่ N" or "กำลังอ่านหน้า a/b" (scanned TOR only).
-  stage               String?
-  errorMessage        String?
+  stage              String?
+  errorMessage       String?
   // What the user is told about the draft (strings), and its row count.
-  warnings            Json?
-  rowCount            Int?
-  torName             String
-  torStorageKey       String    @unique
-  templateName        String
-  templateStorageKey  String    @unique
-  outputStorageKey    String?   @unique
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  purgeAfter          DateTime
+  warnings           Json?
+  rowCount           Int?
+  torName            String
+  torStorageKey      String      @unique
+  templateName       String
+  templateStorageKey String      @unique
+  outputStorageKey   String?     @unique
+  // Set when the build was started from a Proposal (ADR 0012): every user who
+  // can open the Proposal can open the build, and it goes with the Proposal.
+  proposalId         String?
+  proposal           Proposal?   @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  // The SOC Version made from this build once it was READY (the version keeps
+  // its own copy of the draft, so it outlives the build's 30 days).
+  version            SocVersion?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  purgeAfter         DateTime
 
+  @@index([proposalId])
   @@index([ownerId, createdAt])
   @@index([purgeAfter])
 }
@@ -779,19 +787,20 @@ model ProjectCardClient {
 // are derived (lib/proposal.ts), never stored. Its files live under
 // SOC_STORAGE_ROOT/proposals/<id>/.
 model Proposal {
-  id          String    @id @default(cuid())
+  id          String              @id @default(cuid())
   title       String
   creatorId   String
-  creator     User      @relation("ProposalCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  creator     User                @relation("ProposalCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   deletedAt   DateTime?
   deletedById String?
   purgeAfter  DateTime?
   restoredAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   tor         ProposalTor?
   socVersions SocVersion[]
   datasheets  ProposalDatasheet[]
+  builds      SocBuild[]
 
   @@index([deletedAt, updatedAt])
   @@index([deletedAt, purgeAfter])
@@ -846,29 +855,32 @@ model ProposalDatasheet {
 // then the .xlsx made from it, `rowPages` = the PDF page of each row).
 // Files live under SOC_STORAGE_ROOT/proposals/<proposalId>/.
 model SocVersion {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   proposalId       String
-  proposal         Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposal         Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   number           Int
   // "upload" | "build" | "reference_fill"
   source           String
   // "reading" | "ready" | "failed"
-  state            String   @default("ready")
+  state            String    @default("ready")
   stage            String?
-  progress         Int      @default(0)
+  progress         Int       @default(0)
   errorMessage     String?
   originalName     String?
-  storageKey       String?  @unique
+  storageKey       String?   @unique
   mimeType         String?
   sizeBytes        Int?
   checksum         String?
   sourceName       String?
-  sourceStorageKey String?  @unique
+  sourceStorageKey String?   @unique
   warnings         Json?
   rowPages         Json?
+  // The SOC Build this version was made from (source "build"); null once that build is purged.
+  buildId          String?   @unique
+  build            SocBuild? @relation(fields: [buildId], references: [id], onDelete: SetNull)
   createdById      String
-  createdBy        User     @relation("SocVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt        DateTime @default(now())
+  createdBy        User      @relation("SocVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime  @default(now())
 
   @@unique([proposalId, number])
 }

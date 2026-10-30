@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { OCR_CONFIRM_REQUIRED, requireSocActor, validateUpload } from "@/lib/soc";
-import { socBuilderError } from "@/lib/soc-builder-http";
+import { buildTemplateFromForm, socBuilderError } from "@/lib/soc-builder-http";
 import { createSocBuild, listSocBuilds } from "@/lib/soc-builds";
 
 export const runtime = "nodejs";
@@ -26,12 +26,7 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const tor = form.get("tor");
     if (!(tor instanceof File) || tor.size === 0) throw new Error("กรุณาเลือกไฟล์ PDF ของ TOR");
-    const uploaded = form.get("template");
-    const templateId = form.get("templateId");
-    const template = uploaded instanceof File && uploaded.size > 0
-      ? { file: { name: uploaded.name, bytes: new Uint8Array(await uploaded.arrayBuffer()) } }
-      : typeof templateId === "string" && templateId ? { id: templateId } : null;
-    if (!template) throw new Error("กรุณาเลือกเทมเพลต SOC จากรายการ หรืออัปโหลดไฟล์เทมเพลต");
+    const template = await buildTemplateFromForm(form);
     const build = await createSocBuild(
       actor,
       {

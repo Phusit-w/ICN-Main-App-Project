@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { requirePageAccess } from "@/lib/authorization";
 import { getProposalPage, STEP_STATUS_LABELS, type StepStatus } from "@/lib/proposal";
 import { mySocRunner } from "@/lib/soc-runner";
+import { listSocTemplates } from "@/lib/soc-templates";
 import ProposalHeaderActions from "@/components/ProposalHeaderActions";
+import ProposalBuildForm from "@/components/ProposalBuildForm";
 import ProposalDatasheetPanel from "@/components/ProposalDatasheetPanel";
 import ProposalSocPanel from "@/components/ProposalSocPanel";
 import { formatFileSize } from "@/lib/soc-upload";
@@ -28,6 +30,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   await requirePageAccess("soc");
   let proposal;
   try { proposal = await getProposalPage(id); } catch { notFound(); }
+  const templates = (await listSocTemplates()).map((template) => ({ id: template.id, name: template.name }));
   const link = await mySocRunner(proposal.viewerId);
   const hasRunner = Boolean(link && !link.revokedAt);
   return <div className="flex flex-col gap-6">
@@ -55,6 +58,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <p className="mt-2 text-sm">{step.now}</p>
         <dl className="mt-2 grid gap-x-6 gap-y-1 text-xs text-muted sm:grid-cols-2"><div><dt className="inline font-medium text-label">ใช้: </dt><dd className="inline">{step.needs}</dd></div><div><dt className="inline font-medium text-label">ได้: </dt><dd className="inline">{step.gives}</dd></div></dl>
         {step.no === 1 ? <ProposalTorForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} /> : null}
+        {step.no === 3 ? <ProposalBuildForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} templates={templates} builds={proposal.builds.map((build) => ({ ...build, createdAt: build.createdAt.toISOString() }))} /> : null}
       </section>
     </li>)}</ol>
     <ProposalDatasheetPanel proposalId={proposal.id} datasheets={proposal.datasheets} />

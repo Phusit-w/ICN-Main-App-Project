@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
 import { assertSocTemplate, buildSocDraft, pageNumbers, type PageRange } from "@/lib/soc-builder";
 import { cleanSocTitle, OCR_CONFIRM_REQUIRED, requireSocActor, resolveStorageKey, socStorageRoot, storeSocFile } from "@/lib/soc";
+import { createVersion } from "@/lib/proposal-soc";
 import { queueOcrRead, stopOcrRead, type OcrRun } from "@/lib/soc-ocr-queue";
 import type { CellReader } from "@/lib/soc-pdf-soc";
 import { DOCX_MIME, toArabicDigits } from "@/lib/soc-shared";
@@ -26,7 +27,7 @@ const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const NO_TEMPLATE = "ไม่พบเทมเพลตนี้ในรายการ กรุณาเลือกเทมเพลตใหม่";
 const READING_STAGE = "กำลังอ่าน TOR";
 const WAITING_STAGE = "รอคิว";
-const OPEN_STATES = ["QUEUED", "READING"];
+export const OPEN_STATES = ["QUEUED", "READING"];
 const STOP_READING = new Error("the TOR is no longer being read");
 
 // "12-40, 55-60" or "7" (Thai digits too) as inclusive [from, to] pairs, kept
@@ -71,7 +72,7 @@ const buildPagesFile = (id: string) => path.join(socStorageRoot(), "builds", id,
 // already in line. Nothing is kept if any step before that fails.
 export async function createSocBuild(
   actor: SocActor,
-  input: { title?: unknown; tor: Upload; pageRanges: string; template: { id: string } | { file: Upload } },
+  input: { title?: unknown; tor: Upload; pageRanges: string; template: { id: string } | { file: Upload }; proposalId?: string },
   { readPage = configuredOcrReader(), ocrConfirmed = false }: { readPage?: CellReader; ocrConfirmed?: boolean } = {},
 ) {
   const title = buildTitle(input.title, input.tor.name);
@@ -98,7 +99,7 @@ export async function createSocBuild(
         pageRanges: input.pageRanges.trim(), pageRangeList: ranges.map(([from, to]) => [from, to]),
         pagesDone: draft ? tor.pageCount : 0, pagesTotal: draft ? tor.pageCount : chosen, warnings: draft?.warnings ?? [], rowCount: draft?.rowCount ?? null,
         torName: torFile.originalName, torStorageKey: torFile.storageKey, templateName: template.name, templateStorageKey: templateStored.storageKey,
-        outputStorageKey: output?.storageKey ?? null, purgeAfter: new Date(Date.now() + RETENTION_MS),
+        outputStorageKey: output?.storageKey ?? null, proposalId: input.proposalId ?? null, purgeAfter: new Date(Date.now() + RETENTION_MS),
       },
     });
     await writeAudit({
@@ -106,7 +107,8 @@ export async function createSocBuild(
       summary: draft ? `สร้าง SOC ${title} (${draft.rowCount} แถว)` : `สร้าง SOC ${title} จาก TOR สแกน (อ่านด้วย OCR ${chosen} หน้า)`,
       metadata: { title, torName: torFile.originalName, pageRanges: build.pageRanges, scanned: !draft, rowCount: draft?.rowCount ?? null },
     });
-    if (!draft) void startBuildRead(id, readPage!);
+    if (draft) await addBuildVersion(id).catch((error) => console.error("Adding a SOC Version from build", id, "failed", error)); // the build exists: its folder must stay
+    else void startBuildRead(id, readPage!);
     return build;
   } catch (error) {
     await rm(resolveStorageKey(folder), { recursive: true, force: true });
@@ -156,6 +158,7 @@ async function finishBuildRead(id: string, readPage: CellReader, run: OcrRun) {
     storedOutput = output.storageKey;
     const { count } = await prisma.socBuild.updateMany({ where: reading, data: { status: "READY", stage: null, errorMessage: null, outputStorageKey: output.storageKey, rowCount: draft.rowCount, warnings: draft.warnings } });
     if (!count) throw STOP_READING;
+    await addBuildVersion(id).catch((error) => console.error("Adding a SOC Version from build", id, "failed", error)); // the build is READY: its draft can still be downloaded
     await writeAudit({ actorId: null, action: "SOC_BUILD_READ_COMPLETED", entityType: "SOC_BUILD", entityId: id, summary: `อ่าน TOR สแกนครบและสร้าง SOC ${build.title} (${draft.rowCount} แถว)`, metadata: { title: build.title, rowCount: draft.rowCount } });
   } catch (error) {
     if (storedOutput) await rm(resolveStorageKey(storedOutput), { force: true }).catch(() => undefined);
@@ -167,11 +170,42 @@ async function finishBuildRead(id: string, readPage: CellReader, run: OcrRun) {
   }
 }
 
+// A READY build started from a Proposal gives the Proposal a new SOC Version
+// (source "build"): a copy of the draft, so it stays when the build is purged.
+// Does nothing for a standalone build, a build whose version already exists
+// (unique buildId), or a Proposal in the trash.
+async function addBuildVersion(buildId: string) {
+  const build = await prisma.socBuild.findUnique({ where: { id: buildId }, include: { proposal: { select: { id: true, title: true, deletedAt: true } } } });
+  if (!build?.proposal || build.proposal.deletedAt || build.status !== "READY" || !build.outputStorageKey) return;
+  if (await prisma.socVersion.count({ where: { buildId } })) return;
+  const bytes = new Uint8Array(await readFile(resolveStorageKey(build.outputStorageKey)));
+  const stored = await storeSocFile(`proposals/${build.proposal.id}`, `SOC-${build.title}.docx`, ".docx", bytes);
+  try {
+    const warnings = (build.warnings as string[] | null) ?? [];
+    const version = await createVersion(build.proposal.id, {
+      source: "build", state: "ready", createdById: build.ownerId, buildId, mimeType: DOCX_MIME, ...stored, warnings: warnings.length ? warnings : undefined,
+    });
+    await writeAudit({
+      actorId: build.ownerId, action: "PROPOSAL_SOC_VERSION_ADDED", entityType: "PROPOSAL", entityId: build.proposal.id,
+      summary: `เพิ่ม SOC ฉบับ ${version.number} (สร้าง SOC) ใน Proposal ${build.proposal.title}`, metadata: { versionId: version.id, number: version.number, buildId },
+    }).catch((error) => console.error("Audit of a Proposal SOC version failed", error)); // the version exists: its file must stay
+  } catch (error) {
+    await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
+    if ((error as { code?: string }).code !== "P2002") throw error; // another call made this build's version first
+  }
+}
+
+// A restored Proposal gets the SOC Version of a build that turned READY while it was in the trash.
+export async function addMissingBuildVersions(proposalId: string) {
+  const ready = await prisma.socBuild.findMany({ where: { proposalId, status: "READY", version: null }, select: { id: true } });
+  for (const { id } of ready) await addBuildVersion(id).catch((error) => console.error("Adding a SOC Version from build", id, "failed", error));
+}
+
 // Cancel by the build's owner (or an ADMIN): the read stops, and the build
 // waits as CANCELLED with its saved pages, to be resumed. False when it was no
 // longer being read.
 export async function cancelBuildRead(id: string) {
-  const { actor, build } = await authorizeSocBuild(id);
+  const { actor, build } = await authorizeSocBuild(id, { write: true });
   await stopOcrRead(`build:${id}`);
   const { count } = await prisma.socBuild.updateMany({ where: { id, status: { in: OPEN_STATES } }, data: { status: "CANCELLED", stage: null, errorMessage: "ยกเลิกการอ่าน TOR แล้ว หน้าที่อ่านแล้วยังเก็บไว้ กด \"อ่านต่อ\" เมื่อพร้อม" } });
   if (count) await writeAudit({ actorId: actor.id, action: "SOC_BUILD_READ_CANCELLED", entityType: "SOC_BUILD", entityId: id, summary: `ยกเลิกการอ่าน TOR ของ SOC ที่สร้าง ${build.title}` });
@@ -181,7 +215,7 @@ export async function cancelBuildRead(id: string) {
 // Resume: a failed or cancelled read goes on from its saved pages, back in the
 // OCR line. False when it was not failed or cancelled.
 export async function resumeBuildRead(id: string, readPage = configuredOcrReader()) {
-  const { actor, build } = await authorizeSocBuild(id);
+  const { actor, build } = await authorizeSocBuild(id, { write: true });
   if (!readPage) throw new Error(OCR_NOT_SET_UP);
   const { count } = await prisma.socBuild.updateMany({ where: { id, status: { in: ["FAILED", "CANCELLED"] } }, data: { status: "QUEUED", stage: WAITING_STAGE, errorMessage: null } });
   if (!count) return false;
@@ -197,16 +231,22 @@ export async function resumeBuildReads(readPage = configuredOcrReader()) {
   for (const { id } of builds) void startBuildRead(id, readPage);
 }
 
-// A build opens for its owner and ADMIN; anyone else gets NOT_FOUND.
-export async function authorizeSocBuild(id: string) {
+// A build opens for its owner and ADMIN; anyone else gets NOT_FOUND. A build
+// started from a live Proposal opens (to see and download) for every user with
+// SOC access, but cancelling, resuming and deleting it (`write`) stay with the
+// owner and ADMIN: a read can cost the owner's OCR quota, a delete can't be undone.
+export async function authorizeSocBuild(id: string, { write = false } = {}) {
   const actor = await requireSocActor();
-  const build = await prisma.socBuild.findUnique({ where: { id } });
-  if (!build || (build.ownerId !== actor.id && actor.role !== "ADMIN")) throw new Error("NOT_FOUND");
+  const build = await prisma.socBuild.findUnique({ where: { id }, include: { proposal: { select: { deletedAt: true } } } });
+  const ownerOrAdmin = Boolean(build && (build.ownerId === actor.id || actor.role === "ADMIN"));
+  const viaProposal = !write && Boolean(build?.proposal && !build.proposal.deletedAt);
+  if (!build || !(ownerOrAdmin || viaProposal)) throw new Error("NOT_FOUND");
   return { actor, build };
 }
 
 export async function listSocBuilds(actor: SocActor) {
-  const builds = await prisma.socBuild.findMany({ where: { ownerId: actor.id }, orderBy: { createdAt: "desc" } });
+  // A Proposal's builds are listed on its page, not here.
+  const builds = await prisma.socBuild.findMany({ where: { ownerId: actor.id, proposalId: null }, orderBy: { createdAt: "desc" } });
   return builds.map(({ id, title, status, scanned, stage, pagesDone, pagesTotal, pageRanges, rowCount, warnings, errorMessage, createdAt, purgeAfter }) => ({ id, title, status, scanned, stage, pagesDone, pagesTotal, pageRanges, rowCount, warnings: (warnings as string[] | null) ?? [], errorMessage, createdAt, purgeAfter }));
 }
 
@@ -228,7 +268,7 @@ async function removeSocBuild(build: { id: string; title: string; ownerId: strin
 }
 
 export async function deleteSocBuild(id: string) {
-  const { actor, build } = await authorizeSocBuild(id);
+  const { actor, build } = await authorizeSocBuild(id, { write: true });
   await removeSocBuild(build, actor.id);
 }
 
@@ -249,3 +289,30 @@ export async function purgeExpiredSocBuilds(now = new Date(), log: (message: str
   }
   return purged;
 }
+
+// A Proposal in the trash stops its builds' OCR reads. A build being read waits
+// as CANCELLED and is resumed by hand after a restore.
+export async function stopProposalBuildReads(proposalId: string) {
+  const open = await prisma.socBuild.findMany({ where: { proposalId, status: { in: OPEN_STATES } }, select: { id: true } });
+  for (const { id } of open) {
+    await stopOcrRead(`build:${id}`);
+    await prisma.socBuild.updateMany({ where: { id, status: { in: OPEN_STATES } }, data: { status: "CANCELLED", stage: null, errorMessage: "Proposal ถูกย้ายไปถังขยะ การอ่าน TOR หยุดแล้ว กด 'อ่านต่อ' เมื่อกู้คืน Proposal" } });
+  }
+}
+
+// Deletes every build of a Proposal being purged: rows and folders (the rows
+// would cascade, the folders would not). The SOC Versions go with the Proposal.
+export async function removeProposalBuilds(proposalId: string) {
+  const builds = await prisma.socBuild.findMany({ where: { proposalId }, select: { id: true, title: true, ownerId: true, torStorageKey: true } });
+  for (const build of builds) await removeSocBuild(build, null, " (Proposal ถูกลบถาวร)");
+}
+
+// A Proposal's builds for its page, newest first.
+export async function listProposalBuilds(proposalId: string) {
+  const rows = await prisma.socBuild.findMany({ where: { proposalId }, orderBy: { createdAt: "desc" }, include: { owner: { select: { displayName: true } }, version: { select: { number: true } } } });
+  return rows.map((row) => ({
+    id: row.id, title: row.title, status: row.status, stage: row.stage, pagesDone: row.pagesDone, pagesTotal: row.pagesTotal,
+    errorMessage: row.errorMessage, ownerName: row.owner.displayName, createdAt: row.createdAt, versionNumber: row.version?.number ?? null,
+  }));
+}
+export type ProposalBuildView = Awaited<ReturnType<typeof listProposalBuilds>>[number];

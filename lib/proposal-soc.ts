@@ -27,7 +27,7 @@ const cellsFile = (proposalId: string, versionId: string) => path.join(socStorag
 
 // The next number is one past the highest; two uploads at once can pick the
 // same one, and the unique (proposalId, number) sends the later one round again.
-async function createVersion(proposalId: string, data: Omit<Prisma.SocVersionUncheckedCreateInput, "proposalId" | "number">) {
+export async function createVersion(proposalId: string, data: Omit<Prisma.SocVersionUncheckedCreateInput, "proposalId" | "number">) {
   for (let attempt = 0; ; attempt += 1) {
     const { _max } = await prisma.socVersion.aggregate({ where: { proposalId }, _max: { number: true } });
     try {

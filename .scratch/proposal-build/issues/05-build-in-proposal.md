@@ -4,7 +4,7 @@
 
 **Blocked by:** 02, 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Build started from a Proposal uses the Proposal's TOR (text and scanned paths, OCR confirm as today); `SocBuild` linked to the Proposal.
 - [ ] On READY the draft is copied in as a SOC Version (source build); a failed or cancelled build adds nothing.
