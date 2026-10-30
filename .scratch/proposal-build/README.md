@@ -18,5 +18,6 @@ Work blockers-first, one ticket per fresh session (`/implement`), `/clear` betwe
 | 10 | กรอกอ้างอิง: ขั้น AI บน Runner | 07, 08 | ready-for-agent |
 | 11 | Guided Tour | 06, 09 | ready-for-agent |
 | 12 | Claude อ่าน TOR แบบสแกน (แทน OCR ภายนอก) | 02, 07 | ready-for-agent |
+| 13 | สร้าง SOC รองรับ TOR หลายรูปแบบ (จากตัวอย่างจริง) | 05 | ready-for-agent |
 
 Repo rules: large unrelated uncommitted WIP — stage only this ticket's files, never `git add -A`; fresh test DB name each run (see memory); browser check light/dark/narrow for UI.
