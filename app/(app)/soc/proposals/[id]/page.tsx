@@ -6,6 +6,8 @@ import { mySocRunner } from "@/lib/soc-runner";
 import { listSocTemplates } from "@/lib/soc-templates";
 import ProposalHeaderActions from "@/components/ProposalHeaderActions";
 import ProposalBuildForm from "@/components/ProposalBuildForm";
+import type { CheckStatus } from "@/lib/proposal-check";
+import ProposalCheckStart from "@/components/ProposalCheckStart";
 import ProposalDatasheetPanel from "@/components/ProposalDatasheetPanel";
 import ProposalSocPanel from "@/components/ProposalSocPanel";
 import { formatFileSize } from "@/lib/soc-upload";
@@ -58,6 +60,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <p className="mt-2 text-sm">{step.now}</p>
         <dl className="mt-2 grid gap-x-6 gap-y-1 text-xs text-muted sm:grid-cols-2"><div><dt className="inline font-medium text-label">ใช้: </dt><dd className="inline">{step.needs}</dd></div><div><dt className="inline font-medium text-label">ได้: </dt><dd className="inline">{step.gives}</dd></div></dl>
         {step.no === 1 ? <ProposalTorForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} /> : null}
+        {step.no === 5 || step.no === 6 ? <ProposalCheckStart proposalId={proposal.id} kind={step.no === 5 ? "tor" : "evidence"} status={step.status as CheckStatus} jobId={step.jobId ?? null} staleJobId={step.staleJobId ?? null} blocked={!proposal.currentVersion ? "ต้องมี SOC ก่อน" : step.no === 5 && !proposal.tor ? "ต้องมี TOR ก่อน" : null} /> : null}
         {step.no === 3 ? <ProposalBuildForm proposalId={proposal.id} hasTor={Boolean(proposal.tor)} templates={templates} builds={proposal.builds.map((build) => ({ ...build, createdAt: build.createdAt.toISOString() }))} /> : null}
       </section>
     </li>)}</ol>

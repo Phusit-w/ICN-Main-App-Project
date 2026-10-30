@@ -11,7 +11,7 @@ Work blockers-first, one ticket per fresh session (`/implement`), `/clear` betwe
 | 03 | Datasheet ของ Proposal | 01 | done |
 | 04 | ฉบับ SOC จากการ upload | 01 | done |
 | 05 | สร้าง SOC ใน Proposal | 02, 04 | done |
-| 06 | ตรวจ TOR ตรงต้นฉบับ และตรวจหลักฐาน ต่อฉบับ | 02, 03, 04 | ready-for-agent |
+| 06 | ตรวจ TOR ตรงต้นฉบับ และตรวจหลักฐาน ต่อฉบับ | 02, 03, 04 | done (browser check left; not deployed) |
 | 07 | รอคนรับ | 06 | ready-for-agent |
 | 08 | กรอกอ้างอิง: ขั้นโค้ดและตารางรับ/แก้ | 03, 04 | ready-for-agent |
 | 09 | กรอกอ้างอิง: เขียนฉบับ SOC ใหม่ | 08 | ready-for-agent |
@@ -22,5 +22,6 @@ Work blockers-first, one ticket per fresh session (`/implement`), `/clear` betwe
 | 14 | สร้าง SOC หลายไฟล์จาก TOR ชุดเดียว | 13, 12 | needs-triage |
 | 15 | สร้าง SOC เป็นไฟล์ Excel | 05 (best after 13) | needs-triage |
 | 16 | แปลง .doc เป็น .docx อัตโนมัติตอน upload | best after 13, 12; needs IT | needs-triage |
+| 17 | สร้าง SOC Template จาก SOC เก่า | 05 (best after 13) | needs-triage |
 
 Repo rules: large unrelated uncommitted WIP — stage only this ticket's files, never `git add -A`; fresh test DB name each run (see memory); browser check light/dark/narrow for UI.

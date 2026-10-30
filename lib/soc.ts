@@ -375,8 +375,11 @@ async function finishScanRead(jobId: string, readCell: CellReader, run: OcrRun) 
 
 // Adds evidence PDFs (already checked by validateUpload) to an Imported SOC
 // Check the actor may open, e.g. a document Claude reported as missing.
-export async function addSocEvidence(actor: SocActor, job: { id: string; title: string; kind: string }, evidence: Upload[]) {
+export const PROPOSAL_JOB_EVIDENCE = "หลักฐานของงานนี้คือ Datasheet ของ Proposal เพิ่มหรือลบได้ที่หน้า Proposal";
+
+export async function addSocEvidence(actor: SocActor, job: { id: string; title: string; kind: string; proposalId?: string | null }, evidence: Upload[]) {
   if (job.kind !== "IMPORTED") throw new Error("เพิ่มเอกสารได้เฉพาะงานตรวจแบบนำเข้าผล");
+  if (job.proposalId) throw new Error(PROPOSAL_JOB_EVIDENCE);
   const stored: Awaited<ReturnType<typeof storeSocFile>>[] = [];
   try {
     for (const file of evidence) stored.push(await storeSocFile(job.id, file.name, ".pdf", file.bytes));
@@ -406,6 +409,7 @@ export async function removeSocEvidence(actor: SocActor, documentId: string) {
   if (!document) throw new Error("NOT_FOUND");
   const { job } = await authorizeSocJob(document.jobId);
   if (job.kind !== "IMPORTED" || document.type !== "EVIDENCE") throw new Error("ลบได้เฉพาะไฟล์ PDF หลักฐานของงานตรวจแบบนำเข้าผล");
+  if (job.proposalId) throw new Error(PROPOSAL_JOB_EVIDENCE);
   if (await prisma.socCheckRequest.count({ where: { jobId: job.id, kind: "check", state: "running" } })) {
     throw new Error("SOC Runner กำลังตรวจงานนี้อยู่ ลบไฟล์ได้หลังตรวจเสร็จ");
   }
@@ -470,6 +474,13 @@ export async function storeSocFile(jobId: string, originalName: string, extensio
     sizeBytes: bytes.byteLength,
     originalName: evidencePath(originalName),
   };
+}
+
+// Deletes a stored file unless a document or a Proposal TOR still points at it:
+// a Proposal job's TOR ต้นฉบับ is the Proposal's own file (proposal-build 06).
+export async function removeUnsharedFile(storageKey: string) {
+  const [documents, tors] = await Promise.all([prisma.socDocument.count({ where: { storageKey } }), prisma.proposalTor.count({ where: { storageKey } })]);
+  if (documents === 0 && tors === 0) await rm(resolveStorageKey(storageKey), { force: true }).catch(() => undefined);
 }
 
 export function resolveStorageKey(storageKey: string): string {

@@ -7,7 +7,7 @@ import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, writeAudit } from "@/lib/authorization";
-import { OCR_CONFIRM_REQUIRED, resolveStorageKey, socStorageRoot, storeSocFile } from "@/lib/soc";
+import { OCR_CONFIRM_REQUIRED, removeUnsharedFile, resolveStorageKey, socStorageRoot, storeSocFile } from "@/lib/soc";
 import { jobSocDocument } from "@/lib/soc-import";
 import { torJudgeRequestView } from "@/lib/soc-check-requests";
 import { queueOcrRead, stopOcrRead, type OcrRun } from "@/lib/soc-ocr-queue";
@@ -73,11 +73,13 @@ const torPagesFile = (jobId: string, documentId: string) => path.join(socStorage
 // result go, and a Claude step open on it is cancelled.
 export async function attachTorOriginal(
   actor: SocActor,
-  job: { id: string; title: string; kind: string; status: string },
+  job: { id: string; title: string; kind: string; status: string; proposalId?: string | null },
   upload: { name: string; bytes: Uint8Array },
-  { readPage = configuredOcrReader(), ocrConfirmed = false }: { readPage?: CellReader; ocrConfirmed?: boolean } = {},
+  { readPage = configuredOcrReader(), ocrConfirmed = false, shared }: { readPage?: CellReader; ocrConfirmed?: boolean; shared?: { storageKey: string; checksum: string; sizeBytes: number; originalName: string } } = {},
 ) {
   if (job.kind !== "IMPORTED") throw new Error("แนบ TOR ต้นฉบับได้เฉพาะงานตรวจแบบนำเข้าผล");
+  // A Proposal job's TOR is the Proposal's: `shared` is that file, kept where it is.
+  if (job.proposalId && !shared) throw new Error("งานนี้ใช้ TOR ของ Proposal เปลี่ยน TOR ได้ที่หน้า Proposal");
   if (job.status === "READING" || job.status === "READ_FAILED") throw new Error(SOC_NOT_READ);
   const read = readTextTor(upload.bytes);
   if (!read.pages) {
@@ -87,7 +89,7 @@ export async function attachTorOriginal(
   const compared = read.pages ? await compareWithSoc(job.id, read.pages) : null;
   const old = await prisma.socDocument.findMany({ where: { jobId: job.id, type: TOR_DOCUMENT } });
   const openJudges = await prisma.socCheckRequest.findMany({ where: { jobId: job.id, kind: TOR_JUDGE_REQUEST, state: { in: [...SOC_CHECK_REQUEST_OPEN_STATES] } }, select: { id: true } });
-  const stored = await storeSocFile(job.id, upload.name, ".pdf", upload.bytes);
+  const stored = shared ?? await storeSocFile(job.id, upload.name, ".pdf", upload.bytes);
   const documentId = randomUUID();
   const detail = { documentId, name: stored.originalName, replaced: old.map((d) => d.originalName), ...(compared ? { counts: compared.counts } : { scanned: true }) };
   const match = compared
@@ -106,13 +108,13 @@ export async function attachTorOriginal(
       prisma.socAuditEvent.create({ data: { jobId: job.id, actorId: actor.id, action: old.length ? "TOR_REPLACED" : "TOR_ATTACHED", detail } }),
     ]);
   } catch (error) {
-    await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
+    if (!shared) await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
     throw error;
   }
   // The old TOR's read, if any, finds its result gone and stops; once it has, its files go.
   await stopTorRead(job.id);
   for (const document of old) {
-    await rm(resolveStorageKey(document.storageKey), { force: true }).catch(() => undefined);
+    await removeUnsharedFile(document.storageKey);
     await rm(torPagesFile(job.id, document.id), { force: true }).catch(() => undefined);
   }
   if (!compared) void startTorRead(job.id, readPage!);

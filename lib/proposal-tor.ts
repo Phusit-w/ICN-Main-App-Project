@@ -6,12 +6,13 @@ import { rm } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/authorization";
 import { authorizeProposal } from "@/lib/proposal";
-import { OCR_CONFIRM_REQUIRED, resolveStorageKey, storeSocFile } from "@/lib/soc";
+import { OCR_CONFIRM_REQUIRED, removeUnsharedFile, resolveStorageKey, storeSocFile } from "@/lib/soc";
 import { readTextTor } from "@/lib/soc-tor-read";
 import { configuredOcrReader, OCR_NOT_SET_UP } from "@/lib/soc-typhoon";
 
 // A PDF validateUpload() has already checked. Replaces the Proposal's TOR:
-// the old row and file go (nothing cites an old TOR yet).
+// the old row goes, and its file too unless a SOC job's TOR Match still cites it
+// (that result stays openable and shows ต้องทำใหม่).
 export async function attachProposalTor(
   proposalId: string,
   upload: { name: string; bytes: Uint8Array },
@@ -37,7 +38,7 @@ export async function attachProposalTor(
     await rm(resolveStorageKey(stored.storageKey), { force: true }).catch(() => undefined);
     throw error;
   }
-  if (old) await rm(resolveStorageKey(old.storageKey), { force: true }).catch(() => undefined);
+  if (old) await removeUnsharedFile(old.storageKey);
   await writeAudit({
     actorId: actor.id, action: old ? "PROPOSAL_TOR_REPLACED" : "PROPOSAL_TOR_ATTACHED", entityType: "PROPOSAL", entityId: proposalId,
     summary: `${old ? "แทนที่" : "แนบ"} TOR ${stored.originalName} ใน Proposal ${proposal.title}${scanned ? " (PDF สแกน)" : ""}`,

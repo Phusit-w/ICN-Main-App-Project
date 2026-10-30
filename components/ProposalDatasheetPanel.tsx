@@ -61,7 +61,8 @@ export default function ProposalDatasheetPanel({ proposalId, datasheets }: { pro
     if (!(await confirm({ title: "ลบ Datasheet?", message: `${datasheet.originalName} จะถูกลบออกจาก Proposal` }))) return;
     setError("");
     startRemove(async () => {
-      await removeProposalDatasheetAction(proposalId, datasheet.id);
+      const result = await removeProposalDatasheetAction(proposalId, datasheet.id);
+      if (!result.ok) setError(result.error);
       router.refresh();
     });
   }

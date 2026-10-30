@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { jobSocDocument, readJobSoc, socRowPage } from "@/lib/soc-import";
 import { isSocImageKind, MIXED_IMAGE_NOTE, SOC_IMAGE_KIND_LABELS, type SocImageKind } from "@/lib/soc-shared";
+import { jobEvidenceFiles } from "@/lib/soc-evidence";
 import type { SocRowText } from "@/lib/soc-table";
 import { evidenceMissing, isAxisOk, isSocFinalDecision, PENDING_FIX, citedEvidence, declaredSelection, majorItemConfirmed, overallRowStatus, SOC_REVIEW_AXES, sortReviewRows, type EvidenceCitation, type SocAxisKey, type SocAxisValues, type SocFinalDecision, type SocRowStatus } from "@/lib/soc-review";
 
@@ -64,7 +65,8 @@ const rawText = (raw: unknown, field: string): string | null => {
 export async function socReviewView(jobId: string): Promise<{ rows: SocReviewRow[]; confirmedItemIds: string[] }> {
   const stored = await prisma.socCheckResult.findMany({ where: { jobId, majorItemId: { not: null } }, orderBy: { rowNumber: "asc" } });
   const reviewerIds = [...new Set(stored.map((r) => r.reviewedById).filter((id): id is string => id !== null))];
-  const evidenceDocuments = (await prisma.socDocument.findMany({ where: { jobId, type: "EVIDENCE" }, orderBy: { createdAt: "asc" }, select: { id: true, originalName: true } })).map((d) => ({ id: d.id, name: d.originalName }));
+  // A Datasheet taken off the Proposal still opens when a result cites it.
+  const evidenceDocuments = (await jobEvidenceFiles(jobId, { removed: true })).map((d) => ({ id: d.id, name: d.originalName }));
   const reviewers = new Map((await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, displayName: true } })).map((u) => [u.id, u.displayName]));
   // The SOC is read for each row's Bidder Remark, which isn't stored, so jobs checked
   // before remarks were shown have them too. Rows imported before the SOC lookup knew

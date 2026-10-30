@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { authorizeProposal, createProposal, renameProposal, trashProposal } from "@/lib/proposal";
-import { removeProposalDatasheet, renameDatasheetCitation } from "@/lib/proposal-datasheet";
+import { DATASHEET_RUNNER_BUSY, removeProposalDatasheet, renameDatasheetCitation } from "@/lib/proposal-datasheet";
+import { startEvidenceCheck, startTorCheck } from "@/lib/proposal-check";
 import { resumeVersionRead } from "@/lib/proposal-soc";
 import { SOC_TITLE_INVALID, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 
@@ -72,7 +73,29 @@ export async function renameDatasheetCitationAction(proposalId: string, datashee
   }
 }
 
-export async function removeProposalDatasheetAction(proposalId: string, datasheetId: string) {
-  await removeProposalDatasheet(proposalId, datasheetId);
-  revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
+// Refused (a SOC Runner is checking the Proposal) comes back as { ok: false, error }.
+export async function removeProposalDatasheetAction(proposalId: string, datasheetId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await removeProposalDatasheet(proposalId, datasheetId);
+    revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof Error && error.message === DATASHEET_RUNNER_BUSY) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+// ตรวจ TOR ตรงต้นฉบับ / ตรวจหลักฐาน on the current SOC Version: makes the
+// version's SOC job when it has none and returns it for the page to open.
+// Any SOC user may start one. A message for the user comes back as { ok: false, error }.
+export async function startProposalCheckAction(proposalId: string, kind: "tor" | "evidence"): Promise<{ ok: true; jobId: string } | { ok: false; error: string }> {
+  const { actor, proposal } = await authorizeProposal(proposalId);
+  try {
+    const jobId = kind === "tor" ? await startTorCheck(actor, proposal) : await startEvidenceCheck(actor, proposal);
+    revalidatePath(`/soc/proposals/${proposalId}`); revalidatePath("/soc");
+    return { ok: true, jobId };
+  } catch (error) {
+    if (error instanceof Error && /[฀-๿]/.test(error.message)) return { ok: false, error: error.message };
+    throw error;
+  }
 }

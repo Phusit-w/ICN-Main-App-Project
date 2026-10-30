@@ -20,7 +20,7 @@ export function defaultCitationName(path: string): string {
 
 // What the Proposal's Datasheets already hold, for the upload limits.
 export async function datasheetTotals(proposalId: string) {
-  const { _count, _sum } = await prisma.proposalDatasheet.aggregate({ where: { proposalId }, _count: true, _sum: { sizeBytes: true } });
+  const { _count, _sum } = await prisma.proposalDatasheet.aggregate({ where: { proposalId, removedAt: null }, _count: true, _sum: { sizeBytes: true } });
   return { count: _count, bytes: _sum.sizeBytes ?? 0 };
 }
 
@@ -48,7 +48,7 @@ export async function addProposalDatasheets(proposalId: string, uploads: { name:
 
 async function findDatasheet(proposalId: string, datasheetId: string) {
   const datasheet = await prisma.proposalDatasheet.findUnique({ where: { id: datasheetId } });
-  if (!datasheet || datasheet.proposalId !== proposalId) throw new Error("NOT_FOUND");
+  if (!datasheet || datasheet.proposalId !== proposalId || datasheet.removedAt) throw new Error("NOT_FOUND");
   return datasheet;
 }
 
@@ -69,16 +69,22 @@ export async function renameDatasheetCitation(proposalId: string, datasheetId: s
   return name;
 }
 
-// Off the list at once. No check result cites a Datasheet yet, so the file is
-// purged with it (ticket 06 keeps the file while a result cites it).
+export const DATASHEET_RUNNER_BUSY = "SOC Runner กำลังตรวจ Proposal นี้อยู่ ลบ Datasheet ได้หลังตรวจเสร็จ";
+
+// Off the list at once, but refused while a SOC Runner is running on any job of
+// the Proposal (it may be downloading Datasheets). Once any check result of the
+// Proposal exists the row and file stay, marked removed: the review page still
+// opens what a result cites. Before that the file goes with the row.
 export async function removeProposalDatasheet(proposalId: string, datasheetId: string) {
   const { actor, proposal } = await authorizeProposal(proposalId);
   const datasheet = await findDatasheet(proposalId, datasheetId);
+  if (await prisma.socCheckRequest.count({ where: { state: "running", job: { proposalId } } })) throw new Error(DATASHEET_RUNNER_BUSY);
+  const cited = await prisma.socCheckResult.count({ where: { job: { proposalId } } }) > 0;
   await prisma.$transaction([
-    prisma.proposalDatasheet.delete({ where: { id: datasheetId } }),
+    cited ? prisma.proposalDatasheet.update({ where: { id: datasheetId }, data: { removedAt: new Date() } }) : prisma.proposalDatasheet.delete({ where: { id: datasheetId } }),
     prisma.proposal.update({ where: { id: proposalId }, data: { updatedAt: new Date() } }),
   ]);
-  await rm(resolveStorageKey(datasheet.storageKey), { force: true }).catch(() => undefined);
+  if (!cited) await rm(resolveStorageKey(datasheet.storageKey), { force: true }).catch(() => undefined);
   await writeAudit({
     actorId: actor.id, action: "PROPOSAL_DATASHEET_REMOVED", entityType: "PROPOSAL", entityId: proposalId,
     summary: `ลบ Datasheet ${datasheet.originalName} จาก Proposal ${proposal.title}`, metadata: { name: datasheet.originalName, citationName: datasheet.citationName },

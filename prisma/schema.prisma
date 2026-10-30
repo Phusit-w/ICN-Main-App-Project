@@ -194,7 +194,14 @@ model SocJob {
   checkRuns     SocCheckRun[]
   checkRequests SocCheckRequest[]
   torMatch      SocTorMatch?
+  // The Proposal and SOC Version this job checks (proposal-build 06): made on
+  // the first check of that version, using the Proposal's TOR and live Datasheets.
+  proposalId    String?
+  proposal      Proposal?         @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  socVersionId  String?           @unique
+  socVersion    SocVersion?       @relation(fields: [socVersionId], references: [id], onDelete: SetNull)
 
+  @@index([proposalId])
   @@index([ownerId, updatedAt])
   @@index([status, createdAt])
   @@index([expiresAt])
@@ -211,7 +218,9 @@ model SocDocument {
   // "TOR_ORIGINAL" (the TOR ต้นฉบับ of TOR Match, one per job)
   type         String
   originalName String
-  storageKey   String        @unique
+  // Not unique: a Proposal job's TOR ต้นฉบับ points at the Proposal's own TOR file
+  // (proposal-build 06), shared by the jobs of its SOC Versions.
+  storageKey   String
   mimeType     String
   sizeBytes    Int
   checksum     String
@@ -221,6 +230,7 @@ model SocDocument {
   torMatch     SocTorMatch?
 
   @@index([jobId, type])
+  @@index([storageKey])
 }
 
 // The TOR Match of a job against its TOR ต้นฉบับ (docs/SOC-DOMAIN-GLOSSARY.md
@@ -801,14 +811,15 @@ model Proposal {
   socVersions SocVersion[]
   datasheets  ProposalDatasheet[]
   builds      SocBuild[]
+  jobs        SocJob[]
 
   @@index([deletedAt, updatedAt])
   @@index([deletedAt, purgeAfter])
 }
 
 // The one TOR of a Proposal (step TOR). Replacing it swaps this row and
-// deletes the old file: nothing cites an old TOR yet (TOR Match, ticket 06,
-// will). The file lives under SOC_STORAGE_ROOT/proposals/<id>/.
+// deletes the old file unless a SOC job's TOR Match still points at it
+// (proposal-build 06). The file lives under SOC_STORAGE_ROOT/proposals/<id>/.
 model ProposalTor {
   id           String   @id @default(cuid())
   proposalId   String   @unique
@@ -830,7 +841,8 @@ model ProposalTor {
 // every check. `originalName` is its path with the folders kept
 // ("บทที่ 2/2.5/tc22.pdf"); `citationName` (ชื่อที่ใช้อ้างอิง) is what English
 // references call it and can be edited. Removing one deletes the row and the
-// file; once a check result cites a Datasheet (ticket 06) the file stays.
+// file; once a check result of the Proposal exists the row stays with
+// `removedAt` set and so does the file (proposal-build 06).
 // Files live under SOC_STORAGE_ROOT/proposals/<proposalId>/.
 model ProposalDatasheet {
   id           String   @id @default(cuid())
@@ -844,6 +856,9 @@ model ProposalDatasheet {
   uploadedById String
   uploadedBy   User     @relation("ProposalDatasheetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   createdAt    DateTime @default(now())
+  // Taken off the list while a check result of the Proposal exists: the file
+  // stays so the review page can still open what a result cites.
+  removedAt    DateTime?
 
   @@index([proposalId])
 }
@@ -881,6 +896,7 @@ model SocVersion {
   createdById      String
   createdBy        User      @relation("SocVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt        DateTime  @default(now())
+  job              SocJob?
 
   @@unique([proposalId, number])
 }

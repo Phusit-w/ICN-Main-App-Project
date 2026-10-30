@@ -8,6 +8,7 @@ import { requireAccess, writeAudit } from "@/lib/authorization";
 import { normalizeSocTitle, SOC_TITLE_INVALID, SOC_TITLE_MAX, SOC_TITLE_TAKEN } from "@/lib/soc-shared";
 import { socStorageRoot } from "@/lib/soc";
 import { listSocVersions, restartProposalReads, stopProposalReads } from "@/lib/proposal-soc";
+import { loadProposalChecks, NO_CHECKS, removeProposalJobs, type CheckStatus, type ProposalChecks } from "@/lib/proposal-check";
 import { addMissingBuildVersions, listProposalBuilds, OPEN_STATES as OPEN_BUILD_STATES, removeProposalBuilds, stopProposalBuildReads } from "@/lib/soc-builds";
 
 type SocActor = Awaited<ReturnType<typeof requireAccess>>;
@@ -107,6 +108,7 @@ export async function deleteTrashedProposal(id: string, actorId: string | null):
   if (!proposal || !proposal.deletedAt) return false;
   await stopProposalReads(id);
   await removeProposalBuilds(id); // build rows would cascade; their folders would not
+  await removeProposalJobs(id); // so would the SOC jobs of its SOC Versions
   await prisma.proposal.delete({ where: { id } });
   await rm(proposalStorageDir(id), { recursive: true, force: true });
   const automatic = actorId === null;
@@ -138,6 +140,8 @@ export type StepAi = "ไม่ใช้ AI" | "AI ไม่บังคับ" 
 export type StepCard = {
   no: number; title: string; status: StepStatus; ai: StepAi;
   needs: string; gives: string; now: string;
+  // The two check steps: the current SOC Version's job, and the older result a ต้องทำใหม่ step links to.
+  jobId?: string | null; staleJobId?: string | null;
 };
 
 export const STEP_STATUS_LABELS: Record<StepStatus, string> = { done: "เสร็จ", doing: "กำลังทำ", todo: "ยังไม่ทำ", stale: "ต้องทำใหม่", reserved: "เร็ว ๆ นี้" };
@@ -146,26 +150,28 @@ export const STEP_STATUS_LABELS: Record<StepStatus, string> = { done: "เสร
 // tickets add the Datasheets and runs. `socVersion`: the number of the
 // current SOC Version (the highest ready one). `building`: a SOC Build of the
 // Proposal is waiting or being read; `buildVersion`: a ready SOC Version came from a build.
-export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null; socVersion: number | null; building: boolean; buildVersion: boolean };
+export type ProposalFacts = { tor: { name: string; pageCount: number; scanned: boolean } | null; socVersion: number | null; building: boolean; buildVersion: boolean; checks?: ProposalChecks };
 
 type TorRow = { originalName: string; pageCount: number; scanned: boolean };
-const proposalFacts = ({ tor, socVersions, building }: { tor: TorRow | null; socVersions: { number: number; source: string }[]; building: boolean }): ProposalFacts => ({
+const proposalFacts = ({ tor, socVersions, building, checks }: { tor: TorRow | null; socVersions: { number: number; source: string }[]; building: boolean; checks?: ProposalChecks }): ProposalFacts => ({
   tor: tor && { name: tor.originalName, pageCount: tor.pageCount, scanned: tor.scanned },
   socVersion: socVersions[0]?.number ?? null,
   building,
   buildVersion: socVersions.some((version) => version.source === "build"),
+  checks,
 });
 
 // The six steps in order. Statuses come from the facts, never from storage.
-export function proposalSteps({ tor, socVersion, building, buildVersion }: ProposalFacts): StepCard[] {
+export function proposalSteps({ tor, socVersion, building, buildVersion, checks = NO_CHECKS }: ProposalFacts): StepCard[] {
   const socNow = socVersion ? `ใช้ SOC ฉบับ ${socVersion}` : "ยังไม่มี SOC";
+  const checkNow: Record<CheckStatus, string> = { todo: socNow, doing: `กำลังตรวจ ${socNow}`, done: `ตรวจแล้ว ${socNow}`, stale: `มีผลเก่า ต้องตรวจ ${socNow} ใหม่` };
   return [
     { no: 1, title: "TOR", status: tor ? "done" : "todo", ai: "ไม่ใช้ AI", needs: "ไฟล์ TOR (PDF)", gives: "TOR ของ Proposal ที่ทุกขั้นใช้ร่วมกัน", now: tor ? `${tor.name.split("/").pop()} · ${tor.pageCount} หน้า${tor.scanned ? " · PDF สแกน" : ""}` : "ยังไม่มี TOR" },
     { no: 2, title: "โครง Content", status: "reserved", ai: "ไม่ใช้ AI", needs: "TOR", gives: "โครงเนื้อหาข้อเสนอ", now: "เร็ว ๆ นี้" },
     { no: 3, title: "สร้าง SOC", status: building ? "doing" : buildVersion ? "done" : "todo", ai: "ไม่ใช้ AI", needs: "TOR และเทมเพลต SOC", gives: "SOC ฉบับร่างที่เติมเลขข้อและข้อกำหนด TOR", now: building ? "กำลังสร้าง SOC" : buildVersion ? "สร้าง SOC แล้ว" : "ยังไม่ได้สร้าง SOC" },
     { no: 4, title: "กรอกอ้างอิง", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ Datasheet", gives: "SOC ฉบับใหม่ที่เติมเอกสารและหน้าอ้างอิง", now: socNow },
-    { no: 5, title: "ตรวจ TOR ตรงต้นฉบับ", status: "todo", ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ TOR", gives: "ผลเทียบข้อความ TOR ใน SOC กับต้นฉบับ", now: socNow },
-    { no: 6, title: "ตรวจหลักฐาน", status: "todo", ai: "ใช้ AI", needs: "SOC ปัจจุบันและ Datasheet", gives: "ผลตรวจ SOC เทียบ Datasheet และ SOC_Check", now: socNow },
+    { no: 5, title: "ตรวจ TOR ตรงต้นฉบับ", status: checks.tor.status, ai: "AI ไม่บังคับ", needs: "SOC ปัจจุบันและ TOR", gives: "ผลเทียบข้อความ TOR ใน SOC กับต้นฉบับ", now: checkNow[checks.tor.status], jobId: checks.tor.jobId, staleJobId: checks.tor.staleJobId },
+    { no: 6, title: "ตรวจหลักฐาน", status: checks.evidence.status, ai: "ใช้ AI", needs: "SOC ปัจจุบันและ Datasheet", gives: "ผลตรวจ SOC เทียบ Datasheet และ SOC_Check", now: checkNow[checks.evidence.status], jobId: checks.evidence.jobId, staleJobId: checks.evidence.staleJobId },
   ];
 }
 
@@ -184,22 +190,24 @@ export async function listProposals() {
     include: { creator: { select: { displayName: true } }, tor: { select: { originalName: true, pageCount: true, scanned: true } }, socVersions: { where: { state: "ready" }, orderBy: { number: "desc" }, select: { number: true, source: true } }, builds: { where: { status: { in: OPEN_BUILD_STATES } }, select: { id: true }, take: 1 } },
     orderBy: { updatedAt: "desc" },
   });
+  const checks = await loadProposalChecks(rows.map((row) => row.id));
   return rows.map((row) => ({
     id: row.id, title: row.title, creatorName: row.creator.displayName, updatedAt: row.updatedAt,
-    progress: proposalProgress(proposalSteps(proposalFacts({ ...row, building: row.builds.length > 0 }))), currentVersion: row.socVersions[0]?.number ?? null, waitingCount: 0,
+    progress: proposalProgress(proposalSteps(proposalFacts({ ...row, building: row.builds.length > 0, checks: checks.get(row.id) }))), currentVersion: row.socVersions[0]?.number ?? null, waitingCount: 0,
   }));
 }
 
 export async function getProposalPage(id: string) {
   const { actor, proposal } = await authorizeProposal(id);
-  const [creator, tor, socVersions, datasheets, builds] = await Promise.all([
+  const [creator, tor, socVersions, datasheets, builds, checks] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: proposal.creatorId }, select: { displayName: true } }),
     prisma.proposalTor.findUnique({ where: { proposalId: id }, select: { originalName: true, pageCount: true, scanned: true } }),
     listSocVersions(id),
-    prisma.proposalDatasheet.findMany({ where: { proposalId: id }, orderBy: { originalName: "asc" }, select: { id: true, originalName: true, citationName: true, sizeBytes: true } }),
+    prisma.proposalDatasheet.findMany({ where: { proposalId: id, removedAt: null }, orderBy: { originalName: "asc" }, select: { id: true, originalName: true, citationName: true, sizeBytes: true } }),
     listProposalBuilds(id),
+    loadProposalChecks([id]),
   ]);
-  const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready"), building: builds.some((build) => OPEN_BUILD_STATES.includes(build.status)) });
+  const facts = proposalFacts({ tor, socVersions: socVersions.filter((version) => version.state === "ready"), building: builds.some((build) => OPEN_BUILD_STATES.includes(build.status)), checks: checks.get(id) });
   return {
     id: proposal.id, viewerId: actor.id, title: proposal.title, creatorName: creator.displayName, updatedAt: proposal.updatedAt,
     canManage: proposal.creatorId === actor.id || actor.role === "ADMIN",

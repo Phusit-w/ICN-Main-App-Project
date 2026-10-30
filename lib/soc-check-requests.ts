@@ -13,6 +13,7 @@ import { resolveStorageKey } from "@/lib/soc";
 import { importLocalCheckRun, jobSocDocument, type ConfirmedRow, type LocalCheckRunImport } from "@/lib/soc-import";
 import { isHeadingRow, PENDING_FIX } from "@/lib/soc-review";
 import { currentSocSkillPackage, readSocSkillPackage, socSkillDownloadName } from "@/lib/soc-skill-package";
+import { jobEvidenceFile, jobEvidenceFiles } from "@/lib/soc-evidence";
 import { importTorJudge, torJudgeRunnerInput, TOR_JUDGE_REQUEST } from "@/lib/soc-tor-judge";
 import {
   SOC_CHECK_REQUEST_OPEN_STATES, SOC_CHECK_REQUEST_STALE_MS, SOC_RUNNER_FOR_EXCEL_SOC, SOC_RUNNER_FOR_IMAGE_ROWS, SOC_RUNNER_FOR_TOR_JUDGE, XLSX_MIME, isExcelSoc, isRequestableItemState,
@@ -338,12 +339,13 @@ async function checkRunnerView(requestId: string) {
   const request = await prisma.socCheckRequest.findUniqueOrThrow({
     where: { id: requestId },
     include: {
-      job: { select: { id: true, title: true, documents: { where: { type: { in: ["SOC", "EVIDENCE"] } }, orderBy: { createdAt: "asc" } } } },
+      job: { select: { id: true, title: true, documents: { where: { type: "SOC" }, orderBy: { createdAt: "asc" } } } },
       majorItem: { select: { id: true, key: true, label: true, title: true, imageRowCount: true } },
       skillPackage: true,
     },
   });
   const item = request.majorItem!; // a check request always has one
+  const evidence = await jobEvidenceFiles(request.job.id);
   const excelSoc = request.job.documents.some((d) => d.type === "SOC" && isExcelSoc(d));
   const picked = request.rowNumbers.length
     ? await prisma.socCheckResult.findMany({ where: { majorItemId: item.id, rowNumber: { in: request.rowNumbers } }, orderBy: { rowNumber: "asc" }, select: { rowNumber: true, item: true } })
@@ -360,7 +362,8 @@ async function checkRunnerView(requestId: string) {
     socCheck: !excelSoc,
     rows: picked.map((r) => ({ row: r.rowNumber, item: r.item })),
     skill: runnerSkill(request.id, request.skillPackage),
-    documents: request.job.documents.map((d) => runnerDocument(request.id, d)),
+    // The SOC, then the evidence PDFs: the job's own, or the Proposal's live Datasheets for a Proposal job.
+    documents: [...request.job.documents.map((d) => runnerDocument(request.id, d)), ...evidence.map((d) => runnerDocument(request.id, { ...d, type: "EVIDENCE" }))],
   };
 }
 
@@ -471,11 +474,9 @@ async function claimedRequest(link: RunnerLink, requestId: string) {
 // the TOR ต้นฉบับ of the TOR Match it judges.
 export async function runnerRequestDocument(link: RunnerLink, requestId: string, documentId: string) {
   const request = await claimedRequest(link, requestId);
-  const document = await prisma.socDocument.findFirst({
-    where: request.kind === TOR_JUDGE_REQUEST
-      ? { id: documentId, jobId: request.jobId, torMatch: { id: request.torMatchId ?? "" } }
-      : { id: documentId, jobId: request.jobId, type: { in: ["SOC", "EVIDENCE"] } },
-  });
+  const document = request.kind === TOR_JUDGE_REQUEST
+    ? await prisma.socDocument.findFirst({ where: { id: documentId, jobId: request.jobId, torMatch: { id: request.torMatchId ?? "" } } })
+    : (await prisma.socDocument.findFirst({ where: { id: documentId, jobId: request.jobId, type: { in: ["SOC", "EVIDENCE"] } } })) ?? (await jobEvidenceFile(request.jobId, documentId));
   if (!document) throw new Error("NOT_FOUND");
   await touch(request.id);
   return { document, bytes: await readFile(resolveStorageKey(document.storageKey)) };

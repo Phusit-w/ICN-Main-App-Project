@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { jobEvidenceFile } from "@/lib/soc-evidence";
 import { authorizeSocJob, resolveStorageKey, socErrorStatus } from "@/lib/soc";
 import { pdfPageResponse } from "@/lib/soc-pdf-page";
 
@@ -14,7 +14,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const { id, documentId, page } = await context.params;
     await authorizeSocJob(id);
-    const document = await prisma.socDocument.findFirst({ where: { id: documentId, jobId: id, type: "EVIDENCE" } });
+    const document = await jobEvidenceFile(id, documentId, { removed: true });
     if (!document) return NextResponse.json({ error: "ไม่พบเอกสารอ้างอิงนี้ในงานตรวจ" }, { status: 404 });
     return await pdfPageResponse(resolveStorageKey(document.storageKey), document.originalName, page);
   } catch (error) {

@@ -18,7 +18,7 @@ export default function ProposalTorForm({ proposalId, hasTor }: { proposalId: st
   async function submit() {
     const file = files[0];
     if (!file) return;
-    if (hasTor && !(await confirm({ title: "แทนที่ TOR?", message: "TOR เดิมจะถูกลบและใช้ไฟล์ใหม่แทน" }))) return;
+    if (hasTor && !(await confirm({ title: "แทนที่ TOR?", message: "TOR ใหม่จะแทน TOR เดิม ผลตรวจ TOR ตรงต้นฉบับที่ทำจากฉบับเดิมจะขึ้นต้องทำใหม่" }))) return;
     setError("");
     setPending(true);
     try {
