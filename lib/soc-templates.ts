@@ -14,6 +14,7 @@ type SocActor = Awaited<ReturnType<typeof requireSocActor>>;
 
 const MAX_NAME = 120;
 const NOT_DOCX = "เทมเพลต SOC ต้องเป็นไฟล์ Word (.docx) ที่ถูกต้อง";
+const OLD_DOC = "เทมเพลต SOC เป็น Word รุ่นเก่า (.doc) กรุณา Save As เป็น .docx แล้วอัปโหลดใหม่";
 
 // A template name as typed: trimmed, 1..120 characters. Throws the message the form shows.
 export function cleanTemplateName(raw: unknown): string {
@@ -30,6 +31,7 @@ export async function listSocTemplates() {
 
 // Throws, with a message for the user, when a file can't be a SOC Template: not a .docx, too big, or a table the builder can't fill.
 export function assertTemplateFile(file: { name: string; bytes: Uint8Array }): void {
+  if (path.extname(file.name).toLowerCase() === ".doc") throw new Error(OLD_DOC);
   if (path.extname(file.name).toLowerCase() !== ".docx" || !magicIsDocx(file.bytes)) throw new Error(NOT_DOCX);
   if (file.bytes.byteLength > MAX_SOC_FILE_BYTES) throw new Error(`ไฟล์ ${file.name} ต้องมีขนาดไม่เกิน 25 MB`);
   assertSocTemplate(file.bytes);

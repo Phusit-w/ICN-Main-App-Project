@@ -58,6 +58,12 @@ test("a valid template is added, kept on disk and listed with who added it", { s
   assert.equal(await prisma.auditLog.count({ where: { action: "SOC_TEMPLATE_ADDED", entityId: id } }), 1);
 });
 
+test("an old .doc template is refused with the Save As hint", async () => {
+  const { assertTemplateFile } = await import("@/lib/soc-templates");
+  assert.throws(() => assertTemplateFile({ name: "template.doc", bytes: VALID }), /Save As เป็น \.docx/);
+  assert.throws(() => assertTemplateFile({ name: "template.txt", bytes: VALID }), /ต้องเป็นไฟล์ Word \(\.docx\)/);
+});
+
 test("a template the builder can't fill is refused with the problem named, and nothing is kept", { skip }, async () => {
   signedIn = await user("anna");
   const response = await add("ผิด", NO_EMPTY_ROW);

@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (done). The TOR-vs-draft comparison is blocked by 12 (every sample TOR is scanned, see Findings).
 
-**Status:** blocked by 12 for the TOR-vs-draft comparison (2026-10-30: real-SOC survey, case groups A–K and the four scope decisions are written below; F moved to ticket 14, I to ticket 15; J can be done now)
+**Status:** blocked by 12 for the TOR-vs-draft comparison (2026-10-30: real-SOC survey, case groups A–K and the four scope decisions are written below; F moved to ticket 14, I to ticket 15; J DONE 2026-10-30: template upload names Save As for .doc; SOC upload already did)
 
 ## Samples (as found 2026-10-30; the folder is the source of truth)
 
